@@ -1,0 +1,43 @@
+name: Update Home Run Checklist
+
+on:
+  schedule:
+    # GitHub cron is UTC. This covers roughly 6:00pm-2:00am ET
+    # across both EDT (UTC-4) and EST (UTC-5), every 10 minutes.
+    - cron: "*/10 22,23 * * *"
+    - cron: "*/10 0,1,2,3,4,5,6 * * *"
+  workflow_dispatch: {}   # lets you trigger a manual run from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-checklist
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch today's home runs and update marks.json
+        run: python scripts/fetch_home_runs.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "hr-checklist-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if git diff --quiet -- data/marks.json; then
+            echo "No change in marks.json, skipping commit."
+          else
+            git add data/marks.json
+            git commit -m "Auto-update home run marks $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi

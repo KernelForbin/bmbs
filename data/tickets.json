@@ -1,0 +1,129 @@
+{
+  "note": "Keston Hiura has been removed from Joe's line. Joe now stands as a single bet on Christian Yelich (+920), potential payout $50.",
+  "windows": [
+    {
+      "title": "6:40 PM \u2013 6:45 PM ET Start Window",
+      "tickets": [
+        {
+          "name": "Ticket 1", "sub": "3-Leg",
+          "foot": "$3 bet by Kenny \u00b7 Potential payout $343.17",
+          "legs": [
+            {"id": "w0-t0-l0", "player": "Junior Caminero", "team": "TB", "meta": "Rays \u00b7 Bernie", "odds": "+280", "time": "6:40 PM"},
+            {"id": "w0-t0-l1", "player": "Lawrence Butler", "team": "ATH", "meta": "Athletics \u00b7 Noid", "odds": "+630", "time": "6:40 PM"},
+            {"id": "w0-t0-l2", "player": "Kyle Schwarber", "team": "PHI", "meta": "Phillies \u00b7 Joe", "odds": "+310", "time": "6:45 PM"}
+          ]
+        },
+        {
+          "name": "Ticket 2", "sub": "3-Leg",
+          "foot": "$3 bet by Memo \u00b7 Potential payout $567.63",
+          "legs": [
+            {"id": "w0-t1-l0", "player": "Mookie Betts", "team": "LAD", "meta": "Dodgers \u00b7 Bailey", "odds": "+450", "time": "6:40 PM"},
+            {"id": "w0-t1-l1", "player": "Trea Turner", "team": "PHI", "meta": "Phillies \u00b7 Bernie", "odds": "+610", "time": "6:45 PM"},
+            {"id": "w0-t1-l2", "player": "Luis Garcia", "team": "NYY", "meta": "Yankees \u00b7 Kevin", "odds": "+424", "time": "7:40 PM"}
+          ]
+        },
+        {
+          "name": "Ticket 3", "sub": "2-Leg",
+          "foot": "$6.50 bet by Memo \u00b7 Potential payout $209.56",
+          "legs": [
+            {"id": "w0-t2-l0", "player": "Riley Greene", "team": "DET", "meta": "Tigers \u00b7 Noid", "odds": "+410", "time": "7:07 PM"},
+            {"id": "w0-t2-l1", "player": "Oneil Cruz", "team": "PIT", "meta": "Pirates \u00b7 Kevin", "odds": "+520", "time": "6:40 PM"}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "7:10 PM ET Start Window",
+      "tickets": [
+        {
+          "name": "Ticket 4 \u00b7 Metropolitan Clash", "sub": "2-Leg",
+          "foot": "$6.50 bet by Memo \u00b7 Potential payout $105.94",
+          "legs": [
+            {"id": "w1-t0-l0", "player": "Francisco Lindor", "team": "NYM", "meta": "Mets \u00b7 Bailey", "odds": "+410", "time": "7:10 PM"},
+            {"id": "w1-t0-l1", "player": "Pete Alonso", "team": "NYM", "meta": "Orioles \u00b7 Francher", "odds": "+310", "time": "7:10 PM"}
+          ]
+        },
+        {
+          "name": "Ticket 5", "sub": "2-Leg",
+          "foot": "$6.50 bet by Memo \u00b7 Potential payout $218.08",
+          "legs": [
+            {"id": "w1-t1-l0", "player": "Coby Mayo", "team": "BAL", "meta": "Orioles \u00b7 Kenny", "odds": "+350", "time": "7:10 PM"},
+            {"id": "w1-t1-l1", "player": "Carson Benge", "team": "NYM", "meta": "Mets \u00b7 Memo", "odds": "+790", "time": "7:10 PM"}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "7:40 PM \u2013 7:45 PM ET Start Window",
+      "tickets": [
+        {
+          "name": "Ticket 6", "sub": "3-Leg",
+          "foot": "$3 bet by Memo \u00b7 Potential payout $509.76",
+          "legs": [
+            {"id": "w2-t0-l0", "player": "Cody Bellinger", "team": "NYY", "meta": "Yankees \u00b7 Bear", "odds": "+540", "time": "7:40 PM"},
+            {"id": "w2-t0-l1", "player": "Juan Soto", "team": "NYM", "meta": "Mets \u00b7 Kenny", "odds": "+330", "time": "7:10 PM"},
+            {"id": "w2-t0-l2", "player": "Jordan Walker", "team": "STL", "meta": "Cardinals \u00b7 Noid", "odds": "+490", "time": "7:45 PM"}
+          ]
+        },
+        {
+          "name": "Ticket 7", "sub": "3-Leg",
+          "foot": "$3 bet by Memo \u00b7 Potential payout $236.72",
+          "legs": [
+            {"id": "w2-t1-l0", "player": "Ben Rice", "team": "NYY", "meta": "Yankees \u00b7 Bear", "odds": "+320", "time": "7:40 PM"},
+            {"id": "w2-t1-l1", "player": "Austin Riley", "team": "ATL", "meta": "Braves \u00b7 Bailey", "odds": "+450", "time": "7:40 PM"},
+            {"id": "w2-t1-l2", "player": "Pete Crow-Armstrong", "team": "CHC", "meta": "Cubs \u00b7 Memo", "odds": "+360", "time": "7:40 PM"}
+          ]
+        },
+        {
+          "name": "Ticket 8", "sub": "3-Leg",
+          "foot": "$3 bet by Memo \u00b7 Potential payout $287.99",
+          "legs": [
+            {"id": "w2-t2-l0", "player": "Spencer Jones", "team": "NYY", "meta": "Yankees \u00b7 Bear", "odds": "+410", "time": "7:40 PM"},
+            {"id": "w2-t2-l1", "player": "Matt Olson", "team": "ATL", "meta": "Braves \u00b7 Francher", "odds": "+310", "time": "7:40 PM"},
+            {"id": "w2-t2-l2", "player": "Seiya Suzuki", "team": "CHC", "meta": "Cubs \u00b7 Kevin", "odds": "+480", "time": "7:40 PM"}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "8:10 PM \u2013 9:40 PM ET Start Window",
+      "tickets": [
+        {
+          "name": "Ticket 9", "sub": "2-Leg",
+          "foot": "$6.50 bet by Memo \u00b7 Potential payout $132.63",
+          "legs": [
+            {"id": "w3-t0-l0", "player": "Yordan Alvarez", "team": "HOU", "meta": "Astros \u00b7 Memo", "odds": "+285", "time": "8:10 PM"},
+            {"id": "w3-t0-l1", "player": "Jake Burger", "team": "TEX", "meta": "Rangers \u00b7 Joe", "odds": "+420", "time": "8:05 PM"}
+          ]
+        },
+        {
+          "name": "Ticket 10 \u00b7 Coors Field Launchpad", "sub": "2-Leg",
+          "foot": "$6.50 bet by Memo \u00b7 Potential payout $81.54",
+          "legs": [
+            {"id": "w3-t1-l0", "player": "Fernando Tatis Jr.", "team": "SD", "meta": "Padres \u00b7 Kenny", "odds": "+329", "time": "8:40 PM"},
+            {"id": "w3-t1-l1", "player": "Hunter Goodman", "team": "COL", "meta": "Rockies \u00b7 Francher", "odds": "+290", "time": "8:40 PM"}
+          ]
+        },
+        {
+          "name": "Ticket 11 \u00b7 Late Night West Coast Mash", "sub": "2-Leg",
+          "foot": "$6.50 bet by Memo \u00b7 Potential payout $127.47",
+          "legs": [
+            {"id": "w3-t2-l0", "player": "Mickey Moniak", "team": "COL", "meta": "Rockies \u00b7 Bernie", "odds": "+440", "time": "8:40 PM"},
+            {"id": "w3-t2-l1", "player": "Cal Raleigh", "team": "SEA", "meta": "Mariners \u00b7 Joe", "odds": "+320", "time": "9:38 PM"}
+          ]
+        }
+      ]
+    }
+  ],
+  "singles": [
+    {"id": "single-0", "who": "BEAR", "player": "Anthony Volpe", "team": "NYY", "meta": "Yankees \u00b7 7:40 PM ET \u00b7 $5 bet by Memo", "odds": "+820", "pp": "PP $43"},
+    {"id": "single-1", "who": "BERNIE", "player": "Ezequiel Tovar", "team": "COL", "meta": "Rockies \u00b7 8:40 PM ET \u00b7 $5 bet by Memo", "odds": "+710", "pp": "PP $40.50"},
+    {"id": "single-2", "who": "KENNY", "player": "Jake McCarthy", "team": "SD", "meta": "Padres \u00b7 8:40 PM ET \u00b7 $5 bet by Kenny", "odds": "+980", "pp": "PP $54"},
+    {"id": "single-3", "who": "NOID", "player": "Jakob Marsee", "team": "MIA", "meta": "Marlins \u00b7 9:40 PM ET \u00b7 $5 bet by Noid", "odds": "", "pp": "PP $78"},
+    {"id": "single-4", "who": "JOE", "player": "Christian Yelich", "team": "MIL", "meta": "Brewers \u00b7 6:40 PM ET \u00b7 $5 bet by Memo", "odds": "+920", "pp": "PP $50"},
+    {"id": "single-5", "who": "BAILEY", "player": "Ivan Herrera", "team": "STL", "meta": "Cardinals \u00b7 6:40 PM ET \u00b7 $5 bet by Memo", "odds": "+700", "pp": "PP $44.50"},
+    {"id": "single-6", "who": "KEVIN", "player": "Bo Bichette", "team": "NYM", "meta": "Mets \u00b7 7:10 PM ET \u00b7 $5 bet by Memo", "odds": "+780", "pp": "PP $45"},
+    {"id": "single-7", "who": "FRANCHER", "player": "Brandon Nimmo", "team": "TEX", "meta": "Rangers \u00b7 8:05 PM ET \u00b7 $5 bet by Memo", "odds": "+730", "pp": "PP $40.50"},
+    {"id": "single-8", "who": "MEMO", "player": "Cole Carrigg", "team": "COL", "meta": "Rockies \u00b7 8:40 PM ET \u00b7 $5 bet by Memo", "odds": "+820", "pp": "PP $56.50"}
+  ]
+}

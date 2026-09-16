@@ -1,6 +1,6 @@
 {
   "date": "2026-09-16",
-  "updated_at": "2026-09-16T07:29:24.349829-04:00",
+  "updated_at": "2026-09-16T19:59:02.147567-04:00",
   "marks": {
     "w0-t0-l0": "pending",
     "w0-t0-l1": "pending",
@@ -9,9 +9,9 @@
     "w0-t1-l1": "pending",
     "w0-t1-l2": "pending",
     "w0-t2-l0": "pending",
-    "w0-t2-l1": "pending",
+    "w0-t2-l1": "hit",
     "w1-t0-l0": "pending",
-    "w1-t0-l1": "pending",
+    "w1-t0-l1": "hit",
     "w1-t1-l0": "pending",
     "w1-t1-l1": "pending",
     "w2-t0-l0": "pending",

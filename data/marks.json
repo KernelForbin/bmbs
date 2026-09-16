@@ -1,6 +1,6 @@
 {
   "date": "2026-09-15",
-  "updated_at": "2026-09-15T21:24:37.719227-04:00",
+  "updated_at": "2026-09-15T22:21:18.810722-04:00",
   "marks": {
     "w0-t0-l0": "hit",
     "w0-t0-l1": "pending",
@@ -11,7 +11,7 @@
     "w0-t2-l0": "pending",
     "w0-t2-l1": "pending",
     "w1-t0-l0": "pending",
-    "w1-t0-l1": "pending",
+    "w1-t0-l1": "hit",
     "w1-t1-l0": "pending",
     "w1-t1-l1": "hit",
     "w2-t0-l0": "hit",
@@ -20,10 +20,10 @@
     "w2-t1-l0": "pending",
     "w2-t1-l1": "pending",
     "w2-t1-l2": "pending",
-    "w2-t2-l0": "pending",
+    "w2-t2-l0": "hit",
     "w2-t2-l1": "pending",
     "w2-t2-l2": "pending",
-    "w3-t0-l0": "pending",
+    "w3-t0-l0": "hit",
     "w3-t0-l1": "pending",
     "w3-t1-l0": "hit",
     "w3-t1-l1": "pending",
@@ -37,6 +37,6 @@
     "single-5": "pending",
     "single-6": "pending",
     "single-7": "pending",
-    "single-8": "pending"
+    "single-8": "hit"
   }
 }

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Home Run Checklist — auto-updating pipeline
 
 Static page (`index.html`) that reads `data/tickets.json` (your slate) and
@@ -100,3 +101,6 @@ counts each run.
 - The Stats API endpoint used here (`/v1.1/game/{gamePk}/feed/live`) is
   public but undocumented/unofficial. It's stable and widely used by the
   open-source baseball community, but MLB could change it without notice.
+=======
+# bmbs
+>>>>>>> 4f4e8cc96b7add5f6ae60e2b2094d14b0507bd8a

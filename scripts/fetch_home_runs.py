@@ -54,10 +54,17 @@ def todays_game_pks(date_str):
     return game_pks
 
 
-def home_runs_and_status_for_game(game_pk):
+def game_snapshot(game_pk):
     """
-    Returns (set of normalized batter names who homered, is_final: bool)
-    for one game, read from the live/final Gumbo feed.
+    Returns a dict for one game, read from the live/final Gumbo feed:
+      { "is_final": bool,
+        "hr_names": set of normalized batter names who homered,
+        "roster_names": set of normalized names of every player who
+                         appeared in this game's boxscore (both teams) }
+
+    Using the boxscore roster (not a hand-typed team code) is what lets us
+    figure out which specific game a player was actually in tonight,
+    regardless of what team they were labeled with in tickets.json.
     """
     url = f"{API_BASE}/v1.1/game/{game_pk}/feed/live"
     data = get_json(url)
@@ -73,7 +80,16 @@ def home_runs_and_status_for_game(game_pk):
             if batter:
                 hr_names.add(normalize_name(batter))
 
-    return hr_names, is_final
+    roster_names = set()
+    boxscore_teams = data.get("liveData", {}).get("boxscore", {}).get("teams", {})
+    for side in ("away", "home"):
+        players = boxscore_teams.get(side, {}).get("players", {})
+        for _, pdata in players.items():
+            full_name = pdata.get("person", {}).get("fullName")
+            if full_name:
+                roster_names.add(normalize_name(full_name))
+
+    return {"is_final": is_final, "hr_names": hr_names, "roster_names": roster_names}
 
 
 def main():
@@ -101,35 +117,37 @@ def main():
         write_marks(marks, today_et, note="no games found")
         return
 
-    all_hr_names = set()
-    final_teams = set()   # teams whose game is Final
-    started_teams = set() # teams whose game is Live or Final (i.e. not Preview)
+    all_hr_names = set()          # every player who's homered today, across all games
+    final_roster_names = set()    # players whose game is Final and did NOT homer today
+    seen_roster_names = set()     # players who appeared in any boxscore today (any status)
 
     for g in games:
         try:
-            hr_names, is_final = home_runs_and_status_for_game(g["gamePk"])
+            snap = game_snapshot(g["gamePk"])
         except Exception as e:
             print(f"WARN: failed to fetch game {g['gamePk']}: {e}", file=sys.stderr)
             continue
-        all_hr_names |= hr_names
-        if g["status"] != "Preview":
-            started_teams.add(g["away"])
-            started_teams.add(g["home"])
-        if is_final:
-            final_teams.add(g["away"])
-            final_teams.add(g["home"])
+        all_hr_names |= snap["hr_names"]
+        seen_roster_names |= snap["roster_names"]
+        if snap["is_final"]:
+            final_roster_names |= (snap["roster_names"] - snap["hr_names"])
 
     marks = {}
     for leg in all_legs:
         norm = normalize_name(leg["player"])
-        team = leg["team"]
         if norm in all_hr_names:
             marks[leg["id"]] = "hit"
-        elif team in final_teams:
-            # that player's game is over and they never homered
+        elif norm in final_roster_names:
+            # this exact player appeared in a boxscore whose game is Final,
+            # and did not homer
             marks[leg["id"]] = "miss"
         else:
             marks[leg["id"]] = "pending"
+            if norm not in seen_roster_names:
+                # didn't appear in any boxscore at all today — likely a name
+                # mismatch (nickname/suffix) worth checking manually
+                print(f"NOTE: '{leg['player']}' (id {leg['id']}) not found in any "
+                      f"boxscore today. Check spelling against MLB roster name.")
 
     write_marks(marks, today_et)
 

@@ -433,6 +433,8 @@
       "team": "COL",
       "meta": "SD @ COL &middot; 3:10 PM ET &middot; $5.00 bet",
       "odds": "+870",
+      "stake": 5.0,
+      "payout": 58.95,
       "pp": "PP $58.95"
     },
     {
@@ -442,6 +444,8 @@
       "team": "NYM",
       "meta": "BAL @ NYM &middot; 7:10 PM ET &middot; $5.00 bet",
       "odds": "+820",
+      "stake": 5.0,
+      "payout": 46.0,
       "pp": "PP $46.00"
     },
     {
@@ -451,6 +455,8 @@
       "team": "STL",
       "meta": "SF @ STL &middot; 1:15 PM ET &middot; $5.00 bet",
       "odds": "+560",
+      "stake": 5.0,
+      "payout": 29.0,
       "pp": "PP $29.00"
     },
     {
@@ -460,6 +466,8 @@
       "team": "SD",
       "meta": "SD @ COL &middot; 3:10 PM ET &middot; $5.00 bet",
       "odds": "+800",
+      "stake": 5.0,
+      "payout": 45.0,
       "pp": "PP $45.00"
     },
     {
@@ -469,6 +477,8 @@
       "team": "MIL",
       "meta": "DET @ TOR &middot; 3:07 PM ET &middot; $5.00 bet",
       "odds": "+630",
+      "stake": 5.0,
+      "payout": 36.5,
       "pp": "PP $36.50"
     },
     {
@@ -478,6 +488,8 @@
       "team": "PIT",
       "meta": "MIL @ PIT &middot; 12:35 PM ET &middot; $5.00 bet",
       "odds": "+870",
+      "stake": 5.0,
+      "payout": 51.0,
       "pp": "PP $51.00"
     },
     {
@@ -487,6 +499,8 @@
       "team": "PHI",
       "meta": "PHI @ NYM &middot; 7:15 PM ET &middot; $5.00 bet",
       "odds": "+800",
+      "stake": 5.0,
+      "payout": 46.0,
       "pp": "PP $46.00"
     },
     {
@@ -496,6 +510,8 @@
       "team": "DET",
       "meta": "DET @ TOR &middot; 3:07 PM ET &middot; $5.00 bet",
       "odds": "+980",
+      "stake": 5.0,
+      "payout": 50.0,
       "pp": "PP $50.00"
     }
   ]

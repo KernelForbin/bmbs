@@ -260,6 +260,8 @@ def parse(text, team_by_name, canonical_by_norm):
             "team": s["team"],
             "meta": " &middot; ".join(meta_parts),
             "odds": s["odds"],
+            "stake": s["stake"],
+            "payout": s["pp"],
             "pp": f'PP ${s["pp"]:,.2f}',
         })
 

@@ -69,7 +69,7 @@
   .bettor-section.collapsed .bettor-chevron { transform:rotate(-90deg); }
   .bettor-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 8px; }
   .bettor-body { display:block; }
-  .bettor-section.collapsed .bettor-body, .bettor-section.collapsed .bettor-sub { display:none; }
+  .bettor-section.collapsed .bettor-body { display:none; }
   .bettor-row { padding:11px 2px; border-top:1px solid var(--panel-line); display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .bettor-row:first-of-type { border-top:none; }
   .bettor-name { font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; color:var(--green); flex:none; min-width:78px; }
@@ -161,11 +161,11 @@
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
 
     <div class="payout-box">
-      <span class="lbl">Total payout &mdash; parlays already hit</span>
+      <span class="lbl">Total payout &mdash; bets already hit</span>
       <span class="amt" id="total-payout">$0.00</span>
     </div>
 
-    <p class="stat-row-label">PARLAYS &middot; tap to filter below</p>
+    <p class="stat-row-label">BETS &middot; tap to filter below</p>
     <div class="scoreboard">
       <div class="score-chip pending clickable" id="chip-open" onclick="toggleFilter('open')"><div class="num" id="count-parlay-open">0</div><div class="lbl">OPEN</div></div>
       <div class="score-chip hit clickable" id="chip-hit" onclick="toggleFilter('hit')"><div class="num" id="count-parlay-hit">0</div><div class="lbl">HIT</div></div>
@@ -188,12 +188,12 @@
 
   <div id="err-box"></div>
 
-  <div class="bettor-section" id="bettor-section">
+  <div class="bettor-section collapsed" id="bettor-section">
     <div class="bettor-head" onclick="toggleBettorSection()">
       <p class="bettor-title">Bettor Tracker</p>
       <span class="bettor-chevron">&#9660;</span>
     </div>
-    <p class="bettor-sub">Every leg attributed to each person, across all cards and singles.</p>
+    <p class="bettor-sub" id="bettor-sub">Tap to expand &mdash; see hit/miss breakdown per person.</p>
     <div class="bettor-body" id="bettor-list"></div>
   </div>
 
@@ -210,7 +210,8 @@ let TICKETS = null;
 let RESULTS = { hitNames: new Set(), rosterStatus: new Map(), allGamesFinal: false, ready: false };
 let pollTimer = null;
 let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'
-let EVALUATED = [];          // [{ win, tk, states, evalRes }]
+let EVALUATED = [];          // [{ win, tk, states, evalRes }]  (parlay cards)
+let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
 
 // ---------------- MLB Stats API polling ----------------
 
@@ -364,6 +365,15 @@ function ticketMatchesFilter(evalRes) {
   return true;
 }
 
+// A single bet's outcome, in the same vocabulary as a parlay's: 'hit' | 'dead' | 'live'.
+// A single whose player never played (state 'na') hasn't technically missed, so it
+// counts as still-open, same policy as an all-N/A parlay counting as void/open.
+function singleOutcome(state) {
+  if (state === "hit") return "hit";
+  if (state === "miss") return "dead";
+  return "live";
+}
+
 function whoKey(rawWho) {
   return (rawWho || "").split(/[\u2014-]/)[0].trim();
 }
@@ -388,12 +398,12 @@ function badge(state) {
 }
 
 // Full pass: computes scoreboard totals, bettor stats, and the EVALUATED
-// array content windows are rendered from. Called once per poll.
+// arrays content is rendered from (both parlays and singles). Called once per poll.
 function computeAll() {
   if (!TICKETS) return;
 
   let legHit = 0, legMiss = 0, legNa = 0, legLive = 0, legNotStarted = 0;
-  let parlayOpen = 0, parlayHit = 0, parlayMiss = 0;
+  let betOpen = 0, betHit = 0, betMiss = 0;
   let totalPayoutHit = 0;
   const bettors = new Map();
 
@@ -418,9 +428,9 @@ function computeAll() {
       const evalRes = evaluateTicket(tk, states);
       EVALUATED.push({ win, tk, states, evalRes });
 
-      if (evalRes.outcome === "dead") parlayMiss++;
-      else if (evalRes.outcome === "hit") { parlayHit++; totalPayoutHit += evalRes.adjustedPayout; }
-      else if (isOpenOutcome(evalRes.outcome)) parlayOpen++;
+      if (evalRes.outcome === "dead") betMiss++;
+      else if (evalRes.outcome === "hit") { betHit++; totalPayoutHit += evalRes.adjustedPayout; }
+      else if (isOpenOutcome(evalRes.outcome)) betOpen++;
 
       tk.legs.forEach((leg, i) => {
         const state = states[i];
@@ -434,9 +444,17 @@ function computeAll() {
     });
   });
 
+  EVALUATED_SINGLES = [];
   TICKETS.singles.forEach((s) => {
     const state = stateForPlayer(s.player);
+    const outcome = singleOutcome(state);
+    EVALUATED_SINGLES.push({ s, state, outcome });
     countLeg(state);
+
+    if (outcome === "dead") betMiss++;
+    else if (outcome === "hit") { betHit++; totalPayoutHit += (s.payout || 0); }
+    else betOpen++;
+
     const b = touchBettor(s.who);
     if (b) {
       if (state === "hit") { b.hit++; const o = oddsToNumber(s.odds); if (o !== null) b.hitOdds.push(o); }
@@ -449,9 +467,9 @@ function computeAll() {
   document.getElementById("count-na").textContent = legNa;
   document.getElementById("count-live").textContent = legLive;
   document.getElementById("count-not-started").textContent = legNotStarted;
-  document.getElementById("count-parlay-open").textContent = parlayOpen;
-  document.getElementById("count-parlay-hit").textContent = parlayHit;
-  document.getElementById("count-parlay-miss").textContent = parlayMiss;
+  document.getElementById("count-parlay-open").textContent = betOpen;
+  document.getElementById("count-parlay-hit").textContent = betHit;
+  document.getElementById("count-parlay-miss").textContent = betMiss;
   document.getElementById("total-payout").textContent = fmtMoney(totalPayoutHit);
 
   const rows = Array.from(bettors.values()).map((stat) => {
@@ -476,8 +494,8 @@ function computeAll() {
     `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live MLB results."}`;
 }
 
-// Renders #content (ticket windows + singles) from EVALUATED, respecting CURRENT_FILTER.
-// Cheap enough to call on every filter click without re-polling.
+// Renders #content (ticket windows + singles) from EVALUATED / EVALUATED_SINGLES,
+// respecting CURRENT_FILTER. Cheap enough to call on every filter click without re-polling.
 function renderContent() {
   const root = document.getElementById("content");
   let html = "";
@@ -519,13 +537,16 @@ function renderContent() {
   });
 
   if (!anyRendered && CURRENT_FILTER) {
-    html += `<p class="empty-filter-note">No parlays match this filter right now.</p>`;
+    html += `<p class="empty-filter-note">No parlay cards match this filter right now.</p>`;
   }
 
+  const filteredSingles = EVALUATED_SINGLES.filter(e => ticketMatchesFilter({ outcome: e.outcome }));
   html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
     <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
-  TICKETS.singles.forEach((s) => {
-    const state = stateForPlayer(s.player);
+  if (filteredSingles.length === 0) {
+    html += `<p class="empty-filter-note" style="padding:12px 0;">No straight bets match this filter right now.</p>`;
+  }
+  filteredSingles.forEach(({ s, state }) => {
     html += `<div class="single-row state-${state}">
       <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}</div><div class="single-meta">${s.meta}</div>
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
@@ -543,7 +564,7 @@ function updateFilterUI() {
   ["chip-open", "chip-hit", "chip-dead"].forEach(id => document.getElementById(id).classList.remove("active-filter"));
   const statusEl = document.getElementById("filter-status");
   if (!CURRENT_FILTER) { statusEl.classList.remove("active"); return; }
-  const map = { open: ["chip-open", "Showing only OPEN parlays"], hit: ["chip-hit", "Showing only HIT parlays"], dead: ["chip-dead", "Showing only MISSED parlays"] };
+  const map = { open: ["chip-open", "Showing only OPEN bets"], hit: ["chip-hit", "Showing only HIT bets"], dead: ["chip-dead", "Showing only MISSED bets"] };
   const [chipId, label] = map[CURRENT_FILTER];
   document.getElementById(chipId).classList.add("active-filter");
   document.getElementById("filter-status-text").textContent = label;
@@ -557,7 +578,12 @@ function toggleFilter(key) {
 }
 
 function toggleBettorSection() {
-  document.getElementById("bettor-section").classList.toggle("collapsed");
+  const section = document.getElementById("bettor-section");
+  section.classList.toggle("collapsed");
+  const collapsed = section.classList.contains("collapsed");
+  document.getElementById("bettor-sub").textContent = collapsed
+    ? "Tap to expand \u2014 see hit/miss breakdown per person."
+    : "Every leg attributed to each person, across all cards and singles.";
 }
 
 function render() {

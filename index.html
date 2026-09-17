@@ -70,7 +70,9 @@
   .bettor-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 8px; }
   .bettor-body { display:block; }
   .bettor-section.collapsed .bettor-body { display:none; }
-  .bettor-row { padding:11px 2px; border-top:1px solid var(--panel-line); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .bettor-row { padding:11px 2px; border-top:1px solid var(--panel-line); display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; user-select:none; border-radius:6px; transition:background .15s ease; }
+  .bettor-row:hover { background:rgba(255,255,255,0.03); }
+  .bettor-row.active-filter { background:var(--green-dim); }
   .bettor-row:first-of-type { border-top:none; }
   .bettor-name { font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; color:var(--green); flex:none; min-width:78px; }
   .bettor-stats { display:flex; gap:14px; flex:1; justify-content:flex-end; }
@@ -97,6 +99,8 @@
   .leg-player { font-size:14px; font-weight:600; line-height:1.35; word-wrap:break-word; }
   .leg-meta { font-size:12px; color:var(--text-dim); line-height:1.4; margin-top:2px; word-wrap:break-word; }
   .leg-live-context { font-size:10.5px; color:var(--amber); line-height:1.4; margin-top:3px; word-wrap:break-word; }
+  .leg-live-context.pinch-warning { color:var(--yellow); }
+  .leg-live-context.pinch-warning b { color:var(--yellow); }
   .leg-right { flex:none; text-align:right; }
   .leg-odds { font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:var(--amber); }
   .leg-time { font-size:11px; color:var(--text-faint); margin-top:2px; }
@@ -163,7 +167,7 @@
     <p class="note" style="font-size:10.5px; margin-top:4px;">Remaining-AB estimates on in-progress legs use league-average odds (not this specific hitter's stats) and assume a 9-inning game &mdash; treat as a rough estimate, not a guarantee.</p>
 
     <div class="payout-box">
-      <span class="lbl">Total payout &mdash; bets already hit</span>
+      <span class="lbl">Estimated payout based on bets hit</span>
       <span class="amt" id="total-payout">$0.00</span>
     </div>
 
@@ -178,13 +182,17 @@
       <span class="clear-btn" onclick="toggleFilter(null)">Clear &times;</span>
     </div>
 
-    <p class="stat-row-label">LEGS</p>
+    <p class="stat-row-label">LEGS &middot; tap to filter below</p>
     <div class="scoreboard legs-row">
-      <div class="score-chip hit"><div class="num" id="count-hit">0</div><div class="lbl">HIT</div></div>
-      <div class="score-chip miss"><div class="num" id="count-miss">0</div><div class="lbl">MISSED</div></div>
-      <div class="score-chip na"><div class="num" id="count-na">0</div><div class="lbl">N/A</div></div>
-      <div class="score-chip live-game"><div class="num" id="count-live">0</div><div class="lbl">LIVE</div></div>
-      <div class="score-chip pending"><div class="num" id="count-not-started">0</div><div class="lbl">NOT STARTED</div></div>
+      <div class="score-chip hit clickable" id="leg-chip-hit" onclick="toggleLegFilter('hit')"><div class="num" id="count-hit">0</div><div class="lbl">HIT</div></div>
+      <div class="score-chip miss clickable" id="leg-chip-miss" onclick="toggleLegFilter('miss')"><div class="num" id="count-miss">0</div><div class="lbl">MISSED</div></div>
+      <div class="score-chip na clickable" id="leg-chip-na" onclick="toggleLegFilter('na')"><div class="num" id="count-na">0</div><div class="lbl">N/A</div></div>
+      <div class="score-chip live-game clickable" id="leg-chip-live" onclick="toggleLegFilter('live')"><div class="num" id="count-live">0</div><div class="lbl">LIVE</div></div>
+      <div class="score-chip pending clickable" id="leg-chip-not_started" onclick="toggleLegFilter('not_started')"><div class="num" id="count-not-started">0</div><div class="lbl">NOT STARTED</div></div>
+    </div>
+    <div class="filter-status" id="leg-filter-status">
+      <span id="leg-filter-status-text"></span>
+      <span class="clear-btn" onclick="toggleLegFilter(null)">Clear &times;</span>
     </div>
   </header>
 
@@ -197,6 +205,10 @@
     </div>
     <p class="bettor-sub" id="bettor-sub">Tap to expand &mdash; see hit/miss breakdown per person.</p>
     <div class="bettor-body" id="bettor-list"></div>
+    <div class="filter-status" id="bettor-filter-status">
+      <span id="bettor-filter-status-text"></span>
+      <span class="clear-btn" onclick="toggleBettorFilter(null)">Clear &times;</span>
+    </div>
   </div>
 
   <div id="content"></div>
@@ -211,7 +223,9 @@ const API_BASE = "https://statsapi.mlb.com/api";
 let TICKETS = null;
 let RESULTS = { hitNames: new Set(), rosterStatus: new Map(), gameInfo: new Map(), allGamesFinal: false, ready: false };
 let pollTimer = null;
-let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'
+let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'   (bet outcome)
+let LEG_FILTER = null;       // null | 'hit' | 'miss' | 'na' | 'live' | 'not_started'
+let BETTOR_FILTER = null;    // null | lowercased bettor key
 let EVALUATED = [];          // [{ win, tk, states, evalRes }]  (parlay cards)
 let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
 
@@ -270,10 +284,14 @@ async function getGameSnapshot(gamePk) {
   });
 
   const rosterNames = new Set();
-  // normalized name -> starting batting-order slot (1-9), only set for
-  // players who were in the starting lineup; bench/pinch entries without
-  // a recognizable slot are left out of order-based projections.
+  // normalized name -> starting batting-order slot (1-9) + side, only set
+  // for players who were in the starting lineup; bench/pinch entries
+  // without a recognizable slot are left out of order-based projections.
   const orderSlot = new Map();
+  // side -> slot(1-9) -> [{name, orderFull}], every player who has ever
+  // held that batting-order slot today (starter + any substitutes), used
+  // to detect if our tracked hitter has since been pinch-hit for.
+  const slotHolders = { away: {}, home: {} };
   const boxTeams = (data.liveData && data.liveData.boxscore && data.liveData.boxscore.teams) || {};
   ["away", "home"].forEach(side => {
     const players = (boxTeams[side] && boxTeams[side].players) || {};
@@ -283,8 +301,14 @@ async function getGameSnapshot(gamePk) {
       const norm = normalizeName(full);
       rosterNames.add(norm);
       if (p.battingOrder) {
-        const slot = parseInt(String(p.battingOrder)[0], 10);
-        if (!Number.isNaN(slot) && slot >= 1 && slot <= 9) orderSlot.set(norm, { slot, side });
+        const orderStr = String(p.battingOrder);
+        const slot = parseInt(orderStr[0], 10);
+        const orderFull = parseInt(orderStr, 10);
+        if (!Number.isNaN(slot) && slot >= 1 && slot <= 9 && !Number.isNaN(orderFull)) {
+          orderSlot.set(norm, { slot, side, orderFull });
+          if (!slotHolders[side][slot]) slotHolders[side][slot] = [];
+          slotHolders[side][slot].push({ name: full, orderFull });
+        }
       }
     });
   });
@@ -325,7 +349,7 @@ async function getGameSnapshot(gamePk) {
     nextUpSlot[side] = slot;
   });
 
-  return { status, hrNames, rosterNames, orderSlot, inning, halfState, outs, nextUpSlot, gamePk };
+  return { status, hrNames, rosterNames, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, gamePk };
 }
 
 // How many more outs a team's side needs to record before the (assumed
@@ -388,6 +412,18 @@ function battingContextFor(playerName, side, gamePk) {
   if (!game || !game.inning) return null;
   const info = game.orderSlot.get(norm);
   if (!info) return null; // not a starter with a known lineup slot
+
+  // Has someone with a higher batting-order suffix taken over this slot
+  // since our player's own entry? If so, our player has been pulled
+  // (pinch hit for, pinch run for, etc.) and won't bat again this game.
+  const holders = (game.slotHolders[side] && game.slotHolders[side][info.slot]) || [];
+  const currentHolder = holders.reduce((a, b) => (!a || b.orderFull > a.orderFull ? b : a), null);
+  const substitutedBy = (currentHolder && currentHolder.orderFull > info.orderFull) ? currentHolder.name : null;
+
+  if (substitutedBy) {
+    return { inning: game.inning, halfState: game.halfState, slot: info.slot, substitutedBy, probAtLeastOne: 0, expected: 0 };
+  }
+
   const nextSlot = game.nextUpSlot[side];
   if (!nextSlot) return null;
   const d = (info.slot - nextSlot + 9) % 9;
@@ -395,7 +431,7 @@ function battingContextFor(playerName, side, gamePk) {
   const { probAtLeastOne, expected } = atBatEstimate(d, r, LEAGUE_OUT_RATE);
   return {
     inning: game.inning, halfState: game.halfState, slot: info.slot,
-    probAtLeastOne, expected
+    probAtLeastOne, expected, substitutedBy: null
   };
 }
 
@@ -403,7 +439,7 @@ async function pollOnce() {
   const gamePks = await getTodaysGamePks();
 
   if (gamePks.length === 0) {
-    RESULTS = { hitNames: new Set(), rosterStatus: new Map(), gameInfo: new Map(), allGamesFinal: false, ready: true, noGames: true };
+    RESULTS = { hitNames: new Set(), rosterStatus: new Map(), substitutedOut: new Set(), gameInfo: new Map(), allGamesFinal: false, ready: true, noGames: true };
     return;
   }
 
@@ -413,6 +449,7 @@ async function pollOnce() {
   const rosterStatus = new Map(); // normalized name -> 'live' | 'final'
   const rosterSide = new Map();   // normalized name -> {side, gamePk}
   const gameInfo = new Map();     // gamePk -> snapshot
+  const substitutedOut = new Set(); // normalized name -> pulled from the game, no MLB re-entry rule so no more ABs possible
   let allFinal = true;
 
   snapshots.forEach(snap => {
@@ -420,29 +457,39 @@ async function pollOnce() {
     snap.hrNames.forEach(n => hitNames.add(n));
     if (snap.status !== "preview") {
       snap.rosterNames.forEach(n => rosterStatus.set(n, snap.status));
-      snap.orderSlot.forEach((info, n) => rosterSide.set(n, { side: info.side, gamePk: snap.gamePk }));
+      snap.orderSlot.forEach((info, n) => {
+        rosterSide.set(n, { side: info.side, gamePk: snap.gamePk });
+        const holders = (snap.slotHolders[info.side] && snap.slotHolders[info.side][info.slot]) || [];
+        const currentHolder = holders.reduce((a, b) => (!a || b.orderFull > a.orderFull ? b : a), null);
+        if (currentHolder && currentHolder.orderFull > info.orderFull) substitutedOut.add(n);
+      });
     }
     gameInfo.set(snap.gamePk, snap);
     if (snap.status !== "final") allFinal = false;
   });
 
-  RESULTS = { hitNames, rosterStatus, rosterSide, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
+  RESULTS = { hitNames, rosterStatus, rosterSide, substitutedOut, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
 }
 
-// five possible states: hit, miss, na, live (game started, no HR yet), not_started
+// six possible states: hit, miss, na, live (game started, no HR yet), not_started
 function stateForPlayer(playerName) {
   const norm = normalizeName(playerName);
   if (!RESULTS.ready) return "not_started";
   if (RESULTS.hitNames.has(norm)) return "hit";
+  // MLB has no re-entry rule: once pulled for a pinch hitter (or any
+  // substitute), a player is guaranteed zero further plate appearances,
+  // so we can resolve them to "miss" immediately rather than waiting for
+  // the whole game to go Final.
+  if (RESULTS.substitutedOut && RESULTS.substitutedOut.has(norm)) return "miss";
   if (RESULTS.rosterStatus.has(norm)) {
     return RESULTS.rosterStatus.get(norm) === "final" ? "miss" : "live";
   }
   return RESULTS.allGamesFinal ? "na" : "not_started";
 }
 
-// Returns { inningLabel, probAtLeastOne, expected } for a currently-live
-// player, or null if there isn't enough info to estimate (not a tracked
-// lineup slot, game not actually in progress, etc).
+// Returns { inningLabel, probAtLeastOne, expected, substitutedBy } for a
+// currently-live player, or null if there isn't enough info to estimate
+// (not a tracked lineup slot, game not actually in progress, etc).
 function liveContextForPlayer(playerName) {
   const norm = normalizeName(playerName);
   const loc = RESULTS.rosterSide && RESULTS.rosterSide.get(norm);
@@ -454,7 +501,8 @@ function liveContextForPlayer(playerName) {
     inningLabel: `${halfWord} ${ctx.inning}`.trim(),
     slot: ctx.slot,
     probAtLeastOne: ctx.probAtLeastOne,
-    expected: ctx.expected
+    expected: ctx.expected,
+    substitutedBy: ctx.substitutedBy || null
   };
 }
 
@@ -550,6 +598,10 @@ function badge(state) {
 function liveContextHtml(playerName) {
   const ctx = liveContextForPlayer(playerName);
   if (!ctx) return "";
+  if (ctx.substitutedBy) {
+    return `<div class="leg-live-context pinch-warning">&#9888; ${ctx.inningLabel} &middot; pinch hit for by <b>${ctx.substitutedBy}</b>
+      &mdash; no more ABs expected. May be protected by your book's Pinch Hit Protection policy (check their rules).</div>`;
+  }
   const pct = Math.round(ctx.probAtLeastOne * 100);
   const exp = ctx.expected.toFixed(1);
   return `<div class="leg-live-context">&#9918; ${ctx.inningLabel} &middot; batting ${ordinal(ctx.slot)}
@@ -636,14 +688,14 @@ function computeAll() {
   document.getElementById("count-parlay-miss").textContent = betMiss;
   document.getElementById("total-payout").textContent = fmtMoney(totalPayoutHit);
 
-  const rows = Array.from(bettors.values()).map((stat) => {
+  const rows = Array.from(bettors.entries()).map(([key, stat]) => {
     const avg = stat.hitOdds.length ? stat.hitOdds.reduce((a, b) => a + b, 0) / stat.hitOdds.length : null;
     const max = stat.hitOdds.length ? Math.max(...stat.hitOdds) : null;
-    return { name: stat.display, hit: stat.hit, miss: stat.miss, avg, max };
+    return { key, name: stat.display, hit: stat.hit, miss: stat.miss, avg, max };
   }).sort((a, b) => b.hit - a.hit || a.name.localeCompare(b.name));
 
   const bettorHtml = rows.map(r => `
-    <div class="bettor-row">
+    <div class="bettor-row${BETTOR_FILTER === r.key ? " active-filter" : ""}" onclick="toggleBettorFilter('${r.key}')">
       <div class="bettor-name">${r.name}</div>
       <div class="bettor-stats">
         <div class="bettor-stat hit"><div class="num">${r.hit}</div><div class="lbl">HIT</div></div>
@@ -658,8 +710,15 @@ function computeAll() {
     `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live MLB results."}`;
 }
 
+function legPassesFilters(state, rawWho) {
+  if (LEG_FILTER && state !== LEG_FILTER) return false;
+  if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return false;
+  return true;
+}
+
 // Renders #content (ticket windows + singles) from EVALUATED / EVALUATED_SINGLES,
-// respecting CURRENT_FILTER. Cheap enough to call on every filter click without re-polling.
+// respecting CURRENT_FILTER (bet outcome), LEG_FILTER (leg state), and
+// BETTOR_FILTER (person). Cheap enough to call on every filter click without re-polling.
 function renderContent() {
   const root = document.getElementById("content");
   let html = "";
@@ -667,15 +726,22 @@ function renderContent() {
 
   TICKETS.windows.forEach((win) => {
     const items = EVALUATED.filter(e => e.win === win && ticketMatchesFilter(e.evalRes));
-    if (items.length === 0) return;
+    const rendered = [];
+    items.forEach(({ tk, states, evalRes }) => {
+      const visibleLegIdx = tk.legs.map((leg, i) => legPassesFilters(states[i], leg.who) ? i : -1).filter(i => i >= 0);
+      if (visibleLegIdx.length === 0) return; // no legs survive leg/bettor filters -> hide this ticket
+      rendered.push({ tk, states, evalRes, visibleLegIdx });
+    });
+    if (rendered.length === 0) return;
     anyRendered = true;
     html += `<div class="window"><p class="window-title"><span class="dot"></span>${win.title}</p>`;
-    items.forEach(({ tk, states, evalRes }) => {
+    rendered.forEach(({ tk, states, evalRes, visibleLegIdx }) => {
       const isDead = evalRes.outcome === "dead";
       html += `<div class="ticket${isDead ? " is-dead" : ""}"><div class="ticket-head"><span class="ticket-name">${tk.name}</span><span class="ticket-sub">${tk.sub}</span></div>`;
       if (isDead) html += `<div class="dead-banner">&#9940; Parlay can no longer hit &mdash; one leg missed</div>`;
 
-      tk.legs.forEach((leg, i) => {
+      visibleLegIdx.forEach((i) => {
+        const leg = tk.legs[i];
         const state = states[i];
         html += `<div class="leg state-${state}">
           <div class="leg-left"><div class="leg-player">${leg.player}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player)}</div>
@@ -683,6 +749,9 @@ function renderContent() {
           ${badge(state)}
         </div>`;
       });
+      if (visibleLegIdx.length < tk.legs.length) {
+        html += `<div style="font-size:10.5px; color:var(--text-faint); padding-top:6px;">${tk.legs.length - visibleLegIdx.length} other leg(s) in this parlay hidden by the current filter.</div>`;
+      }
 
       let statusText = "", statusCls = "live";
       if (evalRes.outcome === "void") { statusText = "OPEN (void) \u2014 no one has played yet"; statusCls = "void"; }
@@ -700,14 +769,17 @@ function renderContent() {
     html += `</div>`;
   });
 
-  if (!anyRendered && CURRENT_FILTER) {
+  const anyFilterActive = CURRENT_FILTER || LEG_FILTER || BETTOR_FILTER;
+  if (!anyRendered && anyFilterActive) {
     html += `<p class="empty-filter-note">No parlay cards match this filter right now.</p>`;
   }
 
-  const filteredSingles = EVALUATED_SINGLES.filter(e => ticketMatchesFilter({ outcome: e.outcome }));
+  const filteredSingles = EVALUATED_SINGLES.filter(e =>
+    ticketMatchesFilter({ outcome: e.outcome }) && legPassesFilters(e.state, e.s.who)
+  );
   html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
     <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
-  if (filteredSingles.length === 0 && CURRENT_FILTER) {
+  if (filteredSingles.length === 0 && anyFilterActive) {
     html += `<p class="empty-filter-note" style="padding:12px 0;">No straight bets match this filter right now.</p>`;
   }
   filteredSingles.forEach(({ s, state }) => {
@@ -741,13 +813,45 @@ function toggleFilter(key) {
   renderContent();
 }
 
+function updateLegFilterUI() {
+  ["hit", "miss", "na", "live", "not_started"].forEach(k => document.getElementById(`leg-chip-${k}`).classList.remove("active-filter"));
+  const statusEl = document.getElementById("leg-filter-status");
+  if (!LEG_FILTER) { statusEl.classList.remove("active"); return; }
+  const labels = { hit: "HIT", miss: "MISSED", na: "N/A", live: "LIVE", not_started: "NOT STARTED" };
+  document.getElementById(`leg-chip-${LEG_FILTER}`).classList.add("active-filter");
+  document.getElementById("leg-filter-status-text").textContent = `Showing only ${labels[LEG_FILTER]} legs`;
+  statusEl.classList.add("active");
+}
+
+function toggleLegFilter(state) {
+  LEG_FILTER = (LEG_FILTER === state) ? null : state;
+  updateLegFilterUI();
+  renderContent();
+}
+
+function updateBettorFilterUI() {
+  const statusEl = document.getElementById("bettor-filter-status");
+  if (!BETTOR_FILTER) { statusEl.classList.remove("active"); return; }
+  const nameEl = document.querySelector(`#bettor-list .bettor-row.active-filter .bettor-name`);
+  const displayName = nameEl ? nameEl.textContent : BETTOR_FILTER;
+  document.getElementById("bettor-filter-status-text").textContent = `Showing only ${displayName}'s legs`;
+  statusEl.classList.add("active");
+}
+
+function toggleBettorFilter(key) {
+  BETTOR_FILTER = (BETTOR_FILTER === key) ? null : key;
+  computeAll();   // rebuild bettor rows so the clicked one gets active-filter styling
+  updateBettorFilterUI();
+  renderContent();
+}
+
 function toggleBettorSection() {
   const section = document.getElementById("bettor-section");
   section.classList.toggle("collapsed");
   const collapsed = section.classList.contains("collapsed");
   document.getElementById("bettor-sub").textContent = collapsed
     ? "Tap to expand \u2014 see hit/miss breakdown per person."
-    : "Every leg attributed to each person, across all cards and singles.";
+    : "Every leg attributed to each person, across all cards and singles. Tap a name to filter.";
 }
 
 function render() {
@@ -755,6 +859,8 @@ function render() {
   computeAll();
   renderContent();
   updateFilterUI();
+  updateLegFilterUI();
+  updateBettorFilterUI();
 }
 
 // ---------------- boot ----------------

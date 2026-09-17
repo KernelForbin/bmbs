@@ -186,7 +186,14 @@ def parse(text, team_by_name, canonical_by_norm):
             if leg_match and current_card:
                 player_raw, odds, middle, who = leg_match.groups()
                 canon_name, team = resolve_player(player_raw, team_by_name, canonical_by_norm)
-                leg = {"player": canon_name, "odds": f"+{odds}", "who": who.strip()}
+                # The "who" capture is meant to be just the bettor's name, but
+                # the source text sometimes tacks on a naming aside in the same
+                # parens, e.g. "(Noid — Listed as Herb Hernandez)". That aside
+                # describes the PLAYER, not the bettor, and resolve_player()
+                # already gives us the correct roster name above -- so strip
+                # anything after a dash/em-dash from who before storing it.
+                clean_who = re.split(r"[\u2014-]", who, maxsplit=1)[0].strip()
+                leg = {"player": canon_name, "odds": f"+{odds}", "who": clean_who}
                 t = TIME_RE.search(middle)
                 if t:
                     leg["time"] = t.group(0)

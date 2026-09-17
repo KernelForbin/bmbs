@@ -131,15 +131,51 @@ a player's listed name doesn't exactly match their MLB roster name
 it — check the Actions tab run log if a result looks wrong; it also prints
 hit/miss/pending totals every run.
 
+## Live home run tracking (near-instant, client-side)
+
+`index.html` polls the MLB Stats API **directly from each visitor's
+browser** every 20 seconds while the tab is open (pausing when the tab
+isn't visible, to be a good citizen of a free public API). This replaced
+an earlier design that relied on a GitHub Actions cron job writing to
+`data/marks.json` every 10 minutes — that approach is still in this repo
+(`scripts/fetch_home_runs.py`, `.github/workflows/update-checklist.yml`,
+`data/marks.json`) but is no longer used by `index.html` and can be
+deleted if you want to tidy up. The client-side approach is faster (~20s
+vs 10+ min) and needs no server-side moving parts at all.
+
+Per leg, three states:
+- **Hit (green check):** the player's name has appeared in a home-run play
+  in today's play-by-play, in any game — shown the instant it happens,
+  regardless of whether that game has finished.
+- **Miss (red X):** the player appeared in a game's boxscore roster, that
+  specific game is Final, and they're not in the home-run list.
+- **N/A (yellow):** the player has not appeared in *any* MLB boxscore
+  today, and every game scheduled today is Final — meaning they didn't
+  play anywhere. Shown as "Did not play"; the ticket treats it as void
+  for that leg rather than a loss.
+- Anything not yet meeting one of the above stays in the neutral
+  "in progress" state.
+
+This relies on `statsapi.mlb.com` allowing unauthenticated, CORS-open
+browser requests (confirmed, no key or proxy needed). It's an unofficial,
+undocumented API and could change without notice — if results stop
+updating, check the browser console on the live page first (F12 → Console)
+for fetch errors before assuming the parsing logic is wrong.
+
 ## Notes / limitations
 
 - This uses the free MLB Stats API, not Sportradar. It's the same underlying
   Statcast data, just without a paid contract.
-- Marks.json is the single source of truth for everyone viewing the page —
-  this is a shared board, not per-device like the earlier Claude artifact
-  version.
-- If GitHub Actions' schedule feels too infrequent or too frequent during
-  games, adjust the `cron` lines in the workflow file (`*/10` = every 10 min).
-- The Stats API endpoint used here (`/v1.1/game/{gamePk}/feed/live`) is
-  public but undocumented/unofficial. It's stable and widely used by the
-  open-source baseball community, but MLB could change it without notice.
+- Live tracking is now computed independently in each visitor's own browser
+  (see above) rather than from a shared committed file, so there's no
+  single "source of truth" file to check if something looks off — open the
+  browser console on the live page itself.
+- The Stats API endpoints used here (schedule, and
+  `/v1.1/game/{gamePk}/feed/live`) are public but undocumented/unofficial.
+  They're stable and widely used by the open-source baseball community, but
+  MLB could change them without notice.
+- `data/marks.json` and the cron-based workflow (`update-checklist.yml`,
+  `fetch_home_runs.py`) are legacy — kept in the repo but unused by
+  `index.html`. Safe to delete once you're confident the client-side
+  version is working well for you.
+

@@ -12,6 +12,7 @@
     --bg: #0B0F0E; --panel: #131A18; --panel-line: #223028;
     --green: #3ECF8E; --green-dim: #1E4A38;
     --red: #E5636B; --red-dim: #4A2226;
+    --yellow: #E8C84A; --yellow-dim: #4A4318;
     --amber: #E8B858; --text: #EDF2F0; --text-dim: #9AAAA3; --text-faint: #5E6E67;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -25,13 +26,21 @@
   h1 { font-family:'Oswald',sans-serif; font-size:28px; font-weight:700; line-height:1.1; margin:0 0 10px; }
   .note { font-size:13.5px; line-height:1.5; color:var(--text-dim); margin:0 0 4px; }
   .note b { color:var(--text); font-weight:600; }
+  .legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; font-size:11.5px; color:var(--text-dim); }
+  .legend span { display:inline-flex; align-items:center; gap:5px; }
+  .legend .sw { width:11px; height:11px; border-radius:3px; display:inline-block; border:1.5px solid var(--panel-line); }
+  .legend .sw.hit { background:var(--green-dim); border-color:var(--green); }
+  .legend .sw.miss { background:var(--red-dim); border-color:var(--red); }
+  .legend .sw.na { background:var(--yellow-dim); border-color:var(--yellow); }
+  .legend .sw.pending { border-color:var(--panel-line); }
   .sync-line { font-size:11px; color:var(--text-faint); margin-top:10px; }
-  .scoreboard { display:flex; gap:10px; margin-top:14px; }
-  .score-chip { flex:1; background:var(--panel); border:1px solid var(--panel-line); border-radius:8px; padding:9px 8px; text-align:center; }
-  .score-chip .num { font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; }
-  .score-chip .lbl { font-size:10.5px; color:var(--text-faint); letter-spacing:.06em; margin-top:2px; }
+  .scoreboard { display:flex; gap:8px; margin-top:14px; }
+  .score-chip { flex:1; background:var(--panel); border:1px solid var(--panel-line); border-radius:8px; padding:9px 6px; text-align:center; }
+  .score-chip .num { font-family:'Oswald',sans-serif; font-size:18px; font-weight:700; }
+  .score-chip .lbl { font-size:10px; color:var(--text-faint); letter-spacing:.05em; margin-top:2px; }
   .score-chip.hit .num { color:var(--green); }
   .score-chip.miss .num { color:var(--red); }
+  .score-chip.na .num { color:var(--yellow); }
   .score-chip.pending .num { color:var(--text); }
   .window { margin-bottom:28px; }
   .window-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; display:flex; align-items:baseline; gap:10px; margin:0 0 12px; padding:0 2px; }
@@ -48,7 +57,7 @@
   .leg-right { flex:none; text-align:right; }
   .leg-odds { font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:var(--amber); }
   .leg-time { font-size:11px; color:var(--text-faint); margin-top:2px; }
-  .mark-badge { flex:none; width:34px; height:34px; border-radius:9px; border:1.5px solid var(--panel-line); display:flex; align-items:center; justify-content:center; }
+  .mark-badge { flex:none; width:34px; height:34px; border-radius:9px; border:1.5px solid var(--panel-line); display:flex; align-items:center; justify-content:center; font-family:'Oswald',sans-serif; font-size:10px; font-weight:700; }
   .mark-badge svg { width:17px; height:17px; display:block; }
   .mark-badge .check-path, .mark-badge .x-path { display:none; }
   .mark-badge[data-state="pending"] .dash { display:block; }
@@ -56,16 +65,21 @@
   .mark-badge[data-state="hit"] .check-path { display:block; stroke:var(--green); }
   .mark-badge[data-state="miss"] { background:var(--red-dim); border-color:var(--red); }
   .mark-badge[data-state="miss"] .x-path { display:block; stroke:var(--red); }
+  .mark-badge[data-state="na"] { background:var(--yellow-dim); border-color:var(--yellow); color:var(--yellow); }
   .mark-badge .dash { stroke:var(--text-faint); }
   .leg.state-hit .leg-player { color:var(--green); }
   .leg.state-miss .leg-player { color:var(--text-faint); text-decoration:line-through; }
   .leg.state-miss .leg-meta, .leg.state-miss .leg-odds { color:var(--text-faint); }
+  .leg.state-na .leg-player { color:var(--yellow); }
+  .leg.state-na .leg-meta { color:var(--text-faint); }
+  .leg.state-na .leg-right::after { content:"Did not play"; display:block; font-size:10px; color:var(--yellow); margin-top:2px; }
   .ticket-foot { margin-top:10px; padding-top:10px; border-top:1px solid var(--panel-line); font-size:12.5px; color:var(--text-dim); line-height:1.5; }
   .ticket-foot b { color:var(--text); font-weight:600; }
   .ticket-status { font-size:11px; font-weight:600; letter-spacing:.04em; margin-top:6px; }
   .ticket-status.win { color:var(--green); }
   .ticket-status.dead { color:var(--red); }
   .ticket-status.live { color:var(--text-dim); }
+  .ticket-status.void { color:var(--yellow); }
   .divider { text-align:center; color:var(--text-faint); font-size:12px; margin:24px 0; letter-spacing:.08em; }
   .singles-title { font-family:'Oswald',sans-serif; font-size:17px; font-weight:700; margin:0 0 4px; }
   .singles-sub { font-size:13px; color:var(--text-dim); margin:0 0 14px; }
@@ -79,6 +93,9 @@
   .single-row.state-hit .single-player { color:var(--green); }
   .single-row.state-miss .single-player { color:var(--text-faint); text-decoration:line-through; }
   .single-row.state-miss .single-meta { color:var(--text-faint); }
+  .single-row.state-na .single-player { color:var(--yellow); }
+  .single-row.state-na .single-meta { color:var(--text-faint); }
+  .single-void-tag { font-size:10px; color:var(--yellow); margin-top:2px; }
   footer { margin-top:18px; padding-top:14px; border-top:1px solid var(--panel-line); font-size:11px; color:var(--text-faint); text-align:center; }
   .err { background:var(--red-dim); border:1px solid var(--red); color:var(--text); border-radius:8px; padding:12px 14px; font-size:13px; margin-bottom:16px; }
 </style>
@@ -86,25 +103,131 @@
 <body>
 <div class="card">
   <header>
-    <p class="eyebrow"><span class="live-dot"></span>TONIGHT'S SLATE &middot; AUTO-UPDATING</p>
+    <p class="eyebrow"><span class="live-dot"></span>TONIGHT'S SLATE &middot; LIVE FROM MLB</p>
     <h1>Home Run Card</h1>
     <p class="note" id="dynamic-note"></p>
-    <p class="sync-line" id="sync-line">Loading live results&hellip;</p>
+    <div class="legend">
+      <span><span class="sw pending"></span>In progress</span>
+      <span><span class="sw hit"></span>Home run</span>
+      <span><span class="sw miss"></span>Game final, no HR</span>
+      <span><span class="sw na"></span>Didn't play</span>
+    </div>
+    <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
     <div class="scoreboard">
       <div class="score-chip hit"><div class="num" id="count-hit">0</div><div class="lbl">HIT</div></div>
       <div class="score-chip miss"><div class="num" id="count-miss">0</div><div class="lbl">MISS</div></div>
+      <div class="score-chip na"><div class="num" id="count-na">0</div><div class="lbl">N/A</div></div>
       <div class="score-chip pending"><div class="num" id="count-pending">0</div><div class="lbl">LIVE</div></div>
     </div>
   </header>
   <div id="err-box"></div>
   <div id="content"></div>
-  <footer id="footer-line">all times ET &middot; results pulled from MLB Stats API</footer>
+  <footer id="footer-line">all times ET &middot; results pulled directly from the MLB Stats API</footer>
 </div>
 
 <script>
-const REFRESH_MS = 60000; // poll marks.json every 60s
+const POLL_MS = 20000;       // how often to re-poll while the tab is visible
+const API_BASE = "https://statsapi.mlb.com/api";
+
 let TICKETS = null;
-let MARKS = {};
+let RESULTS = { hitNames: new Set(), rosterFinal: new Map(), allGamesFinal: false, ready: false };
+let pollTimer = null;
+
+// ---------------- MLB Stats API polling (runs in the visitor's browser) ----------------
+
+function normalizeName(name) {
+  return name
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")  // strip accents
+    .replace(/[.']/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function todayET() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(new Date());
+  const get = (t) => parts.find(p => p.type === t).value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
+  return res.json();
+}
+
+async function getTodaysGamePks() {
+  const date = todayET();
+  const data = await fetchJson(`${API_BASE}/v1/schedule?sportId=1&date=${date}`);
+  const games = [];
+  (data.dates || []).forEach(d => (d.games || []).forEach(g => games.push(g.gamePk)));
+  return games;
+}
+
+async function getGameSnapshot(gamePk) {
+  const data = await fetchJson(`${API_BASE}/v1.1/game/${gamePk}/feed/live`);
+  const isFinal = (data.gameData && data.gameData.status && data.gameData.status.abstractGameState) === "Final";
+
+  const hrNames = new Set();
+  const plays = (data.liveData && data.liveData.plays && data.liveData.plays.allPlays) || [];
+  plays.forEach(play => {
+    const result = play.result || {};
+    if (result.eventType === "home_run" || result.event === "Home Run") {
+      const batter = play.matchup && play.matchup.batter && play.matchup.batter.fullName;
+      if (batter) hrNames.add(normalizeName(batter));
+    }
+  });
+
+  const rosterNames = new Set();
+  const boxTeams = (data.liveData && data.liveData.boxscore && data.liveData.boxscore.teams) || {};
+  ["away", "home"].forEach(side => {
+    const players = (boxTeams[side] && boxTeams[side].players) || {};
+    Object.values(players).forEach(p => {
+      const full = p.person && p.person.fullName;
+      if (full) rosterNames.add(normalizeName(full));
+    });
+  });
+
+  return { isFinal, hrNames, rosterNames };
+}
+
+async function pollOnce() {
+  const gamePks = await getTodaysGamePks();
+
+  if (gamePks.length === 0) {
+    RESULTS = { hitNames: new Set(), rosterFinal: new Map(), allGamesFinal: false, ready: true, noGames: true };
+    return;
+  }
+
+  const snapshots = await Promise.all(gamePks.map(pk => getGameSnapshot(pk).catch(() => null)));
+
+  const hitNames = new Set();
+  const rosterFinal = new Map(); // normalized name -> that game's isFinal
+  let allFinal = true;
+
+  snapshots.forEach(snap => {
+    if (!snap) { allFinal = false; return; }
+    snap.hrNames.forEach(n => hitNames.add(n));
+    snap.rosterNames.forEach(n => rosterFinal.set(n, snap.isFinal));
+    if (!snap.isFinal) allFinal = false;
+  });
+
+  RESULTS = { hitNames, rosterFinal, allGamesFinal: allFinal, ready: true, noGames: false };
+}
+
+function stateForPlayer(playerName) {
+  const norm = normalizeName(playerName);
+  if (!RESULTS.ready) return "pending";
+  if (RESULTS.hitNames.has(norm)) return "hit";
+  if (RESULTS.rosterFinal.has(norm)) {
+    return RESULTS.rosterFinal.get(norm) ? "miss" : "pending";
+  }
+  return RESULTS.allGamesFinal ? "na" : "pending";
+}
+
+// ---------------- rendering ----------------
 
 const btnSvg = `
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -113,16 +236,15 @@ const btnSvg = `
     <path class="x-path" d="M6 6L18 18M18 6L6 18" stroke-width="2.3" stroke-linecap="round"/>
   </svg>`;
 
-function badge(id) {
-  const state = MARKS[id] || "pending";
-  return `<div class="mark-badge" data-state="${state}">${btnSvg}</div>`;
+function badge(state) {
+  const inner = state === "na" ? "N/A" : btnSvg;
+  return `<div class="mark-badge" data-state="${state}">${inner}</div>`;
 }
 
 function render() {
   if (!TICKETS) return;
-  document.getElementById("dynamic-note").innerHTML = TICKETS.note
-    ? `<b>Auto-tracked</b> \u2014 ${TICKETS.note}`
-    : `<b>Auto-tracked</b> against live MLB results.`;
+  document.getElementById("dynamic-note").innerHTML =
+    `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live MLB results."}`;
 
   const root = document.getElementById("content");
   let html = "";
@@ -130,21 +252,26 @@ function render() {
   TICKETS.windows.forEach((win) => {
     html += `<div class="window"><p class="window-title"><span class="dot"></span>${win.title}</p>`;
     win.tickets.forEach((tk) => {
-      const legIds = tk.legs.map(l => l.id);
       html += `<div class="ticket"><div class="ticket-head"><span class="ticket-name">${tk.name}</span><span class="ticket-sub">${tk.sub}</span></div>`;
+      const states = [];
       tk.legs.forEach((leg) => {
-        const state = MARKS[leg.id] || "pending";
+        const state = stateForPlayer(leg.player);
+        states.push(state);
         html += `<div class="leg state-${state}">
           <div class="leg-left"><div class="leg-player">${leg.player}</div><div class="leg-meta">${leg.meta}</div></div>
-          <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time}</div></div>
-          ${badge(leg.id)}
+          <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
+          ${badge(state)}
         </div>`;
       });
-      const states = legIds.map(id => MARKS[id] || "pending");
+      const naCount = states.filter(s => s === "na").length;
+      const missCount = states.filter(s => s === "miss").length;
+      const hitCount = states.filter(s => s === "hit").length;
+      const activeCount = states.length - naCount;
       let statusText = "", statusCls = "live";
-      if (states.some(s => s === "miss")) { statusText = "DEAD"; statusCls = "dead"; }
-      else if (states.every(s => s === "hit")) { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
-      else { statusText = `${states.filter(s => s === "hit").length}/${states.length} live`; }
+      if (activeCount === 0) { statusText = "VOID \u2014 no one played"; statusCls = "void"; }
+      else if (missCount > 0) { statusText = "DEAD"; statusCls = "dead"; }
+      else if (hitCount === activeCount) { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
+      else { statusText = `${hitCount}/${activeCount} live`; }
       html += `<div class="ticket-foot">${tk.foot}<div class="ticket-status ${statusCls}">${statusText}</div></div></div>`;
     });
     html += `</div>`;
@@ -153,11 +280,13 @@ function render() {
   html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
     <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
   TICKETS.singles.forEach((s) => {
-    const state = MARKS[s.id] || "pending";
+    const state = stateForPlayer(s.player);
     html += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}</div><div class="single-meta">${s.meta}</div></div>
+      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}</div><div class="single-meta">${s.meta}</div>
+        ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
+      </div>
       <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>
-      ${badge(s.id)}
+      ${badge(state)}
     </div>`;
   });
   html += `</div></div>`;
@@ -167,22 +296,23 @@ function render() {
 }
 
 function updateCounts() {
-  const states = Object.values(MARKS);
-  const hit = states.filter(s => s === "hit").length;
-  const miss = states.filter(s => s === "miss").length;
-  const total = countAllLegs();
+  if (!TICKETS) return;
+  let hit = 0, miss = 0, na = 0, pending = 0;
+  const count = (state) => {
+    if (state === "hit") hit++;
+    else if (state === "miss") miss++;
+    else if (state === "na") na++;
+    else pending++;
+  };
+  TICKETS.windows.forEach(w => w.tickets.forEach(tk => tk.legs.forEach(leg => count(stateForPlayer(leg.player)))));
+  TICKETS.singles.forEach(s => count(stateForPlayer(s.player)));
   document.getElementById("count-hit").textContent = hit;
   document.getElementById("count-miss").textContent = miss;
-  document.getElementById("count-pending").textContent = Math.max(0, total - hit - miss);
+  document.getElementById("count-na").textContent = na;
+  document.getElementById("count-pending").textContent = pending;
 }
 
-function countAllLegs() {
-  if (!TICKETS) return 0;
-  let n = 0;
-  TICKETS.windows.forEach(w => w.tickets.forEach(t => n += t.legs.length));
-  n += TICKETS.singles.length;
-  return n;
-}
+// ---------------- boot ----------------
 
 async function loadTickets() {
   const res = await fetch("data/tickets.json", { cache: "no-store" });
@@ -190,34 +320,42 @@ async function loadTickets() {
   TICKETS = await res.json();
 }
 
-async function loadMarks() {
+async function pollAndRender() {
   try {
-    const res = await fetch("data/marks.json", { cache: "no-store" });
-    if (!res.ok) throw new Error("marks.json not found yet");
-    const payload = await res.json();
-    MARKS = payload.marks || {};
-    const updated = payload.updated_at ? new Date(payload.updated_at) : null;
-    document.getElementById("sync-line").textContent = updated
-      ? `Last synced ${updated.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} ET`
-      : "Synced";
+    await pollOnce();
     document.getElementById("err-box").innerHTML = "";
+    const now = new Date();
+    document.getElementById("sync-line").textContent = RESULTS.noGames
+      ? "No MLB games scheduled today"
+      : `Live \u2014 last updated ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })} ET`;
   } catch (e) {
-    document.getElementById("sync-line").textContent = "Waiting on first sync from the pipeline\u2026";
     document.getElementById("err-box").innerHTML =
-      `<div class="err">No results file yet. This shows once the GitHub Action runs and commits data/marks.json.</div>`;
+      `<div class="err">Couldn't reach the MLB Stats API just now (${e.message}). Will retry automatically.</div>`;
   }
+  render();
 }
+
+function schedulePolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => {
+    if (document.visibilityState === "visible") pollAndRender();
+  }, POLL_MS);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") pollAndRender();
+});
 
 async function init() {
   try {
     await loadTickets();
   } catch (e) {
-    document.getElementById("err-box").innerHTML = `<div class="err">Could not load data/tickets.json. Check the file exists and is valid JSON.</div>`;
+    document.getElementById("err-box").innerHTML = `<div class="err">Could not load data/tickets.json.</div>`;
     return;
   }
-  await loadMarks();
   render();
-  setInterval(async () => { await loadMarks(); render(); }, REFRESH_MS);
+  await pollAndRender();
+  schedulePolling();
 }
 
 init();

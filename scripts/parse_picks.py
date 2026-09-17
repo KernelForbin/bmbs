@@ -61,14 +61,11 @@ import json
 import re
 import sys
 import unicodedata
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 TICKETS_PATH = ROOT / "data" / "tickets.json"
 ROSTER_PATH = ROOT / "data" / "roster.json"
-ET = ZoneInfo("America/New_York")
 
 SINGLES_HEADER_RE = re.compile(r"longshot|straight bet", re.IGNORECASE)
 PARLAY_HEADER_RE = re.compile(r"\d+-Leg Parlay", re.IGNORECASE)
@@ -297,11 +294,10 @@ def main():
         print("WARNING: parsed nothing. Check the input format.", file=sys.stderr)
         sys.exit(1)
 
-    slate_date = datetime.now(ET).strftime("%Y-%m-%d")
-    payload = {"date": slate_date, "note": "", "windows": windows, "singles": out_singles}
+    payload = {"note": "", "windows": windows, "singles": out_singles}
     TICKETS_PATH.parent.mkdir(parents=True, exist_ok=True)
     TICKETS_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
-    print(f"Wrote {TICKETS_PATH} (slate date: {slate_date} ET)")
+    print(f"Wrote {TICKETS_PATH}")
 
 
 if __name__ == "__main__":

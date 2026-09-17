@@ -35,10 +35,6 @@
   .legend .sw.live-game { border-color:var(--amber); }
   .legend .sw.pending { border-color:var(--panel-line); }
   .sync-line { font-size:11px; color:var(--text-faint); margin-top:10px; }
-  .tab-row { display:flex; gap:8px; margin:14px 0 12px; }
-  .tab-btn { flex:1; background:var(--panel); border:1px solid var(--panel-line); color:var(--text-dim); font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.03em; padding:10px 8px; border-radius:8px; cursor:pointer; transition:background .15s ease, border-color .15s ease, color .15s ease; }
-  .tab-btn.active { background:var(--green-dim); border-color:var(--green); color:var(--green); }
-  .tab-btn:active { transform:scale(0.98); }
 
   .payout-box { margin-top:14px; background:linear-gradient(135deg, var(--green-dim), var(--panel)); border:1px solid var(--green); border-radius:10px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
   .payout-box .lbl { font-size:12px; color:var(--text-dim); }
@@ -161,14 +157,8 @@
 <body>
 <div class="card">
   <header>
-    <p class="eyebrow"><span class="live-dot"></span>LIVE FROM MLB</p>
+    <p class="eyebrow"><span class="live-dot"></span>TONIGHT'S SLATE &middot; LIVE FROM MLB</p>
     <h1>Home Run Card</h1>
-
-    <div class="tab-row">
-      <button class="tab-btn" id="tab-btn-yesterday" onclick="activateTab('yesterday')">Yesterday's Slate</button>
-      <button class="tab-btn" id="tab-btn-today" onclick="activateTab('today')">Today's Slate</button>
-    </div>
-
     <p class="note" id="dynamic-note"></p>
     <div class="legend">
       <span><span class="sw pending"></span>Not started</span>
@@ -179,7 +169,6 @@
     </div>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
 
-    <div id="live-stats">
     <div class="payout-box">
       <span class="lbl">Estimated payout based on bets hit</span>
       <span class="amt" id="total-payout">$0.00</span>
@@ -218,17 +207,9 @@
       <span id="leg-filter-status-text"></span>
       <span class="clear-btn" onclick="toggleLegFilter(null)">Clear &times;</span>
     </div>
-    </div>
   </header>
 
   <div id="err-box"></div>
-
-  <div id="waiting-state" style="display:none;">
-    <p style="text-align:center; color:var(--text-dim); font-size:14px; padding:40px 20px; line-height:1.6;">
-      Waiting for today's slate&hellip;<br>
-      <span style="font-size:12px; color:var(--text-faint);">Yesterday's picks are cleared after 10am ET. This page will pick up the new slate automatically once it's posted.</span>
-    </p>
-  </div>
 
   <div class="bettor-section collapsed" id="bettor-section">
     <div class="bettor-head" onclick="toggleBettorSection()">
@@ -262,13 +243,6 @@ let BETTOR_FILTER = null;    // null | lowercased bettor key
 let EVALUATED = [];          // [{ win, tk, states, evalRes }]  (parlay cards)
 let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
 
-// Two independent slates kept warm at once -- "today" and "yesterday" --
-// so switching tabs is instant and never needs a re-fetch. Each slot is
-// { tickets: <parsed tickets.json or null>, results: <RESULTS-shaped object> }.
-// tickets === null means "nothing to show" (rendered as the waiting state).
-let STORE = { today: { tickets: null, results: null }, yesterday: { tickets: null, results: null } };
-let ACTIVE_TAB = "today";
-
 // League-average probability that a plate appearance ends in an out. Not
 // specific to any individual hitter -- used only to estimate remaining
 // at-bats for whoever's leg we're tracking. See remainingOutsForSide() /
@@ -286,38 +260,12 @@ function normalizeName(name) {
     .toLowerCase();
 }
 
-// Current moment broken into ET wall-clock fields.
-function nowETParts() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+function todayET() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit"
   }).formatToParts(new Date());
   const get = (t) => parts.find(p => p.type === t).value;
-  let hour = +get("hour");
-  if (hour === 24) hour = 0; // Intl quirk safeguard
-  return { year: +get("year"), month: +get("month"), day: +get("day"), hour, minute: +get("minute"), second: +get("second") };
-}
-
-// Turns ET wall-clock fields into a comparable number. Not real UTC --
-// just a consistent ordinal since both sides of every comparison are
-// built the same way. Date.UTC() naturally rolls hour>23 into the next
-// calendar day, which lets callers pass e.g. hour 27 to mean "3am the
-// following day" without doing the date math by hand.
-function etOrdinal(year, month, day, hour, minute) {
-  return Date.UTC(year, month - 1, day, hour, minute || 0, 0);
-}
-
-// True once it's 3:00 AM ET or later on the morning after `dateStr`.
-// This is the single moment a slate "moves" from Today's tab to
-// Yesterday's tab -- deliberately NOT tied to the browser's calendar
-// date rolling over at midnight, so a game that runs past midnight
-// keeps tracking correctly straight through the night.
-function isPastCutover(dateStr) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const now = nowETParts();
-  const nowOrd = etOrdinal(now.year, now.month, now.day, now.hour, now.minute);
-  const threeAmNextDay = etOrdinal(y, m, d, 27, 0);
-  return nowOrd >= threeAmNextDay;
+  return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
 async function fetchJson(url) {
@@ -326,23 +274,13 @@ async function fetchJson(url) {
   return res.json();
 }
 
-async function loadTicketsFile(path) {
-  try {
-    const res = await fetch(path, { cache: "no-store" });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (e) {
-    return null;
-  }
-}
-
-async function getGamePksForDate(date) {
+async function getTodaysGamePks() {
+  const date = todayET();
   const data = await fetchJson(`${API_BASE}/v1/schedule?sportId=1&date=${date}`);
   const games = [];
   (data.dates || []).forEach(d => (d.games || []).forEach(g => games.push(g.gamePk)));
   return games;
 }
-
 
 async function getGameSnapshot(gamePk) {
   const data = await fetchJson(`${API_BASE}/v1.1/game/${gamePk}/feed/live`);
@@ -526,13 +464,12 @@ function gamedayUrl(gamePk) {
   return `https://www.mlb.com/gameday/${gamePk}`;
 }
 
-// Polls MLB for one explicit date and returns a fresh RESULTS-shaped
-// object (does not touch the global RESULTS -- callers decide where it goes).
-async function pollSlateOnce(date) {
-  const gamePks = await getGamePksForDate(date);
+async function pollOnce() {
+  const gamePks = await getTodaysGamePks();
 
   if (gamePks.length === 0) {
-    return { hitNames: new Set(), rosterStatus: new Map(), substitutedOut: new Set(), gameInfo: new Map(), allGamesFinal: false, ready: true, noGames: true };
+    RESULTS = { hitNames: new Set(), rosterStatus: new Map(), substitutedOut: new Set(), gameInfo: new Map(), allGamesFinal: false, ready: true, noGames: true };
+    return;
   }
 
   const snapshots = await Promise.all(gamePks.map(pk => getGameSnapshot(pk).catch(() => null)));
@@ -560,7 +497,7 @@ async function pollSlateOnce(date) {
     if (snap.status !== "final") allFinal = false;
   });
 
-  return { hitNames, rosterStatus, rosterSide, substitutedOut, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
+  RESULTS = { hitNames, rosterStatus, rosterSide, substitutedOut, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
 }
 
 // six possible states: hit, miss, na, live (game started, no HR yet), not_started
@@ -1016,84 +953,25 @@ function render() {
 
 // ---------------- boot ----------------
 
-// Fetches both tickets.json and tickets-previous.json, decides which one
-// is "today" and which is "yesterday" based on the 3am cutover, and polls
-// MLB for whichever slate(s) actually have data. Both tabs are kept warm
-// every cycle regardless of which one is currently visible, so switching
-// tabs is instant.
-async function refreshEverything() {
-  const [current, previous] = await Promise.all([
-    loadTicketsFile("data/tickets.json"),
-    loadTicketsFile("data/tickets-previous.json")
-  ]);
-
-  if (current && current.date && !isPastCutover(current.date)) {
-    STORE.today.tickets = current;
-    STORE.yesterday.tickets = (previous && previous.date) ? previous : null;
-  } else if (current && current.date && isPastCutover(current.date)) {
-    // The current slate has aged past its 3am cutover -- it's now
-    // "yesterday's" slate, and nothing new has been posted for today yet.
-    STORE.today.tickets = null;
-    STORE.yesterday.tickets = current;
-  } else {
-    // No usable current file at all (shouldn't normally happen).
-    STORE.today.tickets = null;
-    STORE.yesterday.tickets = (previous && previous.date) ? previous : null;
-  }
-
-  const pollJobs = [];
-  ["today", "yesterday"].forEach(tab => {
-    if (STORE[tab].tickets) {
-      pollJobs.push(
-        pollSlateOnce(STORE[tab].tickets.date)
-          .then(r => { STORE[tab].results = r; })
-          .catch(() => { /* keep last-known results for this tab on a transient failure */ })
-      );
-    }
-  });
-  await Promise.all(pollJobs);
-}
-
-function updateTabUI() {
-  document.getElementById("tab-btn-today").classList.toggle("active", ACTIVE_TAB === "today");
-  document.getElementById("tab-btn-yesterday").classList.toggle("active", ACTIVE_TAB === "yesterday");
-}
-
-// Switches which slate is on screen. Both slates are already kept warm by
-// refreshEverything(), so this never needs to fetch anything itself.
-function activateTab(tab) {
-  ACTIVE_TAB = tab;
-  const slot = STORE[tab];
-  TICKETS = slot.tickets;
-  RESULTS = slot.results || { hitNames: new Set(), rosterStatus: new Map(), gameInfo: new Map(), allGamesFinal: false, ready: false };
-  updateTabUI();
-
-  const showWaiting = !TICKETS;
-  document.getElementById("waiting-state").style.display = showWaiting ? "block" : "none";
-  document.getElementById("live-stats").style.display = showWaiting ? "none" : "block";
-  document.getElementById("bettor-section").style.display = showWaiting ? "none" : "block";
-  document.getElementById("content").style.display = showWaiting ? "none" : "block";
-
-  if (showWaiting) {
-    document.getElementById("sync-line").textContent = "";
-  } else {
-    const now = new Date();
-    document.getElementById("sync-line").textContent = RESULTS.noGames
-      ? "No MLB games scheduled that day"
-      : `Live \u2014 last updated ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })} ET`;
-    render();
-  }
+async function loadTickets() {
+  const res = await fetch("data/tickets.json", { cache: "no-store" });
+  if (!res.ok) throw new Error("tickets.json failed to load");
+  TICKETS = await res.json();
 }
 
 async function pollAndRender() {
   try {
-    await refreshEverything();
+    await pollOnce();
     document.getElementById("err-box").innerHTML = "";
+    const now = new Date();
+    document.getElementById("sync-line").textContent = RESULTS.noGames
+      ? "No MLB games scheduled today"
+      : `Live \u2014 last updated ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })} ET`;
   } catch (e) {
     document.getElementById("err-box").innerHTML =
       `<div class="err">Couldn't reach the MLB Stats API just now (${e.message}). Will retry automatically.</div>`;
   }
-  activateTab(ACTIVE_TAB);
+  render();
 }
 
 function schedulePolling() {
@@ -1108,6 +986,13 @@ document.addEventListener("visibilitychange", () => {
 });
 
 async function init() {
+  try {
+    await loadTickets();
+  } catch (e) {
+    document.getElementById("err-box").innerHTML = `<div class="err">Could not load data/tickets.json.</div>`;
+    return;
+  }
+  render();
   await pollAndRender();
   schedulePolling();
 }

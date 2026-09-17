@@ -36,8 +36,22 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           if git diff --quiet -- data/marks.json; then
             echo "No change in marks.json, skipping commit."
-          else
-            git add data/marks.json
-            git commit -m "Auto-update home run marks $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git push
+            exit 0
           fi
+          git add data/marks.json
+          git commit -m "Auto-update home run marks $(date -u +'%Y-%m-%d %H:%M UTC')"
+
+          # Retry a few times in case another push (yours, or another run)
+          # landed on main between our checkout and our push.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt), rebasing onto latest main and retrying..."
+            git pull --rebase origin main
+            sleep 3
+          done
+
+          echo "Failed to push after retries." >&2
+          exit 1

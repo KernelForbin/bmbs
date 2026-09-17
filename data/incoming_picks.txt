@@ -1,0 +1,18 @@
+PASTE TODAY'S PICKS BELOW THIS LINE, REPLACING EVERYTHING BELOW IT, THEN COMMIT.
+======================================================================
+
+Use the same format you'd paste to Claude in chat: a "Longshot (LS)
+Straight Bets" section, then one or more "N-Leg Parlay Cards" sections,
+each with Card N: Title, its player bullet lines, and a "Bet by ___: $X
+| PP: $Y" line.
+
+Full documented example: see test_picks.txt and the docstring at the top
+of scripts/parse_picks.py in this repo.
+
+Committing this file with real picks pasted in place of this placeholder
+text automatically updates data/tickets.json and resets data/marks.json
+within about a minute — nothing else to do.
+
+(This placeholder is deliberately written without the "##" section
+headers or "*" bullet lines the parser looks for, so it's safe to leave
+as-is without triggering a false parse on the very first commit.)

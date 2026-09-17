@@ -1,0 +1,63 @@
+name: Parse New Picks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/incoming_picks.txt"
+  workflow_dispatch: {}   # manual re-run from the Actions tab if ever needed
+
+permissions:
+  contents: write
+
+concurrency:
+  group: parse-picks
+  cancel-in-progress: true
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Parse data/incoming_picks.txt into data/tickets.json
+        run: python scripts/parse_picks.py --file data/incoming_picks.txt
+
+      - name: Reset marks.json for the new slate
+        run: |
+          cat > data/marks.json << 'EOF'
+          {
+            "date": null,
+            "updated_at": null,
+            "marks": {},
+            "note": "reset for new slate"
+          }
+          EOF
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "hr-checklist-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/tickets.json data/marks.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Parse new picks -> tickets.json $(date -u +'%Y-%m-%d %H:%M UTC')"
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt), rebasing and retrying..."
+            git pull --rebase origin main
+            sleep 3
+          done
+          echo "Failed to push after retries." >&2
+          exit 1

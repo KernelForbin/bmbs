@@ -120,8 +120,9 @@ function badge(id) {
 
 function render() {
   if (!TICKETS) return;
-  document.getElementById("dynamic-note").innerHTML =
-    `<b>Auto-tracked</b> \u2014 ${TICKETS.note || ""}`;
+  document.getElementById("dynamic-note").innerHTML = TICKETS.note
+    ? `<b>Auto-tracked</b> \u2014 ${TICKETS.note}`
+    : `<b>Auto-tracked</b> against live MLB results.`;
 
   const root = document.getElementById("content");
   let html = "";

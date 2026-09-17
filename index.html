@@ -157,7 +157,7 @@
 <body>
 <div class="card">
   <header>
-    <p class="eyebrow"><span class="live-dot"></span>TONIGHT'S SLATE &middot; LIVE FROM MLB</p>
+    <p class="eyebrow"><span class="live-dot"></span><span id="slate-label">TONIGHT'S SLATE</span> &middot; LIVE FROM MLB</p>
     <h1>Home Run Card</h1>
     <p class="note" id="dynamic-note"></p>
     <div class="legend">
@@ -169,6 +169,7 @@
     </div>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
 
+    <div id="live-stats">
     <div class="payout-box">
       <span class="lbl">Estimated payout based on bets hit</span>
       <span class="amt" id="total-payout">$0.00</span>
@@ -207,9 +208,17 @@
       <span id="leg-filter-status-text"></span>
       <span class="clear-btn" onclick="toggleLegFilter(null)">Clear &times;</span>
     </div>
+    </div>
   </header>
 
   <div id="err-box"></div>
+
+  <div id="waiting-state" style="display:none;">
+    <p style="text-align:center; color:var(--text-dim); font-size:14px; padding:40px 20px; line-height:1.6;">
+      Waiting for today's slate&hellip;<br>
+      <span style="font-size:12px; color:var(--text-faint);">Yesterday's picks are cleared after 10am ET. This page will pick up the new slate automatically once it's posted.</span>
+    </p>
+  </div>
 
   <div class="bettor-section collapsed" id="bettor-section">
     <div class="bettor-head" onclick="toggleBettorSection()">
@@ -268,6 +277,52 @@ function todayET() {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+// Current moment broken into ET wall-clock fields.
+function nowETParts() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+  }).formatToParts(new Date());
+  const get = (t) => parts.find(p => p.type === t).value;
+  let hour = +get("hour");
+  if (hour === 24) hour = 0; // Intl quirk safeguard
+  return { year: +get("year"), month: +get("month"), day: +get("day"), hour, minute: +get("minute"), second: +get("second") };
+}
+
+// Turns ET wall-clock fields into a comparable number. Not real UTC --
+// just a consistent ordinal since both sides of every comparison are
+// built the same way. Date.UTC() naturally rolls hour>23 into the next
+// calendar day, which lets callers pass e.g. hour 27 to mean "3am the
+// following day" without doing the date math by hand.
+function etOrdinal(year, month, day, hour, minute) {
+  return Date.UTC(year, month - 1, day, hour, minute || 0, 0);
+}
+
+// Everything about how the current slate relates to "now": what to label
+// the header, which date to query MLB for, and whether the slate has
+// aged out and should be cleared. Keeps showing the day the picks were
+// posted for (not "today") straight through any games that run past
+// midnight, switches the header to "YESTERDAY'S SLATE" at 3am ET the
+// next morning, and clears out entirely at 10am ET the next morning.
+function getSlateContext() {
+  if (!TICKETS || !TICKETS.date) {
+    // Old tickets.json with no date field: behave as before, no expiry.
+    return { queryDate: todayET(), label: "TONIGHT'S SLATE", expired: false };
+  }
+  const slateDate = TICKETS.date;
+  const [sy, sm, sd] = slateDate.split("-").map(Number);
+  const now = nowETParts();
+  const nowOrd = etOrdinal(now.year, now.month, now.day, now.hour, now.minute);
+  const threeAmNextDay = etOrdinal(sy, sm, sd, 27, 0);   // slateDate + 1 day, 3:00 AM
+  const tenAmNextDay = etOrdinal(sy, sm, sd, 34, 0);      // slateDate + 1 day, 10:00 AM
+
+  if (nowOrd >= tenAmNextDay) {
+    return { queryDate: slateDate, label: "NEW SLATE PENDING", expired: true };
+  }
+  const label = (nowOrd >= threeAmNextDay) ? "YESTERDAY'S SLATE" : "TONIGHT'S SLATE";
+  return { queryDate: slateDate, label, expired: false };
+}
+
 async function fetchJson(url) {
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
@@ -275,7 +330,7 @@ async function fetchJson(url) {
 }
 
 async function getTodaysGamePks() {
-  const date = todayET();
+  const date = getSlateContext().queryDate;
   const data = await fetchJson(`${API_BASE}/v1/schedule?sportId=1&date=${date}`);
   const games = [];
   (data.dates || []).forEach(d => (d.games || []).forEach(g => games.push(g.gamePk)));
@@ -959,7 +1014,35 @@ async function loadTickets() {
   TICKETS = await res.json();
 }
 
+function applySlateContext() {
+  const ctx = getSlateContext();
+  document.getElementById("slate-label").textContent = ctx.label;
+
+  const showWaiting = ctx.expired;
+  document.getElementById("waiting-state").style.display = showWaiting ? "block" : "none";
+  document.getElementById("live-stats").style.display = showWaiting ? "none" : "block";
+  document.getElementById("bettor-section").style.display = showWaiting ? "none" : "block";
+  document.getElementById("content").style.display = showWaiting ? "none" : "block";
+  return ctx;
+}
+
 async function pollAndRender() {
+  // Re-load tickets.json every cycle (not just at page load) so a newly
+  // posted slate picks up automatically without needing a manual refresh.
+  try {
+    await loadTickets();
+  } catch (e) {
+    document.getElementById("err-box").innerHTML = `<div class="err">Could not load data/tickets.json.</div>`;
+    return;
+  }
+
+  const ctx = applySlateContext();
+  if (ctx.expired) {
+    document.getElementById("sync-line").textContent = "";
+    document.getElementById("err-box").innerHTML = "";
+    return; // nothing to poll MLB for -- yesterday's slate is done and cleared
+  }
+
   try {
     await pollOnce();
     document.getElementById("err-box").innerHTML = "";
@@ -986,13 +1069,6 @@ document.addEventListener("visibilitychange", () => {
 });
 
 async function init() {
-  try {
-    await loadTickets();
-  } catch (e) {
-    document.getElementById("err-box").innerHTML = `<div class="err">Could not load data/tickets.json.</div>`;
-    return;
-  }
-  render();
   await pollAndRender();
   schedulePolling();
 }

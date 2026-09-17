@@ -34,20 +34,44 @@
   .legend .sw.na { background:var(--yellow-dim); border-color:var(--yellow); }
   .legend .sw.pending { border-color:var(--panel-line); }
   .sync-line { font-size:11px; color:var(--text-faint); margin-top:10px; }
-  .scoreboard { display:flex; gap:8px; margin-top:14px; }
-  .score-chip { flex:1; background:var(--panel); border:1px solid var(--panel-line); border-radius:8px; padding:9px 6px; text-align:center; }
-  .score-chip .num { font-family:'Oswald',sans-serif; font-size:18px; font-weight:700; }
-  .score-chip .lbl { font-size:10px; color:var(--text-faint); letter-spacing:.05em; margin-top:2px; }
+
+  .stat-row-label { font-family:'Oswald',sans-serif; font-size:10.5px; font-weight:600; letter-spacing:.1em; color:var(--text-faint); margin:16px 0 6px 2px; }
+  .stat-row-label:first-of-type { margin-top:16px; }
+  .scoreboard { display:flex; gap:7px; }
+  .score-chip { flex:1; background:var(--panel); border:1px solid var(--panel-line); border-radius:8px; padding:9px 4px; text-align:center; }
+  .score-chip .num { font-family:'Oswald',sans-serif; font-size:17px; font-weight:700; }
+  .score-chip .lbl { font-size:9.5px; color:var(--text-faint); letter-spacing:.04em; margin-top:2px; }
   .score-chip.hit .num { color:var(--green); }
   .score-chip.miss .num { color:var(--red); }
   .score-chip.na .num { color:var(--yellow); }
-  .score-chip.pending .num { color:var(--text); }
+  .score-chip.pending .num, .score-chip.neutral .num { color:var(--text); }
+  .payout-box { margin-top:10px; background:linear-gradient(135deg, var(--green-dim), var(--panel)); border:1px solid var(--green); border-radius:10px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
+  .payout-box .lbl { font-size:12px; color:var(--text-dim); }
+  .payout-box .amt { font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; color:var(--green); }
+
+  .bettor-section { margin: 22px 0 28px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 6px; }
+  .bettor-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0 0 2px; }
+  .bettor-sub { font-size:11.5px; color:var(--text-dim); margin:0 0 8px; }
+  .bettor-row { padding:11px 2px; border-top:1px solid var(--panel-line); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .bettor-row:first-of-type { border-top:none; }
+  .bettor-name { font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; color:var(--green); flex:none; min-width:78px; }
+  .bettor-stats { display:flex; gap:14px; flex:1; justify-content:flex-end; }
+  .bettor-stat { text-align:center; min-width:38px; }
+  .bettor-stat .num { font-family:'Oswald',sans-serif; font-size:14px; font-weight:700; }
+  .bettor-stat .lbl { font-size:9px; color:var(--text-faint); letter-spacing:.03em; margin-top:1px; }
+  .bettor-stat.hit .num { color:var(--green); }
+  .bettor-stat.miss .num { color:var(--red); }
+  .bettor-stat.odds .num { color:var(--amber); }
+
   .window { margin-bottom:28px; }
   .window-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; display:flex; align-items:baseline; gap:10px; margin:0 0 12px; padding:0 2px; }
   .window-title .dot { width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; transform:translateY(-2px); }
-  .ticket { background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 12px; margin-bottom:12px; }
+  .ticket { background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 12px; margin-bottom:12px; transition:opacity .2s ease; }
+  .ticket.is-dead { opacity:0.55; border-color:var(--red-dim); }
+  .dead-banner { display:flex; align-items:center; gap:7px; background:var(--red-dim); border:1px solid var(--red); color:var(--red); border-radius:7px; padding:7px 10px; font-size:11.5px; font-weight:600; letter-spacing:.02em; margin-bottom:10px; }
   .ticket-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
   .ticket-name { font-family:'Oswald',sans-serif; font-size:14.5px; font-weight:600; color:var(--green); }
+  .is-dead .ticket-name { color:var(--text-dim); }
   .ticket-sub { font-size:12px; color:var(--text-faint); font-weight:500; }
   .leg { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--panel-line); }
   .leg:first-of-type { border-top:none; padding-top:0; }
@@ -113,31 +137,52 @@
       <span><span class="sw na"></span>Didn't play</span>
     </div>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
+
+    <p class="stat-row-label">LEGS</p>
     <div class="scoreboard">
       <div class="score-chip hit"><div class="num" id="count-hit">0</div><div class="lbl">HIT</div></div>
-      <div class="score-chip miss"><div class="num" id="count-miss">0</div><div class="lbl">MISS</div></div>
+      <div class="score-chip miss"><div class="num" id="count-miss">0</div><div class="lbl">MISSED</div></div>
       <div class="score-chip na"><div class="num" id="count-na">0</div><div class="lbl">N/A</div></div>
       <div class="score-chip pending"><div class="num" id="count-pending">0</div><div class="lbl">LIVE</div></div>
     </div>
+
+    <p class="stat-row-label">PARLAYS</p>
+    <div class="scoreboard">
+      <div class="score-chip pending"><div class="num" id="count-parlay-live">0</div><div class="lbl">LIVE</div></div>
+      <div class="score-chip hit"><div class="num" id="count-parlay-hit">0</div><div class="lbl">HIT</div></div>
+      <div class="score-chip miss"><div class="num" id="count-parlay-miss">0</div><div class="lbl">MISSED</div></div>
+    </div>
+
+    <div class="payout-box">
+      <span class="lbl">Total payout &mdash; parlays already hit</span>
+      <span class="amt" id="total-payout">$0.00</span>
+    </div>
   </header>
+
   <div id="err-box"></div>
+
+  <div class="bettor-section">
+    <p class="bettor-title">Bettor Tracker</p>
+    <p class="bettor-sub">Every leg attributed to each person, across all cards and singles.</p>
+    <div id="bettor-list"></div>
+  </div>
+
   <div id="content"></div>
+
   <footer id="footer-line">all times ET &middot; results pulled directly from the MLB Stats API</footer>
 </div>
 
 <script>
-const POLL_MS = 20000;       // how often to re-poll while the tab is visible
+const POLL_MS = 20000;
 const API_BASE = "https://statsapi.mlb.com/api";
 
 let TICKETS = null;
 let RESULTS = { hitNames: new Set(), rosterFinal: new Map(), allGamesFinal: false, ready: false };
 let pollTimer = null;
 
-// ---------------- MLB Stats API polling (runs in the visitor's browser) ----------------
-
 function normalizeName(name) {
   return name
-    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")  // strip accents
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[.']/g, "")
     .replace(/\s+/g, " ")
     .trim()
@@ -204,7 +249,7 @@ async function pollOnce() {
   const snapshots = await Promise.all(gamePks.map(pk => getGameSnapshot(pk).catch(() => null)));
 
   const hitNames = new Set();
-  const rosterFinal = new Map(); // normalized name -> that game's isFinal
+  const rosterFinal = new Map();
   let allFinal = true;
 
   snapshots.forEach(snap => {
@@ -227,7 +272,55 @@ function stateForPlayer(playerName) {
   return RESULTS.allGamesFinal ? "na" : "pending";
 }
 
-// ---------------- rendering ----------------
+function oddsToNumber(oddsStr) {
+  if (!oddsStr) return null;
+  const n = parseInt(oddsStr.replace(/[+,]/g, ""), 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+function americanToDecimal(odds) {
+  if (odds === null) return null;
+  return odds >= 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
+}
+
+function fmtMoney(n) {
+  return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function evaluateTicket(tk, states) {
+  const naCount = states.filter(s => s === "na").length;
+  const missCount = states.filter(s => s === "miss").length;
+  const hitCount = states.filter(s => s === "hit").length;
+  const activeCount = states.length - naCount;
+
+  let outcome;
+  if (activeCount === 0) outcome = "void";
+  else if (missCount > 0) outcome = "dead";
+  else if (hitCount === activeCount) outcome = "hit";
+  else outcome = "live";
+
+  let adjustedPayout = tk.payout;
+  if (naCount > 0 && activeCount > 0) {
+    let decimalProduct = 1;
+    tk.legs.forEach((leg, i) => {
+      if (states[i] === "na") return;
+      const dec = americanToDecimal(oddsToNumber(leg.odds));
+      if (dec !== null) decimalProduct *= dec;
+    });
+    adjustedPayout = tk.stake * decimalProduct;
+  }
+
+  return { outcome, activeCount, hitCount, missCount, naCount, adjustedPayout };
+}
+
+function whoKey(rawWho) {
+  return (rawWho || "").split(/[\u2014-]/)[0].trim();
+}
+
+function whoDisplayName(rawWho) {
+  const stripped = whoKey(rawWho);
+  return stripped.charAt(0).toUpperCase() + stripped.slice(1).toLowerCase();
+}
 
 const btnSvg = `
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -249,30 +342,61 @@ function render() {
   const root = document.getElementById("content");
   let html = "";
 
+  let legHit = 0, legMiss = 0, legNa = 0, legPending = 0;
+  let parlayLive = 0, parlayHit = 0, parlayMiss = 0;
+  let totalPayoutHit = 0;
+  const bettors = new Map();
+
+  function touchBettor(rawWho) {
+    const key = whoKey(rawWho).toLowerCase();
+    if (!bettors.has(key)) bettors.set(key, { display: whoDisplayName(rawWho), hit: 0, miss: 0, hitOdds: [] });
+    return bettors.get(key);
+  }
+
   TICKETS.windows.forEach((win) => {
     html += `<div class="window"><p class="window-title"><span class="dot"></span>${win.title}</p>`;
     win.tickets.forEach((tk) => {
-      html += `<div class="ticket"><div class="ticket-head"><span class="ticket-name">${tk.name}</span><span class="ticket-sub">${tk.sub}</span></div>`;
-      const states = [];
-      tk.legs.forEach((leg) => {
-        const state = stateForPlayer(leg.player);
-        states.push(state);
+      const states = tk.legs.map(leg => stateForPlayer(leg.player));
+      const evalRes = evaluateTicket(tk, states);
+
+      if (evalRes.outcome === "dead") parlayMiss++;
+      else if (evalRes.outcome === "hit") { parlayHit++; totalPayoutHit += evalRes.adjustedPayout; }
+      else if (evalRes.outcome === "live") parlayLive++;
+
+      const isDead = evalRes.outcome === "dead";
+      html += `<div class="ticket${isDead ? " is-dead" : ""}"><div class="ticket-head"><span class="ticket-name">${tk.name}</span><span class="ticket-sub">${tk.sub}</span></div>`;
+      if (isDead) html += `<div class="dead-banner">&#9940; Parlay can no longer hit &mdash; one leg missed</div>`;
+
+      tk.legs.forEach((leg, i) => {
+        const state = states[i];
+        if (state === "hit") legHit++;
+        else if (state === "miss") legMiss++;
+        else if (state === "na") legNa++;
+        else legPending++;
+
+        const b = touchBettor(leg.who);
+        if (state === "hit") { b.hit++; const o = oddsToNumber(leg.odds); if (o !== null) b.hitOdds.push(o); }
+        else if (state === "miss") b.miss++;
+
         html += `<div class="leg state-${state}">
           <div class="leg-left"><div class="leg-player">${leg.player}</div><div class="leg-meta">${leg.meta}</div></div>
           <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
           ${badge(state)}
         </div>`;
       });
-      const naCount = states.filter(s => s === "na").length;
-      const missCount = states.filter(s => s === "miss").length;
-      const hitCount = states.filter(s => s === "hit").length;
-      const activeCount = states.length - naCount;
+
       let statusText = "", statusCls = "live";
-      if (activeCount === 0) { statusText = "VOID \u2014 no one played"; statusCls = "void"; }
-      else if (missCount > 0) { statusText = "DEAD"; statusCls = "dead"; }
-      else if (hitCount === activeCount) { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
-      else { statusText = `${hitCount}/${activeCount} live`; }
-      html += `<div class="ticket-foot">${tk.foot}<div class="ticket-status ${statusCls}">${statusText}</div></div></div>`;
+      if (evalRes.outcome === "void") { statusText = "VOID \u2014 no one played"; statusCls = "void"; }
+      else if (evalRes.outcome === "dead") { statusText = "DEAD"; statusCls = "dead"; }
+      else if (evalRes.outcome === "hit") { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
+      else { statusText = `${evalRes.hitCount}/${evalRes.activeCount} live`; }
+
+      let footExtra = "";
+      if (evalRes.naCount > 0 && evalRes.activeCount > 0 && evalRes.outcome !== "dead") {
+        footExtra = `<br><span style="color:var(--yellow)">Adjusted for ${evalRes.activeCount}-leg: ${fmtMoney(evalRes.adjustedPayout)}</span>`;
+      }
+
+      html += `<div class="ticket-foot">${tk.foot}${footExtra}<div class="ticket-status ${statusCls}">${statusText}</div></div></div>`;
     });
     html += `</div>`;
   });
@@ -281,6 +405,15 @@ function render() {
     <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
   TICKETS.singles.forEach((s) => {
     const state = stateForPlayer(s.player);
+    if (state === "hit") legHit++;
+    else if (state === "miss") legMiss++;
+    else if (state === "na") legNa++;
+    else legPending++;
+
+    const b = touchBettor(s.who);
+    if (state === "hit") { b.hit++; const o = oddsToNumber(s.odds); if (o !== null) b.hitOdds.push(o); }
+    else if (state === "miss") b.miss++;
+
     html += `<div class="single-row state-${state}">
       <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}</div><div class="single-meta">${s.meta}</div>
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
@@ -292,27 +425,34 @@ function render() {
   html += `</div></div>`;
 
   root.innerHTML = html;
-  updateCounts();
-}
 
-function updateCounts() {
-  if (!TICKETS) return;
-  let hit = 0, miss = 0, na = 0, pending = 0;
-  const count = (state) => {
-    if (state === "hit") hit++;
-    else if (state === "miss") miss++;
-    else if (state === "na") na++;
-    else pending++;
-  };
-  TICKETS.windows.forEach(w => w.tickets.forEach(tk => tk.legs.forEach(leg => count(stateForPlayer(leg.player)))));
-  TICKETS.singles.forEach(s => count(stateForPlayer(s.player)));
-  document.getElementById("count-hit").textContent = hit;
-  document.getElementById("count-miss").textContent = miss;
-  document.getElementById("count-na").textContent = na;
-  document.getElementById("count-pending").textContent = pending;
-}
+  document.getElementById("count-hit").textContent = legHit;
+  document.getElementById("count-miss").textContent = legMiss;
+  document.getElementById("count-na").textContent = legNa;
+  document.getElementById("count-pending").textContent = legPending;
+  document.getElementById("count-parlay-live").textContent = parlayLive;
+  document.getElementById("count-parlay-hit").textContent = parlayHit;
+  document.getElementById("count-parlay-miss").textContent = parlayMiss;
+  document.getElementById("total-payout").textContent = fmtMoney(totalPayoutHit);
 
-// ---------------- boot ----------------
+  const rows = Array.from(bettors.values()).map((stat) => {
+    const avg = stat.hitOdds.length ? stat.hitOdds.reduce((a, b) => a + b, 0) / stat.hitOdds.length : null;
+    const max = stat.hitOdds.length ? Math.max(...stat.hitOdds) : null;
+    return { name: stat.display, hit: stat.hit, miss: stat.miss, avg, max };
+  }).sort((a, b) => b.hit - a.hit || a.name.localeCompare(b.name));
+
+  const bettorHtml = rows.map(r => `
+    <div class="bettor-row">
+      <div class="bettor-name">${r.name}</div>
+      <div class="bettor-stats">
+        <div class="bettor-stat hit"><div class="num">${r.hit}</div><div class="lbl">HIT</div></div>
+        <div class="bettor-stat miss"><div class="num">${r.miss}</div><div class="lbl">MISS</div></div>
+        <div class="bettor-stat odds"><div class="num">${r.avg !== null ? "+" + Math.round(r.avg) : "\u2014"}</div><div class="lbl">AVG HIT</div></div>
+        <div class="bettor-stat odds"><div class="num">${r.max !== null ? "+" + r.max : "\u2014"}</div><div class="lbl">BEST HIT</div></div>
+      </div>
+    </div>`).join("");
+  document.getElementById("bettor-list").innerHTML = bettorHtml || `<p style="color:var(--text-faint); font-size:12px;">No bettor data yet.</p>`;
+}
 
 async function loadTickets() {
   const res = await fetch("data/tickets.json", { cache: "no-store" });

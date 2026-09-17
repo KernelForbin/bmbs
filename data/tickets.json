@@ -8,11 +8,15 @@
           "name": "Card 1 &middot; Early Lunch Slate",
           "sub": "3-Leg",
           "foot": "<b>$3.00</b> bet by Memo &middot; Potential payout <b>$533.52</b>",
+          "stake": 3.0,
+          "book": "Memo",
+          "payout": 533.52,
           "legs": [
             {
               "id": "p0-c0-l0",
               "player": "Jo Adell",
               "team": "CLE",
+              "who": "Kenny",
               "meta": "CLE &middot; Kenny",
               "odds": "+300",
               "time": "1:10 PM ET"
@@ -21,6 +25,7 @@
               "id": "p0-c0-l1",
               "player": "George Springer",
               "team": "TOR",
+              "who": "Francher",
               "meta": "TOR &middot; Francher",
               "odds": "+470",
               "time": "3:07 PM ET"
@@ -29,6 +34,7 @@
               "id": "p0-c0-l2",
               "player": "Alec Burleson",
               "team": "STL",
+              "who": "Bernie",
               "meta": "STL &middot; Bernie",
               "odds": "+430",
               "time": "1:15 PM ET"
@@ -39,11 +45,15 @@
           "name": "Card 2 &middot; Early Evening Lock",
           "sub": "3-Leg",
           "foot": "<b>$3.00</b> bet by Memo &middot; Potential payout <b>$446.29</b>",
+          "stake": 3.0,
+          "book": "Memo",
+          "payout": 446.29,
           "legs": [
             {
               "id": "p0-c1-l0",
               "player": "Willson Contreras",
               "team": "BOS",
+              "who": "Bailey",
               "meta": "BOS &middot; Bailey",
               "odds": "+390",
               "time": "8:05 PM ET"
@@ -52,6 +62,7 @@
               "id": "p0-c1-l1",
               "player": "Yordan Alvarez",
               "team": "HOU",
+              "who": "Joe",
               "meta": "HOU &middot; Joe",
               "odds": "+340",
               "time": "8:10 PM ET"
@@ -60,6 +71,7 @@
               "id": "p0-c1-l2",
               "player": "Trea Turner",
               "team": "PHI",
+              "who": "Bernie",
               "meta": "PHI &middot; Bernie",
               "odds": "+600",
               "time": "6:45 PM ET"
@@ -70,11 +82,15 @@
           "name": "Card 3 &middot; Prime Time Blitz",
           "sub": "3-Leg",
           "foot": "<b>$3.00</b> bet by Memo &middot; Potential payout <b>$328.69</b>",
+          "stake": 3.0,
+          "book": "Memo",
+          "payout": 328.69,
           "legs": [
             {
               "id": "p0-c2-l0",
               "player": "Salvador Perez",
               "team": "KC",
+              "who": "Noid",
               "meta": "KC &middot; Noid",
               "odds": "+390",
               "time": "8:10 PM ET"
@@ -83,6 +99,7 @@
               "id": "p0-c2-l1",
               "player": "Juan Soto",
               "team": "NYM",
+              "who": "Joe",
               "meta": "NYM &middot; Joe",
               "odds": "+330",
               "time": "7:10 PM ET"
@@ -91,6 +108,7 @@
               "id": "p0-c2-l2",
               "player": "Ronald Acuna",
               "team": "ATL",
+              "who": "Noid",
               "meta": "ATL &middot; Noid",
               "odds": "+420",
               "time": "7:40 PM ET"
@@ -101,11 +119,15 @@
           "name": "Card 4 &middot; Late Night Caps",
           "sub": "3-Leg",
           "foot": "<b>$3.00</b> bet by Memo &middot; Potential payout <b>$444.78</b>",
+          "stake": 3.0,
+          "book": "Memo",
+          "payout": 444.78,
           "legs": [
             {
               "id": "p0-c3-l0",
               "player": "Julio Rodriguez",
               "team": "SEA",
+              "who": "Kevin",
               "meta": "SEA &middot; Kevin",
               "odds": "+352",
               "time": "9:38 PM ET"
@@ -114,6 +136,7 @@
               "id": "p0-c3-l1",
               "player": "Nolan Arenado",
               "team": "ARI",
+              "who": "Memo",
               "meta": "ARI &middot; Memo",
               "odds": "+600",
               "time": "9:40 PM ET"
@@ -122,6 +145,7 @@
               "id": "p0-c3-l2",
               "player": "Heriberto Hernandez",
               "team": "MIA",
+              "who": "Noid — Listed as Herb Hernandez",
               "meta": "MIA &middot; Noid — Listed as Herb Hernandez",
               "odds": "+390",
               "time": "9:40 PM ET"
@@ -137,11 +161,15 @@
           "name": "Card 5 &middot; Same-Game Special 🎯 &middot; Both Players in BAL @ NYM",
           "sub": "2-Leg",
           "foot": "<b>$6.00</b> bet by Kenny &middot; Potential payout <b>$144.60</b>",
+          "stake": 6.0,
+          "book": "Kenny",
+          "payout": 144.6,
           "legs": [
             {
               "id": "p1-c0-l0",
               "player": "Samuel Basallo",
               "team": "BAL",
+              "who": "Bailey",
               "meta": "BAL &middot; Bailey",
               "odds": "+450",
               "time": "7:10 PM ET"
@@ -150,6 +178,7 @@
               "id": "p1-c0-l1",
               "player": "Francisco Lindor",
               "team": "NYM",
+              "who": "Bailey",
               "meta": "NYM &middot; Bailey",
               "odds": "+425",
               "time": "7:10 PM ET"
@@ -160,11 +189,15 @@
           "name": "Card 6 &middot; Afternoon Opener",
           "sub": "2-Leg",
           "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$109.50</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 109.5,
           "legs": [
             {
               "id": "p1-c1-l0",
               "player": "Jordan Walker",
               "team": "STL",
+              "who": "Bernie",
               "meta": "STL &middot; Bernie",
               "odds": "+390",
               "time": "1:15 PM ET"
@@ -173,6 +206,7 @@
               "id": "p1-c1-l1",
               "player": "Aaron Judge",
               "team": "NYY",
+              "who": "Francher",
               "meta": "NYY &middot; Francher",
               "odds": "+270",
               "time": "1:40 PM ET"
@@ -183,11 +217,15 @@
           "name": "Card 7 &middot; Midday Cross-Over",
           "sub": "2-Leg",
           "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$108.00</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 108.0,
           "legs": [
             {
               "id": "p1-c2-l0",
               "player": "Ben Rice",
               "team": "NYY",
+              "who": "Joe",
               "meta": "NYY &middot; Joe",
               "odds": "+370",
               "time": "1:40 PM ET"
@@ -196,6 +234,7 @@
               "id": "p1-c2-l1",
               "player": "Oneil Cruz",
               "team": "PIT",
+              "who": "Kevin",
               "meta": "PIT &middot; Kevin",
               "odds": "+300",
               "time": "6:40 PM ET"
@@ -206,11 +245,15 @@
           "name": "Card 8 &middot; NL Speed Window",
           "sub": "2-Leg",
           "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$168.40</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 168.4,
           "legs": [
             {
               "id": "p1-c3-l0",
               "player": "Elly De La Cruz",
               "team": "CIN",
+              "who": "Memo",
               "meta": "CIN &middot; Memo",
               "odds": "+440",
               "time": "6:40 PM ET"
@@ -219,6 +262,7 @@
               "id": "p1-c3-l1",
               "player": "Ketel Marte",
               "team": "ARI",
+              "who": "Kevin",
               "meta": "ARI &middot; Kevin",
               "odds": "+428",
               "time": "9:40 PM ET"
@@ -229,11 +273,15 @@
           "name": "Card 9 &middot; Prime Time Crossover",
           "sub": "2-Leg",
           "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$123.48</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 123.48,
           "legs": [
             {
               "id": "p1-c4-l0",
               "player": "Pete Alonso",
               "team": "BAL",
+              "who": "Francher",
               "meta": "BAL &middot; Francher",
               "odds": "+350",
               "time": "7:10 PM ET"
@@ -242,6 +290,7 @@
               "id": "p1-c4-l1",
               "player": "Matt Olson",
               "team": "ATL",
+              "who": "Kenny",
               "meta": "ATL &middot; Kenny",
               "odds": "+386",
               "time": "7:40 PM ET"
@@ -252,11 +301,15 @@
           "name": "Card 10 &middot; Late Night Central Coast",
           "sub": "2-Leg",
           "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$271.68</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 271.68,
           "legs": [
             {
               "id": "p1-c5-l0",
               "player": "Pete Crow-Armstrong",
               "team": "CHC",
+              "who": "Kenny",
               "meta": "CHC &middot; Kenny",
               "odds": "+415",
               "time": "7:40 PM ET"
@@ -265,6 +318,7 @@
               "id": "p1-c5-l1",
               "player": "Carson Benge",
               "team": "NYM",
+              "who": "Memo",
               "meta": "NYM &middot; Memo",
               "odds": "+750",
               "time": "7:10 PM ET"
@@ -280,11 +334,15 @@
           "name": "Card 11 &middot; Mega Longshot Wager",
           "sub": "4-Leg",
           "foot": "<b>$4.00</b> bet by Memo &middot; Potential payout <b>$2,327.93</b>",
+          "stake": 4.0,
+          "book": "Memo",
+          "payout": 2327.93,
           "legs": [
             {
               "id": "p2-c0-l0",
               "player": "Mookie Betts",
               "team": "LAD",
+              "who": "Joe",
               "meta": "LAD &middot; Joe",
               "odds": "+400",
               "time": ""
@@ -293,6 +351,7 @@
               "id": "p2-c0-l1",
               "player": "Spencer Jones",
               "team": "NYY",
+              "who": "Francher",
               "meta": "NYY &middot; Francher",
               "odds": "+410",
               "time": ""
@@ -301,6 +360,7 @@
               "id": "p2-c0-l2",
               "player": "Ty France",
               "team": "SD",
+              "who": "Bailey",
               "meta": "SD &middot; Bailey",
               "odds": "+475",
               "time": ""
@@ -309,6 +369,7 @@
               "id": "p2-c0-l3",
               "player": "Cal Raleigh",
               "team": "SEA",
+              "who": "Memo",
               "meta": "SEA &middot; Memo",
               "odds": "+280",
               "time": ""
@@ -319,11 +380,15 @@
           "name": "Card 12 &middot; High-Odds Heavyweights",
           "sub": "4-Leg",
           "foot": "<b>$4.00</b> bet by Memo &middot; Potential payout <b>$2,695.60</b>",
+          "stake": 4.0,
+          "book": "Memo",
+          "payout": 2695.6,
           "legs": [
             {
               "id": "p2-c1-l0",
               "player": "Manny Machado",
               "team": "SD",
+              "who": "Kenny",
               "meta": "SD &middot; Kenny",
               "odds": "+328",
               "time": ""
@@ -332,6 +397,7 @@
               "id": "p2-c1-l1",
               "player": "Bryce Harper",
               "team": "PHI",
+              "who": "Kevin",
               "meta": "PHI &middot; Kevin",
               "odds": "+490",
               "time": ""
@@ -340,6 +406,7 @@
               "id": "p2-c1-l2",
               "player": "Junior Caminero",
               "team": "TB",
+              "who": "Noid",
               "meta": "TB &middot; Noid",
               "odds": "+310",
               "time": ""
@@ -348,6 +415,7 @@
               "id": "p2-c1-l3",
               "player": "Gunnar Henderson",
               "team": "BAL",
+              "who": "Bernie",
               "meta": "BAL &middot; Bernie",
               "odds": "+520",
               "time": ""

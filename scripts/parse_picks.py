@@ -231,6 +231,7 @@ def parse(text, team_by_name, canonical_by_norm):
                     "id": f"p{si}-c{ci}-l{li}",
                     "player": leg["player"],
                     "team": leg["team"],
+                    "who": leg["who"],
                     "meta": meta,
                     "odds": leg["odds"],
                     "time": leg["time"],
@@ -242,6 +243,9 @@ def parse(text, team_by_name, canonical_by_norm):
                 "name": f'{card["name"]} &middot; {card["sub"]}{tag_html}',
                 "sub": f'{len(legs)}-Leg',
                 "foot": foot,
+                "stake": card["_stake"],
+                "book": card["_book"],
+                "payout": card["_origPayout"],
                 "legs": legs,
             })
         out_windows.append({"title": section["title"], "tickets": out_tickets})

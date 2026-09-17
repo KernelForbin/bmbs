@@ -96,6 +96,7 @@
   .leg-left { flex:1; min-width:0; }
   .leg-player { font-size:14px; font-weight:600; line-height:1.35; word-wrap:break-word; }
   .leg-meta { font-size:12px; color:var(--text-dim); line-height:1.4; margin-top:2px; word-wrap:break-word; }
+  .leg-live-context { font-size:10.5px; color:var(--amber); line-height:1.4; margin-top:3px; word-wrap:break-word; }
   .leg-right { flex:none; text-align:right; }
   .leg-odds { font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:var(--amber); }
   .leg-time { font-size:11px; color:var(--text-faint); margin-top:2px; }
@@ -159,6 +160,7 @@
       <span><span class="sw na"></span>Didn't play</span>
     </div>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
+    <p class="note" style="font-size:10.5px; margin-top:4px;">Remaining-AB estimates on in-progress legs use league-average odds (not this specific hitter's stats) and assume a 9-inning game &mdash; treat as a rough estimate, not a guarantee.</p>
 
     <div class="payout-box">
       <span class="lbl">Total payout &mdash; bets already hit</span>
@@ -207,11 +209,17 @@ const POLL_MS = 20000;
 const API_BASE = "https://statsapi.mlb.com/api";
 
 let TICKETS = null;
-let RESULTS = { hitNames: new Set(), rosterStatus: new Map(), allGamesFinal: false, ready: false };
+let RESULTS = { hitNames: new Set(), rosterStatus: new Map(), gameInfo: new Map(), allGamesFinal: false, ready: false };
 let pollTimer = null;
 let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'
 let EVALUATED = [];          // [{ win, tk, states, evalRes }]  (parlay cards)
 let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
+
+// League-average probability that a plate appearance ends in an out. Not
+// specific to any individual hitter -- used only to estimate remaining
+// at-bats for whoever's leg we're tracking. See remainingOutsForSide() /
+// atBatEstimate() for the model this feeds into.
+const LEAGUE_OUT_RATE = 0.685;
 
 // ---------------- MLB Stats API polling ----------------
 
@@ -262,23 +270,140 @@ async function getGameSnapshot(gamePk) {
   });
 
   const rosterNames = new Set();
+  // normalized name -> starting batting-order slot (1-9), only set for
+  // players who were in the starting lineup; bench/pinch entries without
+  // a recognizable slot are left out of order-based projections.
+  const orderSlot = new Map();
   const boxTeams = (data.liveData && data.liveData.boxscore && data.liveData.boxscore.teams) || {};
   ["away", "home"].forEach(side => {
     const players = (boxTeams[side] && boxTeams[side].players) || {};
     Object.values(players).forEach(p => {
       const full = p.person && p.person.fullName;
-      if (full) rosterNames.add(normalizeName(full));
+      if (!full) return;
+      const norm = normalizeName(full);
+      rosterNames.add(norm);
+      if (p.battingOrder) {
+        const slot = parseInt(String(p.battingOrder)[0], 10);
+        if (!Number.isNaN(slot) && slot >= 1 && slot <= 9) orderSlot.set(norm, { slot, side });
+      }
     });
   });
 
-  return { status, hrNames, rosterNames };
+  const linescore = (data.liveData && data.liveData.linescore) || {};
+  const inning = linescore.currentInning || null;
+  const halfState = linescore.inningState || null; // "Top" | "Middle" | "Bottom" | "End"
+  const outs = typeof linescore.outs === "number" ? linescore.outs : null;
+  const offense = linescore.offense || null;
+
+  // "Next up" slot per side: who bats next (or is at the plate right now).
+  function lastBatterSlot(side) {
+    for (let i = plays.length - 1; i >= 0; i--) {
+      const play = plays[i];
+      const isTop = play.about && play.about.isTopInning;
+      const playSide = isTop ? "away" : "home";
+      if (playSide !== side) continue;
+      const batter = play.matchup && play.matchup.batter && play.matchup.batter.fullName;
+      if (!batter) continue;
+      const info = orderSlot.get(normalizeName(batter));
+      if (info) return info.slot;
+    }
+    return null;
+  }
+
+  const currentlyBattingSide = offense ? (halfState === "Top" ? "away" : "home") : null;
+  const nextUpSlot = {};
+  ["away", "home"].forEach(side => {
+    let slot = null;
+    if (side === currentlyBattingSide && offense && offense.batter && offense.batter.fullName) {
+      const info = orderSlot.get(normalizeName(offense.batter.fullName));
+      if (info) slot = info.slot;
+    }
+    if (slot === null) {
+      const last = lastBatterSlot(side);
+      slot = last ? (last % 9) + 1 : null;
+    }
+    nextUpSlot[side] = slot;
+  });
+
+  return { status, hrNames, rosterNames, orderSlot, inning, halfState, outs, nextUpSlot, gamePk };
+}
+
+// How many more outs a team's side needs to record before the (assumed
+// 9-inning) game ends, given the current inning/half/outs. Used as the
+// "r" parameter of a negative-binomial estimate of remaining at-bats.
+// Does not model extra innings or the home team skipping the bottom 9th
+// when already leading -- both are called out in the UI as limitations.
+function remainingOutsForSide(inningNum, halfState, outsInCurrentHalf, side) {
+  if (!inningNum) return 0;
+  const outsLeft = Math.max(0, 3 - (outsInCurrentHalf || 0));
+  if (halfState === "Top") {
+    const futureFull = Math.max(0, 9 - inningNum);
+    return side === "away" ? outsLeft + 3 * futureFull : 3 + 3 * futureFull;
+  }
+  if (halfState === "Middle" || halfState === "Bottom") {
+    const futureFull = Math.max(0, 9 - inningNum);
+    if (side === "away") return 3 * futureFull;
+    return halfState === "Bottom" ? outsLeft + 3 * futureFull : 3 + 3 * futureFull;
+  }
+  // "End" of an inning, or an unrecognized state: treat as the moment
+  // just before the next inning's top begins.
+  const nextInning = inningNum + 1;
+  const futureFull = Math.max(0, 9 - nextInning);
+  return side === "away" ? 3 + 3 * futureFull : 3 * futureFull;
+}
+
+// P(a Negative-Binomial(r, p) "failures before r-th success" variable equals j)
+function negBinomPmf(j, r, p) {
+  if (j < 0 || r <= 0) return j === 0 ? 1 : 0;
+  // C(j + r - 1, j) computed iteratively to avoid factorial overflow
+  let coef = 1;
+  for (let i = 0; i < j; i++) coef *= (r + i) / (i + 1);
+  return coef * Math.pow(p, r) * Math.pow(1 - p, j);
+}
+
+// Estimates, for a hitter `d` batters away from the plate (0 = up right
+// now), with `r` outs remaining for their team: probability of at least
+// one more plate appearance, and expected number of remaining PAs.
+function atBatEstimate(d, r, p) {
+  if (r <= 0) return { probAtLeastOne: 0, expected: 0 };
+  const threshold0 = (d + 1) - r; // need F >= this many non-outs for >=1 more PA
+  function probAtLeastKMorePAs(k) {
+    const threshold = (d + 1 + 9 * (k - 1)) - r;
+    if (threshold <= 0) return 1;
+    let cum = 0;
+    for (let j = 0; j < threshold; j++) cum += negBinomPmf(j, r, p);
+    return Math.max(0, Math.min(1, 1 - cum));
+  }
+  const probAtLeastOne = probAtLeastKMorePAs(1);
+  let expected = 0;
+  for (let k = 1; k <= 6; k++) expected += probAtLeastKMorePAs(k);
+  return { probAtLeastOne, expected };
+}
+
+// Full live-context lookup for one player, or null if we don't have
+// enough info (game not live, player not a tracked starter, etc.)
+function battingContextFor(playerName, side, gamePk) {
+  const norm = normalizeName(playerName);
+  const game = RESULTS.gameInfo.get(gamePk);
+  if (!game || !game.inning) return null;
+  const info = game.orderSlot.get(norm);
+  if (!info) return null; // not a starter with a known lineup slot
+  const nextSlot = game.nextUpSlot[side];
+  if (!nextSlot) return null;
+  const d = (info.slot - nextSlot + 9) % 9;
+  const r = remainingOutsForSide(game.inning, game.halfState, game.outs, side);
+  const { probAtLeastOne, expected } = atBatEstimate(d, r, LEAGUE_OUT_RATE);
+  return {
+    inning: game.inning, halfState: game.halfState, slot: info.slot,
+    probAtLeastOne, expected
+  };
 }
 
 async function pollOnce() {
   const gamePks = await getTodaysGamePks();
 
   if (gamePks.length === 0) {
-    RESULTS = { hitNames: new Set(), rosterStatus: new Map(), allGamesFinal: false, ready: true, noGames: true };
+    RESULTS = { hitNames: new Set(), rosterStatus: new Map(), gameInfo: new Map(), allGamesFinal: false, ready: true, noGames: true };
     return;
   }
 
@@ -286,6 +411,8 @@ async function pollOnce() {
 
   const hitNames = new Set();
   const rosterStatus = new Map(); // normalized name -> 'live' | 'final'
+  const rosterSide = new Map();   // normalized name -> {side, gamePk}
+  const gameInfo = new Map();     // gamePk -> snapshot
   let allFinal = true;
 
   snapshots.forEach(snap => {
@@ -293,11 +420,13 @@ async function pollOnce() {
     snap.hrNames.forEach(n => hitNames.add(n));
     if (snap.status !== "preview") {
       snap.rosterNames.forEach(n => rosterStatus.set(n, snap.status));
+      snap.orderSlot.forEach((info, n) => rosterSide.set(n, { side: info.side, gamePk: snap.gamePk }));
     }
+    gameInfo.set(snap.gamePk, snap);
     if (snap.status !== "final") allFinal = false;
   });
 
-  RESULTS = { hitNames, rosterStatus, allGamesFinal: allFinal, ready: true, noGames: false };
+  RESULTS = { hitNames, rosterStatus, rosterSide, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
 }
 
 // five possible states: hit, miss, na, live (game started, no HR yet), not_started
@@ -309,6 +438,24 @@ function stateForPlayer(playerName) {
     return RESULTS.rosterStatus.get(norm) === "final" ? "miss" : "live";
   }
   return RESULTS.allGamesFinal ? "na" : "not_started";
+}
+
+// Returns { inningLabel, probAtLeastOne, expected } for a currently-live
+// player, or null if there isn't enough info to estimate (not a tracked
+// lineup slot, game not actually in progress, etc).
+function liveContextForPlayer(playerName) {
+  const norm = normalizeName(playerName);
+  const loc = RESULTS.rosterSide && RESULTS.rosterSide.get(norm);
+  if (!loc) return null;
+  const ctx = battingContextFor(playerName, loc.side, loc.gamePk);
+  if (!ctx) return null;
+  const halfWord = ctx.halfState === "Top" ? "Top" : ctx.halfState === "Bottom" ? "Bot" : ctx.halfState || "";
+  return {
+    inningLabel: `${halfWord} ${ctx.inning}`.trim(),
+    slot: ctx.slot,
+    probAtLeastOne: ctx.probAtLeastOne,
+    expected: ctx.expected
+  };
 }
 
 // ---------------- odds / payout helpers ----------------
@@ -395,6 +542,23 @@ const btnSvg = `
 function badge(state) {
   const inner = state === "na" ? "N/A" : btnSvg;
   return `<div class="mark-badge" data-state="${state}">${inner}</div>`;
+}
+
+// Small info line shown under a leg's meta when that leg's game is
+// currently live and we have enough lineup data to estimate. Returns ""
+// when there's nothing to show (game not live, bench player, etc).
+function liveContextHtml(playerName) {
+  const ctx = liveContextForPlayer(playerName);
+  if (!ctx) return "";
+  const pct = Math.round(ctx.probAtLeastOne * 100);
+  const exp = ctx.expected.toFixed(1);
+  return `<div class="leg-live-context">&#9918; ${ctx.inningLabel} &middot; batting ${ordinal(ctx.slot)}
+    &middot; ~${exp} AB left &middot; ${pct}% chance of another AB</div>`;
+}
+
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 // Full pass: computes scoreboard totals, bettor stats, and the EVALUATED
@@ -514,7 +678,7 @@ function renderContent() {
       tk.legs.forEach((leg, i) => {
         const state = states[i];
         html += `<div class="leg state-${state}">
-          <div class="leg-left"><div class="leg-player">${leg.player}</div><div class="leg-meta">${leg.meta}</div></div>
+          <div class="leg-left"><div class="leg-player">${leg.player}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player)}</div>
           <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
           ${badge(state)}
         </div>`;
@@ -543,12 +707,12 @@ function renderContent() {
   const filteredSingles = EVALUATED_SINGLES.filter(e => ticketMatchesFilter({ outcome: e.outcome }));
   html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
     <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
-  if (filteredSingles.length === 0) {
+  if (filteredSingles.length === 0 && CURRENT_FILTER) {
     html += `<p class="empty-filter-note" style="padding:12px 0;">No straight bets match this filter right now.</p>`;
   }
   filteredSingles.forEach(({ s, state }) => {
     html += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}</div><div class="single-meta">${s.meta}</div>
+      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player)}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>

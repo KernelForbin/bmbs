@@ -26,32 +26,50 @@
   h1 { font-family:'Oswald',sans-serif; font-size:28px; font-weight:700; line-height:1.1; margin:0 0 10px; }
   .note { font-size:13.5px; line-height:1.5; color:var(--text-dim); margin:0 0 4px; }
   .note b { color:var(--text); font-weight:600; }
-  .legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; font-size:11.5px; color:var(--text-dim); }
+  .legend { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; font-size:11px; color:var(--text-dim); }
   .legend span { display:inline-flex; align-items:center; gap:5px; }
   .legend .sw { width:11px; height:11px; border-radius:3px; display:inline-block; border:1.5px solid var(--panel-line); }
   .legend .sw.hit { background:var(--green-dim); border-color:var(--green); }
   .legend .sw.miss { background:var(--red-dim); border-color:var(--red); }
   .legend .sw.na { background:var(--yellow-dim); border-color:var(--yellow); }
+  .legend .sw.live-game { border-color:var(--amber); }
   .legend .sw.pending { border-color:var(--panel-line); }
   .sync-line { font-size:11px; color:var(--text-faint); margin-top:10px; }
 
-  .stat-row-label { font-family:'Oswald',sans-serif; font-size:10.5px; font-weight:600; letter-spacing:.1em; color:var(--text-faint); margin:16px 0 6px 2px; }
-  .stat-row-label:first-of-type { margin-top:16px; }
-  .scoreboard { display:flex; gap:7px; }
-  .score-chip { flex:1; background:var(--panel); border:1px solid var(--panel-line); border-radius:8px; padding:9px 4px; text-align:center; }
-  .score-chip .num { font-family:'Oswald',sans-serif; font-size:17px; font-weight:700; }
-  .score-chip .lbl { font-size:9.5px; color:var(--text-faint); letter-spacing:.04em; margin-top:2px; }
-  .score-chip.hit .num { color:var(--green); }
-  .score-chip.miss .num { color:var(--red); }
-  .score-chip.na .num { color:var(--yellow); }
-  .score-chip.pending .num, .score-chip.neutral .num { color:var(--text); }
-  .payout-box { margin-top:10px; background:linear-gradient(135deg, var(--green-dim), var(--panel)); border:1px solid var(--green); border-radius:10px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
+  .payout-box { margin-top:14px; background:linear-gradient(135deg, var(--green-dim), var(--panel)); border:1px solid var(--green); border-radius:10px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
   .payout-box .lbl { font-size:12px; color:var(--text-dim); }
   .payout-box .amt { font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; color:var(--green); }
 
+  .stat-row-label { font-family:'Oswald',sans-serif; font-size:10.5px; font-weight:600; letter-spacing:.1em; color:var(--text-faint); margin:16px 0 6px 2px; }
+  .scoreboard { display:grid; grid-template-columns: repeat(3, 1fr); gap:7px; }
+  .scoreboard.legs-row { grid-template-columns: repeat(5, 1fr); gap:5px; }
+  .score-chip { background:var(--panel); border:1px solid var(--panel-line); border-radius:8px; padding:9px 3px; text-align:center; }
+  .legs-row .score-chip { padding:7px 2px; }
+  .score-chip.clickable { cursor:pointer; user-select:none; transition:border-color .15s ease, background .15s ease; }
+  .score-chip.clickable:active { transform:scale(0.97); }
+  .score-chip.active-filter { border-color:var(--green); background:var(--green-dim); }
+  .score-chip .num { font-family:'Oswald',sans-serif; font-size:17px; font-weight:700; }
+  .legs-row .num { font-size:14px; }
+  .score-chip .lbl { font-size:9.5px; color:var(--text-faint); letter-spacing:.03em; margin-top:2px; }
+  .legs-row .lbl { font-size:8.5px; }
+  .score-chip.hit .num { color:var(--green); }
+  .score-chip.miss .num { color:var(--red); }
+  .score-chip.na .num { color:var(--yellow); }
+  .score-chip.live-game .num { color:var(--amber); }
+  .score-chip.pending .num, .score-chip.neutral .num { color:var(--text); }
+  .filter-status { display:none; align-items:center; justify-content:space-between; margin-top:8px; background:var(--green-dim); border:1px solid var(--green); border-radius:7px; padding:7px 10px; font-size:11.5px; color:var(--green); }
+  .filter-status.active { display:flex; }
+  .filter-status .clear-btn { cursor:pointer; text-decoration:underline; font-weight:600; }
+
   .bettor-section { margin: 22px 0 28px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 6px; }
-  .bettor-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0 0 2px; }
-  .bettor-sub { font-size:11.5px; color:var(--text-dim); margin:0 0 8px; }
+  .bettor-section.collapsed { padding-bottom:14px; }
+  .bettor-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
+  .bettor-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; }
+  .bettor-chevron { color:var(--text-faint); font-size:12px; transition:transform .18s ease; }
+  .bettor-section.collapsed .bettor-chevron { transform:rotate(-90deg); }
+  .bettor-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 8px; }
+  .bettor-body { display:block; }
+  .bettor-section.collapsed .bettor-body, .bettor-section.collapsed .bettor-sub { display:none; }
   .bettor-row { padding:11px 2px; border-top:1px solid var(--panel-line); display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .bettor-row:first-of-type { border-top:none; }
   .bettor-name { font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; color:var(--green); flex:none; min-width:78px; }
@@ -84,19 +102,21 @@
   .mark-badge { flex:none; width:34px; height:34px; border-radius:9px; border:1.5px solid var(--panel-line); display:flex; align-items:center; justify-content:center; font-family:'Oswald',sans-serif; font-size:10px; font-weight:700; }
   .mark-badge svg { width:17px; height:17px; display:block; }
   .mark-badge .check-path, .mark-badge .x-path { display:none; }
-  .mark-badge[data-state="pending"] .dash { display:block; }
+  .mark-badge[data-state="not_started"] .dash { display:block; stroke:var(--text-faint); }
+  .mark-badge[data-state="live"] { border-color:var(--amber); }
+  .mark-badge[data-state="live"] .dash { display:block; stroke:var(--amber); }
   .mark-badge[data-state="hit"] { background:var(--green-dim); border-color:var(--green); }
   .mark-badge[data-state="hit"] .check-path { display:block; stroke:var(--green); }
   .mark-badge[data-state="miss"] { background:var(--red-dim); border-color:var(--red); }
   .mark-badge[data-state="miss"] .x-path { display:block; stroke:var(--red); }
   .mark-badge[data-state="na"] { background:var(--yellow-dim); border-color:var(--yellow); color:var(--yellow); }
-  .mark-badge .dash { stroke:var(--text-faint); }
   .leg.state-hit .leg-player { color:var(--green); }
   .leg.state-miss .leg-player { color:var(--text-faint); text-decoration:line-through; }
   .leg.state-miss .leg-meta, .leg.state-miss .leg-odds { color:var(--text-faint); }
   .leg.state-na .leg-player { color:var(--yellow); }
   .leg.state-na .leg-meta { color:var(--text-faint); }
   .leg.state-na .leg-right::after { content:"Did not play"; display:block; font-size:10px; color:var(--yellow); margin-top:2px; }
+  .leg.state-live .leg-right::after { content:"In progress"; display:block; font-size:10px; color:var(--amber); margin-top:2px; }
   .ticket-foot { margin-top:10px; padding-top:10px; border-top:1px solid var(--panel-line); font-size:12.5px; color:var(--text-dim); line-height:1.5; }
   .ticket-foot b { color:var(--text); font-weight:600; }
   .ticket-status { font-size:11px; font-weight:600; letter-spacing:.04em; margin-top:6px; }
@@ -120,6 +140,7 @@
   .single-row.state-na .single-player { color:var(--yellow); }
   .single-row.state-na .single-meta { color:var(--text-faint); }
   .single-void-tag { font-size:10px; color:var(--yellow); margin-top:2px; }
+  .empty-filter-note { color:var(--text-faint); font-size:13px; text-align:center; padding:24px 0; }
   footer { margin-top:18px; padding-top:14px; border-top:1px solid var(--panel-line); font-size:11px; color:var(--text-faint); text-align:center; }
   .err { background:var(--red-dim); border:1px solid var(--red); color:var(--text); border-radius:8px; padding:12px 14px; font-size:13px; margin-bottom:16px; }
 </style>
@@ -131,40 +152,49 @@
     <h1>Home Run Card</h1>
     <p class="note" id="dynamic-note"></p>
     <div class="legend">
-      <span><span class="sw pending"></span>In progress</span>
+      <span><span class="sw pending"></span>Not started</span>
+      <span><span class="sw live-game"></span>In progress</span>
       <span><span class="sw hit"></span>Home run</span>
       <span><span class="sw miss"></span>Game final, no HR</span>
       <span><span class="sw na"></span>Didn't play</span>
     </div>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
 
-    <p class="stat-row-label">LEGS</p>
-    <div class="scoreboard">
-      <div class="score-chip hit"><div class="num" id="count-hit">0</div><div class="lbl">HIT</div></div>
-      <div class="score-chip miss"><div class="num" id="count-miss">0</div><div class="lbl">MISSED</div></div>
-      <div class="score-chip na"><div class="num" id="count-na">0</div><div class="lbl">N/A</div></div>
-      <div class="score-chip pending"><div class="num" id="count-pending">0</div><div class="lbl">LIVE</div></div>
-    </div>
-
-    <p class="stat-row-label">PARLAYS</p>
-    <div class="scoreboard">
-      <div class="score-chip pending"><div class="num" id="count-parlay-live">0</div><div class="lbl">LIVE</div></div>
-      <div class="score-chip hit"><div class="num" id="count-parlay-hit">0</div><div class="lbl">HIT</div></div>
-      <div class="score-chip miss"><div class="num" id="count-parlay-miss">0</div><div class="lbl">MISSED</div></div>
-    </div>
-
     <div class="payout-box">
       <span class="lbl">Total payout &mdash; parlays already hit</span>
       <span class="amt" id="total-payout">$0.00</span>
+    </div>
+
+    <p class="stat-row-label">PARLAYS &middot; tap to filter below</p>
+    <div class="scoreboard">
+      <div class="score-chip pending clickable" id="chip-open" onclick="toggleFilter('open')"><div class="num" id="count-parlay-open">0</div><div class="lbl">OPEN</div></div>
+      <div class="score-chip hit clickable" id="chip-hit" onclick="toggleFilter('hit')"><div class="num" id="count-parlay-hit">0</div><div class="lbl">HIT</div></div>
+      <div class="score-chip miss clickable" id="chip-dead" onclick="toggleFilter('dead')"><div class="num" id="count-parlay-miss">0</div><div class="lbl">MISSED</div></div>
+    </div>
+    <div class="filter-status" id="filter-status">
+      <span id="filter-status-text"></span>
+      <span class="clear-btn" onclick="toggleFilter(null)">Clear &times;</span>
+    </div>
+
+    <p class="stat-row-label">LEGS</p>
+    <div class="scoreboard legs-row">
+      <div class="score-chip hit"><div class="num" id="count-hit">0</div><div class="lbl">HIT</div></div>
+      <div class="score-chip miss"><div class="num" id="count-miss">0</div><div class="lbl">MISSED</div></div>
+      <div class="score-chip na"><div class="num" id="count-na">0</div><div class="lbl">N/A</div></div>
+      <div class="score-chip live-game"><div class="num" id="count-live">0</div><div class="lbl">LIVE</div></div>
+      <div class="score-chip pending"><div class="num" id="count-not-started">0</div><div class="lbl">NOT STARTED</div></div>
     </div>
   </header>
 
   <div id="err-box"></div>
 
-  <div class="bettor-section">
-    <p class="bettor-title">Bettor Tracker</p>
+  <div class="bettor-section" id="bettor-section">
+    <div class="bettor-head" onclick="toggleBettorSection()">
+      <p class="bettor-title">Bettor Tracker</p>
+      <span class="bettor-chevron">&#9660;</span>
+    </div>
     <p class="bettor-sub">Every leg attributed to each person, across all cards and singles.</p>
-    <div id="bettor-list"></div>
+    <div class="bettor-body" id="bettor-list"></div>
   </div>
 
   <div id="content"></div>
@@ -177,8 +207,12 @@ const POLL_MS = 20000;
 const API_BASE = "https://statsapi.mlb.com/api";
 
 let TICKETS = null;
-let RESULTS = { hitNames: new Set(), rosterFinal: new Map(), allGamesFinal: false, ready: false };
+let RESULTS = { hitNames: new Set(), rosterStatus: new Map(), allGamesFinal: false, ready: false };
 let pollTimer = null;
+let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'
+let EVALUATED = [];          // [{ win, tk, states, evalRes }]
+
+// ---------------- MLB Stats API polling ----------------
 
 function normalizeName(name) {
   return name
@@ -213,7 +247,8 @@ async function getTodaysGamePks() {
 
 async function getGameSnapshot(gamePk) {
   const data = await fetchJson(`${API_BASE}/v1.1/game/${gamePk}/feed/live`);
-  const isFinal = (data.gameData && data.gameData.status && data.gameData.status.abstractGameState) === "Final";
+  const abstract = (data.gameData && data.gameData.status && data.gameData.status.abstractGameState) || "";
+  const status = abstract === "Final" ? "final" : (abstract === "Preview" ? "preview" : "live");
 
   const hrNames = new Set();
   const plays = (data.liveData && data.liveData.plays && data.liveData.plays.allPlays) || [];
@@ -235,42 +270,47 @@ async function getGameSnapshot(gamePk) {
     });
   });
 
-  return { isFinal, hrNames, rosterNames };
+  return { status, hrNames, rosterNames };
 }
 
 async function pollOnce() {
   const gamePks = await getTodaysGamePks();
 
   if (gamePks.length === 0) {
-    RESULTS = { hitNames: new Set(), rosterFinal: new Map(), allGamesFinal: false, ready: true, noGames: true };
+    RESULTS = { hitNames: new Set(), rosterStatus: new Map(), allGamesFinal: false, ready: true, noGames: true };
     return;
   }
 
   const snapshots = await Promise.all(gamePks.map(pk => getGameSnapshot(pk).catch(() => null)));
 
   const hitNames = new Set();
-  const rosterFinal = new Map();
+  const rosterStatus = new Map(); // normalized name -> 'live' | 'final'
   let allFinal = true;
 
   snapshots.forEach(snap => {
     if (!snap) { allFinal = false; return; }
     snap.hrNames.forEach(n => hitNames.add(n));
-    snap.rosterNames.forEach(n => rosterFinal.set(n, snap.isFinal));
-    if (!snap.isFinal) allFinal = false;
+    if (snap.status !== "preview") {
+      snap.rosterNames.forEach(n => rosterStatus.set(n, snap.status));
+    }
+    if (snap.status !== "final") allFinal = false;
   });
 
-  RESULTS = { hitNames, rosterFinal, allGamesFinal: allFinal, ready: true, noGames: false };
+  RESULTS = { hitNames, rosterStatus, allGamesFinal: allFinal, ready: true, noGames: false };
 }
 
+// five possible states: hit, miss, na, live (game started, no HR yet), not_started
 function stateForPlayer(playerName) {
   const norm = normalizeName(playerName);
-  if (!RESULTS.ready) return "pending";
+  if (!RESULTS.ready) return "not_started";
   if (RESULTS.hitNames.has(norm)) return "hit";
-  if (RESULTS.rosterFinal.has(norm)) {
-    return RESULTS.rosterFinal.get(norm) ? "miss" : "pending";
+  if (RESULTS.rosterStatus.has(norm)) {
+    return RESULTS.rosterStatus.get(norm) === "final" ? "miss" : "live";
   }
-  return RESULTS.allGamesFinal ? "na" : "pending";
+  return RESULTS.allGamesFinal ? "na" : "not_started";
 }
+
+// ---------------- odds / payout helpers ----------------
 
 function oddsToNumber(oddsStr) {
   if (!oddsStr) return null;
@@ -287,6 +327,7 @@ function fmtMoney(n) {
   return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
+// outcome: 'hit' | 'dead' | 'live' | 'void'  (live/void both count as "Open")
 function evaluateTicket(tk, states) {
   const naCount = states.filter(s => s === "na").length;
   const missCount = states.filter(s => s === "miss").length;
@@ -313,6 +354,16 @@ function evaluateTicket(tk, states) {
   return { outcome, activeCount, hitCount, missCount, naCount, adjustedPayout };
 }
 
+function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void"; }
+
+function ticketMatchesFilter(evalRes) {
+  if (!CURRENT_FILTER) return true;
+  if (CURRENT_FILTER === "open") return isOpenOutcome(evalRes.outcome);
+  if (CURRENT_FILTER === "hit") return evalRes.outcome === "hit";
+  if (CURRENT_FILTER === "dead") return evalRes.outcome === "dead";
+  return true;
+}
+
 function whoKey(rawWho) {
   return (rawWho || "").split(/[\u2014-]/)[0].trim();
 }
@@ -321,6 +372,8 @@ function whoDisplayName(rawWho) {
   const stripped = whoKey(rawWho);
   return stripped.charAt(0).toUpperCase() + stripped.slice(1).toLowerCase();
 }
+
+// ---------------- rendering ----------------
 
 const btnSvg = `
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -334,103 +387,69 @@ function badge(state) {
   return `<div class="mark-badge" data-state="${state}">${inner}</div>`;
 }
 
-function render() {
+// Full pass: computes scoreboard totals, bettor stats, and the EVALUATED
+// array content windows are rendered from. Called once per poll.
+function computeAll() {
   if (!TICKETS) return;
-  document.getElementById("dynamic-note").innerHTML =
-    `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live MLB results."}`;
 
-  const root = document.getElementById("content");
-  let html = "";
-
-  let legHit = 0, legMiss = 0, legNa = 0, legPending = 0;
-  let parlayLive = 0, parlayHit = 0, parlayMiss = 0;
+  let legHit = 0, legMiss = 0, legNa = 0, legLive = 0, legNotStarted = 0;
+  let parlayOpen = 0, parlayHit = 0, parlayMiss = 0;
   let totalPayoutHit = 0;
   const bettors = new Map();
 
   function touchBettor(rawWho) {
     const key = whoKey(rawWho).toLowerCase();
+    if (!key) return null;
     if (!bettors.has(key)) bettors.set(key, { display: whoDisplayName(rawWho), hit: 0, miss: 0, hitOdds: [] });
     return bettors.get(key);
   }
-
-  TICKETS.windows.forEach((win) => {
-    html += `<div class="window"><p class="window-title"><span class="dot"></span>${win.title}</p>`;
-    win.tickets.forEach((tk) => {
-      const states = tk.legs.map(leg => stateForPlayer(leg.player));
-      const evalRes = evaluateTicket(tk, states);
-
-      if (evalRes.outcome === "dead") parlayMiss++;
-      else if (evalRes.outcome === "hit") { parlayHit++; totalPayoutHit += evalRes.adjustedPayout; }
-      else if (evalRes.outcome === "live") parlayLive++;
-
-      const isDead = evalRes.outcome === "dead";
-      html += `<div class="ticket${isDead ? " is-dead" : ""}"><div class="ticket-head"><span class="ticket-name">${tk.name}</span><span class="ticket-sub">${tk.sub}</span></div>`;
-      if (isDead) html += `<div class="dead-banner">&#9940; Parlay can no longer hit &mdash; one leg missed</div>`;
-
-      tk.legs.forEach((leg, i) => {
-        const state = states[i];
-        if (state === "hit") legHit++;
-        else if (state === "miss") legMiss++;
-        else if (state === "na") legNa++;
-        else legPending++;
-
-        const b = touchBettor(leg.who);
-        if (state === "hit") { b.hit++; const o = oddsToNumber(leg.odds); if (o !== null) b.hitOdds.push(o); }
-        else if (state === "miss") b.miss++;
-
-        html += `<div class="leg state-${state}">
-          <div class="leg-left"><div class="leg-player">${leg.player}</div><div class="leg-meta">${leg.meta}</div></div>
-          <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
-          ${badge(state)}
-        </div>`;
-      });
-
-      let statusText = "", statusCls = "live";
-      if (evalRes.outcome === "void") { statusText = "VOID \u2014 no one played"; statusCls = "void"; }
-      else if (evalRes.outcome === "dead") { statusText = "DEAD"; statusCls = "dead"; }
-      else if (evalRes.outcome === "hit") { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
-      else { statusText = `${evalRes.hitCount}/${evalRes.activeCount} live`; }
-
-      let footExtra = "";
-      if (evalRes.naCount > 0 && evalRes.activeCount > 0 && evalRes.outcome !== "dead") {
-        footExtra = `<br><span style="color:var(--yellow)">Adjusted for ${evalRes.activeCount}-leg: ${fmtMoney(evalRes.adjustedPayout)}</span>`;
-      }
-
-      html += `<div class="ticket-foot">${tk.foot}${footExtra}<div class="ticket-status ${statusCls}">${statusText}</div></div></div>`;
-    });
-    html += `</div>`;
-  });
-
-  html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
-    <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
-  TICKETS.singles.forEach((s) => {
-    const state = stateForPlayer(s.player);
+  function countLeg(state) {
     if (state === "hit") legHit++;
     else if (state === "miss") legMiss++;
     else if (state === "na") legNa++;
-    else legPending++;
+    else if (state === "live") legLive++;
+    else legNotStarted++;
+  }
 
-    const b = touchBettor(s.who);
-    if (state === "hit") { b.hit++; const o = oddsToNumber(s.odds); if (o !== null) b.hitOdds.push(o); }
-    else if (state === "miss") b.miss++;
+  EVALUATED = [];
+  TICKETS.windows.forEach((win) => {
+    win.tickets.forEach((tk) => {
+      const states = tk.legs.map(leg => stateForPlayer(leg.player));
+      const evalRes = evaluateTicket(tk, states);
+      EVALUATED.push({ win, tk, states, evalRes });
 
-    html += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}</div><div class="single-meta">${s.meta}</div>
-        ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
-      </div>
-      <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>
-      ${badge(state)}
-    </div>`;
+      if (evalRes.outcome === "dead") parlayMiss++;
+      else if (evalRes.outcome === "hit") { parlayHit++; totalPayoutHit += evalRes.adjustedPayout; }
+      else if (isOpenOutcome(evalRes.outcome)) parlayOpen++;
+
+      tk.legs.forEach((leg, i) => {
+        const state = states[i];
+        countLeg(state);
+        const b = touchBettor(leg.who);
+        if (b) {
+          if (state === "hit") { b.hit++; const o = oddsToNumber(leg.odds); if (o !== null) b.hitOdds.push(o); }
+          else if (state === "miss") b.miss++;
+        }
+      });
+    });
   });
-  html += `</div></div>`;
 
-  root.innerHTML = html;
+  TICKETS.singles.forEach((s) => {
+    const state = stateForPlayer(s.player);
+    countLeg(state);
+    const b = touchBettor(s.who);
+    if (b) {
+      if (state === "hit") { b.hit++; const o = oddsToNumber(s.odds); if (o !== null) b.hitOdds.push(o); }
+      else if (state === "miss") b.miss++;
+    }
+  });
 
   document.getElementById("count-hit").textContent = legHit;
   document.getElementById("count-miss").textContent = legMiss;
   document.getElementById("count-na").textContent = legNa;
-  document.getElementById("count-pending").textContent = legPending;
-  document.getElementById("count-parlay-live").textContent = parlayLive;
+  document.getElementById("count-live").textContent = legLive;
+  document.getElementById("count-not-started").textContent = legNotStarted;
+  document.getElementById("count-parlay-open").textContent = parlayOpen;
   document.getElementById("count-parlay-hit").textContent = parlayHit;
   document.getElementById("count-parlay-miss").textContent = parlayMiss;
   document.getElementById("total-payout").textContent = fmtMoney(totalPayoutHit);
@@ -452,7 +471,103 @@ function render() {
       </div>
     </div>`).join("");
   document.getElementById("bettor-list").innerHTML = bettorHtml || `<p style="color:var(--text-faint); font-size:12px;">No bettor data yet.</p>`;
+
+  document.getElementById("dynamic-note").innerHTML =
+    `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live MLB results."}`;
 }
+
+// Renders #content (ticket windows + singles) from EVALUATED, respecting CURRENT_FILTER.
+// Cheap enough to call on every filter click without re-polling.
+function renderContent() {
+  const root = document.getElementById("content");
+  let html = "";
+  let anyRendered = false;
+
+  TICKETS.windows.forEach((win) => {
+    const items = EVALUATED.filter(e => e.win === win && ticketMatchesFilter(e.evalRes));
+    if (items.length === 0) return;
+    anyRendered = true;
+    html += `<div class="window"><p class="window-title"><span class="dot"></span>${win.title}</p>`;
+    items.forEach(({ tk, states, evalRes }) => {
+      const isDead = evalRes.outcome === "dead";
+      html += `<div class="ticket${isDead ? " is-dead" : ""}"><div class="ticket-head"><span class="ticket-name">${tk.name}</span><span class="ticket-sub">${tk.sub}</span></div>`;
+      if (isDead) html += `<div class="dead-banner">&#9940; Parlay can no longer hit &mdash; one leg missed</div>`;
+
+      tk.legs.forEach((leg, i) => {
+        const state = states[i];
+        html += `<div class="leg state-${state}">
+          <div class="leg-left"><div class="leg-player">${leg.player}</div><div class="leg-meta">${leg.meta}</div></div>
+          <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
+          ${badge(state)}
+        </div>`;
+      });
+
+      let statusText = "", statusCls = "live";
+      if (evalRes.outcome === "void") { statusText = "OPEN (void) \u2014 no one has played yet"; statusCls = "void"; }
+      else if (evalRes.outcome === "dead") { statusText = "DEAD"; statusCls = "dead"; }
+      else if (evalRes.outcome === "hit") { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
+      else { statusText = `OPEN \u2014 ${evalRes.hitCount}/${evalRes.activeCount} hit so far`; }
+
+      let footExtra = "";
+      if (evalRes.naCount > 0 && evalRes.activeCount > 0 && evalRes.outcome !== "dead") {
+        footExtra = `<br><span style="color:var(--yellow)">Adjusted for ${evalRes.activeCount}-leg: ${fmtMoney(evalRes.adjustedPayout)}</span>`;
+      }
+
+      html += `<div class="ticket-foot">${tk.foot}${footExtra}<div class="ticket-status ${statusCls}">${statusText}</div></div></div>`;
+    });
+    html += `</div>`;
+  });
+
+  if (!anyRendered && CURRENT_FILTER) {
+    html += `<p class="empty-filter-note">No parlays match this filter right now.</p>`;
+  }
+
+  html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
+    <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
+  TICKETS.singles.forEach((s) => {
+    const state = stateForPlayer(s.player);
+    html += `<div class="single-row state-${state}">
+      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}</div><div class="single-meta">${s.meta}</div>
+        ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
+      </div>
+      <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>
+      ${badge(state)}
+    </div>`;
+  });
+  html += `</div></div>`;
+
+  root.innerHTML = html;
+}
+
+function updateFilterUI() {
+  ["chip-open", "chip-hit", "chip-dead"].forEach(id => document.getElementById(id).classList.remove("active-filter"));
+  const statusEl = document.getElementById("filter-status");
+  if (!CURRENT_FILTER) { statusEl.classList.remove("active"); return; }
+  const map = { open: ["chip-open", "Showing only OPEN parlays"], hit: ["chip-hit", "Showing only HIT parlays"], dead: ["chip-dead", "Showing only MISSED parlays"] };
+  const [chipId, label] = map[CURRENT_FILTER];
+  document.getElementById(chipId).classList.add("active-filter");
+  document.getElementById("filter-status-text").textContent = label;
+  statusEl.classList.add("active");
+}
+
+function toggleFilter(key) {
+  CURRENT_FILTER = (CURRENT_FILTER === key) ? null : key;
+  updateFilterUI();
+  renderContent();
+}
+
+function toggleBettorSection() {
+  document.getElementById("bettor-section").classList.toggle("collapsed");
+}
+
+function render() {
+  if (!TICKETS) return;
+  computeAll();
+  renderContent();
+  updateFilterUI();
+}
+
+// ---------------- boot ----------------
 
 async function loadTickets() {
   const res = await fetch("data/tickets.json", { cache: "no-store" });

@@ -2,17 +2,25 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="refresh" content="0; url=/features">
-<link rel="canonical" href="/features">
+<!--
+  GitHub Pages resolves an extensionless request for /features to THIS file
+  before it ever considers the features/ directory (a bare path always
+  prefers a same-named sibling .html file over <name>/index.html here --
+  confirmed by testing against the live site, not assumed). So the redirect
+  target below MUST be the trailing-slash form, /features/ -- redirecting to
+  bare /features would just reload this exact file again, forever.
+-->
+<meta http-equiv="refresh" content="0; url=/features/">
+<link rel="canonical" href="/features/">
 <title>What the BMBS Tracker Can Do</title>
 <style>
   html, body { margin:0; padding:0; background:#0B0F0E; color:#9AAAA3; font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
   body { display:flex; align-items:center; justify-content:center; min-height:100vh; text-align:center; padding:24px; }
   a { color:#3ECF8E; }
 </style>
-<script>location.replace("/features" + location.search + location.hash);</script>
+<script>location.replace("/features/" + location.search + location.hash);</script>
 </head>
 <body>
-  <p>This page moved to <a href="/features">bmbs.bet/features</a>.</p>
+  <p>This page moved to <a href="/features/">bmbs.bet/features</a>.</p>
 </body>
 </html>

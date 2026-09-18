@@ -11,10 +11,19 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
 - **`features/index.html`** — a static, plain-language "what this site can
   do" page for end users (the friend group), reusing `index.html`'s exact
   color tokens/fonts so it reads as the same product. Lives at the clean
-  URL `/features` (GitHub Pages resolves a directory request to its
-  `index.html`); the old top-level `features.html` is now just a redirect
-  stub to `/features`, kept so existing bookmarks/links still work — don't
-  delete it, and don't put real content back in it. Linked subtly from
+  URL `/features/` (GitHub Pages resolves a directory request to its
+  `index.html`). The old top-level `features.html` is now a redirect stub,
+  kept so existing bookmarks/links still work — don't delete it, and don't
+  put real content back in it.
+
+  **Verified against the live site, not assumed:** a bare extensionless
+  request (`/features`, no trailing slash) resolves to the sibling
+  `features.html` FILE, not the `features/` directory — GitHub Pages tries
+  the same-named `.html` file before it tries `<name>/index.html`. That
+  means the redirect stub's target must be the trailing-slash form
+  `/features/`; redirecting to bare `/features` reloads the stub itself
+  forever. `index.html`'s own footer link goes straight to `/features/`
+  to skip the redirect hop entirely. Linked subtly from
   `index.html`'s footer ("what this site can do"). **Maintained by hand
   only, on request** — the user explicitly does not want this kept in
   sync automatically with feature commits. Don't touch it as a side effect

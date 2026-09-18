@@ -71,6 +71,45 @@
 
   <div class="sections">
 
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span>
+        <h2>Color key</h2>
+      </div>
+      <div class="legend-grid">
+        <div class="legend-row"><span class="swatch pending"></span>Not started</div>
+        <div class="legend-row"><span class="swatch live"></span>In progress</div>
+        <div class="legend-row"><span class="swatch hit"></span>Home run</div>
+        <div class="legend-row"><span class="swatch php"></span>Pinch Hit Protection</div>
+        <div class="legend-row"><span class="swatch miss"></span>Game final, no HR</div>
+        <div class="legend-row"><span class="swatch na"></span>Didn't play</div>
+        <div class="legend-row"><span class="swatch-emoji">🧇</span>Iron &mdash; one HR from cashing</div>
+      </div>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2.2"/><path d="M3 9.5h18M8 3v4"/></svg></span>
+        <h2>Today's &amp; Yesterday's Picks</h2>
+      </div>
+      <ul>
+        <li>The current slate stays live and tracked all the way through midnight &mdash; a 10pm game doesn't get cut off by the calendar flipping over.</li>
+        <li>Once the very last game from that slate finishes, it moves automatically to <b>Yesterday's Picks</b> with final results.</li>
+        <li><b>Today's Picks</b> then waits for the next slate, and shows a queued heads-up if tomorrow's picks are already in but tonight isn't over yet.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 4v16M8.5 8c0-2 1.8-3 3.5-3s3.5 1 3.5 2.8c0 3.2-7 1.7-7 5C8.5 14.8 10.2 16 12 16s3.5-1 3.5-3"/></svg></span>
+        <h2>Running payout estimate</h2>
+      </div>
+      <ul>
+        <li>See an estimated total payout at the top of the page, updating live as bets hit.</li>
+        <li>If a leg is voided for a no-show player, the payout recalculates automatically for the legs still in play.</li>
+      </ul>
+    </section>
+
     <section class="card-item card--live">
       <div class="card-head">
         <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M7 6.8c1.3 1.6 2 3.4 2 5.2s-.7 3.6-2 5.2M17 6.8c-1.3 1.6-2 3.4-2 5.2s.7 3.6 2 5.2"/></svg></span>
@@ -121,26 +160,16 @@
       </ul>
     </section>
 
-    <section class="card-item">
+    <section class="card-item card--live">
       <div class="card-head">
-        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2.2"/><path d="M3 9.5h18M8 3v4"/></svg></span>
-        <h2>Today's &amp; Yesterday's Picks</h2>
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="11.5" cy="13" r="6.2"/><path d="M15.9 8.6 18.4 6M17 4.4l2.6 2.6M11.5 6.8V4M9.7 4h3.6"/></svg></span>
+        <h2>Bomb alerts</h2>
       </div>
       <ul>
-        <li>The current slate stays live and tracked all the way through midnight &mdash; a 10pm game doesn't get cut off by the calendar flipping over.</li>
-        <li>Once the very last game from that slate finishes, it moves automatically to <b>Yesterday's Picks</b> with final results.</li>
-        <li><b>Today's Picks</b> then waits for the next slate, and shows a queued heads-up if tomorrow's picks are already in but tonight isn't over yet.</li>
-      </ul>
-    </section>
-
-    <section class="card-item">
-      <div class="card-head">
-        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 4v16M8.5 8c0-2 1.8-3 3.5-3s3.5 1 3.5 2.8c0 3.2-7 1.7-7 5C8.5 14.8 10.2 16 12 16s3.5-1 3.5-3"/></svg></span>
-        <h2>Running payout estimate</h2>
-      </div>
-      <ul>
-        <li>See an estimated total payout at the top of the page, updating live as bets hit.</li>
-        <li>If a leg is voided for a no-show player, the payout recalculates automatically for the legs still in play.</li>
+        <li>When someone in the day's picks goes deep, the page announces it: <b>"&lt;Player&gt; BOMB! 💣"</b>.</li>
+        <li>Two independent switches at the top &mdash; <b>Overlay</b> (a celebration right on the page) and <b>Push</b> (a normal phone/desktop notification, even if you're on another tab). Have either, both, or neither; the setting sticks on that device.</li>
+        <li>Push has to be switched on by you, and your browser will ask permission first. It works while the page is open somewhere &mdash; not once you've closed it entirely.</li>
+        <li>Opening the page mid-game <b>won't</b> bury you in alerts for home runs that already happened &mdash; you only get told about ones hit while you're watching.</li>
       </ul>
     </section>
 
@@ -152,19 +181,6 @@
       <ul>
         <li>Quick counts for Batting Now / Batting Soon, and for every bet and leg status &mdash; Open, Irons, Hit, Missed, N/A, Live, Not Started.</li>
         <li>Tap any number to filter the whole page down to just that group. Tap it again to clear the filter.</li>
-      </ul>
-    </section>
-
-    <section class="card-item card--live">
-      <div class="card-head">
-        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="11.5" cy="13" r="6.2"/><path d="M15.9 8.6 18.4 6M17 4.4l2.6 2.6M11.5 6.8V4M9.7 4h3.6"/></svg></span>
-        <h2>Bomb alerts</h2>
-      </div>
-      <ul>
-        <li>When someone in the day's picks goes deep, the page announces it: <b>"&lt;Player&gt; BOMB! 💣"</b>.</li>
-        <li>Two independent switches at the top &mdash; <b>Overlay</b> (a celebration right on the page) and <b>Push</b> (a normal phone/desktop notification, even if you're on another tab). Have either, both, or neither; the setting sticks on that device.</li>
-        <li>Push has to be switched on by you, and your browser will ask permission first. It works while the page is open somewhere &mdash; not once you've closed it entirely.</li>
-        <li>Opening the page mid-game <b>won't</b> bury you in alerts for home runs that already happened &mdash; you only get told about ones hit while you're watching.</li>
       </ul>
     </section>
 
@@ -189,33 +205,6 @@
         <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the slate.</li>
         <li>Tap a name to filter the whole page to just that person's legs.</li>
       </ul>
-    </section>
-
-    <section class="card-item">
-      <div class="card-head">
-        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M3.5 12h17M9 6v3.2M9 14.8V18"/></svg></span>
-        <h2>Parlays &amp; single bets</h2>
-      </div>
-      <ul>
-        <li>Multi-leg parlay cards show every leg's status at a glance, and gray out automatically the moment any one leg misses.</li>
-        <li>Straight single-player bets get their own tracker alongside the parlays.</li>
-      </ul>
-    </section>
-
-    <section class="card-item">
-      <div class="card-head">
-        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span>
-        <h2>Color key</h2>
-      </div>
-      <div class="legend-grid">
-        <div class="legend-row"><span class="swatch pending"></span>Not started</div>
-        <div class="legend-row"><span class="swatch live"></span>In progress</div>
-        <div class="legend-row"><span class="swatch hit"></span>Home run</div>
-        <div class="legend-row"><span class="swatch php"></span>Pinch Hit Protection</div>
-        <div class="legend-row"><span class="swatch miss"></span>Game final, no HR</div>
-        <div class="legend-row"><span class="swatch na"></span>Didn't play</div>
-        <div class="legend-row"><span class="swatch-emoji">🧇</span>Iron &mdash; one HR from cashing</div>
-      </div>
     </section>
 
   </div>

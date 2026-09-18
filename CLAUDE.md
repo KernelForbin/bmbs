@@ -9,18 +9,31 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   inline CSS, inline JS. No build step, no framework, no dependencies.
   Deploy = commit this file, GitHub Pages serves it directly.
 - **`data/tickets.json`** — the current day's parlay/single-bet picks, in a
-  specific schema (see below). This is LIVE DATA, not code. Regenerated
-  only by `scripts/parse_picks.py`, never hand-edited, never overwritten by
-  a code deploy.
+  specific schema (see below), stamped with the MLB game `date` the slate
+  is for. This is LIVE DATA, not code. Regenerated only by
+  `scripts/parse_picks.py`, never hand-edited, never overwritten by a code
+  deploy.
+- **`data/tickets-previous.json`** — the prior slate, archived by
+  `parse_picks.py` the moment a slate with a *different* `date` is parsed
+  (same-day re-uploads leave it alone). Feeds the "Yesterday's Picks" tab.
+  LIVE DATA, same rules as `tickets.json`.
 - **`data/incoming_picks.txt`** — the paste target. The person pastes the
   day's raw picks text here (via GitHub's web editor, no terminal needed)
   and commits. That triggers `.github/workflows/parse-picks.yml`, which
   runs `scripts/parse_picks.py` against it and regenerates `tickets.json`.
+  Also written by the Discord intake bot (`discord-bot/`, runs on the
+  user's own always-on Windows machine): a friend uploads a `.txt` in a
+  Discord channel, confirms with a reaction, and the bot commits it here
+  via the GitHub Contents API.
 - **`data/roster.json`** — name/team lookup built once from an uploaded MLB
   roster CSV, used to normalize player names and teams during parsing.
 - **`scripts/parse_picks.py`** — parses the raw picks text format into
   `tickets.json`. Also resolves player names against `roster.json` (exact
-  match, then fuzzy).
+  match, then fuzzy). Accepts the text with or without markdown markers
+  (`## ` headers, `* ` bullets) — text copied out of a rendered Gemini
+  response has them stripped, and that silently broke parsing once.
+  Stamps `date` from the listed start times: a slate posted after its
+  last first pitch is for tomorrow, otherwise it's for today (ET).
 - **`scripts/fetch_home_runs.py`** + **`.github/workflows/update-checklist.yml`**
   — LEGACY, no longer used. An earlier cron-based approach to live tracking
   that got replaced by client-side polling (see below). Left in the repo,
@@ -34,6 +47,18 @@ browser** every ~20 seconds — `statsapi.mlb.com`, which is free, keyless,
 and has open CORS (confirmed working, not a guess). This is NOT a
 server-side cron job. There is no backend. Every viewer's browser
 independently computes hit/miss/live state from the same public data.
+
+**Slate dates, not calendar dates.** Polling is keyed on `tickets.json`'s
+`date`, never on the clock: MLB files a 10pm ET game under the date it
+started, so a slate keeps tracking straight through midnight. A slate
+rolls from the "Today's Picks" tab to "Yesterday's Picks" only when every
+game on its date is Final per the schedule endpoint (postponed games are
+encoded Final, so rain-outs count as done) — or, as a backstop for
+suspended games only, at 6am ET the next morning. Today then shows
+"Waiting for today's picks" until a slate with a new `date` lands; the
+page re-reads both tickets files every poll so that happens without a
+reload. Final games' feeds are cached and never re-fetched; Preview games'
+feeds aren't fetched at all.
 
 Per-leg states (five total): `hit`, `miss`, `na` (didn't play), `live` (game
 in progress, no HR yet), `not_started`. A player is resolved to `hit` the
@@ -52,6 +77,7 @@ stats — this is disclosed in the UI, don't remove that framing).
 
 ```json
 {
+  "date": "2026-09-18",
   "note": "free text, shown at top of page",
   "windows": [
     {
@@ -93,19 +119,21 @@ after a dash during parsing — don't reintroduce this).
    explicitly asked.** Early on, test/sample data (`test_picks.txt` output)
    got shipped in delivery zips and silently overwrote the user's real
    picks multiple times because "copy the zip contents over the repo" also
-   copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`
-   (if it exists), and `data/incoming_picks.txt` are live user data, managed
-   only through the picks-paste → GitHub Actions pipeline. Code changes
-   should only ever touch `index.html`, `scripts/*.py`, `.github/workflows/*.yml`,
-   `README.md`, `CNAME`.
+   copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
+   and `data/incoming_picks.txt` are live user data, managed only through
+   the picks-upload → GitHub Actions pipeline. Code changes should only
+   ever touch `index.html`, `scripts/*.py`, `.github/workflows/*.yml`,
+   `discord-bot/`, `README.md`, `CNAME`.
 
 2. **Date handling is genuinely tricky here — games run past midnight.**
-   A "today/yesterday slate" tabs feature (with a `tickets-previous.json`
-   archive file, a `date` field on tickets.json, and 3am ET cutover logic)
-   was built and then **explicitly reverted** at the user's request back to
-   a single-view, no-date-awareness version. Do not re-add tabs, a `date`
-   field, or slate-archiving logic unless the user asks for it again — the
-   current live version deliberately does not have it.
+   The today/yesterday tabs, `date` field, and `tickets-previous.json`
+   archive were first built with a **clock-based** rollover (3am ET
+   cutover, 10am clear) and reverted at the user's request, because a
+   slate must not move until its last game is actually over. They were
+   re-added on 2026-09-18, this time rolled over strictly by **game
+   state** (see "Slate dates, not calendar dates" above). Do not
+   reintroduce any wall-clock rollover rule; the only clock in the logic
+   is the deliberate 6am-next-day backstop for suspended games.
 
 3. **Git push race conditions are common.** No cron bot is currently
    running (see legacy note above), but if any automated commit workflow
@@ -144,6 +172,8 @@ pattern for any nontrivial change rather than shipping unverified.
 No build step. Edit `index.html` (or `scripts/*.py`) directly in the repo,
 commit, push. GitHub Pages picks it up automatically within a minute or so.
 The daily picks-update flow (separate from code deploys) is: paste text
-into `data/incoming_picks.txt` via GitHub's web editor → commit → GitHub
-Actions runs `parse_picks.py` → `tickets.json` updates → live site reflects
-it on next poll cycle (~20s).
+into `data/incoming_picks.txt` via GitHub's web editor, or upload a `.txt`
+in the Discord intake channel (see `discord-bot/README.md`) → commit →
+GitHub Actions runs `parse_picks.py` → `tickets.json` updates (and the
+prior slate is archived if the date changed) → live site reflects it on
+the next poll cycle (~20s).

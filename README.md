@@ -89,9 +89,17 @@ still holding its placeholder text) will show a **failed** run for this
 workflow — that's correct, the placeholder deliberately parses to nothing.
 It goes away the first time you paste real picks in and commit.
 
+Alternatively, a friend can upload the day's picks as a `.txt` file in the
+Discord intake channel and confirm with a reaction — see
+`discord-bot/README.md`. Either route ends up in the same
+`incoming_picks.txt` → workflow → `tickets.json` pipeline.
+
 ### If the picks format changes
 `scripts/parse_picks.py`'s docstring documents the exact expected shape.
 `test_picks.txt` in this repo is a full real example you can diff against.
+The markdown markers (`## ` on section headers, `* ` on item lines) are
+optional — text copied out of a rendered Gemini response has them
+stripped, and both forms parse identically.
 If a new day's format doesn't match (a new section type, a reworded footer
 line), the parser will likely under-count or print a WARNING — paste the
 new format to Claude and ask for the parser to be updated to match.

@@ -57,7 +57,15 @@ encoded Final, so rain-outs count as done) — or, as a backstop for
 suspended games only, at 6am ET the next morning. Today then shows
 "Waiting for today's picks" until a slate with a new `date` lands; the
 page re-reads both tickets files every poll so that happens without a
-reload. Final games' feeds are cached and never re-fetched; Preview games'
+reload.
+
+Precisely: **Today is the oldest slate that isn't over yet.** Picks are
+often uploaded just after midnight, while the previous night's late game
+is still being played — that upload archives the live slate into
+`tickets-previous.json`, so without this rule the still-live slate would
+be yanked onto the Yesterday tab mid-game. Instead the newer slate is held
+as `SLATES.queued` (a small note on the Today tab says so) and takes over
+the moment the live one goes final. Final games' feeds are cached and never re-fetched; Preview games'
 feeds aren't fetched at all.
 
 Per-leg states (five total): `hit`, `miss`, `na` (didn't play), `live` (game

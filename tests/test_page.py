@@ -105,6 +105,9 @@ def open_page(p, at):
     page.clock.set_fixed_time(at)
     page.route("**/*", handler)
     page.goto("http://bmbs.test/index.html")
+    # init() sets pollTimer only after its first poll resolves -- waiting on
+    # that keeps our explicit polls from overlapping the boot one.
+    page.wait_for_function("window.pollTimer !== null")
     page.evaluate("clearInterval(pollTimer)")  # drive polls by hand; no background races
     poll(page)
     return browser, page, errors
@@ -134,6 +137,7 @@ with sync_playwright() as p:
     assert text(page, "count-live") == "2" and text(page, "count-hit") == "2", (text(page, "count-live"), text(page, "count-hit"))
     assert count(r"schedule\?.*date=2026-09-18") == 0, "must not query the wall-clock date"
     assert "LIVE FROM MLB" in text(page, "eyebrow-text")
+    assert not visible(page, "queued-note"), "nothing is queued behind the live slate here"
     print("A  OK: past midnight, 9/17 slate stays in Today with live tracking (no reset)")
 
     poll(page)
@@ -216,6 +220,37 @@ with sync_playwright() as p:
     page.click("#tab-btn-today")
     assert single_states(page) == {"Legacy Guy": "live"}, single_states(page)
     print("E  OK: date-less legacy tickets.json falls back to the ET calendar date")
+
+    assert not errors, errors
+    browser.close()
+
+    # ========== F: tomorrow's picks uploaded while tonight's games are still on ==========
+    # The upload archives the live slate into tickets-previous.json, so the
+    # newer slate is what's in tickets.json. Today must still show the live one.
+    SEEN.clear()
+    FX["previous"] = tickets("2026-09-18", [("Kenny", "Tonight Guy")])
+    FX["tickets"] = tickets("2026-09-19", [("Bailey", "Tomorrow Guy")])
+    FX["schedules"] = {"2026-09-18": schedule("2026-09-18", [(401, "Live")]),
+                       "2026-09-19": schedule("2026-09-19", [(501, "Preview")])}
+    FX["feeds"] = {401: feed("Live", ["Tonight Guy"])}
+
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 0, 45))
+    assert text(page, "tab-date-today") == "Fri, Sep 18", text(page, "tab-date-today")
+    assert single_states(page) == {"Tonight Guy": "live"}, single_states(page)
+    assert text(page, "tab-date-yesterday") == "", "nothing has finished yet"
+    assert visible(page, "queued-note") and "Sep 19" in text(page, "queued-note"), text(page, "queued-note")
+    print("F  OK: early upload does NOT bump tonight's live slate off Today")
+
+    FX["schedules"]["2026-09-18"] = schedule("2026-09-18", [(401, "Final")])
+    FX["feeds"][401] = feed("Final", ["Tonight Guy"])
+    poll(page)
+    assert text(page, "tab-date-today") == "Sat, Sep 19", text(page, "tab-date-today")
+    assert single_states(page) == {"Tomorrow Guy": "not_started"}, single_states(page)
+    assert not visible(page, "queued-note"), "note should clear once the handoff happens"
+    page.click("#tab-btn-yesterday")
+    assert text(page, "tab-date-yesterday") == "Fri, Sep 18"
+    assert single_states(page) == {"Tonight Guy": "miss"}, single_states(page)
+    print("F2 OK: last game final -> queued slate takes over Today, live one moves to Yesterday")
 
     assert not errors, errors
     browser.close()

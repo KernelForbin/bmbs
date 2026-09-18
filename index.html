@@ -158,6 +158,9 @@
   .tab-btn .tab-date { display:block; font-family:'Inter',sans-serif; font-size:10.5px; font-weight:500; letter-spacing:0; color:var(--text-faint); margin-top:2px; min-height:13px; }
   .tab-btn.active { color:var(--text); border-bottom-color:var(--green); }
   .tab-btn.active .tab-date { color:var(--text-dim); }
+  .queued-note { display:none; background:var(--panel); border:1px solid var(--panel-line); border-left:3px solid var(--amber); border-radius:8px; padding:9px 12px; font-size:11.5px; color:var(--text-dim); line-height:1.45; margin-bottom:16px; }
+  .queued-note.active { display:block; }
+  .queued-note b { color:var(--amber); font-weight:600; }
   .waiting { background:var(--panel); border:1px dashed var(--panel-line); border-radius:10px; padding:28px 18px; text-align:center; margin-bottom:24px; }
   .waiting h2 { font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; margin:0 0 8px; }
   .waiting p { font-size:13px; color:var(--text-dim); margin:0; line-height:1.5; }
@@ -169,6 +172,7 @@
     <button class="tab-btn active" id="tab-btn-today" onclick="activateTab('today')">Today's Picks<span class="tab-date" id="tab-date-today"></span></button>
     <button class="tab-btn" id="tab-btn-yesterday" onclick="activateTab('yesterday')">Yesterday's Picks<span class="tab-date" id="tab-date-yesterday"></span></button>
   </div>
+  <div class="queued-note" id="queued-note"></div>
   <header>
     <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM MLB</span></p>
     <h1>Home Run Card</h1>
@@ -267,7 +271,7 @@ let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
 // is { tickets, results } or null; TICKETS / RESULTS above always mirror
 // whichever one is on screen, so the evaluation and rendering code below
 // doesn't know tabs exist.
-let SLATES = { today: null, yesterday: null };
+let SLATES = { today: null, yesterday: null, queued: null };
 let ACTIVE_TAB = "today";
 // slate date -> { results, done, settled }. `settled` means every game is
 // Final and every feed fetch succeeded: nothing is left to poll for.
@@ -1052,11 +1056,12 @@ async function refreshSlate(date) {
   return entry;
 }
 
-// Re-reads both tickets files and decides which slate is "today" and which
-// is "yesterday". The current slate stays in Today until every one of its
-// games is Final -- however far past midnight that is -- and only then
-// moves to Yesterday, leaving Today in its waiting state until the next
-// slate is posted.
+// Re-reads both tickets files and decides which slate sits on each tab.
+// Today is the OLDEST slate that isn't over yet, which is what keeps a
+// slate running past midnight on the Today tab even when the next day's
+// picks have already been uploaded -- that newer slate waits its turn as
+// SLATES.queued. Yesterday is the newest finished slate before Today's.
+// Once every slate is finished, Today falls back to its waiting state.
 async function refreshEverything() {
   const [current, previous] = await Promise.all([
     loadTicketsFile("data/tickets.json"),
@@ -1065,27 +1070,30 @@ async function refreshEverything() {
   if (!current) throw new Error("data/tickets.json failed to load");
   if (!current.date) current.date = todayET(); // file predates date stamping; gone after the next upload
 
-  let cur;
-  try {
-    cur = await refreshSlate(current.date);
-  } catch (e) {
-    SLATES.today = { tickets: current, results: emptyResults() };
-    throw e;
+  const files = [current];
+  if (previous && previous.date && previous.date !== current.date) files.push(previous);
+  files.sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  let firstError = null;
+  const slates = [];
+  for (const tickets of files) {
+    let entry;
+    try {
+      entry = await refreshSlate(tickets.date);
+    } catch (e) {
+      firstError = firstError || e;
+      entry = { results: emptyResults(), done: false };
+    }
+    slates.push({ tickets, results: entry.results, done: entry.done });
   }
 
-  if (cur.done) {
-    SLATES.today = null;
-    SLATES.yesterday = { tickets: current, results: cur.results };
-    return;
-  }
+  const liveIdx = slates.findIndex(s => !s.done);
+  const finishedBefore = slates.slice(0, liveIdx >= 0 ? liveIdx : slates.length).filter(s => s.done);
+  SLATES.today = liveIdx >= 0 ? slates[liveIdx] : null;
+  SLATES.yesterday = finishedBefore.length ? finishedBefore[finishedBefore.length - 1] : null;
+  SLATES.queued = (liveIdx >= 0 && liveIdx < slates.length - 1) ? slates[slates.length - 1] : null;
 
-  SLATES.today = { tickets: current, results: cur.results };
-  SLATES.yesterday = null;
-  if (previous && previous.date && previous.date !== current.date) {
-    let prevResults = emptyResults();
-    try { prevResults = (await refreshSlate(previous.date)).results; } catch (e) { /* shown as not-started until MLB answers */ }
-    SLATES.yesterday = { tickets: previous, results: prevResults };
-  }
+  if (firstError) throw firstError;
 }
 
 // Points TICKETS / RESULTS at the active tab's slate and shows either the
@@ -1099,6 +1107,14 @@ function applyActiveTab() {
   document.getElementById("tab-btn-yesterday").classList.toggle("active", ACTIVE_TAB === "yesterday");
   document.getElementById("tab-date-today").textContent = SLATES.today ? fmtSlateDate(SLATES.today.tickets.date) : "";
   document.getElementById("tab-date-yesterday").textContent = SLATES.yesterday ? fmtSlateDate(SLATES.yesterday.tickets.date) : "";
+
+  const queuedEl = document.getElementById("queued-note");
+  const showQueued = ACTIVE_TAB === "today" && SLATES.queued && SLATES.today;
+  queuedEl.classList.toggle("active", !!showQueued);
+  if (showQueued) {
+    queuedEl.innerHTML = `<b>${fmtSlateDate(SLATES.queued.tickets.date)} picks are already uploaded.</b> `
+      + `They take over this tab once the last ${fmtSlateDate(SLATES.today.tickets.date)} game goes final.`;
+  }
 
   const showSlate = !!slate;
   ["slate-stats", "bettor-section", "content"].forEach(id => { document.getElementById(id).style.display = showSlate ? "" : "none"; });

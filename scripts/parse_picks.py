@@ -35,7 +35,9 @@ whatever was in the pasted text, so downstream matching against the MLB
 Stats API stays reliable.
 
 Expected raw input shape — see test_picks.txt in this repo for a full
-real example:
+real example. The markdown markers ("## " on section headers, "* " on
+item lines) are optional: text copied out of a rendered Gemini/ChatGPT
+response has them stripped, and both forms parse identically.
 
     ## 🎯 Longshot (LS) Straight Bets (Single Legs)
     * Kenny: Jake McCarthy (+870) | (SD @ COL) 3:10 PM ET • $5.00 bet | PP: $58.95
@@ -49,6 +51,12 @@ real example:
     * Alec Burleson (+430) | 1:15 PM ET (Bernie)
     Bet by Memo: $3.00 | PP: $533.52
 
+The output also carries "date": the MLB game date (YYYY-MM-DD, ET) the
+slate is for -- see slate_date_for(). When that date differs from the
+one already in data/tickets.json, the old file is first copied to
+data/tickets-previous.json so the site can keep showing yesterday's
+results.
+
 Run:
     python scripts/parse_picks.py --file picks.txt
     # or piped:
@@ -61,11 +69,20 @@ import json
 import re
 import sys
 import unicodedata
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 ROOT = Path(__file__).resolve().parent.parent
 TICKETS_PATH = ROOT / "data" / "tickets.json"
+PREVIOUS_PATH = ROOT / "data" / "tickets-previous.json"
 ROSTER_PATH = ROOT / "data" / "roster.json"
+
+try:
+    ET = ZoneInfo("America/New_York")
+except ZoneInfoNotFoundError:
+    # Windows Python has no system tz database; Linux (incl. GitHub Actions) does.
+    sys.exit("No timezone database found -- run: pip install tzdata")
 
 SINGLES_HEADER_RE = re.compile(r"longshot|straight bet", re.IGNORECASE)
 PARLAY_HEADER_RE = re.compile(r"\d+-Leg Parlay", re.IGNORECASE)
@@ -73,13 +90,15 @@ CARD_HEADER_RE = re.compile(r"^Card\s+(\d+)\s*:\s*(.+)$")
 BET_FOOT_RE = re.compile(
     r"Bet by\s+([A-Za-z]+)\s*:\s*\$([\d,.]+)\s*\|\s*PP:\s*\$([\d,.]+)", re.IGNORECASE
 )
+BULLET = r"^(?:[*\-•]\s*)?"
 SINGLE_LINE_RE = re.compile(
-    r"^\*\s*([A-Za-z]+)\s*:\s*(.+?)\s*\(\+(\d+)\)\s*\|\s*"
+    BULLET + r"([A-Za-z]+)\s*:\s*(.+?)\s*\(\+(\d+)\)\s*\|\s*"
     r"(?:\(([^)]+)\)\s*)?([\d: ]*[AP]M ET)?\s*[•·]?\s*\$([\d,.]+)\s*bet\s*\|\s*PP:\s*\$([\d,.]+)",
     re.IGNORECASE
 )
-LEG_LINE_RE = re.compile(r"^\*\s*(.+?)\s*\(\+(\d+)\)\s*\|\s*(.+?)\s*\(([^)]+)\)\s*$")
+LEG_LINE_RE = re.compile(BULLET + r"(.+?)\s*\(\+(\d+)\)\s*\|\s*(.+?)\s*\(([^)]+)\)\s*$")
 TIME_RE = re.compile(r"\d{1,2}:\d{2}\s*[AP]M\s*ET", re.IGNORECASE)
+ODDS_RE = re.compile(r"\(\+\d+\)")
 
 
 def normalize_name(name):
@@ -95,8 +114,52 @@ def clean_num(s):
 def load_roster():
     if not ROSTER_PATH.exists():
         return {}, {}
-    data = json.loads(ROSTER_PATH.read_text())
+    data = json.loads(ROSTER_PATH.read_text(encoding="utf-8"))
     return data.get("team_by_name", {}), data.get("canonical_name_by_norm", {})
+
+
+def section_header(line):
+    """Header text if `line` is a section header (with or without '##'), else None."""
+    text = line.lstrip("#").strip()
+    # "Card 11: Mega Longshot Wager" would otherwise read as a singles header.
+    if CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text):
+        return None
+    if SINGLES_HEADER_RE.search(text) or PARLAY_HEADER_RE.search(text):
+        return text
+    return text if line.startswith("##") else None
+
+
+def slate_date_for(time_strs, now):
+    """MLB game date (YYYY-MM-DD) a slate with these ET start times is for."""
+    starts = []
+    for t in time_strs:
+        m = re.match(r"(\d{1,2}):(\d{2})\s*([AP])M", t.strip(), re.IGNORECASE)
+        if not m:
+            continue
+        hour = int(m.group(1)) % 12 + (12 if m.group(3).upper() == "P" else 0)
+        starts.append(hour * 60 + int(m.group(2)))
+    # Nobody posts a slate after its last first pitch, so if every listed
+    # start time is already behind us today, these picks are for tomorrow
+    # (e.g. posted 11pm for the next day). Posted after midnight but before
+    # first pitch, they're today's.
+    if starts and now.hour * 60 + now.minute > max(starts):
+        return (now.date() + timedelta(days=1)).isoformat()
+    return now.date().isoformat()
+
+
+def archive_previous_slate(new_date):
+    if not TICKETS_PATH.exists():
+        return
+    try:
+        old = json.loads(TICKETS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    old_date = old.get("date")
+    # Same-day re-uploads (corrections) must not clobber yesterday's archive.
+    if not old_date or old_date == new_date:
+        return
+    PREVIOUS_PATH.write_text(json.dumps(old, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"Archived {old_date} slate -> {PREVIOUS_PATH}")
 
 
 def resolve_player(raw_name, team_by_name, canonical_by_norm):
@@ -143,9 +206,9 @@ def parse(text, team_by_name, canonical_by_norm):
         if not line or line.startswith("---"):
             continue
 
-        if line.startswith("##"):
+        header_text = section_header(line)
+        if header_text is not None:
             flush_card()
-            header_text = line.lstrip("#").strip()
             if SINGLES_HEADER_RE.search(header_text):
                 mode = "singles"
                 current_section = None
@@ -278,7 +341,7 @@ def parse(text, team_by_name, canonical_by_norm):
 def main():
     if "--file" in sys.argv:
         idx = sys.argv.index("--file")
-        text = Path(sys.argv[idx + 1]).read_text()
+        text = Path(sys.argv[idx + 1]).read_text(encoding="utf-8")
     else:
         text = sys.stdin.read()
 
@@ -294,10 +357,15 @@ def main():
         print("WARNING: parsed nothing. Check the input format.", file=sys.stderr)
         sys.exit(1)
 
-    payload = {"note": "", "windows": windows, "singles": out_singles}
+    all_times = [leg["time"] for w in windows for c in w["tickets"] for leg in c["legs"] if leg.get("time")]
+    all_times += [s["time"] for s in raw_singles if s.get("time")]
+    slate_date = slate_date_for(all_times, datetime.now(ET))
+
+    payload = {"date": slate_date, "note": "", "windows": windows, "singles": out_singles}
     TICKETS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    TICKETS_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
-    print(f"Wrote {TICKETS_PATH}")
+    archive_previous_slate(slate_date)
+    TICKETS_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"Wrote {TICKETS_PATH} (slate date: {slate_date} ET)")
 
 
 if __name__ == "__main__":

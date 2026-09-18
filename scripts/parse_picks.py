@@ -84,7 +84,10 @@ except ZoneInfoNotFoundError:
     sys.exit("No timezone database found -- run: pip install tzdata")
 
 SINGLES_HEADER_RE = re.compile(r"longshot|straight bet", re.IGNORECASE)
-PARLAY_HEADER_RE = re.compile(r"\d+-Leg Parlay", re.IGNORECASE)
+PARLAY_HEADER_RE = re.compile(
+    r"\d+-Leg Parlay|(?:ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN)-LEG|\d+-MAN",
+    re.IGNORECASE
+)
 CARD_HEADER_RE = re.compile(r"^Card\s+(\d+)\s*:\s*(.+)$")
 BET_FOOT_RE = re.compile(
     r"Bet by\s+([A-Za-z]+)\s*:\s*\$([\d,.]+)\s*\|\s*PP:\s*\$([\d,.]+)", re.IGNORECASE
@@ -98,6 +101,22 @@ SINGLE_LINE_RE = re.compile(
 LEG_LINE_RE = re.compile(BULLET + r"(.+?)\s*\(\+(\d+)\)\s*\|\s*(.+?)\s*\(([^)]+)\)\s*$")
 TIME_RE = re.compile(r"\d{1,2}:\d{2}\s*[AP]M\s*ET", re.IGNORECASE)
 ODDS_RE = re.compile(r"\(\+\d+\)")
+
+# ---- second raw-text template: "Ticket N: TIME | Player (Team) +ODDS (Bettor)",
+# one leg per line, closed by a "(Bet by X) [Bet: $Y | PP: Z]" footer line. Seen
+# from the group for the first time 2026-09-18 (a Discord upload the old
+# patterns above silently failed to parse at all -- exit code 1, nothing
+# written). Whether a ticket is a single or a parlay card is decided purely by
+# how many leg lines it actually has, never by which section header it sits
+# under -- the header's own leg-count claim doesn't always match the tickets
+# under it (seen for real: a "10 TWO-LEG PARLAYS" header with only 9 under it).
+TICKET_START_RE = re.compile(r"^\*?\s*Ticket\s+\d+\s*:\s*(.+)$", re.IGNORECASE)
+TICKET_LEG_RE = re.compile(
+    r"^([\d: ]*[AP]M\s*ET)\s*\|\s*(.+?)\s*\(([^)]+)\)\s*\+(\d+)\s*\(([^)]+)\)\s*$", re.IGNORECASE
+)
+TICKET_FOOT_RE = re.compile(
+    r"^\(Bet by\s+([A-Za-z]+)\)\s*\[Bet:\s*\$([\d,.]+)\s*\|\s*PP:\s*\$?([\d,.]+)\]\s*$", re.IGNORECASE
+)
 
 
 def normalize_name(name):
@@ -191,6 +210,11 @@ def parse(text, team_by_name, canonical_by_norm):
     current_card = None
     single_idx = 0
 
+    # ---- state for the "Ticket N:" template (see TICKET_START_RE above) ----
+    last_header_title = None
+    ticket_windows_by_title = {}
+    current_ticket = None  # {"_legs": [(time, player, team, odds, who), ...]}
+
     def flush_card():
         nonlocal current_card
         if current_card and current_card["_legs"]:
@@ -200,6 +224,42 @@ def parse(text, team_by_name, canonical_by_norm):
     def windows_append_card(card):
         current_section["tickets"].append(card)
 
+    def ticket_window(title):
+        w = ticket_windows_by_title.get(title)
+        if w is None:
+            w = {"title": title or "Parlay Cards", "tickets": []}
+            ticket_windows_by_title[title] = w
+            windows.append(w)
+        return w
+
+    def finalize_ticket(ticket, num):
+        legs_raw = ticket["_legs"]
+        if not legs_raw or ticket["_stake"] is None:
+            return  # malformed/truncated ticket (e.g. file cut off) -- drop, don't guess
+        if len(legs_raw) == 1:
+            time_, player_raw, team_raw, odds, who = legs_raw[0]
+            canon_name, team = resolve_player(player_raw, team_by_name, canonical_by_norm)
+            singles.append({
+                "who": who.strip().upper(),
+                "player": canon_name,
+                "team": team or team_raw.strip(),
+                "odds": f"+{odds}",
+                "matchup": "",
+                "time": time_.strip(),
+                "stake": ticket["_stake"],
+                "pp": ticket["_pp"],
+            })
+        else:
+            legs = []
+            for time_, player_raw, team_raw, odds, who in legs_raw:
+                canon_name, team = resolve_player(player_raw, team_by_name, canonical_by_norm)
+                legs.append({"player": canon_name, "odds": f"+{odds}", "who": who.strip(),
+                             "team": team or team_raw.strip(), "time": time_.strip()})
+            card = {"name": f"Card {num}", "sub": "", "tag": None,
+                    "_stake": ticket["_stake"], "_book": ticket["_book"],
+                    "_origPayout": ticket["_pp"], "_legs": legs}
+            ticket_window(last_header_title)["tickets"].append(card)
+
     for raw in lines:
         line = raw.strip()
         if not line or line.startswith("---"):
@@ -208,6 +268,7 @@ def parse(text, team_by_name, canonical_by_norm):
         header_text = section_header(line)
         if header_text is not None:
             flush_card()
+            last_header_title = header_text
             if SINGLES_HEADER_RE.search(header_text):
                 mode = "singles"
                 current_section = None
@@ -218,6 +279,32 @@ def parse(text, team_by_name, canonical_by_norm):
             else:
                 mode = None
             continue
+
+        ticket_start = TICKET_START_RE.match(line)
+        if ticket_start:
+            if current_ticket is not None:
+                finalize_ticket(current_ticket, current_ticket["_num"])
+            current_ticket = {"_num": re.match(r"^\*?\s*Ticket\s+(\d+)", line, re.IGNORECASE).group(1),
+                               "_legs": [], "_book": None, "_stake": None, "_pp": None}
+            leg = TICKET_LEG_RE.match(ticket_start.group(1).strip())
+            if leg:
+                current_ticket["_legs"].append(leg.groups())
+            continue
+
+        if current_ticket is not None:
+            foot = TICKET_FOOT_RE.match(line)
+            if foot:
+                book, stake, pp = foot.groups()
+                current_ticket["_book"] = book
+                current_ticket["_stake"] = clean_num(stake)
+                current_ticket["_pp"] = clean_num(pp)
+                finalize_ticket(current_ticket, current_ticket["_num"])
+                current_ticket = None
+                continue
+            leg = TICKET_LEG_RE.match(line)
+            if leg:
+                current_ticket["_legs"].append(leg.groups())
+                continue
 
         if mode == "parlay":
             card_match = CARD_HEADER_RE.match(line)
@@ -287,6 +374,12 @@ def parse(text, team_by_name, canonical_by_norm):
                 continue
 
     flush_card()
+    if current_ticket is not None:
+        finalize_ticket(current_ticket, current_ticket["_num"])
+
+    # Drop windows that ended up with nothing in them (e.g. a document title
+    # line like "HOME RUN PARLAY CARD" that happens to look header-shaped).
+    windows = [w for w in windows if w["tickets"]]
 
     # ---- build final schema matching index.html ----
     out_windows = []
@@ -306,10 +399,11 @@ def parse(text, team_by_name, canonical_by_norm):
                     "time": leg["time"],
                 })
             tag_html = f' &middot; {card["tag"]}' if card.get("tag") else ""
+            sub_html = f' &middot; {card["sub"]}' if card.get("sub") else ""
             foot = (f'<b>${card["_stake"]:.2f}</b> bet by {card["_book"]} '
                     f'&middot; Potential payout <b>${card["_origPayout"]:,.2f}</b>')
             out_tickets.append({
-                "name": f'{card["name"]} &middot; {card["sub"]}{tag_html}',
+                "name": f'{card["name"]}{sub_html}{tag_html}',
                 "sub": f'{len(legs)}-Leg',
                 "foot": foot,
                 "stake": card["_stake"],

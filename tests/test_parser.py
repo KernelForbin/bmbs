@@ -90,4 +90,30 @@ with tempfile.TemporaryDirectory() as td:
     assert json.loads(pp.PREVIOUS_PATH.read_text(encoding="utf-8"))["date"] == "2026-09-17"
     print("OK: archive fires only on a date change")
 
+# --- 4. second raw-text template: "Ticket N: TIME | Player (Team) +ODDS (Bettor)"
+# -- a real Discord upload on 2026-09-18 that the format above parsed as
+# zero tickets (exit 1, nothing written). Real fixture, not paraphrased.
+ticket_text = (REPO / "tests" / "fixtures" / "discord_ticket_format.txt").read_text(encoding="utf-8")
+t_windows, t_singles, t_raw = pp.parse(ticket_text, team_by_name, canon)
+
+assert len(t_singles) == 10, len(t_singles)
+counts = [len(c["legs"]) for w in t_windows for c in w["tickets"]]
+assert sorted(counts) == sorted([3] * 4 + [2] * 9 + [5] * 2), counts
+# leg count is read from the ticket body, never trusted from the header --
+# the real file's "10 TWO-LEG PARLAYS" header sits over only 9 tickets
+two_leg_window = next(w for w in t_windows if "TWO-LEG" in w["title"])
+assert len(two_leg_window["tickets"]) == 9, "must count actual tickets, not the header's claimed 10"
+# a lone document title line ("HOME RUN PARLAY CARD...") that happens to
+# look header-shaped must not survive as an empty section
+assert all(w["tickets"] for w in t_windows)
+# a single is exactly the ticket with one leg -- not which section it's under
+first_single = t_singles[0]
+assert first_single["who"] == "MEMO" and first_single["player"] == "Chase Meidroth" and first_single["odds"] == "+1040"
+assert first_single["stake"] == 5.0 and first_single["payout"] == 54.0 and first_single["pp"] == "PP $54.00"
+five_man = next(c for w in t_windows for c in w["tickets"] if len(c["legs"]) == 5)
+assert five_man["stake"] == 5.0 and five_man["payout"] == 20515.20 and five_man["book"] == "Kenny"
+# a card with no subtitle text doesn't leave a dangling "&middot;" in its name
+assert not five_man["name"].endswith("&middot;") and "  " not in five_man["name"], five_man["name"]
+print("OK: second template (\"Ticket N:\" cards) parses 10 singles + 15 cards (40 legs) across 3 sections")
+
 print("\nALL PARSER TESTS PASSED")

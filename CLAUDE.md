@@ -101,20 +101,39 @@ comes from a substitute.
 
 ## Irons
 
-An **Iron** is an open parlay sitting exactly one leg away from cashing:
-`outcome === "live" && (activeCount - hitCount) === 1`. Computed once in
-`evaluateTicket()` as `evalRes.iron`, surfaced as a fourth chip in the BETS
-filter row (amber, between OPEN and HIT) and as a `CURRENT_FILTER` value.
+An **Iron** is an open bet one home run from cashing, marked with a 🧇
+waffle next to the player who still has to go deep.
 
-Two edges the definition turns on, both deliberate:
-- A **dead** parlay is never an Iron even when numerically one leg is
-  unresolved -- `outcome === "live"` excludes it. Same for void.
-- **Singles are never Irons.** The singles renderer calls
-  `ticketMatchesFilter({ outcome })` with no leg counts, so `iron` is
-  undefined there and the straight-bet tracker empties under this filter.
+- **Parlays**: `outcome === "live" && (activeCount - hitCount) === 1`,
+  computed in `evaluateTicket()` as `evalRes.iron`. The waffle goes on the
+  one active leg that hasn't hit (`isIronLeg()`).
+- **Singles**: every open single qualifies -- a single is by nature exactly
+  one HR away (`singleIsIron()`). The one exception is state `na`: that
+  player never played, so the bet is void/refunded rather than one swing
+  away, and it gets no waffle and no count. Note this means a fresh slate
+  before first pitch shows a waffle on *every* single; that's intended.
 
-Irons are a *subset* of Open, not a separate bucket -- an Iron is counted in
-both chips.
+The IRONS chip (amber, between OPEN and HIT) counts parlays and singles in
+one total. Irons are a *subset* of Open, not a separate bucket, so an Iron
+is counted in both chips.
+
+Two behaviours that are easy to break:
+- **The waffle is driven by Iron state, never by the active filter**, so it
+  shows under Open and under no filter at all -- not just under Irons.
+- **The Irons filter renders the FULL parlay**, every leg including the ones
+  already hit, because the point is seeing how close the card is. The
+  leg-level filters' hide-non-matching-legs behaviour deliberately does not
+  apply; `renderContent()` still uses the leg filters to decide whether a
+  ticket appears, then overrides `visibleLegIdx` to all legs.
+
+A **dead** parlay is never an Iron even when one leg is numerically
+unresolved -- `outcome === "live"` excludes it, same as void.
+
+**Test-helper trap:** `feed()` in `tests/test_page.py` numbers `battingOrder`
+per side, because the app reads the FIRST digit as the lineup slot. A flat
+`f"{i+1}00"` scheme breaks at the 10th player ("1000" -> slot 1), which makes
+them look like a substitute for the leadoff hitter and wrongly triggers
+Pinch Hit Protection. That silently corrupted leg states until it was caught.
 
 ## Bomb notifications
 

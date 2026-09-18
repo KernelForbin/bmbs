@@ -153,6 +153,7 @@
   .leg:first-of-type { border-top:none; padding-top:0; }
   .leg-left { flex:1; min-width:0; }
   .leg-player { font-size:14px; font-weight:600; line-height:1.35; word-wrap:break-word; }
+  .iron-mark { font-size:12.5px; line-height:1; vertical-align:1px; }
   .leg-meta { font-size:12px; color:var(--text-dim); line-height:1.4; margin-top:2px; word-wrap:break-word; }
   .leg-live-context { font-size:10.5px; color:var(--amber); line-height:1.4; margin-top:3px; word-wrap:break-word; }
   .leg-live-context.pinch-warning { color:var(--yellow); }
@@ -938,6 +939,24 @@ function singleOutcome(state) {
   return "live";
 }
 
+// Every open single is an Iron by definition: a single is always exactly one
+// home run from cashing. The exception is a player who never played -- that
+// bet is void/refunded, not one swing away, so it gets no waffle and doesn't
+// count (same reasoning that excludes void parlays).
+function singleIsIron(state, outcome) {
+  return outcome === "live" && state !== "na";
+}
+
+// The one leg still standing between an Iron parlay and a cash. `iron`
+// guarantees exactly one active leg hasn't hit and none have missed.
+function isIronLeg(evalRes, state) {
+  return !!evalRes.iron && state !== "hit" && state !== "na";
+}
+
+function ironMark() {
+  return ` <span class="iron-mark" title="Iron — one home run from cashing">\u{1F9C7}</span>`;
+}
+
 function whoKey(rawWho) {
   return (rawWho || "").split(/[\u2014-]/)[0].trim();
 }
@@ -1422,7 +1441,7 @@ function computeAll() {
       if (evalRes.outcome === "dead") betMiss++;
       else if (evalRes.outcome === "hit") { betHit++; totalPayoutHit += evalRes.adjustedPayout; }
       else if (isOpenOutcome(evalRes.outcome)) betOpen++;
-      if (evalRes.iron) betIron++; // a subset of Open, counted alongside it
+      if (evalRes.iron) betIron++; // Irons are a subset of Open, counted in both
 
       tk.legs.forEach((leg, i) => {
         const state = states[i];
@@ -1441,7 +1460,9 @@ function computeAll() {
   TICKETS.singles.forEach((s) => {
     const state = stateForPlayer(s.player);
     const outcome = singleOutcome(state);
-    EVALUATED_SINGLES.push({ s, state, outcome });
+    const iron = singleIsIron(state, outcome);
+    EVALUATED_SINGLES.push({ s, state, outcome, iron });
+    if (iron) betIron++;
     countLeg(state);
     countAction(s.player, state, outcome === "live");
 
@@ -1511,8 +1532,12 @@ function renderContent() {
     const rendered = [];
     items.forEach(({ tk, states, evalRes }) => {
       const betIsOpen = isOpenOutcome(evalRes.outcome);
-      const visibleLegIdx = tk.legs.map((leg, i) => legPassesFilters(states[i], leg.who, leg.player, betIsOpen) ? i : -1).filter(i => i >= 0);
-      if (visibleLegIdx.length === 0) return; // no legs survive leg/bettor filters -> hide this ticket
+      const passing = tk.legs.map((leg, i) => legPassesFilters(states[i], leg.who, leg.player, betIsOpen) ? i : -1).filter(i => i >= 0);
+      if (passing.length === 0) return; // no legs survive leg/bettor filters -> hide this ticket
+      // An Iron is about how close the whole card is, so under that filter
+      // every leg renders -- including the ones already hit. The leg-level
+      // filters' hiding behaviour deliberately doesn't apply here.
+      const visibleLegIdx = CURRENT_FILTER === "irons" ? tk.legs.map((_, i) => i) : passing;
       rendered.push({ tk, states, evalRes, visibleLegIdx, betIsOpen });
     });
     if (rendered.length === 0) return;
@@ -1527,7 +1552,7 @@ function renderContent() {
         const leg = tk.legs[i];
         const state = states[i];
         html += `<div class="leg state-${state}">
-          <div class="leg-left"><div class="leg-player">${leg.player}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen)}</div>
+          <div class="leg-left"><div class="leg-player">${leg.player}${isIronLeg(evalRes, state) ? ironMark() : ""}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen)}</div>
           <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
           ${badge(state, leg.player)}
         </div>`;
@@ -1558,16 +1583,16 @@ function renderContent() {
   }
 
   const filteredSingles = EVALUATED_SINGLES.filter(e =>
-    ticketMatchesFilter({ outcome: e.outcome }) && legPassesFilters(e.state, e.s.who, e.s.player, e.outcome === "live")
+    ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.state, e.s.who, e.s.player, e.outcome === "live")
   );
   html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
     <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
   if (filteredSingles.length === 0 && anyFilterActive) {
     html += `<p class="empty-filter-note" style="padding:12px 0;">No straight bets match this filter right now.</p>`;
   }
-  filteredSingles.forEach(({ s, state, outcome }) => {
+  filteredSingles.forEach(({ s, state, outcome, iron }) => {
     html += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live")}
+      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live")}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>

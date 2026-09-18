@@ -41,11 +41,19 @@ def schedule(date, games):
     return {"dates": [{"date": date, "games": [{"gamePk": pk, "status": {"abstractGameState": st}} for pk, st in games]}]}
 
 def feed(abstract, roster, hrs=()):
-    players = {f"ID{i}": {"person": {"fullName": n}, "battingOrder": f"{i + 1}00"} for i, n in enumerate(roster)}
+    # battingOrder must stay collision-free: the app reads the FIRST digit as
+    # the lineup slot, so a 10th player numbered "1000" would read as slot 1
+    # and look like a substitute for the leadoff hitter -- which wrongly
+    # triggers Pinch Hit Protection. Give each side its own 1-9 slots.
+    assert len(roster) <= 18, "feed() supports 9 batters per side"
+    sides = {"away": {}, "home": {}}
+    for i, n in enumerate(roster):
+        side = "away" if i < 9 else "home"
+        sides[side][f"ID{i}"] = {"person": {"fullName": n}, "battingOrder": f"{(i % 9) + 1}00"}
     return {"gameData": {"status": {"abstractGameState": abstract}},
             "liveData": {"plays": {"allPlays": [{"result": {"eventType": "home_run"}, "about": {"isTopInning": True},
                                                  "matchup": {"batter": {"fullName": n}}} for n in hrs]},
-                         "boxscore": {"teams": {"away": {"players": players}, "home": {"players": {}}}},
+                         "boxscore": {"teams": {"away": {"players": sides["away"]}, "home": {"players": sides["home"]}}},
                          "linescore": {}}}
 
 def feed_lineup(abstract, lineup, hrs=()):
@@ -91,6 +99,32 @@ def feed_rich(abstract, roster, plays, *, venue="PNC Park", weather=None, away="
 
 def ticket_names(page):
     return page.evaluate("() => [...document.querySelectorAll('#content .ticket-name')].map(e => e.textContent)")
+
+
+def legs_of(page, ticket_name):
+    """Visible leg player names for one ticket (waffle stripped)."""
+    return page.evaluate(f"""() => {{
+        const t = [...document.querySelectorAll('#content .ticket')]
+            .find(x => x.querySelector('.ticket-name') && x.querySelector('.ticket-name').textContent === {ticket_name!r});
+        return t ? [...t.querySelectorAll('.leg-player')].map(e => e.firstChild.textContent.trim()) : null;
+    }}""")
+
+
+def single_names(page):
+    return page.evaluate(
+        "() => [...document.querySelectorAll('#content .single-row .single-player')].map(e => e.firstChild.textContent.trim())")
+
+
+def waffles(page):
+    """Who currently carries the Iron waffle, split by legs vs singles."""
+    return page.evaluate("""() => ({
+        legs: [...document.querySelectorAll('#content .leg')]
+            .filter(r => r.querySelector('.iron-mark'))
+            .map(r => r.querySelector('.leg-player').firstChild.textContent.trim()),
+        singles: [...document.querySelectorAll('#content .single-row')]
+            .filter(r => r.querySelector('.iron-mark'))
+            .map(r => r.querySelector('.single-player').firstChild.textContent.trim()),
+    })""")
 
 
 def notif_stub(mode):
@@ -227,12 +261,13 @@ def text(page, el_id):
     return page.evaluate(f"document.getElementById('{el_id}').textContent").strip()
 
 def single_states(page):
+    # firstChild, not textContent: the Iron waffle lives in a trailing span.
     return page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('#content .single-row')]
-        .map(r => [r.querySelector('.single-player').textContent, [...r.classList].find(c => c.startsWith('state-')).slice(6)]))""")
+        .map(r => [r.querySelector('.single-player').firstChild.textContent.trim(), [...r.classList].find(c => c.startsWith('state-')).slice(6)]))""")
 
 def leg_states(page):
     return page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('#content .leg')]
-        .map(r => [r.querySelector('.leg-player').textContent, [...r.classList].find(c => c.startsWith('state-')).slice(6)]))""")
+        .map(r => [r.querySelector('.leg-player').firstChild.textContent.trim(), [...r.classList].find(c => c.startsWith('state-')).slice(6)]))""")
 
 def ET(y, mo, d, h, mi):
     # September: ET is UTC-4
@@ -735,65 +770,99 @@ with sync_playwright() as p:
     assert not errors, errors
     browser.close()
 
-    # ========== K: Irons (open parlay, exactly one leg left) ==========
-    # Game 1001 is live; 1002 is final (so C3 resolves to a miss). Anyone not
-    # in either boxscore stays not_started, which is still an undecided leg.
+    # ========== K: Irons (one home run from cashing) ==========
+    # Parlays: IRON (2 hit + 1 live), TWO-LEFT (1 hit + 2 live), DEAD (2 hit +
+    # 1 miss), CASHED (all hit). Singles: one open, one hit, one missed.
+    # Game 1002 is Final so the "miss" states resolve.
     SEEN.clear()
-    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Solo Guy")], [
-        card(["A1", "A2", "A3"], name="IRON"),          # 2 hit + 1 live   -> Iron
-        card(["B1", "B2", "B3"], name="TWO-LEFT"),      # 1 hit + 2 live   -> open, not Iron
-        card(["C1", "C2", "C3"], name="DEAD"),          # 2 hit + 1 miss   -> dead, not Iron
-        card(["D1", "D2"], name="CASHED"),              # all hit          -> hit, not Iron
-        card(["E1", "E2", "E3 Unlisted"], name="IRON-PENDING"),  # 2 hit + 1 not_started -> Iron
-    ])
+    FX["tickets"] = tickets("2026-09-19",
+                            [("Kenny", "S Open"), ("Memo", "S Hit"), ("Noid", "S Miss")],
+                            [card(["A1", "A2", "A3"], name="IRON"),
+                             card(["B1", "B2", "B3"], name="TWO-LEFT"),
+                             card(["C1", "C2", "C3"], name="DEAD"),
+                             card(["D1", "D2"], name="CASHED")])
     FX["previous"] = None
     FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(1001, "Live"), (1002, "Final")])}
     FX["feeds"] = {
-        1001: feed("Live", ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "D1", "D2", "E1", "E2", "Solo Guy"],
-                   hrs=["A1", "A2", "B1", "C1", "C2", "D1", "D2", "E1", "E2"]),
-        1002: feed("Final", ["C3"], hrs=[]),
+        1001: feed("Live", ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "D1", "D2", "S Open", "S Hit"],
+                   hrs=["A1", "A2", "B1", "C1", "C2", "D1", "D2", "S Hit"]),
+        1002: feed("Final", ["C3", "S Miss"], hrs=[]),
     }
 
     browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0))
 
-    assert text(page, "count-parlay-iron") == "2", text(page, "count-parlay-iron")
-    assert text(page, "count-parlay-open") == "4", "3 open parlays + the open single"
-    assert text(page, "count-parlay-hit") == "1" and text(page, "count-parlay-miss") == "1"
-    print("K1 OK: Irons counted (2) -- one leg left, and still counted within Open")
+    # K1: the badge sums qualifying parlays AND qualifying open singles.
+    assert text(page, "count-parlay-iron") == "2", text(page, "count-parlay-iron")   # IRON + S Open
+    assert text(page, "count-parlay-open") == "3", "IRON + TWO-LEFT + S Open"
+    assert text(page, "count-parlay-hit") == "2" and text(page, "count-parlay-miss") == "2"
+    print("K1 OK: Irons badge sums Iron parlays and open singles into one total")
 
+    # K2: waffle shows with NO filter active -- on the remaining leg only, and
+    # on the open single. Not on already-hit legs, not on resolved singles.
+    w = waffles(page)
+    assert w["legs"] == ["A3"], w["legs"]
+    assert w["singles"] == ["S Open"], w["singles"]
+    print("K2 OK: waffle marks only the remaining Iron leg and the open single")
+
+    # K3: it's there under plain Open too, without switching to Irons.
+    page.click("#chip-open")
+    w = waffles(page)
+    assert w["legs"] == ["A3"] and w["singles"] == ["S Open"], w
+    page.click("#chip-open")
+    print("K3 OK: waffle shows while browsing under the plain Open filter")
+
+    # K4: the Irons filter -- Iron parlays plus every open single.
     page.click("#chip-iron")
-    assert ticket_names(page) == ["IRON", "IRON-PENDING"], ticket_names(page)
+    assert ticket_names(page) == ["IRON"], ticket_names(page)
+    assert single_names(page) == ["S Open"], single_names(page)
     assert "IRONS" in text(page, "filter-status-text"), text(page, "filter-status-text")
-    print("K2 OK: the Irons filter shows exactly the one-leg-away parlays")
+    print("K4 OK: Irons filter shows Iron parlays and open singles together")
 
-    # The boundary cases the definition turns on.
+    # K5: the FULL parlay renders -- already-hit legs included, not hidden.
+    assert legs_of(page, "IRON") == ["A1", "A2", "A3"], legs_of(page, "IRON")
+    assert page.evaluate("() => document.querySelectorAll('#content .ticket').length") >= 1
+    assert "hidden by the current filter" not in page.evaluate("document.getElementById('content').textContent")
+    print("K5 OK: an Iron parlay renders every leg, including the ones already hit")
+
+    # K6: the exclusions the definition turns on.
     assert "TWO-LEFT" not in ticket_names(page), "two legs left is not an Iron"
-    assert "DEAD" not in ticket_names(page), "a dead parlay is never an Iron, even with one leg unresolved"
-    assert "CASHED" not in ticket_names(page), "an already-cashed parlay is not an Iron"
-    print("K3 OK: two-left, dead, and cashed parlays are all excluded")
+    assert "DEAD" not in ticket_names(page), "2 hit + 1 missed is dead, never an Iron"
+    assert "CASHED" not in ticket_names(page), "a fully-hit parlay is just Hit"
+    assert "S Hit" not in single_names(page) and "S Miss" not in single_names(page)
+    print("K6 OK: dead, cashed, two-left parlays and resolved singles are all excluded")
 
-    # Singles can't be Irons -- the straight-bet tracker empties under this filter.
-    assert page.evaluate("""() => {
-        const rows = [...document.querySelectorAll('#content .single-row')];
-        return rows.length;
-    }""") == 0, "a single bet must never qualify as an Iron"
-    print("K4 OK: single bets never appear under Irons")
-
-    # Toggling off restores everything; chip active state tracks the filter.
+    # K7: toggles off like the other chips.
     assert page.evaluate("document.getElementById('chip-iron').classList.contains('active-filter')") is True
     page.click("#chip-iron")
     assert page.evaluate("document.getElementById('chip-iron').classList.contains('active-filter')") is False
-    assert sorted(ticket_names(page)) == ["CASHED", "DEAD", "IRON", "IRON-PENDING", "TWO-LEFT"], ticket_names(page)
-    print("K5 OK: Irons chip toggles off like the other filters, restoring every ticket")
+    assert sorted(ticket_names(page)) == ["CASHED", "DEAD", "IRON", "TWO-LEFT"], ticket_names(page)
+    print("K7 OK: Irons chip toggles off like the other filters")
 
-    # An Iron cashing stops being an Iron.
-    FX["feeds"][1001] = feed("Live", ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "D1", "D2", "E1", "E2", "Solo Guy"],
-                             hrs=["A1", "A2", "A3", "B1", "C1", "C2", "D1", "D2", "E1", "E2"])
+    # K8: when the Iron leg hits, the parlay cashes and leaves the Iron count.
+    FX["feeds"][1001] = feed("Live", ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "D1", "D2", "S Open", "S Hit"],
+                             hrs=["A1", "A2", "A3", "B1", "C1", "C2", "D1", "D2", "S Hit"])
     poll(page)
-    assert text(page, "count-parlay-iron") == "1", "the cashed Iron drops out of the count"
-    assert text(page, "count-parlay-hit") == "2"
-    print("K6 OK: an Iron that cashes leaves the Iron count and becomes a hit")
+    assert text(page, "count-parlay-iron") == "1", "only the open single remains an Iron"
+    assert waffles(page)["legs"] == [], "a cashed parlay has no remaining leg to mark"
+    assert text(page, "count-parlay-hit") == "3"
+    print("K8 OK: an Iron that cashes drops out of the Iron count and loses its waffle")
+    assert not errors, errors
+    browser.close()
 
+    # K9: a single whose player never played is void, not one swing away.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Joe", "Never Played"), ("Kenny", "Did Play")])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(1003, "Final")])}
+    FX["feeds"] = {1003: feed("Final", ["Did Play"], hrs=["Did Play"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 20, 3, 0))
+    # 'na' only exists once every game is final -- which also rolls the slate
+    # onto the Yesterday tab, so that's where this one is asserted.
+    page.click("#tab-btn-yesterday")
+    assert single_states(page)["Never Played"] == "na", single_states(page)
+    assert waffles(page)["singles"] == [], "an N/A single can't hit any more -- no waffle"
+    assert text(page, "count-parlay-iron") == "0", text(page, "count-parlay-iron")
+    print("K9 OK: a single whose player didn't play is void, not an Iron")
     assert not errors, errors
     browser.close()
 

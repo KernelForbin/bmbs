@@ -99,6 +99,48 @@ before being pulled (rare -- e.g. pinch-run for right after homering)
 stays a plain, undecorated hit; PHP framing only applies when the credit
 comes from a substitute.
 
+## Home Run Log
+
+A collapsed-by-default panel on both tabs listing every home run from that
+slate's date, newest first (sorted on `about.endTime`, which is a full ISO
+timestamp on every HR, so ordering works across games). Filter toggle:
+"Our Picks" (default) vs "All Home Runs". Rows for a hitter who matters to
+the slate get a subtle green left-border + tint under *either* filter --
+that's the point of the All mode. "Matters" = named in this tab's
+tickets.json, OR a substitute whose HR is currently crediting one of our
+legs under Pinch Hit Protection.
+
+Rows are tap-to-expand rather than a wide table: 16 columns of Statcast
+detail cannot render on a 560px phone-first page, so the collapsed row
+carries hitter/team/inning/pitcher/distance/exit-velo and the expanded
+panel carries the rest.
+
+**Field availability was verified against real data, not assumed** --
+45 home runs across 24 completed games, all 18 fields 100% populated
+(`matchup.batter/batSide/pitcher/pitchHand`, `playEvent.hitData`
+launchSpeed/launchAngle/totalDistance/trajectory, `playEvent.pitchData`
+startSpeed/zone, `details.type.description`, `gameData.venue/weather`).
+Two caveats baked into the code:
+- **Roofed parks report `"0 mph, None"` wind** with condition `"Roof
+  Closed"`/`"Dome"` (7 of 24 games sampled). `weatherWind()` shows the roof
+  instead, so it doesn't read as a genuine calm-air measurement.
+- **Live-game Statcast latency is unverified** -- every sampled game was
+  Final (no games in progress at the time). Fields are still individually
+  guarded and render an em-dash if absent.
+
+Pitch location renders as a 3x3 strike-zone grid (zones 1-9 fill a cell;
+11-14 place a chase dot outside the corresponding corner, verified against
+pitch coordinates) plus a height word. It deliberately never says
+"inside"/"outside": that depends on batter handedness and the API's
+coordinate sign convention, which was NOT verified -- don't add it without
+checking, since getting it backwards would be silently wrong.
+
+No odds column. There's no Betr/odds integration in this project.
+
+This costs no extra API calls: the app already fetches every game's full
+feed for the slate date and previously discarded everything but the
+batter's name.
+
 Batting order tracking (current inning, "at the plate now" / "guaranteed to
 bat this inning" tags, at-bats-remaining estimate) comes from the same live
 feed's boxscore `battingOrder` field, combined with a negative-binomial

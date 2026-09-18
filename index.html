@@ -87,6 +87,54 @@
   .bettor-stat.miss .num { color:var(--red); }
   .bettor-stat.odds .num { color:var(--amber); }
 
+  .hrlog-section { margin: 0 0 28px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 10px; }
+  .hrlog-section.collapsed { padding-bottom:14px; }
+  .hrlog-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
+  .hrlog-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; }
+  .hrlog-chevron { color:var(--text-faint); font-size:12px; transition:transform .18s ease; }
+  .hrlog-section.collapsed .hrlog-chevron { transform:rotate(-90deg); }
+  .hrlog-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 8px; }
+  .hrlog-body { display:block; }
+  .hrlog-section.collapsed .hrlog-body { display:none; }
+
+  .hrlog-filter { display:flex; gap:6px; margin:6px 0 4px; }
+  .hrlog-filter button { flex:1; background:var(--bg); border:1px solid var(--panel-line); color:var(--text-dim); font-family:'Oswald',sans-serif; font-size:11px; font-weight:600; letter-spacing:.05em; padding:7px 6px; border-radius:7px; cursor:pointer; }
+  .hrlog-filter button.active { border-color:var(--green); background:var(--green-dim); color:var(--green); }
+
+  .hr-row { border-top:1px solid var(--panel-line); border-left:2px solid transparent; padding:9px 2px 9px 8px; cursor:pointer; user-select:none; }
+  .hr-row:first-child { border-top:none; }
+  /* Subtle marker for a hitter who's actually in this slate's picks -- the
+     point of "All Home Runs" mode is spotting these while scanning. */
+  .hr-row.ours { border-left-color:var(--green); background:rgba(62,207,142,0.055); }
+  .hr-main { display:flex; align-items:center; gap:9px; }
+  .hr-left { flex:1; min-width:0; }
+  .hr-batter { font-size:13.5px; font-weight:600; line-height:1.3; word-wrap:break-word; }
+  .hr-row.ours .hr-batter { color:var(--green); }
+  .hr-sub { font-size:11px; color:var(--text-dim); line-height:1.4; margin-top:2px; word-wrap:break-word; }
+  .hr-right { flex:none; text-align:right; }
+  .hr-dist { font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:var(--amber); }
+  .hr-ev { font-size:10.5px; color:var(--text-faint); margin-top:1px; }
+  .hr-chevron { flex:none; color:var(--text-faint); font-size:10px; transition:transform .18s ease; }
+  .hr-row.open .hr-chevron { transform:rotate(180deg); }
+  .hr-detail { display:grid; grid-template-columns:auto 1fr; gap:5px 12px; margin:10px 2px 3px; padding-top:9px; border-top:1px dashed var(--panel-line); }
+  .hr-detail dt { font-size:10.5px; color:var(--text-faint); letter-spacing:.02em; }
+  .hr-detail dd { font-size:11.5px; color:var(--text); margin:0; word-wrap:break-word; }
+  .hr-empty { color:var(--text-faint); font-size:12px; text-align:center; padding:16px 4px; line-height:1.5; margin:0; }
+
+  /* Strike zone, drawn from the pitch's `zone` number. Height is labelled in
+     words; left/right is shown only as a position in the grid, never called
+     "inside"/"outside" -- that depends on batter handedness and the API's
+     coordinate sign convention, which isn't verified here. */
+  .zloc { display:inline-flex; align-items:center; gap:8px; }
+  .zgrid { position:relative; display:inline-grid; grid-template-columns:repeat(3, 7px); grid-template-rows:repeat(3, 7px); gap:1px; flex:none; }
+  .zgrid .zcell { border:1px solid rgba(255,255,255,0.18); border-radius:1px; }
+  .zgrid .zcell.on { background:var(--green); border-color:var(--green); }
+  .zgrid .zout { position:absolute; width:5px; height:5px; border-radius:50%; background:var(--yellow); }
+  .zgrid .zout.z11 { top:-5px; left:-5px; }
+  .zgrid .zout.z12 { top:-5px; right:-5px; }
+  .zgrid .zout.z13 { bottom:-5px; left:-5px; }
+  .zgrid .zout.z14 { bottom:-5px; right:-5px; }
+
   .window { margin-bottom:28px; }
   .window-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; display:flex; align-items:baseline; gap:10px; margin:0 0 12px; padding:0 2px; }
   .window-title .dot { width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; transform:translateY(-2px); }
@@ -262,6 +310,21 @@
     </div>
   </div>
 
+  <div class="hrlog-section collapsed" id="hrlog-section">
+    <div class="hrlog-head" onclick="toggleHrLog()">
+      <p class="hrlog-title">Home Run Log</p>
+      <span class="hrlog-chevron">&#9660;</span>
+    </div>
+    <p class="hrlog-sub" id="hrlog-sub">Tap to expand &mdash; see every home run hit today, or just your picks.</p>
+    <div class="hrlog-body">
+      <div class="hrlog-filter">
+        <button type="button" id="hrlog-btn-picks" onclick="setHrFilter('picks')">OUR PICKS</button>
+        <button type="button" id="hrlog-btn-all" onclick="setHrFilter('all')">ALL HOME RUNS</button>
+      </div>
+      <div id="hrlog-list"></div>
+    </div>
+  </div>
+
   <div id="content"></div>
 
   <footer id="footer-line">all times ET &middot; results pulled directly from the MLB Stats API &middot; <a href="features.html" style="color:inherit;">what this site can do</a></footer>
@@ -286,6 +349,8 @@ let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
 // whichever one is on screen, so the evaluation and rendering code below
 // doesn't know tabs exist.
 let SLATES = { today: null, yesterday: null, queued: null };
+let HR_FILTER = "picks";       // 'picks' | 'all'  -- Home Run Log filter
+const HR_EXPANDED = new Set(); // home run ids whose full detail is open
 let ACTIVE_TAB = "today";
 // slate date -> { results, done, settled }. `settled` means every game is
 // Final and every feed fetch succeeded: nothing is left to poll for.
@@ -295,7 +360,7 @@ const SLATE_POLLS = new Map();
 const FINAL_SNAPSHOTS = new Map();
 
 function emptyResults() {
-  return { hitNames: new Set(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), gameInfo: new Map(), allGamesFinal: false, ready: false, noGames: false };
+  return { hitNames: new Set(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), homeRuns: [], gameInfo: new Map(), allGamesFinal: false, ready: false, noGames: false };
 }
 
 // League-average probability that a plate appearance ends in an out. Not
@@ -381,14 +446,65 @@ async function getGameSnapshot(gamePk) {
   const abstract = (data.gameData && data.gameData.status && data.gameData.status.abstractGameState) || "";
   const status = abstract === "Final" ? "final" : (abstract === "Preview" ? "preview" : "live");
 
+  const gameData = data.gameData || {};
+  const venue = (gameData.venue && gameData.venue.name) || "";
+  const weather = gameData.weather || {};
+  const gameTeams = gameData.teams || {};
+  const abbr = side => (gameTeams[side] && (gameTeams[side].abbreviation || gameTeams[side].teamName)) || "";
+
   const hrNames = new Set();
+  // Full detail per home run, for the Home Run Log. Every field below came
+  // back populated on all 45 home runs sampled across 24 real games, so
+  // they're read directly -- but each is still guarded, since a live game
+  // can in principle publish the play before Statcast attaches hitData.
+  const homeRuns = [];
   const plays = (data.liveData && data.liveData.plays && data.liveData.plays.allPlays) || [];
   plays.forEach(play => {
     const result = play.result || {};
-    if (result.eventType === "home_run" || result.event === "Home Run") {
-      const batter = play.matchup && play.matchup.batter && play.matchup.batter.fullName;
-      if (batter) hrNames.add(normalizeName(batter));
+    if (result.eventType !== "home_run" && result.event !== "Home Run") return;
+    const matchup = play.matchup || {};
+    const batter = matchup.batter && matchup.batter.fullName;
+    if (!batter) return;
+    hrNames.add(normalizeName(batter));
+
+    const about = play.about || {};
+    // The pitch that produced the home run: last event carrying hitData.
+    const events = play.playEvents || [];
+    let scoring = null;
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i] && events[i].hitData) { scoring = events[i]; break; }
     }
+    if (!scoring) {
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (events[i] && events[i].isPitch) { scoring = events[i]; break; }
+      }
+    }
+    const hitData = (scoring && scoring.hitData) || {};
+    const pitchData = (scoring && scoring.pitchData) || {};
+    const details = (scoring && scoring.details) || {};
+
+    homeRuns.push({
+      id: `${gamePk}-${play.atBatIndex}`,
+      time: about.endTime || about.startTime || "",
+      batter,
+      batSide: (matchup.batSide && matchup.batSide.code) || "",
+      batTeam: abbr(about.isTopInning ? "away" : "home"),
+      pitcher: (matchup.pitcher && matchup.pitcher.fullName) || "",
+      pitchHand: (matchup.pitchHand && matchup.pitchHand.code) || "",
+      inning: about.inning || null,
+      half: about.halfInning || "",
+      venue,
+      wind: weather.wind || "",
+      temp: weather.temp || "",
+      condition: weather.condition || "",
+      exitVelo: typeof hitData.launchSpeed === "number" ? hitData.launchSpeed : null,
+      launchAngle: typeof hitData.launchAngle === "number" ? hitData.launchAngle : null,
+      distance: typeof hitData.totalDistance === "number" ? hitData.totalDistance : null,
+      trajectory: hitData.trajectory || "",
+      pitchType: (details.type && details.type.description) || "",
+      pitchVelo: typeof pitchData.startSpeed === "number" ? pitchData.startSpeed : null,
+      zone: typeof pitchData.zone === "number" ? pitchData.zone : null
+    });
   });
 
   const rosterNames = new Set();
@@ -457,7 +573,7 @@ async function getGameSnapshot(gamePk) {
     nextUpSlot[side] = slot;
   });
 
-  return { status, hrNames, rosterNames, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk };
+  return { status, hrNames, homeRuns, rosterNames, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk };
 }
 
 // How many more outs a team's side needs to record before the (assumed
@@ -611,7 +727,7 @@ async function pollSlate(date) {
   const snapshots = await Promise.all(games.map(g => {
     if (FINAL_SNAPSHOTS.has(g.gamePk)) return FINAL_SNAPSHOTS.get(g.gamePk);
     // Nothing from a not-yet-started game's feed is used below, so skip the download.
-    if (g.preview) return { status: "preview", gamePk: g.gamePk, hrNames: new Set(), rosterNames: new Set(), orderSlot: new Map(), slotHolders: { away: {}, home: {} } };
+    if (g.preview) return { status: "preview", gamePk: g.gamePk, hrNames: new Set(), homeRuns: [], rosterNames: new Set(), orderSlot: new Map(), slotHolders: { away: {}, home: {} } };
     return getGameSnapshot(g.gamePk).then(snap => {
       if (snap.status === "final") FINAL_SNAPSHOTS.set(g.gamePk, snap);
       return snap;
@@ -623,11 +739,13 @@ async function pollSlate(date) {
   const rosterSide = new Map();   // normalized name -> {side, gamePk}
   const gameInfo = new Map();     // gamePk -> snapshot
   const substitutedOut = new Set(); // normalized name -> pulled from the game, no MLB re-entry rule so no more ABs possible
+  const homeRuns = [];            // every HR league-wide on this date, for the Home Run Log
   let allFinal = true;
 
   snapshots.forEach(snap => {
     if (!snap) { allFinal = false; return; }
     snap.hrNames.forEach(n => hitNames.add(n));
+    (snap.homeRuns || []).forEach(hr => homeRuns.push(hr));
     if (snap.status !== "preview") {
       snap.rosterNames.forEach(n => rosterStatus.set(n, snap.status));
       snap.orderSlot.forEach((info, n) => {
@@ -641,7 +759,8 @@ async function pollSlate(date) {
     if (snap.status !== "final") allFinal = false;
   });
 
-  const results = { hitNames, rosterStatus, rosterSide, substitutedOut, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
+  homeRuns.sort((a, b) => String(b.time).localeCompare(String(a.time))); // newest first, across games
+  const results = { hitNames, rosterStatus, rosterSide, substitutedOut, homeRuns, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
   const anyFetchFailed = snapshots.some(s => !s);
   return { results, done: allScheduledFinal || pastSafetyValve(date), settled: allScheduledFinal && !anyFetchFailed };
 }
@@ -843,6 +962,156 @@ function battingActionState(playerName, state, betIsOpen) {
 function ordinal(n) {
   const s = ["th", "st", "nd", "rd"], v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// ---------------- home run log ----------------
+
+const DASH = "—";
+
+function handLabel(code) {
+  return { L: "Left", R: "Right", S: "Switch" }[code] || DASH;
+}
+
+function trajectoryLabel(t) {
+  if (!t) return DASH;
+  const s = String(t).replace(/_/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Roofed parks still report a wind reading -- "0 mph, None" -- which would
+// otherwise read as a genuine calm-air measurement. Show the roof instead.
+function weatherWind(hr) {
+  if (/roof closed|dome/i.test(hr.condition || "")) return hr.condition;
+  return hr.wind || DASH;
+}
+
+function zoneHeightLabel(zone) {
+  if (zone == null) return DASH;
+  if (zone >= 1 && zone <= 3) return "Up";
+  if (zone >= 4 && zone <= 6) return "Middle";
+  if (zone >= 7 && zone <= 9) return "Low";
+  if (zone === 11 || zone === 12) return "Up (chase)";
+  if (zone === 13 || zone === 14) return "Low (chase)";
+  return DASH;
+}
+
+const ZONE_CELLS = { 1: [0, 0], 2: [0, 1], 3: [0, 2], 4: [1, 0], 5: [1, 1], 6: [1, 2], 7: [2, 0], 8: [2, 1], 9: [2, 2] };
+
+function zoneGridHtml(zone) {
+  if (zone == null) return "";
+  const cell = ZONE_CELLS[zone];
+  const outside = zone >= 11 && zone <= 14;
+  if (!cell && !outside) return "";
+  let cells = "";
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const on = cell && r === cell[0] && c === cell[1];
+      cells += `<span class="zcell${on ? " on" : ""}"></span>`;
+    }
+  }
+  return `<span class="zgrid" aria-hidden="true">${cells}${outside ? `<span class="zout z${zone}"></span>` : ""}</span>`;
+}
+
+// Normalized names whose home run matters to this slate: anyone actually
+// picked, plus any substitute whose HR is currently crediting one of our
+// legs under Pinch Hit Protection.
+function relevantHrNames() {
+  const set = new Set();
+  if (!TICKETS) return set;
+  const picked = [];
+  (TICKETS.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(l => {
+    if (l.player) picked.push(l.player);
+  })));
+  (TICKETS.singles || []).forEach(s => { if (s.player) picked.push(s.player); });
+  picked.forEach(name => {
+    set.add(normalizeName(name));
+    const php = pinchHitProtection(name);
+    if (php && php.homeredBy) set.add(normalizeName(php.homeredBy));
+  });
+  return set;
+}
+
+function hrDetailHtml(hr) {
+  const rows = [
+    ["Bats", handLabel(hr.batSide)],
+    ["Team", hr.batTeam || DASH],
+    ["Pitcher", hr.pitcher || DASH],
+    ["Throws", handLabel(hr.pitchHand)],
+    ["Pitch", hr.pitchType ? `${hr.pitchType}${hr.pitchVelo != null ? ` &middot; ${hr.pitchVelo.toFixed(1)} mph` : ""}` : DASH],
+    ["Location", hr.zone != null ? `<span class="zloc">${zoneGridHtml(hr.zone)}<span>${zoneHeightLabel(hr.zone)}</span></span>` : DASH],
+    ["Exit velo", hr.exitVelo != null ? `${hr.exitVelo.toFixed(1)} mph` : DASH],
+    ["Launch angle", hr.launchAngle != null ? `${Math.round(hr.launchAngle)}&deg;` : DASH],
+    ["Distance", hr.distance != null ? `${Math.round(hr.distance)} ft` : DASH],
+    ["Trajectory", trajectoryLabel(hr.trajectory)],
+    ["Ballpark", hr.venue || DASH],
+    ["Wind", weatherWind(hr)],
+    ["Temperature", hr.temp ? `${hr.temp}&deg;F` : DASH]
+  ];
+  return `<dl class="hr-detail">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+}
+
+function hrRowHtml(hr, isOurs) {
+  const open = HR_EXPANDED.has(hr.id);
+  const half = hr.half === "top" ? "Top" : hr.half === "bottom" ? "Bot" : "";
+  const when = hr.inning ? `${half} ${hr.inning}`.trim() : DASH;
+  const off = hr.pitcher ? ` &middot; off ${hr.pitcher}` : "";
+  return `<div class="hr-row${isOurs ? " ours" : ""}${open ? " open" : ""}" onclick="toggleHrRow('${hr.id}')">
+    <div class="hr-main">
+      <div class="hr-left">
+        <div class="hr-batter">${hr.batter}</div>
+        <div class="hr-sub">${hr.batTeam || DASH} &middot; ${when}${off}</div>
+      </div>
+      <div class="hr-right">
+        <div class="hr-dist">${hr.distance != null ? `${Math.round(hr.distance)} ft` : DASH}</div>
+        <div class="hr-ev">${hr.exitVelo != null ? `${hr.exitVelo.toFixed(1)} mph` : DASH}</div>
+      </div>
+      <span class="hr-chevron">&#9660;</span>
+    </div>
+    ${open ? hrDetailHtml(hr) : ""}
+  </div>`;
+}
+
+function renderHrLog() {
+  const list = document.getElementById("hrlog-list");
+  if (!list) return;
+  document.getElementById("hrlog-btn-picks").classList.toggle("active", HR_FILTER === "picks");
+  document.getElementById("hrlog-btn-all").classList.toggle("active", HR_FILTER === "all");
+
+  const all = (RESULTS && RESULTS.homeRuns) || [];
+  const relevant = relevantHrNames();
+  const rows = HR_FILTER === "picks" ? all.filter(hr => relevant.has(normalizeName(hr.batter))) : all;
+
+  if (rows.length === 0) {
+    const msg = all.length === 0
+      ? "No home runs hit yet."
+      : "None of this slate's picks have gone deep yet &mdash; switch to <b>All Home Runs</b> to see the rest of the league.";
+    list.innerHTML = `<p class="hr-empty">${msg}</p>`;
+    return;
+  }
+  list.innerHTML = rows.map(hr => hrRowHtml(hr, relevant.has(normalizeName(hr.batter)))).join("");
+}
+
+function toggleHrRow(id) {
+  if (HR_EXPANDED.has(id)) HR_EXPANDED.delete(id); else HR_EXPANDED.add(id);
+  renderHrLog();
+}
+
+function setHrFilter(mode) {
+  HR_FILTER = mode;
+  renderHrLog();
+}
+
+function hrLogSubText() {
+  const collapsed = document.getElementById("hrlog-section").classList.contains("collapsed");
+  const day = ACTIVE_TAB === "today" ? "today" : "that day";
+  return collapsed
+    ? `Tap to expand &mdash; see every home run hit ${day}, or just your picks.`
+    : "Newest first. Tap any home run for the full Statcast detail.";
+}
+
+function toggleHrLog() {
+  document.getElementById("hrlog-section").classList.toggle("collapsed");
+  document.getElementById("hrlog-sub").innerHTML = hrLogSubText();
 }
 
 // Full pass: computes scoreboard totals, bettor stats, and the EVALUATED
@@ -1118,6 +1387,7 @@ function render() {
   if (!TICKETS) return;
   computeAll();
   renderContent();
+  renderHrLog();
   updateFilterUI();
   updateLegFilterUI();
   updateBettorFilterUI();
@@ -1199,7 +1469,8 @@ function applyActiveTab() {
   }
 
   const showSlate = !!slate;
-  ["slate-stats", "bettor-section", "content"].forEach(id => { document.getElementById(id).style.display = showSlate ? "" : "none"; });
+  ["slate-stats", "bettor-section", "hrlog-section", "content"].forEach(id => { document.getElementById(id).style.display = showSlate ? "" : "none"; });
+  document.getElementById("hrlog-sub").innerHTML = hrLogSubText();
   document.getElementById("waiting-panel").style.display = showSlate ? "none" : "";
   document.getElementById("live-dot").style.display = (ACTIVE_TAB === "today" && showSlate) ? "" : "none";
   if (!showSlate) document.getElementById("dynamic-note").innerHTML = "";
@@ -1223,6 +1494,7 @@ function activateTab(tab) {
   if (tab === ACTIVE_TAB) return;
   ACTIVE_TAB = tab;
   CURRENT_FILTER = LEG_FILTER = ACTION_FILTER = BETTOR_FILTER = null;
+  HR_EXPANDED.clear(); // the other tab's home runs, not this one's
   applyActiveTab();
   render();
   updateSyncLine();

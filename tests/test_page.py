@@ -59,6 +59,65 @@ def feed_lineup(abstract, lineup, hrs=()):
                          "boxscore": {"teams": {"away": {"players": players}, "home": {"players": {}}}},
                          "linescore": {}}}
 
+def hr_play(batter, pitcher, *, bat_side="R", pitch_hand="L", inning=4, top=True, end_time="2026-09-19T23:00:00.000Z",
+            exit_velo=110.2, launch_angle=26.0, distance=423.0, trajectory="line_drive",
+            pitch_type="Sinker", pitch_velo=97.6, zone=7, at_bat=10):
+    """One home run play shaped like the real v1.1 feed (verified against live data)."""
+    return {
+        "atBatIndex": at_bat,
+        "result": {"eventType": "home_run", "event": "Home Run"},
+        "about": {"inning": inning, "isTopInning": top, "halfInning": "top" if top else "bottom", "endTime": end_time},
+        "matchup": {"batter": {"fullName": batter}, "batSide": {"code": bat_side},
+                    "pitcher": {"fullName": pitcher}, "pitchHand": {"code": pitch_hand}},
+        "playEvents": [
+            {"isPitch": True, "details": {"type": {"code": "FF", "description": "Four-Seam Fastball"}}},
+            {"isPitch": True,
+             "details": {"type": {"code": "SI", "description": pitch_type}},
+             "pitchData": {"startSpeed": pitch_velo, "zone": zone},
+             "hitData": {"launchSpeed": exit_velo, "launchAngle": launch_angle,
+                         "totalDistance": distance, "trajectory": trajectory}},
+        ],
+    }
+
+def feed_rich(abstract, roster, plays, *, venue="PNC Park", weather=None, away="PIT", home="MIL"):
+    """Feed with venue/weather/team abbreviations and fully-detailed HR plays."""
+    weather = weather if weather is not None else {"condition": "Partly Cloudy", "temp": "77", "wind": "5 mph, Out To LF"}
+    players = {f"ID{i}": {"person": {"fullName": n}, "battingOrder": f"{i + 1}00"} for i, n in enumerate(roster)}
+    return {"gameData": {"status": {"abstractGameState": abstract}, "venue": {"name": venue}, "weather": weather,
+                         "teams": {"away": {"abbreviation": away}, "home": {"abbreviation": home}}},
+            "liveData": {"plays": {"allPlays": plays},
+                         "boxscore": {"teams": {"away": {"players": players}, "home": {"players": {}}}},
+                         "linescore": {}}}
+
+def rendered(page, el_id):
+    """True only if the element is actually laid out -- unlike visible(), this
+    also accounts for a hidden ancestor (getClientRects is empty either way)."""
+    return page.evaluate(f"document.getElementById('{el_id}').getClientRects().length > 0")
+
+def hr_rows(page):
+    return page.evaluate("""() => [...document.querySelectorAll('#hrlog-list .hr-row')].map(r => ({
+        batter: r.querySelector('.hr-batter').textContent,
+        sub: r.querySelector('.hr-sub').textContent.trim(),
+        dist: r.querySelector('.hr-dist').textContent,
+        ev: r.querySelector('.hr-ev').textContent,
+        ours: r.classList.contains('ours'),
+    }))""")
+
+def hr_detail(page, batter):
+    return page.evaluate(f"""() => {{
+        const row = [...document.querySelectorAll('#hrlog-list .hr-row')]
+            .find(r => r.querySelector('.hr-batter').textContent === {batter!r});
+        if (!row) return null;
+        const dl = row.querySelector('.hr-detail');
+        if (!dl) return null;
+        const out = {{}};
+        const dts = [...dl.querySelectorAll('dt')], dds = [...dl.querySelectorAll('dd')];
+        dts.forEach((dt, i) => out[dt.textContent] = dds[i].textContent.trim());
+        out._zoneCells = dl.querySelectorAll('.zgrid .zcell.on').length;
+        out._zoneOut = dl.querySelectorAll('.zgrid .zout').length;
+        return out;
+    }}""")
+
 def badge_classes(page, player_selector_text):
     return page.evaluate(f"""() => {{
         const rows = [...document.querySelectorAll('#content .single-row, #content .leg')];
@@ -388,6 +447,95 @@ with sync_playwright() as p:
     assert context_text(page, "Original Guy") == "", "no PHP note for a hit the player earned himself"
     assert "php-hit" not in badge_classes(page, "Original Guy")
     print("H5 OK: a player's own hit stays a plain hit even if he's pulled afterward")
+    assert not errors, errors
+    browser.close()
+
+    # ========== I: Home Run Log ==========
+    # Two games: one outdoor (our pick + a non-pick homer), one domed (non-pick).
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Our Slugger")])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(801, "Live"), (802, "Live")])}
+    FX["feeds"] = {
+        801: feed_rich("Live", ["Our Slugger", "Random Guy"], [
+            hr_play("Our Slugger", "Some Pitcher", bat_side="L", pitch_hand="R", inning=4, top=True,
+                    end_time="2026-09-19T23:30:00.000Z", exit_velo=110.2, launch_angle=26.0, distance=423.0,
+                    trajectory="line_drive", pitch_type="Sinker", pitch_velo=97.6, zone=7, at_bat=10),
+            hr_play("Random Guy", "Other Pitcher", bat_side="R", pitch_hand="L", inning=2, top=False,
+                    end_time="2026-09-19T22:00:00.000Z", exit_velo=99.9, launch_angle=31.0, distance=401.0,
+                    trajectory="fly_ball", pitch_type="Curveball", pitch_velo=80.1, zone=13, at_bat=4),
+        ], venue="PNC Park", away="PIT", home="MIL"),
+        802: feed_rich("Live", ["Dome Guy"], [
+            hr_play("Dome Guy", "Dome Pitcher", inning=7, top=True, end_time="2026-09-20T00:15:00.000Z",
+                    distance=388.0, exit_velo=104.0, zone=5, at_bat=22),
+        ], venue="Chase Field", weather={"condition": "Roof Closed", "temp": "74", "wind": "0 mph, None"},
+           away="ARI", home="SD"),
+    }
+
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0))
+
+    # I1: collapsed by default, with the tap-to-expand help text showing.
+    assert page.evaluate("document.getElementById('hrlog-section').classList.contains('collapsed')")
+    assert not rendered(page, "hrlog-list"), "body should be hidden while collapsed"
+    assert "Tap to expand" in text(page, "hrlog-sub"), text(page, "hrlog-sub")
+    print("I1 OK: Home Run Log starts collapsed with tap-to-expand help text")
+
+    page.click(".hrlog-head")
+    assert rendered(page, "hrlog-list")
+    assert "Tap to expand" not in text(page, "hrlog-sub")
+
+    # I2: default filter is Our Picks -- only the picked hitter.
+    rows = hr_rows(page)
+    assert [r["batter"] for r in rows] == ["Our Slugger"], rows
+    assert rows[0]["ours"] is True
+    assert rows[0]["dist"] == "423 ft" and rows[0]["ev"] == "110.2 mph", rows[0]
+    assert "PIT" in rows[0]["sub"] and "Top 4" in rows[0]["sub"] and "Some Pitcher" in rows[0]["sub"], rows[0]["sub"]
+    print("I2 OK: 'Our Picks' shows only picked hitters, with team/inning/pitcher summary")
+
+    # I3: All Home Runs -- every HR league-wide, newest first, picks still highlighted.
+    page.click("#hrlog-btn-all")
+    rows = hr_rows(page)
+    assert [r["batter"] for r in rows] == ["Dome Guy", "Our Slugger", "Random Guy"], rows
+    assert [r["ours"] for r in rows] == [False, True, False], rows
+    print("I3 OK: 'All Home Runs' lists league-wide HRs newest-first; only picks carry the highlight")
+
+    # I4: expanded detail lands in the right fields.
+    page.evaluate("""() => [...document.querySelectorAll('#hrlog-list .hr-row')]
+        .find(r => r.querySelector('.hr-batter').textContent === 'Our Slugger').click()""")
+    d = hr_detail(page, "Our Slugger")
+    assert d["Bats"] == "Left" and d["Throws"] == "Right", d
+    assert d["Team"] == "PIT" and d["Pitcher"] == "Some Pitcher", d
+    assert d["Pitch"] == "Sinker · 97.6 mph", d["Pitch"]
+    assert d["Exit velo"] == "110.2 mph" and d["Launch angle"] == "26°" and d["Distance"] == "423 ft", d
+    assert d["Trajectory"] == "Line drive", d["Trajectory"]
+    assert d["Ballpark"] == "PNC Park", d
+    assert d["Wind"] == "5 mph, Out To LF" and d["Temperature"] == "77°F", d
+    assert d["Location"] == "Low" and d["_zoneCells"] == 1 and d["_zoneOut"] == 0, d
+    print("I4 OK: expanded row shows every Statcast/matchup field in the right place")
+
+    # I5: an out-of-zone pitch renders as a chase marker, not a filled grid cell.
+    page.evaluate("""() => [...document.querySelectorAll('#hrlog-list .hr-row')]
+        .find(r => r.querySelector('.hr-batter').textContent === 'Random Guy').click()""")
+    d = hr_detail(page, "Random Guy")
+    assert d["Location"] == "Low (chase)" and d["_zoneCells"] == 0 and d["_zoneOut"] == 1, d
+    print("I5 OK: out-of-zone pitch renders as a chase marker outside the strike zone grid")
+
+    # I6: a roofed park shows the roof, not a bogus "0 mph, None" calm reading.
+    page.evaluate("""() => [...document.querySelectorAll('#hrlog-list .hr-row')]
+        .find(r => r.querySelector('.hr-batter').textContent === 'Dome Guy').click()""")
+    d = hr_detail(page, "Dome Guy")
+    assert d["Wind"] == "Roof Closed", d["Wind"]
+    assert d["Ballpark"] == "Chase Field" and d["Team"] == "ARI", d
+    print("I6 OK: domed park reports the roof instead of a meaningless 0 mph wind")
+
+    # I7: with no picks having homered, 'Our Picks' explains itself rather than going blank.
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Nobody Homered")])
+    poll(page)
+    page.click("#hrlog-btn-picks")
+    assert hr_rows(page) == []
+    assert "All Home Runs" in text(page, "hrlog-list"), text(page, "hrlog-list")
+    print("I7 OK: empty 'Our Picks' state points at the All Home Runs filter")
+
     assert not errors, errors
     browser.close()
 

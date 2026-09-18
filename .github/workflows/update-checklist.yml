@@ -1,11 +1,16 @@
-name: Update Home Run Checklist
+name: Update Home Run Checklist (legacy, disabled)
 
+# LEGACY / DISABLED as of 2026-09-18. index.html computes hit/miss state in
+# the visitor's own browser and hasn't read data/marks.json for a long time,
+# so this only produced an auto-commit every 10 minutes all evening -- noise
+# that also raced the parse-picks workflow and the Discord bot's pushes
+# (the bot reads a file's sha then writes it back, and a commit landing in
+# between makes that write fail).
+#
+# The schedule triggers are deliberately removed rather than the whole file,
+# so the old cron approach stays readable. Manual dispatch still works if
+# marks.json is ever needed again.
 on:
-  schedule:
-    # GitHub cron is UTC. This covers roughly 6:00pm-2:00am ET
-    # across both EDT (UTC-4) and EST (UTC-5), every 10 minutes.
-    - cron: "*/10 22,23 * * *"
-    - cron: "*/10 0,1,2,3,4,5,6 * * *"
   workflow_dispatch: {}   # lets you trigger a manual run from the Actions tab
 
 permissions:

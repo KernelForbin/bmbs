@@ -35,9 +35,12 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   Stamps `date` from the listed start times: a slate posted after its
   last first pitch is for tomorrow, otherwise it's for today (ET).
 - **`scripts/fetch_home_runs.py`** + **`.github/workflows/update-checklist.yml`**
-  — LEGACY, no longer used. An earlier cron-based approach to live tracking
-  that got replaced by client-side polling (see below). Left in the repo,
-  safe to ignore or delete.
+  + **`data/marks.json`** — LEGACY, no longer used. An earlier cron-based
+  approach to live tracking that got replaced by client-side polling (see
+  below). The workflow's `schedule:` triggers were removed on 2026-09-18
+  so it no longer runs on its own (see gotcha 3); the files are left in
+  the repo and are safe to ignore or delete. Note `parse-picks.yml` still
+  rewrites `marks.json` on every parse — harmless, nothing reads it.
 - **`CNAME`** — contains `bmbs.bet`, required by GitHub Pages for the custom domain.
 
 ## How live tracking actually works (important, don't reinvent this)
@@ -143,11 +146,15 @@ after a dash during parsing — don't reintroduce this).
    reintroduce any wall-clock rollover rule; the only clock in the logic
    is the deliberate 6am-next-day backstop for suspended games.
 
-3. **Git push race conditions are common.** No cron bot is currently
-   running (see legacy note above), but if any automated commit workflow
-   is reintroduced, expect `git push` rejections when the user's local
-   push lands near the same time as a bot commit. Standard fix:
-   `git pull origin main` (or `--rebase`), resolve, `git push` again.
+3. **Git push race conditions are common.** The legacy `update-checklist.yml`
+   cron was still firing every 10 minutes each evening until it was
+   disabled on 2026-09-18 (its `schedule:` triggers were removed; manual
+   dispatch remains). It committed to the unused `data/marks.json` and
+   raced both the parse-picks workflow and the Discord bot, whose
+   read-sha-then-write against the GitHub Contents API fails outright if a
+   commit lands in between. Don't reintroduce an automated commit workflow
+   without a reason. For local pushes rejected by a concurrent commit, the
+   fix is `git pull origin main` (or `--rebase`), resolve, `git push` again.
 
 4. **The user primarily works in PowerShell on Windows**, sometimes Git
    Bash, sometimes a GitHub Codespace (browser-based, already authenticated,

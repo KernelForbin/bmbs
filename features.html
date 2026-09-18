@@ -52,6 +52,8 @@
   .swatch.hit { background:var(--green-dim); border-color:var(--green); }
   .swatch.miss { background:var(--red-dim); border-color:var(--red); }
   .swatch.na { background:var(--yellow-dim); border-color:var(--yellow); }
+  .swatch.php { background:repeating-linear-gradient(135deg, var(--yellow) 0 2.5px, transparent 2.5px 6px), var(--green-dim); border-color:var(--green); }
+  .swatch-emoji { width:12px; flex:none; font-size:11px; line-height:1; text-align:center; }
 
   footer { margin-top:20px; padding-top:14px; border-top:1px solid var(--panel-line); font-size:11px; color:var(--text-faint); text-align:center; line-height:1.6; }
 </style>
@@ -79,7 +81,6 @@
       <ul>
         <li>Every leg updates on its own about every 20 seconds, straight from MLB's real game data &mdash; leave the tab open and watch it change.</li>
         <li>The instant a home run shows up in the play-by-play, that leg turns green &mdash; even while the game is still going.</li>
-        <li>If a player gets pulled for a pinch hitter, that leg is marked <b>missed right away</b> instead of making you wait for the game to end.</li>
         <li>A player whose team never takes the field for them is marked <b>"Didn't play"</b> and doesn't count as a loss.</li>
       </ul>
     </section>
@@ -94,6 +95,31 @@
         <li><span class="tag">AT THE PLATE NOW</span> and <span class="tag">GUARANTEED TO BAT THIS INNING</span> flag legs about to be decided.</li>
         <li>An estimated at-bats-remaining count and rough odds of another trip to the plate, based on league-average outcomes.</li>
         <li>One tap jumps straight to the live play-by-play on MLB Gameday.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 3.2 19.2 6v6c0 4-3 7.2-7.2 8.8C7.8 19.2 4.8 16 4.8 12V6L12 3.2z"/></svg></span>
+        <h2>Pinch Hit Protection</h2>
+      </div>
+      <ul>
+        <li>If your guy gets pulled for a pinch hitter, the bet <b>isn't dead</b> &mdash; most of our books cover it, so the site keeps tracking whoever took his spot in the lineup.</li>
+        <li>If that replacement goes deep, the leg is <b>credited as a hit</b>, counted in your payout and the Bettor Tracker like any other. It's marked with a green-and-yellow striped check so you can tell it came through protection rather than your guy's own bat.</li>
+        <li>Tracking follows the whole chain &mdash; if the pinch hitter is later replaced too, the next man up still counts.</li>
+        <li>Only if nobody in that lineup spot homers by the end of the game does it become a real miss, with a note saying so.</li>
+      </ul>
+    </section>
+
+    <section class="card-item card--live">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M5 13.5 9 9.5l3.2 3.2L19 6"/><path d="M14.6 6H19v4.4"/></svg></span>
+        <h2>Irons &mdash; one swing away</h2>
+      </div>
+      <ul>
+        <li>An <b>Iron</b> is any bet sitting exactly one home run from cashing: a parlay where every leg but one has hit, or any single that's still open.</li>
+        <li>A 🧇 waffle marks the exact player who still has to go deep, so you can spot what you're sweating at a glance. It's always visible &mdash; you don't have to switch filters to see it.</li>
+        <li>Tap the <b>IRONS</b> counter to see just those bets. Parlays show <b>every</b> leg, hits included, so you get the full picture of how close the card is.</li>
       </ul>
     </section>
 
@@ -126,8 +152,33 @@
         <h2>Tap-to-filter scoreboard</h2>
       </div>
       <ul>
-        <li>Quick counts for Batting Now / Batting Soon, and for every bet and leg status &mdash; Open, Hit, Missed, N/A, Live, Not Started.</li>
+        <li>Quick counts for Batting Now / Batting Soon, and for every bet and leg status &mdash; Open, Irons, Hit, Missed, N/A, Live, Not Started.</li>
         <li>Tap any number to filter the whole page down to just that group. Tap it again to clear the filter.</li>
+      </ul>
+    </section>
+
+    <section class="card-item card--live">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="11.5" cy="13" r="6.2"/><path d="M15.9 8.6 18.4 6M17 4.4l2.6 2.6M11.5 6.8V4M9.7 4h3.6"/></svg></span>
+        <h2>Bomb alerts</h2>
+      </div>
+      <ul>
+        <li>When someone in the day's picks goes deep, the page announces it: <b>"&lt;Player&gt; BOMB! 💣"</b>.</li>
+        <li>Two independent switches at the top &mdash; <b>Overlay</b> (a celebration right on the page) and <b>Push</b> (a normal phone/desktop notification, even if you're on another tab). Have either, both, or neither; the setting sticks on that device.</li>
+        <li>Push has to be switched on by you, and your browser will ask permission first. It works while the page is open somewhere &mdash; not once you've closed it entirely.</li>
+        <li>Opening the page mid-game <b>won't</b> bury you in alerts for home runs that already happened &mdash; you only get told about ones hit while you're watching.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>
+        <h2>Home Run Log</h2>
+      </div>
+      <ul>
+        <li>A tap-to-open log of every home run of the day, newest first &mdash; on both the Today and Yesterday tabs.</li>
+        <li>Switch between <b>Our Picks</b> and <b>All Home Runs</b> (the whole league). Either way, anyone in the group's picks is highlighted so you can spot the ones that matter.</li>
+        <li>Tap any home run for the full Statcast detail: exit velo, launch angle, distance, the pitch he hit and how hard it came in, where it was in the strike zone, plus ballpark, wind and temperature.</li>
       </ul>
     </section>
 
@@ -162,8 +213,10 @@
         <div class="legend-row"><span class="swatch pending"></span>Not started</div>
         <div class="legend-row"><span class="swatch live"></span>In progress</div>
         <div class="legend-row"><span class="swatch hit"></span>Home run</div>
+        <div class="legend-row"><span class="swatch php"></span>Pinch Hit Protection</div>
         <div class="legend-row"><span class="swatch miss"></span>Game final, no HR</div>
         <div class="legend-row"><span class="swatch na"></span>Didn't play</div>
+        <div class="legend-row"><span class="swatch-emoji">🧇</span>Iron &mdash; one HR from cashing</div>
       </div>
     </section>
 

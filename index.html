@@ -225,6 +225,44 @@
   .waiting { background:var(--panel); border:1px dashed var(--panel-line); border-radius:10px; padding:28px 18px; text-align:center; margin-bottom:24px; }
   .waiting h2 { font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; margin:0 0 8px; }
   .waiting p { font-size:13px; color:var(--text-dim); margin:0; line-height:1.5; }
+
+  /* Bomb notification toggles */
+  .notif-row { display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:11px; }
+  .notif-toggle { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; font-family:'Oswald',sans-serif; font-size:10.5px; font-weight:600; letter-spacing:.08em; color:var(--text-dim); text-transform:uppercase; }
+  .notif-toggle input { appearance:none; -webkit-appearance:none; margin:0; width:15px; height:15px; border:1.5px solid var(--panel-line); border-radius:4px; background:var(--panel); cursor:pointer; flex:none; position:relative; }
+  .notif-toggle input:checked { background:var(--green-dim); border-color:var(--green); }
+  .notif-toggle input:checked::after { content:""; position:absolute; left:4px; top:1px; width:4px; height:8px; border:solid var(--green); border-width:0 2px 2px 0; transform:rotate(45deg); }
+  .notif-toggle input:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+  .notif-toggle input:disabled { opacity:.4; cursor:not-allowed; }
+  .notif-toggle.disabled { opacity:.5; cursor:not-allowed; }
+  .notif-note { font-size:10.5px; color:var(--yellow); line-height:1.45; margin:7px 0 0; }
+  .notif-note:empty { display:none; }
+
+  /* Bomb overlay */
+  #bomb-overlay { position:fixed; top:0; left:0; right:0; z-index:9999; display:none; justify-content:center; padding:14px 12px 0; pointer-events:none; }
+  #bomb-overlay.active { display:flex; }
+  .bomb-flash { position:fixed; inset:0; background:radial-gradient(circle at 50% 20%, rgba(62,207,142,.30), transparent 62%); animation:bombFlash .8s ease-out forwards; pointer-events:none; }
+  .bomb-card { position:relative; display:flex; align-items:center; gap:13px; max-width:min(92vw, 430px);
+    background:linear-gradient(135deg, var(--green-dim), var(--panel)); border:2px solid var(--green); border-radius:14px;
+    padding:14px 20px; box-shadow:0 12px 34px rgba(0,0,0,.6), 0 0 0 4px rgba(62,207,142,.13);
+    animation:bombIn .42s cubic-bezier(.2,1.5,.4,1) both, bombShake .45s .42s ease-in-out; }
+  .bomb-emoji { font-size:30px; line-height:1; flex:none; animation:bombPulse .6s ease-in-out 2; }
+  .bomb-name { display:block; font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; line-height:1.1; color:var(--text); word-wrap:break-word; }
+  .bomb-word { display:block; font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; letter-spacing:.16em; color:var(--green); margin-top:2px; }
+  /* Rains onto the card from above rather than across it, so nothing lands on the text. */
+  .bomb-confetti-wrap { position:absolute; left:-10px; right:-10px; top:-62px; height:62px; overflow:hidden; pointer-events:none; }
+  .bomb-confetti { position:absolute; top:-12px; width:6px; height:10px; border-radius:1px; opacity:0; animation-name:bombConfetti; animation-timing-function:ease-in; animation-fill-mode:forwards; }
+  @keyframes bombIn { from { opacity:0; transform:translateY(-26px) scale(.82); } to { opacity:1; transform:translateY(0) scale(1); } }
+  @keyframes bombShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(2px)} }
+  @keyframes bombPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.25) rotate(-8deg)} }
+  @keyframes bombFlash { from { opacity:1; } to { opacity:0; } }
+  @keyframes bombConfetti { 0% { opacity:1; transform:translateY(0) rotate(0deg); } 100% { opacity:0; transform:translateY(120px) rotate(340deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .bomb-card { animation:bombIn .01s both; }
+    .bomb-emoji, .bomb-confetti, .bomb-flash { animation:none; }
+    .bomb-confetti-wrap { display:none; }
+    .bomb-flash { display:none; }
+  }
 </style>
 </head>
 <body>
@@ -247,6 +285,18 @@
       <span><span class="sw na"></span>Didn't play</span>
     </div>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
+
+    <div class="notif-row">
+      <label class="notif-toggle" id="notif-overlay-label">
+        <input type="checkbox" id="notif-overlay" onchange="setOverlayNotif(this.checked)">
+        <span>Overlay Notification</span>
+      </label>
+      <label class="notif-toggle" id="notif-push-label">
+        <input type="checkbox" id="notif-push" onchange="setPushNotif(this.checked)">
+        <span>Push Notification</span>
+      </label>
+    </div>
+    <p class="notif-note" id="notif-note"></p>
 
     <div id="slate-stats">
     <div class="payout-box">
@@ -329,6 +379,8 @@
 
   <footer id="footer-line">all times ET &middot; results pulled directly from the MLB Stats API &middot; <a href="features.html" style="color:inherit;">what this site can do</a></footer>
 </div>
+
+<div id="bomb-overlay" role="status" aria-live="polite"></div>
 
 <script>
 const POLL_MS = 20000;
@@ -964,6 +1016,211 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+// ---------------- bomb notifications ----------------
+
+const BOMB_MS = 4200;          // how long one overlay stays up
+const LS_OVERLAY = "bmbs.notif.overlay";
+const LS_PUSH = "bmbs.notif.push";
+let OVERLAY_ON = true;         // default: overlay yes, push no (push needs an opt-in gesture)
+let PUSH_ON = false;
+// Bomb notifications are scoped to the live ("today") slate and reset when a
+// new slate lands. `seeded` is what stops a flood: the first successful poll
+// records whoever has already gone deep WITHOUT notifying, so opening the
+// page mid-game is quiet.
+const BOMB_STATE = { date: null, seeded: false, notified: new Set() };
+let BOMB_QUEUE = [];
+let bombTimer = null;
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function supportsNotification() {
+  return typeof window.Notification === "function" && typeof window.Notification.requestPermission === "function";
+}
+
+function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+function lsSet(key, on) { try { localStorage.setItem(key, on ? "1" : "0"); } catch (e) { /* private mode */ } }
+
+function setNotifNote(msg) {
+  const el = document.getElementById("notif-note");
+  if (el) el.textContent = msg || "";
+}
+
+function syncNotifUI() {
+  const o = document.getElementById("notif-overlay");
+  const p = document.getElementById("notif-push");
+  if (o) o.checked = OVERLAY_ON;
+  if (p) {
+    p.checked = PUSH_ON;
+    if (!supportsNotification()) {
+      p.checked = false;
+      p.disabled = true;
+      document.getElementById("notif-push-label").classList.add("disabled");
+    }
+  }
+}
+
+function setOverlayNotif(on) {
+  OVERLAY_ON = !!on;
+  lsSet(LS_OVERLAY, OVERLAY_ON);
+  if (!OVERLAY_ON) dismissBomb();
+  syncNotifUI();
+}
+
+// Notification.requestPermission is promise-based in modern browsers and
+// callback-based in older ones; handle both, and never let it reject.
+function requestNotifPermission() {
+  return new Promise(resolve => {
+    try {
+      const maybe = window.Notification.requestPermission(resolve);
+      if (maybe && typeof maybe.then === "function") maybe.then(resolve, () => resolve("denied"));
+    } catch (e) {
+      resolve("denied");
+    }
+  });
+}
+
+// Only ever called from the checkbox's change event -- browsers ignore a
+// permission prompt that isn't tied to a user gesture.
+async function setPushNotif(on) {
+  if (!on) {
+    PUSH_ON = false;
+    lsSet(LS_PUSH, false);
+    setNotifNote("");
+    syncNotifUI();
+    return;
+  }
+  if (!supportsNotification()) {
+    PUSH_ON = false;
+    lsSet(LS_PUSH, false);
+    setNotifNote("This browser doesn't support push notifications (iOS Safari can't do them from a website). The overlay still works.");
+    syncNotifUI();
+    return;
+  }
+  let perm = window.Notification.permission;
+  if (perm === "default") perm = await requestNotifPermission();
+  if (perm === "granted") {
+    PUSH_ON = true;
+    lsSet(LS_PUSH, true);
+    setNotifNote("");
+  } else {
+    PUSH_ON = false;
+    lsSet(LS_PUSH, false);
+    setNotifNote("Push notifications are blocked for this site. Re-enable them in your browser's site settings, then switch this back on.");
+  }
+  syncNotifUI();
+}
+
+function initNotifPrefs() {
+  const o = lsGet(LS_OVERLAY);
+  const p = lsGet(LS_PUSH);
+  if (o !== null) OVERLAY_ON = o === "1";
+  if (p !== null) PUSH_ON = p === "1";
+  // A saved "on" is worthless if support or permission went away since.
+  if (PUSH_ON && (!supportsNotification() || window.Notification.permission !== "granted")) {
+    PUSH_ON = false;
+    lsSet(LS_PUSH, false);
+  }
+  syncNotifUI();
+}
+
+function confettiHtml() {
+  const colors = ["var(--green)", "var(--amber)", "var(--yellow)", "var(--text)"];
+  let out = "";
+  for (let i = 0; i < 14; i++) {
+    out += `<span class="bomb-confetti" style="left:${4 + (i * 7) % 92}%;background:${colors[i % colors.length]};`
+      + `animation-delay:${(i % 5) * 70}ms;animation-duration:${900 + (i % 4) * 220}ms"></span>`;
+  }
+  return `<div class="bomb-confetti-wrap" aria-hidden="true">${out}</div>`;
+}
+
+function dismissBomb() {
+  if (bombTimer) { clearTimeout(bombTimer); bombTimer = null; }
+  BOMB_QUEUE = [];
+  const host = document.getElementById("bomb-overlay");
+  if (host) { host.innerHTML = ""; host.classList.remove("active"); }
+}
+
+// One overlay at a time -- several players going deep at once queue up
+// behind each other rather than clobbering the screen.
+function showNextBomb() {
+  const host = document.getElementById("bomb-overlay");
+  if (!host) return;
+  const name = BOMB_QUEUE.shift();
+  if (name === undefined) {
+    host.innerHTML = "";
+    host.classList.remove("active");
+    bombTimer = null;
+    return;
+  }
+  host.innerHTML = `<div class="bomb-flash"></div>
+    <div class="bomb-card">
+      <span class="bomb-emoji">&#128163;</span>
+      <span><span class="bomb-name">${escapeHtml(name)}</span><span class="bomb-word">BOMB!</span></span>
+      ${confettiHtml()}
+    </div>`;
+  host.classList.add("active");
+  bombTimer = setTimeout(showNextBomb, BOMB_MS);
+}
+
+function fireBomb(playerName) {
+  if (PUSH_ON && supportsNotification() && window.Notification.permission === "granted") {
+    try {
+      new window.Notification(`${playerName} BOMB! \u{1F4A3}`, {
+        body: "Home run — bmbs.bet",
+        tag: `bomb-${normalizeName(playerName)}`
+      });
+    } catch (e) { /* some browsers throw when constructed outside a SW */ }
+  }
+  // Overlay is on-screen only: nothing is queued for a backgrounded tab.
+  if (OVERLAY_ON && document.visibilityState === "visible") {
+    BOMB_QUEUE.push(playerName);
+    if (!bombTimer) showNextBomb();
+  }
+}
+
+// Every player named in a slate, deduped by normalized name so a player in
+// several legs is only ever one notification.
+function pickedNamesOf(tickets) {
+  const byNorm = new Map();
+  if (!tickets) return byNorm;
+  (tickets.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(l => {
+    if (l.player) byNorm.set(normalizeName(l.player), l.player);
+  })));
+  (tickets.singles || []).forEach(s => { if (s.player) byNorm.set(normalizeName(s.player), s.player); });
+  return byNorm;
+}
+
+// Called once per poll. Deliberately keyed on the player's OWN home run
+// (hitNames), not on leg state -- a leg credited through Pinch Hit
+// Protection wasn't a bomb by the player the notification would name.
+function checkForBombs() {
+  const slate = SLATES.today;
+  if (!slate || !slate.tickets || !slate.results || !slate.results.ready) return;
+
+  const date = slate.tickets.date;
+  if (BOMB_STATE.date !== date) {
+    BOMB_STATE.date = date;
+    BOMB_STATE.seeded = false;
+    BOMB_STATE.notified = new Set();
+  }
+
+  const hitNames = slate.results.hitNames || new Set();
+  const fresh = [];
+  pickedNamesOf(slate.tickets).forEach((display, norm) => {
+    if (!hitNames.has(norm) || BOMB_STATE.notified.has(norm)) return;
+    BOMB_STATE.notified.add(norm);
+    fresh.push(display);
+  });
+
+  if (!BOMB_STATE.seeded) {
+    BOMB_STATE.seeded = true; // first poll for this slate: record, don't announce
+    return;
+  }
+  fresh.forEach(fireBomb);
+}
+
 // ---------------- home run log ----------------
 
 const DASH = "—";
@@ -1521,6 +1778,7 @@ async function pollAndRender() {
     document.getElementById("err-box").innerHTML =
       `<div class="err">Couldn't refresh just now (${e.message}). Will retry automatically.</div>`;
   }
+  checkForBombs();
   applyActiveTab();
   render();
   updateSyncLine();
@@ -1538,6 +1796,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 async function init() {
+  initNotifPrefs();
   await pollAndRender();
   schedulePolling();
 }

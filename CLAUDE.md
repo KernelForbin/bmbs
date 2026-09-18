@@ -99,6 +99,34 @@ before being pulled (rare -- e.g. pinch-run for right after homering)
 stays a plain, undecorated hit; PHP framing only applies when the credit
 comes from a substitute.
 
+## Bomb notifications
+
+When a player named in the **live (today) slate** homers, the page announces
+it as a "Bomb". Two independent toggles in the header, each persisted
+separately in `localStorage` (`bmbs.notif.overlay` / `bmbs.notif.push`),
+defaulting to overlay ON / push OFF:
+
+- **Overlay** — a fixed, celebratory card ("<Player> BOMB! 💣"). Fires only
+  while `document.visibilityState === "visible"`; a backgrounded tab banks
+  nothing. Several at once queue and drain one at a time (`BOMB_MS`), they
+  never stack on screen.
+- **Push** — the plain Notifications API (no service worker, no server; only
+  works while the page is open). `Notification.requestPermission()` is called
+  *only* from the toggle's change event, since browsers ignore prompts that
+  aren't tied to a user gesture — never on load. Denied flips the toggle back
+  off with an inline explanation; an unsupported browser (iOS Safari from a
+  website) disables just that toggle. The overlay never depends on this API.
+
+**The flood guard is the important part.** `BOMB_STATE` is keyed on the slate
+date, and its first successful poll records whoever has already gone deep
+*without* announcing (`seeded`). Without that, opening the page mid-game
+would fire a notification for every home run that already happened. Names are
+deduped by normalized name, so a player in several legs is one notification.
+
+Deliberately keyed on the player's own home run (`results.hitNames`), NOT on
+leg state: a leg credited through Pinch Hit Protection wasn't a bomb by the
+player the notification would name.
+
 ## Home Run Log
 
 A collapsed-by-default panel on both tabs listing every home run from that

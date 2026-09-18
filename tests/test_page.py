@@ -89,6 +89,56 @@ def feed_rich(abstract, roster, plays, *, venue="PNC Park", weather=None, away="
                          "boxscore": {"teams": {"away": {"players": players}, "home": {"players": {}}}},
                          "linescore": {}}}
 
+def notif_stub(mode):
+    """Replace window.Notification before any page script runs.
+
+    mode: 'granted' (already allowed), 'default-grant' / 'default-deny' (prompts,
+    then resolves that way), 'denied' (already blocked), 'unsupported' (no API).
+    Records every constructed notification on window.__notifs.
+    """
+    return """
+    window.__notifs = [];
+    window.__permRequests = 0;
+    (() => {
+      const mode = %s;
+      if (mode === 'unsupported') {
+        Object.defineProperty(window, 'Notification', { value: undefined, configurable: true, writable: true });
+        return;
+      }
+      function N(title, opts) { window.__notifs.push({ title: title, body: (opts || {}).body, tag: (opts || {}).tag }); }
+      N.permission = mode === 'granted' ? 'granted' : (mode === 'denied' ? 'denied' : 'default');
+      N.requestPermission = function () {
+        window.__permRequests++;
+        N.permission = (mode === 'default-grant') ? 'granted' : 'denied';
+        return Promise.resolve(N.permission);
+      };
+      Object.defineProperty(window, 'Notification', { value: N, configurable: true, writable: true });
+    })();
+    """ % json.dumps(mode)
+
+
+def prefs_stub(overlay=None, push=None):
+    sets = []
+    if overlay is not None:
+        sets.append(f"localStorage.setItem('bmbs.notif.overlay', {'1' if overlay else '0'!r});")
+    if push is not None:
+        sets.append(f"localStorage.setItem('bmbs.notif.push', {'1' if push else '0'!r});")
+    return "try { %s } catch (e) {}" % " ".join(sets)
+
+
+def bomb_text(page):
+    return page.evaluate("""() => {
+        const host = document.getElementById('bomb-overlay');
+        if (!host.classList.contains('active')) return null;
+        const n = host.querySelector('.bomb-name'), w = host.querySelector('.bomb-word');
+        return n && w ? (n.textContent + ' ' + w.textContent) : null;
+    }""")
+
+
+def notifs(page):
+    return page.evaluate("window.__notifs || []")
+
+
 def rendered(page, el_id):
     """True only if the element is actually laid out -- unlike visible(), this
     also accounts for a hidden ancestor (getClientRects is empty either way)."""
@@ -184,12 +234,14 @@ def ET(y, mo, d, h, mi):
     # September: ET is UTC-4
     return datetime(y, mo, d, h, mi, tzinfo=timezone.utc) + timedelta(hours=4)
 
-def open_page(p, at):
+def open_page(p, at, init_scripts=()):
     browser = p.chromium.launch()
     page = browser.new_page(viewport={"width": 480, "height": 1000})
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "Failed to load resource" not in m.text else None)
+    for script in init_scripts:
+        page.add_init_script(script)
     page.clock.set_fixed_time(at)
     page.route("**/*", handler)
     page.goto("http://bmbs.test/index.html")
@@ -536,6 +588,146 @@ with sync_playwright() as p:
     assert "All Home Runs" in text(page, "hrlog-list"), text(page, "hrlog-list")
     print("I7 OK: empty 'Our Picks' state points at the All Home Runs filter")
 
+    assert not errors, errors
+    browser.close()
+
+    # ========== J: Bomb notifications ==========
+    # Slugger is picked twice (a parlay leg and a single) to prove one HR is
+    # one notification. Already-Deep has homered before the page ever loads,
+    # to prove the first poll seeds silently instead of flooding.
+    def bomb_fixtures(hrs):
+        FX["tickets"] = tickets("2026-09-19", [("Kenny", "Slugger"), ("Memo", "Already Deep")],
+                                [card(["Slugger", "Other Guy"])])
+        FX["previous"] = None
+        FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(901, "Live")])}
+        FX["feeds"] = {901: feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"], hrs=hrs)}
+
+    # J1: first poll is silent even though a pick has already homered.
+    SEEN.clear()
+    bomb_fixtures(["Already Deep"])
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("granted"), prefs_stub(overlay=True, push=True)])
+    assert page.evaluate("document.getElementById('notif-overlay').checked") is True
+    assert bomb_text(page) is None, "no overlay for a HR that happened before load"
+    assert notifs(page) == [], "no push for a HR that happened before load"
+    print("J1 OK: first poll seeds silently -- loading mid-game doesn't flood notifications")
+
+    # J2: both toggles on -- a live->hit transition fires overlay AND push, once.
+    FX["feeds"][901] = feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"], hrs=["Already Deep", "Slugger"])
+    poll(page)
+    assert bomb_text(page) == "Slugger BOMB!", bomb_text(page)
+    assert [n["title"] for n in notifs(page)] == ["Slugger BOMB! \U0001F4A3"], notifs(page)
+    print("J2 OK: both on -> overlay and OS notification, once, despite two picks naming him")
+
+    # J3: a further poll with no change re-triggers nothing.
+    poll(page)
+    assert len(notifs(page)) == 1, notifs(page)
+    assert page.evaluate("BOMB_QUEUE.length") == 0
+    print("J3 OK: an unchanged poll doesn't re-notify")
+
+    # J4: several players deep in one poll queue instead of clobbering.
+    FX["feeds"][901] = feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"],
+                            hrs=["Already Deep", "Slugger", "Other Guy", "Not Ours"])
+    poll(page)
+    # Slugger's overlay is still up, so Other Guy waits his turn rather than
+    # clobbering it -- and 'Not Ours' never notifies at all.
+    assert bomb_text(page) == "Slugger BOMB!", bomb_text(page)
+    assert page.evaluate("BOMB_QUEUE.length") == 1, page.evaluate("BOMB_QUEUE")
+    assert len(notifs(page)) == 2, "only picks notify -- 'Not Ours' is league-wide noise"
+    assert [n["title"] for n in notifs(page)][1] == "Other Guy BOMB! \U0001F4A3", notifs(page)
+    page.wait_for_timeout(int(page.evaluate("BOMB_MS")) + 300)
+    assert bomb_text(page) == "Other Guy BOMB!", "queue should advance once the first overlay times out"
+    print("J4 OK: only picked players notify; simultaneous bombs queue and drain one at a time")
+    assert not errors, errors
+    browser.close()
+
+    # J5: overlay only -- no OS notification.
+    SEEN.clear()
+    bomb_fixtures([])
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("granted"), prefs_stub(overlay=True, push=False)])
+    FX["feeds"][901] = feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"], hrs=["Slugger"])
+    poll(page)
+    assert bomb_text(page) == "Slugger BOMB!" and notifs(page) == [], (bomb_text(page), notifs(page))
+    print("J5 OK: overlay only -> overlay fires, no OS notification")
+    assert not errors, errors
+    browser.close()
+
+    # J6: push only -- no overlay.
+    SEEN.clear()
+    bomb_fixtures([])
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("granted"), prefs_stub(overlay=False, push=True)])
+    FX["feeds"][901] = feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"], hrs=["Slugger"])
+    poll(page)
+    assert bomb_text(page) is None and len(notifs(page)) == 1, (bomb_text(page), notifs(page))
+    print("J6 OK: push only -> OS notification, no overlay")
+    assert not errors, errors
+    browser.close()
+
+    # J7: both off -- silence.
+    SEEN.clear()
+    bomb_fixtures([])
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("granted"), prefs_stub(overlay=False, push=False)])
+    FX["feeds"][901] = feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"], hrs=["Slugger"])
+    poll(page)
+    assert bomb_text(page) is None and notifs(page) == []
+    assert single_states(page)["Slugger"] == "hit", "the page still tracks the hit itself"
+    print("J7 OK: both off -> no notification of any kind, hit still tracked on the page")
+    assert not errors, errors
+    browser.close()
+
+    # J8: a hidden tab gets the push but no overlay, and nothing is queued for later.
+    SEEN.clear()
+    bomb_fixtures([])
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("granted"), prefs_stub(overlay=True, push=True)])
+    page.evaluate("Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })")
+    FX["feeds"][901] = feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"], hrs=["Slugger"])
+    poll(page)
+    assert bomb_text(page) is None and len(notifs(page)) == 1
+    assert page.evaluate("BOMB_QUEUE.length") == 0, "backgrounded tab must not bank a missed-event queue"
+    print("J8 OK: hidden tab -> push fires, overlay doesn't, nothing queued for later")
+    assert not errors, errors
+    browser.close()
+
+    # J9: turning Push on prompts once and sticks when granted.
+    SEEN.clear()
+    bomb_fixtures([])
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("default-grant"), prefs_stub(overlay=True, push=False)])
+    assert page.evaluate("window.__permRequests") == 0, "must not prompt on load"
+    page.click("#notif-push")
+    page.wait_for_function("document.getElementById('notif-push').checked === true")
+    assert page.evaluate("window.__permRequests") == 1
+    assert text(page, "notif-note") == ""
+    assert page.evaluate("localStorage.getItem('bmbs.notif.push')") == "1"
+    print("J9 OK: Push prompts only on the toggle gesture, and persists when granted")
+    assert not errors, errors
+    browser.close()
+
+    # J10: denied -- toggle flips back off with an explanation, overlay untouched.
+    SEEN.clear()
+    bomb_fixtures([])
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("default-deny"), prefs_stub(overlay=True, push=False)])
+    page.click("#notif-push")
+    page.wait_for_function("document.getElementById('notif-push').checked === false")
+    assert "blocked" in text(page, "notif-note").lower(), text(page, "notif-note")
+    assert page.evaluate("localStorage.getItem('bmbs.notif.push')") == "0"
+    assert page.evaluate("document.getElementById('notif-overlay').checked") is True, "overlay toggle unaffected"
+    FX["feeds"][901] = feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"], hrs=["Slugger"])
+    poll(page)
+    assert bomb_text(page) == "Slugger BOMB!" and notifs(page) == []
+    print("J10 OK: denied -> Push flips back off with a note; overlay keeps working")
+    assert not errors, errors
+    browser.close()
+
+    # J11: no Notification API at all -- Push disabled, overlay unaffected.
+    SEEN.clear()
+    bomb_fixtures([])
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("unsupported"), prefs_stub(overlay=True, push=True)])
+    assert page.evaluate("document.getElementById('notif-push').disabled") is True
+    assert page.evaluate("document.getElementById('notif-push').checked") is False
+    assert page.evaluate("localStorage.getItem('bmbs.notif.push')") == "0", "a saved 'on' is cleared when unsupported"
+    FX["feeds"][901] = feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"], hrs=["Slugger"])
+    poll(page)
+    assert bomb_text(page) == "Slugger BOMB!", "overlay must not depend on the Notification API"
+    print("J11 OK: unsupported browser -> Push disabled, overlay still fires")
     assert not errors, errors
     browser.close()
 

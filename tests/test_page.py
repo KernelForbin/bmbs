@@ -106,8 +106,10 @@ def open_page(p, at):
     page.route("**/*", handler)
     page.goto("http://bmbs.test/index.html")
     # init() sets pollTimer only after its first poll resolves -- waiting on
-    # that keeps our explicit polls from overlapping the boot one.
-    page.wait_for_function("window.pollTimer !== null")
+    # that keeps our explicit polls from overlapping the boot one. Must be a
+    # bare reference: a top-level `let` is not a property of `window`, so
+    # `window.pollTimer` would read undefined and never actually wait.
+    page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
     page.evaluate("clearInterval(pollTimer)")  # drive polls by hand; no background races
     poll(page)
     return browser, page, errors

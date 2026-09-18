@@ -5,7 +5,7 @@ session) as a `.txt` file in a Discord channel instead of using GitHub's
 web editor. The bot reads the attachment, asks for a reaction to confirm,
 and pushes its contents to `data/incoming_picks.txt` on `main` -- exactly
 the file the existing `parse-picks.yml` workflow already watches. Nothing
-about that workflow, or about `tickets.json`/`marks.json`, changes.
+about that workflow, or about `tickets.json`, changes.
 
 A `.txt` upload (rather than a pasted message) sidesteps Discord's
 2000-character message cap, which a full day's picks routinely exceed.

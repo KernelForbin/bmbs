@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Parses raw pasted picks text (the "Longshot / N-Leg Parlay Cards" format)
-into data/tickets.json, in the exact schema index.html and
-fetch_home_runs.py already expect:
+into data/tickets.json, in the exact schema index.html expects:
 
     {
       "note": "...",
@@ -289,7 +288,7 @@ def parse(text, team_by_name, canonical_by_norm):
 
     flush_card()
 
-    # ---- build final schema matching index.html / fetch_home_runs.py ----
+    # ---- build final schema matching index.html ----
     out_windows = []
     for si, section in enumerate(windows):
         out_tickets = []

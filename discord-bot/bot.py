@@ -15,9 +15,9 @@ Using a file attachment (rather than pasted message text) sidesteps
 Discord's 2000-character message cap, which a real day's picks routinely
 exceed.
 
-This bot never touches tickets.json, marks.json, or the parsing logic
-itself -- it only ever writes incoming_picks.txt, exactly like a human
-pasting into GitHub's web editor would.
+This bot never touches tickets.json or the parsing logic itself -- it only
+ever writes incoming_picks.txt, exactly like a human pasting into GitHub's
+web editor would.
 """
 
 import asyncio

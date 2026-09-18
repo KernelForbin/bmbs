@@ -61,6 +61,10 @@ def handler(route, request):
             return route.fulfill(status=200, content_type="application/json", body=json.dumps(FX["previous"]))
         return route.fulfill(status=404, body="")
     if "/data/tickets.json" in url:
+        if FX["tickets"] is None:
+            return route.fulfill(status=404, body="")
+        if isinstance(FX["tickets"], int):   # sentinel: serve this HTTP status
+            return route.fulfill(status=FX["tickets"], body="")
         return route.fulfill(status=200, content_type="application/json", body=json.dumps(FX["tickets"]))
     m = re.search(r"/api/v1/schedule\?.*date=(\d{4}-\d{2}-\d{2})", url)
     if m:
@@ -253,6 +257,34 @@ with sync_playwright() as p:
     assert text(page, "tab-date-yesterday") == "Fri, Sep 18"
     assert single_states(page) == {"Tonight Guy": "miss"}, single_states(page)
     print("F2 OK: last game final -> queued slate takes over Today, live one moves to Yesterday")
+
+    assert not errors, errors
+    browser.close()
+
+    # ========== G: no picks submitted at all -- neither file exists ==========
+    SEEN.clear()
+    FX["tickets"] = None
+    FX["previous"] = None
+    FX["schedules"] = {}
+    FX["feeds"] = {}
+
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 12, 0))
+    assert visible(page, "waiting-panel") and not visible(page, "content")
+    assert text(page, "waiting-title") == "Waiting for today's picks", text(page, "waiting-title")
+    assert text(page, "tab-date-today") == "" and text(page, "tab-date-yesterday") == ""
+    assert not visible(page, "err-box") or text(page, "err-box") == "", "a missing file is not an error"
+    page.click("#tab-btn-yesterday")
+    assert visible(page, "waiting-panel") and not visible(page, "content")
+    assert text(page, "waiting-title") == "No picks submitted yesterday", text(page, "waiting-title")
+    assert text(page, "waiting-text") == "Nothing was submitted for the previous slate.", text(page, "waiting-text")
+    assert count(r"statsapi|/api/v1") == 0, "nothing to track, so MLB should not be polled"
+    print("G  OK: no slate files at all -> both tabs show their empty states, no MLB polling")
+
+    # a real failure (not a 404) must still surface as an error
+    FX["tickets"] = 500
+    poll(page)
+    assert text(page, "err-box") != "", "a non-404 failure should show the error banner"
+    print("G2 OK: a genuine load failure still surfaces an error instead of 'no picks'")
 
     assert not errors, errors
     browser.close()

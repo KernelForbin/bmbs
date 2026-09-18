@@ -338,13 +338,15 @@ async function fetchJson(url) {
   return res.json();
 }
 
+// Returns the parsed slate, or null when the file simply isn't there -- a
+// day with no picks submitted is a normal state, not an error. Anything
+// else (network failure, bad JSON) throws, so the page shows an error
+// rather than quietly claiming nobody submitted picks.
 async function loadTicketsFile(path) {
-  try {
-    const res = await fetch(path, { cache: "no-store" });
-    return res.ok ? await res.json() : null;
-  } catch (e) {
-    return null;
-  }
+  const res = await fetch(path, { cache: "no-store" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
+  return res.json();
 }
 
 // Every game MLB files under `date`. A 10pm ET game that runs past midnight
@@ -1067,11 +1069,11 @@ async function refreshEverything() {
     loadTicketsFile("data/tickets.json"),
     loadTicketsFile("data/tickets-previous.json")
   ]);
-  if (!current) throw new Error("data/tickets.json failed to load");
-  if (!current.date) current.date = todayET(); // file predates date stamping; gone after the next upload
+  if (current && !current.date) current.date = todayET(); // file predates date stamping; gone after the next upload
 
-  const files = [current];
-  if (previous && previous.date && previous.date !== current.date) files.push(previous);
+  const files = [];
+  if (current) files.push(current);
+  if (previous && previous.date && !files.some(f => f.date === previous.date)) files.push(previous);
   files.sort((a, b) => (a.date < b.date ? -1 : 1));
 
   let firstError = null;
@@ -1129,9 +1131,11 @@ function applyActiveTab() {
       ? "Yesterday's results are in the other tab. This page picks up the new slate automatically once it's posted."
       : "This page picks up the new slate automatically once it's posted.";
   } else {
-    document.getElementById("eyebrow-text").innerHTML = "YESTERDAY'S SLATE &middot; FINAL";
-    document.getElementById("waiting-title").textContent = "No previous slate";
-    document.getElementById("waiting-text").textContent = "Yesterday's picks will show up here once today's slate is over.";
+    document.getElementById("eyebrow-text").innerHTML = showSlate ? "YESTERDAY'S SLATE &middot; FINAL" : "YESTERDAY'S SLATE";
+    document.getElementById("waiting-title").textContent = "No picks submitted yesterday";
+    document.getElementById("waiting-text").textContent = SLATES.today
+      ? "Today's picks move over here once their last game goes final."
+      : "Nothing was submitted for the previous slate.";
   }
 }
 

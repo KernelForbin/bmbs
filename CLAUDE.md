@@ -17,6 +17,13 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   `parse_picks.py` the moment a slate with a *different* `date` is parsed
   (same-day re-uploads leave it alone). Feeds the "Yesterday's Picks" tab.
   LIVE DATA, same rules as `tickets.json`.
+- **Either tickets file may be absent, and that is a normal state**, not an
+  error: a day with no picks submitted renders the tab's empty panel
+  ("Waiting for today's picks" / "No picks submitted yesterday"). Only a
+  404 counts as absent — any other fetch failure still raises the error
+  banner, so a broken deploy can't masquerade as "nobody submitted picks".
+  Both files were deleted on 2026-09-18 because everything in them to that
+  point was bot-test data rather than real picks.
 - **`data/incoming_picks.txt`** — the paste target. The person pastes the
   day's raw picks text here (via GitHub's web editor, no terminal needed)
   and commits. That triggers `.github/workflows/parse-picks.yml`, which

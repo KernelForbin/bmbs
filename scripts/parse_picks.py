@@ -62,7 +62,7 @@ Run:
     # or piped:
     cat picks.txt | python scripts/parse_picks.py
 
-This OVERWRITES data/tickets.json. It does not touch data/marks.json.
+This OVERWRITES data/tickets.json.
 """
 import difflib
 import json

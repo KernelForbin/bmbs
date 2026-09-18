@@ -29,22 +29,11 @@ jobs:
       - name: Parse data/incoming_picks.txt into data/tickets.json
         run: python scripts/parse_picks.py --file data/incoming_picks.txt
 
-      - name: Reset marks.json for the new slate
-        run: |
-          cat > data/marks.json << 'EOF'
-          {
-            "date": null,
-            "updated_at": null,
-            "marks": {},
-            "note": "reset for new slate"
-          }
-          EOF
-
       - name: Commit and push if changed
         run: |
           git config user.name "hr-checklist-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/tickets.json data/marks.json
+          git add data/tickets.json
           [ -f data/tickets-previous.json ] && git add data/tickets-previous.json
           if git diff --cached --quiet; then
             echo "No changes to commit."

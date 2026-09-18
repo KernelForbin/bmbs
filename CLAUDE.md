@@ -38,9 +38,10 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   + **`data/marks.json`** — LEGACY, no longer used. An earlier cron-based
   approach to live tracking that got replaced by client-side polling (see
   below). The workflow's `schedule:` triggers were removed on 2026-09-18
-  so it no longer runs on its own (see gotcha 3); the files are left in
-  the repo and are safe to ignore or delete. Note `parse-picks.yml` still
-  rewrites `marks.json` on every parse — harmless, nothing reads it.
+  so it no longer runs on its own (see gotcha 3), and `parse-picks.yml`
+  stopped rewriting `marks.json` on every parse the same day. Nothing
+  writes or reads `marks.json` any more; the files are left in the repo
+  and are safe to ignore or delete.
 - **`CNAME`** — contains `bmbs.bet`, required by GitHub Pages for the custom domain.
 
 ## How live tracking actually works (important, don't reinvent this)

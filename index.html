@@ -47,6 +47,10 @@
   .stat-row-label { font-family:'Oswald',sans-serif; font-size:10.5px; font-weight:600; letter-spacing:.1em; color:var(--text-faint); margin:16px 0 6px 2px; }
   .scoreboard { display:grid; grid-template-columns: repeat(3, 1fr); gap:7px; }
   .scoreboard.legs-row { grid-template-columns: repeat(5, 1fr); gap:5px; }
+  .scoreboard.bets-row { grid-template-columns: repeat(4, 1fr); gap:6px; }
+  .bets-row .score-chip { padding:8px 2px; }
+  .bets-row .num { font-size:15.5px; }
+  .bets-row .lbl { font-size:8.5px; }
   .score-chip { background:var(--panel); border:1px solid var(--panel-line); border-radius:8px; padding:9px 3px; text-align:center; }
   .legs-row .score-chip { padding:7px 2px; }
   .score-chip.clickable { cursor:pointer; user-select:none; transition:border-color .15s ease, background .15s ease; }
@@ -315,8 +319,9 @@
     </div>
 
     <p class="stat-row-label">BETS &middot; tap to filter below</p>
-    <div class="scoreboard">
+    <div class="scoreboard bets-row">
       <div class="score-chip pending clickable" id="chip-open" onclick="toggleFilter('open')"><div class="num" id="count-parlay-open">0</div><div class="lbl">OPEN</div></div>
+      <div class="score-chip live-game clickable" id="chip-iron" onclick="toggleFilter('irons')"><div class="num" id="count-parlay-iron">0</div><div class="lbl">IRONS</div></div>
       <div class="score-chip hit clickable" id="chip-hit" onclick="toggleFilter('hit')"><div class="num" id="count-parlay-hit">0</div><div class="lbl">HIT</div></div>
       <div class="score-chip miss clickable" id="chip-dead" onclick="toggleFilter('dead')"><div class="num" id="count-parlay-miss">0</div><div class="lbl">MISSED</div></div>
     </div>
@@ -905,7 +910,12 @@ function evaluateTicket(tk, states) {
     adjustedPayout = tk.stake * decimalProduct;
   }
 
-  return { outcome, activeCount, hitCount, missCount, naCount, adjustedPayout };
+  // An "Iron": an open parlay sitting exactly one leg away from cashing --
+  // every other active leg has already hit. Parlays only; a single bet is
+  // never an Iron, and singles are evaluated by singleOutcome() instead.
+  const iron = outcome === "live" && (activeCount - hitCount) === 1;
+
+  return { outcome, activeCount, hitCount, missCount, naCount, adjustedPayout, iron };
 }
 
 function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void"; }
@@ -913,6 +923,7 @@ function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void
 function ticketMatchesFilter(evalRes) {
   if (!CURRENT_FILTER) return true;
   if (CURRENT_FILTER === "open") return isOpenOutcome(evalRes.outcome);
+  if (CURRENT_FILTER === "irons") return evalRes.iron === true;
   if (CURRENT_FILTER === "hit") return evalRes.outcome === "hit";
   if (CURRENT_FILTER === "dead") return evalRes.outcome === "dead";
   return true;
@@ -1378,7 +1389,7 @@ function computeAll() {
 
   let legHit = 0, legMiss = 0, legNa = 0, legLive = 0, legNotStarted = 0;
   let battingNow = 0, battingSoon = 0;
-  let betOpen = 0, betHit = 0, betMiss = 0;
+  let betOpen = 0, betHit = 0, betMiss = 0, betIron = 0;
   let totalPayoutHit = 0;
   const bettors = new Map();
 
@@ -1411,6 +1422,7 @@ function computeAll() {
       if (evalRes.outcome === "dead") betMiss++;
       else if (evalRes.outcome === "hit") { betHit++; totalPayoutHit += evalRes.adjustedPayout; }
       else if (isOpenOutcome(evalRes.outcome)) betOpen++;
+      if (evalRes.iron) betIron++; // a subset of Open, counted alongside it
 
       tk.legs.forEach((leg, i) => {
         const state = states[i];
@@ -1452,6 +1464,7 @@ function computeAll() {
   document.getElementById("count-batting-now").textContent = battingNow;
   document.getElementById("count-batting-soon").textContent = battingSoon;
   document.getElementById("count-parlay-open").textContent = betOpen;
+  document.getElementById("count-parlay-iron").textContent = betIron;
   document.getElementById("count-parlay-hit").textContent = betHit;
   document.getElementById("count-parlay-miss").textContent = betMiss;
   document.getElementById("total-payout").textContent = fmtMoney(totalPayoutHit);
@@ -1567,10 +1580,15 @@ function renderContent() {
 }
 
 function updateFilterUI() {
-  ["chip-open", "chip-hit", "chip-dead"].forEach(id => document.getElementById(id).classList.remove("active-filter"));
+  ["chip-open", "chip-iron", "chip-hit", "chip-dead"].forEach(id => document.getElementById(id).classList.remove("active-filter"));
   const statusEl = document.getElementById("filter-status");
   if (!CURRENT_FILTER) { statusEl.classList.remove("active"); return; }
-  const map = { open: ["chip-open", "Showing only OPEN bets"], hit: ["chip-hit", "Showing only HIT bets"], dead: ["chip-dead", "Showing only MISSED bets"] };
+  const map = {
+    open: ["chip-open", "Showing only OPEN bets"],
+    irons: ["chip-iron", "Showing only IRONS — one leg from cashing"],
+    hit: ["chip-hit", "Showing only HIT bets"],
+    dead: ["chip-dead", "Showing only MISSED bets"]
+  };
   const [chipId, label] = map[CURRENT_FILTER];
   document.getElementById(chipId).classList.add("active-filter");
   document.getElementById("filter-status-text").textContent = label;

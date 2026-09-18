@@ -99,6 +99,23 @@ before being pulled (rare -- e.g. pinch-run for right after homering)
 stays a plain, undecorated hit; PHP framing only applies when the credit
 comes from a substitute.
 
+## Irons
+
+An **Iron** is an open parlay sitting exactly one leg away from cashing:
+`outcome === "live" && (activeCount - hitCount) === 1`. Computed once in
+`evaluateTicket()` as `evalRes.iron`, surfaced as a fourth chip in the BETS
+filter row (amber, between OPEN and HIT) and as a `CURRENT_FILTER` value.
+
+Two edges the definition turns on, both deliberate:
+- A **dead** parlay is never an Iron even when numerically one leg is
+  unresolved -- `outcome === "live"` excludes it. Same for void.
+- **Singles are never Irons.** The singles renderer calls
+  `ticketMatchesFilter({ outcome })` with no leg counts, so `iron` is
+  undefined there and the straight-bet tracker empties under this filter.
+
+Irons are a *subset* of Open, not a separate bucket -- an Iron is counted in
+both chips.
+
 ## Bomb notifications
 
 When a player named in the **live (today) slate** homers, the page announces

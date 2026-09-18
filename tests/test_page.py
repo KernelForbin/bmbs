@@ -26,10 +26,10 @@ def single(i, who, player):
             "meta": "XXX @ YYY &middot; 7:10 PM ET &middot; $5.00 bet", "odds": "+500",
             "stake": 5.0, "payout": 30.0, "pp": "PP $30.00"}
 
-def card(players):
-    return {"name": "Card 1 &middot; Test", "sub": f"{len(players)}-Leg", "foot": "<b>$3</b> bet by Memo",
+def card(players, name="Card 1 &middot; Test"):
+    return {"name": name, "sub": f"{len(players)}-Leg", "foot": "<b>$3</b> bet by Memo",
             "stake": 3.0, "book": "Memo", "payout": 100.0,
-            "legs": [{"id": f"p0-c0-l{i}", "player": p, "team": "XXX", "who": "Kenny", "meta": "XXX &middot; Kenny",
+            "legs": [{"id": f"{name}-l{i}", "player": p, "team": "XXX", "who": "Kenny", "meta": "XXX &middot; Kenny",
                       "odds": "+400", "time": "7:10 PM ET"} for i, p in enumerate(players)]}
 
 def tickets(date, singles, cards=()):
@@ -88,6 +88,10 @@ def feed_rich(abstract, roster, plays, *, venue="PNC Park", weather=None, away="
             "liveData": {"plays": {"allPlays": plays},
                          "boxscore": {"teams": {"away": {"players": players}, "home": {"players": {}}}},
                          "linescore": {}}}
+
+def ticket_names(page):
+    return page.evaluate("() => [...document.querySelectorAll('#content .ticket-name')].map(e => e.textContent)")
+
 
 def notif_stub(mode):
     """Replace window.Notification before any page script runs.
@@ -728,6 +732,68 @@ with sync_playwright() as p:
     poll(page)
     assert bomb_text(page) == "Slugger BOMB!", "overlay must not depend on the Notification API"
     print("J11 OK: unsupported browser -> Push disabled, overlay still fires")
+    assert not errors, errors
+    browser.close()
+
+    # ========== K: Irons (open parlay, exactly one leg left) ==========
+    # Game 1001 is live; 1002 is final (so C3 resolves to a miss). Anyone not
+    # in either boxscore stays not_started, which is still an undecided leg.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Solo Guy")], [
+        card(["A1", "A2", "A3"], name="IRON"),          # 2 hit + 1 live   -> Iron
+        card(["B1", "B2", "B3"], name="TWO-LEFT"),      # 1 hit + 2 live   -> open, not Iron
+        card(["C1", "C2", "C3"], name="DEAD"),          # 2 hit + 1 miss   -> dead, not Iron
+        card(["D1", "D2"], name="CASHED"),              # all hit          -> hit, not Iron
+        card(["E1", "E2", "E3 Unlisted"], name="IRON-PENDING"),  # 2 hit + 1 not_started -> Iron
+    ])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(1001, "Live"), (1002, "Final")])}
+    FX["feeds"] = {
+        1001: feed("Live", ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "D1", "D2", "E1", "E2", "Solo Guy"],
+                   hrs=["A1", "A2", "B1", "C1", "C2", "D1", "D2", "E1", "E2"]),
+        1002: feed("Final", ["C3"], hrs=[]),
+    }
+
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0))
+
+    assert text(page, "count-parlay-iron") == "2", text(page, "count-parlay-iron")
+    assert text(page, "count-parlay-open") == "4", "3 open parlays + the open single"
+    assert text(page, "count-parlay-hit") == "1" and text(page, "count-parlay-miss") == "1"
+    print("K1 OK: Irons counted (2) -- one leg left, and still counted within Open")
+
+    page.click("#chip-iron")
+    assert ticket_names(page) == ["IRON", "IRON-PENDING"], ticket_names(page)
+    assert "IRONS" in text(page, "filter-status-text"), text(page, "filter-status-text")
+    print("K2 OK: the Irons filter shows exactly the one-leg-away parlays")
+
+    # The boundary cases the definition turns on.
+    assert "TWO-LEFT" not in ticket_names(page), "two legs left is not an Iron"
+    assert "DEAD" not in ticket_names(page), "a dead parlay is never an Iron, even with one leg unresolved"
+    assert "CASHED" not in ticket_names(page), "an already-cashed parlay is not an Iron"
+    print("K3 OK: two-left, dead, and cashed parlays are all excluded")
+
+    # Singles can't be Irons -- the straight-bet tracker empties under this filter.
+    assert page.evaluate("""() => {
+        const rows = [...document.querySelectorAll('#content .single-row')];
+        return rows.length;
+    }""") == 0, "a single bet must never qualify as an Iron"
+    print("K4 OK: single bets never appear under Irons")
+
+    # Toggling off restores everything; chip active state tracks the filter.
+    assert page.evaluate("document.getElementById('chip-iron').classList.contains('active-filter')") is True
+    page.click("#chip-iron")
+    assert page.evaluate("document.getElementById('chip-iron').classList.contains('active-filter')") is False
+    assert sorted(ticket_names(page)) == ["CASHED", "DEAD", "IRON", "IRON-PENDING", "TWO-LEFT"], ticket_names(page)
+    print("K5 OK: Irons chip toggles off like the other filters, restoring every ticket")
+
+    # An Iron cashing stops being an Iron.
+    FX["feeds"][1001] = feed("Live", ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "D1", "D2", "E1", "E2", "Solo Guy"],
+                             hrs=["A1", "A2", "A3", "B1", "C1", "C2", "D1", "D2", "E1", "E2"])
+    poll(page)
+    assert text(page, "count-parlay-iron") == "1", "the cashed Iron drops out of the count"
+    assert text(page, "count-parlay-hit") == "2"
+    print("K6 OK: an Iron that cashes leaves the Iron count and becomes a hit")
+
     assert not errors, errors
     browser.close()
 

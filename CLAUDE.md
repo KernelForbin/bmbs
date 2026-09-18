@@ -8,9 +8,13 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
 - **`index.html`** — the entire live site. Single self-contained file:
   inline CSS, inline JS. No build step, no framework, no dependencies.
   Deploy = commit this file, GitHub Pages serves it directly.
-- **`features.html`** — a static, plain-language "what this site can do"
-  page for end users (the friend group), reusing `index.html`'s exact
-  color tokens/fonts so it reads as the same product. Linked subtly from
+- **`features/index.html`** — a static, plain-language "what this site can
+  do" page for end users (the friend group), reusing `index.html`'s exact
+  color tokens/fonts so it reads as the same product. Lives at the clean
+  URL `/features` (GitHub Pages resolves a directory request to its
+  `index.html`); the old top-level `features.html` is now just a redirect
+  stub to `/features`, kept so existing bookmarks/links still work — don't
+  delete it, and don't put real content back in it. Linked subtly from
   `index.html`'s footer ("what this site can do"). **Maintained by hand
   only, on request** — the user explicitly does not want this kept in
   sync automatically with feature commits. Don't touch it as a side effect

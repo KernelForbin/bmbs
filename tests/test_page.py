@@ -866,4 +866,28 @@ with sync_playwright() as p:
     assert not errors, errors
     browser.close()
 
+    # ========== L: notification toggles hidden on Yesterday's Slate ==========
+    # Bomb notifications only ever fire off Today's live data, so the
+    # controls are meaningless next to archived results -- verify they're
+    # hidden there and reappear back on Today, without losing their state.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Player Live")])
+    FX["previous"] = tickets("2026-09-18", [("Memo", "Old Guy")])
+    FX["schedules"] = {"2026-09-18": schedule("2026-09-18", [(1101, "Final")]),
+                       "2026-09-19": schedule("2026-09-19", [(1102, "Live")])}
+    FX["feeds"] = {1101: feed("Final", ["Old Guy"], hrs=[]), 1102: feed("Live", ["Player Live"], hrs=[])}
+
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [prefs_stub(overlay=True, push=False)])
+    assert rendered(page, "notif-row"), "notif toggles should show on Today by default"
+    page.click("#chip-open")  # incidental UI state, should survive the tab switch below
+    page.click("#tab-btn-yesterday")
+    assert not rendered(page, "notif-row"), "notif toggles must be hidden on Yesterday's Slate"
+    assert not rendered(page, "notif-note"), "the note line hides along with the toggles"
+    page.click("#tab-btn-today")
+    assert rendered(page, "notif-row"), "toggles come back on returning to Today"
+    assert page.evaluate("document.getElementById('notif-overlay').checked") is True, "the setting itself is untouched by hiding the UI"
+    print("L  OK: notification toggles hide on Yesterday's Slate and reappear on Today")
+    assert not errors, errors
+    browser.close()
+
 print("\nALL PAGE TESTS PASSED")

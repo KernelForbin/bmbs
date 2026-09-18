@@ -291,7 +291,7 @@
     </div>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
 
-    <div class="notif-row">
+    <div class="notif-row" id="notif-row">
       <label class="notif-toggle" id="notif-overlay-label">
         <input type="checkbox" id="notif-overlay" onchange="setOverlayNotif(this.checked)">
         <span>Overlay Notification</span>
@@ -1774,6 +1774,15 @@ function applyActiveTab() {
   document.getElementById("waiting-panel").style.display = showSlate ? "none" : "";
   document.getElementById("live-dot").style.display = (ACTIVE_TAB === "today" && showSlate) ? "" : "none";
   if (!showSlate) document.getElementById("dynamic-note").innerHTML = "";
+
+  // Bomb notifications only ever fire off Today's live data (checkForBombs
+  // only ever looks at SLATES.today), so the toggles are meaningless next to
+  // Yesterday's frozen results -- hide them there rather than imply they
+  // control anything for archived data. The underlying settings (and Today's
+  // notifications) are unaffected; this is visibility only.
+  const showNotifControls = ACTIVE_TAB === "today";
+  document.getElementById("notif-row").style.display = showNotifControls ? "" : "none";
+  document.getElementById("notif-note").style.display = showNotifControls ? "" : "none";
 
   if (ACTIVE_TAB === "today") {
     document.getElementById("eyebrow-text").innerHTML = showSlate ? "TODAY'S SLATE &middot; LIVE FROM MLB" : "TODAY'S SLATE";

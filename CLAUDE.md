@@ -176,6 +176,13 @@ Deliberately keyed on the player's own home run (`results.hitNames`), NOT on
 leg state: a leg credited through Pinch Hit Protection wasn't a bomb by the
 player the notification would name.
 
+The two toggles themselves are hidden (not disabled -- `applyActiveTab()`
+sets `display:none` on `#notif-row`/`#notif-note`) while browsing Yesterday's
+Slate, since `checkForBombs()` only ever looks at `SLATES.today` and showing
+notification controls next to frozen, archived results is misleading. This
+is visibility only: the saved settings and Today's actual notifications are
+completely unaffected by which tab happens to be on screen.
+
 ## Home Run Log
 
 A collapsed-by-default panel on both tabs listing every home run from that

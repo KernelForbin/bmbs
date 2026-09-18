@@ -160,12 +160,27 @@ after a dash during parsing — don't reintroduce this).
 
 ## Testing approach that's worked well
 
-No test framework — verification has been done with Playwright (Python)
-launching a headless browser, routing `fetch()` calls to mocked JSON
-fixtures (schedule, live game feed, tickets.json), and asserting on
-rendered DOM state. This works well for this project because the whole app
-is client-side JS with no server to spin up. Recommend continuing this
-pattern for any nontrivial change rather than shipping unverified.
+No test framework — `tests/` holds two plain scripts that exit non-zero
+on failure:
+
+- `tests/test_parser.py` — both picks formats (`tests/fixtures/gemini_picks.txt`
+  vs `test_picks.txt`) parse identically, the slate-date heuristic, and
+  the archive-on-date-change guard (against a temp dir, never `data/`).
+- `tests/test_page.py` — Playwright (Python) headless Chromium, serving
+  `index.html` through one `page.route("**/*")` handler with in-memory
+  fixtures (tickets files, MLB schedule, live feeds) and a pinned clock.
+  Covers the past-midnight slate, the all-Final rollover, a new upload
+  landing, the 6am backstop, and filter regressions.
+
+```
+pip install -r tests/requirements.txt
+python -m playwright install chromium
+python tests/test_parser.py && python tests/test_page.py
+```
+
+Windows note: `venv` fails on very long paths and Windows Python has no tz
+database (`tzdata` is in the requirements for that reason). Keep using
+this pattern for any nontrivial change rather than shipping unverified.
 
 ## Deploy process
 

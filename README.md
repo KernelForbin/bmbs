@@ -156,6 +156,35 @@ undocumented API and could change without notice — if results stop
 updating, check the browser console on the live page first (F12 → Console)
 for fetch errors before assuming the parsing logic is wrong.
 
+## History page (`/history/`)
+
+`history/index.html` is a separate, standalone page: the group's whole
+record — bettor leaderboard, slate-by-slate hit rates, hit rate by odds
+band vs break-even, player table, Heartbreakers, "the ones that got away",
+and every parlay. It shares no code with `index.html`, never polls MLB and
+never reads the tickets files. Its one data source is the static file
+`data/history.json`.
+
+That file is built by `scripts/import_history.py` from the group's Google
+Sheet (the `Archive` and `HR Parlays` tabs), plus real MLB game logs for the
+"got away" section. `.github/workflows/import-history.yml` runs it once a
+day at 9am ET and commits the file only if it changed. To refresh it
+sooner, run that workflow by hand from the Actions tab, or locally:
+
+```
+python scripts/import_history.py
+```
+
+The importer fails without writing if the sheet layout changes, MLB is
+unreachable, or the result would have *fewer* parlays than the file already
+committed (`--allow-shrink` overrides that last one on purpose).
+
+When a new player gets picked five or more times, they need an entry in
+`scripts/history_player_map.json` (group nickname → MLB player id) to show
+up under "the ones that got away". `python scripts/import_history.py
+--draft-map` proposes entries, scored against real home run dates — review
+them before pasting in. Everything else on the page works without it.
+
 ## Notes / limitations
 
 - This uses the free MLB Stats API, not Sportradar. It's the same underlying

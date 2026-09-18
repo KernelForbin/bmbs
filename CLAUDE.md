@@ -61,6 +61,15 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   response has them stripped, and that silently broke parsing once.
   Stamps `date` from the listed start times: a slate posted after its
   last first pitch is for tomorrow, otherwise it's for today (ET).
+- **`history/index.html`** — the standalone History page at `/history/`
+  (see "History page" below). Own inline CSS/JS; shares nothing with
+  `index.html` except one footer link each way.
+- **`data/history.json`** — the History page's only data source. PIPELINE
+  DATA like the tickets files: written only by `scripts/import_history.py`,
+  never hand-edited.
+- **`scripts/import_history.py`** + **`scripts/history_player_map.json`** +
+  **`.github/workflows/import-history.yml`** — import the group's Google
+  Sheet into `data/history.json`, daily at 9am ET.
 - **`CNAME`** — contains `bmbs.bet`, required by GitHub Pages for the custom domain.
 
 ## How live tracking actually works (important, don't reinvent this)
@@ -231,6 +240,55 @@ feed's boxscore `battingOrder` field, combined with a negative-binomial
 model using a league-average 68.5% out rate (NOT the specific hitter's real
 stats — this is disclosed in the UI, don't remove that framing).
 
+## History page (separate from live tracking — keep it that way)
+
+`history/index.html` exists under a HARD CONSTRAINT from the user: it must
+never touch or risk the Today/Yesterday functionality. It is a separate
+file with its own script and its own data file. It does not poll MLB, does
+not read `tickets.json` / `tickets-previous.json`, and `index.html` does not
+read `history.json`. The only coupling is a footer link in `index.html` to
+`/history/` and a back link the other way. `tests/test_history.py` block A
+enforces all of this (request log, five minutes of fake clock, source
+greps) — if that block fails, the change is wrong, not the test. Don't
+refactor shared helpers out of `index.html` "for reuse"; duplication is the
+point.
+
+It lives at `history/index.html`, NOT `history.html`: GitHub Pages serves a
+sibling `name.html` for a bare `/name` ahead of `name/index.html`, which
+caused a redirect loop on `/features` once.
+
+Data facts worth knowing before touching the importer:
+
+- Source is the group's Google Sheet, tabs `Archive` (gid 1001, older
+  slates) + `HR Parlays` (gid 0, running log), same column layout. The
+  "Solo Tracker" tab is invalid per the user — never import it.
+- **Use `/export?format=csv&gid=N`, never `/gviz/tq?tqx=out:csv`.** Most of
+  the log's rows are collapsed/hidden in the Sheets UI; gviz silently drops
+  hidden rows (it lost ~2,000 of them and made the log look like it had a
+  three-week gap). `export` includes them.
+- Compute every stat from the raw legs. The sheet's own "Player Stats" tab
+  matches names by substring ("Cruz" also counts "Oneil Cruz"; same for
+  Bell, Walker, Abreu, Valdez), so its per-player numbers are wrong.
+- Real money is NOT derivable: "Amount Wagered" was never filled in. The
+  page shows recorded win amounts on cashed parlays and a clearly-labelled
+  hypothetical flat-stake ROI — don't present either as actual P&L.
+- Odds were only logged from 2026-08-20 (`oddsFrom`); odds-based stats cover
+  picks since then and the page says so.
+- A blank leg status is `pending`, never guessed. DNP legs are void:
+  excluded from hit rates, and a parlay whose other legs all hit still cashed.
+- "The ones that got away" joins real MLB game logs at import time via
+  `history_player_map.json` (group nickname -> MLB id, hand-reviewed; every
+  entry was validated by checking the player's real HR dates against the
+  sheet's Hit/Miss marks). Nicknames are ambiguous ("Lowe", "Muncy",
+  "Garcia Jr") — never auto-resolve them at import time; use `--draft-map`
+  and review. When sheet and MLB disagree the importer reports it and the
+  page footnotes the count; it does not silently "fix" the sheet.
+- The daily Action is a deliberate, user-chosen exception to the "no
+  automated commit workflows" caution in gotcha 3. It runs at a quiet hour
+  and commits `data/history.json` only. The importer refuses to write a
+  history with fewer parlays than the committed one (`--allow-shrink`).
+- `dump()` writes no timestamp, so an unchanged sheet produces no commit.
+
 ## tickets.json schema
 
 ```json
@@ -279,9 +337,10 @@ after a dash during parsing — don't reintroduce this).
    picks multiple times because "copy the zip contents over the repo" also
    copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
    and `data/incoming_picks.txt` are live user data, managed only through
-   the picks-upload → GitHub Actions pipeline. Code changes should only
-   ever touch `index.html`, `scripts/*.py`, `.github/workflows/*.yml`,
-   `discord-bot/`, `README.md`, `CNAME`.
+   the picks-upload → GitHub Actions pipeline. `data/history.json` is pipeline data too (only
+   `scripts/import_history.py` writes it). Code changes should only
+   ever touch `index.html`, `history/`, `features/`, `scripts/`,
+   `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
 
 2. **Date handling is genuinely tricky here — games run past midnight.**
    The today/yesterday tabs, `date` field, and `tickets-previous.json`
@@ -324,7 +383,7 @@ after a dash during parsing — don't reintroduce this).
 
 ## Testing approach that's worked well
 
-No test framework — `tests/` holds two plain scripts that exit non-zero
+No test framework — `tests/` holds plain scripts that exit non-zero
 on failure:
 
 - `tests/test_parser.py` — both picks formats (`tests/fixtures/gemini_picks.txt`
@@ -336,10 +395,17 @@ on failure:
   Covers the past-midnight slate, the all-Final rollover, a new upload
   landing, the 6am backstop, and filter regressions.
 
+- `tests/test_history.py` — Playwright against `history/index.html` with a
+  hand-worked `history.json` fixture: the isolation guarantee (block A),
+  every stat, sorting/filters, chart tooltips, degraded data, phone width.
+- `tests/test_history_import.py` — the importer, fully offline: inline CSV
+  "tabs", a fake MLB fetcher, temp-dir output, the shrink guard.
+
 ```
 pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py
+python tests/test_history_import.py && python tests/test_history.py
 ```
 
 Windows note: `venv` fails on very long paths and Windows Python has no tz

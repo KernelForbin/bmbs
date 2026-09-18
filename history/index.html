@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BMBS Tracker — History</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  Standalone History page. Deliberately shares NOTHING with /index.html:
+  no MLB polling, none of the live slate files. Its only data source is the static file
+  /data/history.json, written by scripts/import_history.py.
+-->
+<style>
+  :root {
+    --bg: #0B0F0E; --panel: #131A18; --panel-line: #223028;
+    --green: #3ECF8E; --green-dim: #1E4A38;
+    --red: #E5636B; --red-dim: #4A2226;
+    --yellow: #E8C84A; --yellow-dim: #4A4318;
+    --text: #EDF2F0; --text-dim: #9AAAA3; --text-faint: #5E6E67;
+    /* chart fill: the site green stepped down into the dark-surface lightness
+       band (validated against --panel); the brighter --green stays for status. */
+    --series: #2FAE78; --series-hover: #46C38E; --grid: #1D2824; --ref: #9AAAA3;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; }
+  body { display:flex; justify-content:center; padding:24px 12px 56px; }
+  .wrap { width:100%; max-width:760px; }
+  a { color:inherit; }
+  header { padding:4px 4px 16px; border-bottom:1px solid var(--panel-line); margin-bottom:14px; }
+  .back { font-size:12.5px; color:var(--text-dim); text-decoration:none; display:inline-block; margin-bottom:10px; }
+  .back:hover { color:var(--text); }
+  .eyebrow { font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.14em; color:var(--green); margin:0 0 6px; }
+  h1 { font-family:'Oswald',sans-serif; font-size:28px; font-weight:700; line-height:1.1; margin:0 0 8px; }
+  .note { font-size:13.5px; line-height:1.5; color:var(--text-dim); margin:0; }
+  .note b { color:var(--text); font-weight:600; }
+
+  /* one filter row, above everything it scopes */
+  .filterbar { position:sticky; top:0; z-index:20; background:var(--bg); padding:10px 0 10px; margin-bottom:8px; border-bottom:1px solid var(--panel-line); }
+  .filterbar .lbl { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-faint); margin:0 0 6px 2px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { font:inherit; font-size:12.5px; font-weight:500; color:var(--text-dim); background:var(--panel); border:1px solid var(--panel-line); border-radius:999px; padding:5px 11px; cursor:pointer; }
+  .chip:hover { color:var(--text); }
+  .chip[aria-pressed="true"] { background:var(--green-dim); border-color:var(--green); color:var(--text); }
+  .chip:focus-visible, th button:focus-visible, .linkish:focus-visible, input:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+
+  section { margin-top:26px; }
+  h2 { font-family:'Oswald',sans-serif; font-size:17px; font-weight:600; letter-spacing:.04em; margin:0 0 4px; }
+  .sub { font-size:12.5px; line-height:1.5; color:var(--text-dim); margin:0 0 12px; }
+  .panel { background:var(--panel); border:1px solid var(--panel-line); border-radius:12px; padding:14px; }
+
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(132px, 1fr)); gap:8px; margin-top:14px; }
+  .tile { background:var(--panel); border:1px solid var(--panel-line); border-radius:12px; padding:12px 14px; }
+  .tile .t-label { font-size:11.5px; color:var(--text-dim); margin-bottom:4px; }
+  .tile .t-value { font-size:24px; font-weight:600; line-height:1.15; }
+  .tile .t-foot { font-size:11.5px; color:var(--text-faint); margin-top:3px; }
+  .callout { margin-top:10px; font-size:13px; line-height:1.55; color:var(--text-dim); border-left:2px solid var(--green); padding:2px 0 2px 12px; }
+  .callout b { color:var(--text); }
+
+  .scroll-x { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:8px 8px; text-align:left; white-space:nowrap; border-top:1px solid var(--panel-line); }
+  thead th { border-top:none; font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--text-faint); padding-top:2px; }
+  th.num, td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  th button { font:inherit; color:inherit; letter-spacing:inherit; text-transform:inherit; background:none; border:none; padding:0; cursor:pointer; }
+  th button:hover { color:var(--text-dim); }
+  th[aria-sort] button { color:var(--text); }
+  th[aria-sort="ascending"] button::after { content:" \25B2"; font-size:8px; }
+  th[aria-sort="descending"] button::after { content:" \25BC"; font-size:8px; }
+  tbody tr.clickable { cursor:pointer; }
+  tbody tr.clickable:hover { background:rgba(255,255,255,0.03); }
+  tbody tr.selected { background:var(--green-dim); }
+  td.dim, .dim { color:var(--text-dim); }
+  td.wrap-ok { white-space:normal; min-width:150px; }
+  .pos { color:var(--green); } .neg { color:var(--red); }
+  .linkish { font:inherit; color:var(--text); background:none; border:none; padding:0; cursor:pointer; text-decoration:underline; text-decoration-color:var(--text-faint); text-underline-offset:3px; }
+  .linkish:hover { text-decoration-color:var(--text); }
+  .more { display:block; width:100%; margin-top:10px; font:inherit; font-size:12.5px; color:var(--text-dim); background:none; border:1px solid var(--panel-line); border-radius:8px; padding:8px; cursor:pointer; }
+  .more:hover { color:var(--text); }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+  input[type="search"] { font:inherit; font-size:13px; color:var(--text); background:var(--bg); border:1px solid var(--panel-line); border-radius:8px; padding:6px 10px; min-width:0; flex:1 1 150px; max-width:240px; }
+  input[type="search"]::placeholder { color:var(--text-faint); }
+  .foot { font-size:11.5px; line-height:1.5; color:var(--text-faint); margin:10px 0 0; }
+
+  /* charts */
+  .legend { display:flex; flex-wrap:wrap; gap:14px; font-size:11.5px; color:var(--text-dim); margin-bottom:10px; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .key-rect { width:12px; height:8px; border-radius:2px; background:var(--series); display:inline-block; }
+  .key-tick { width:2px; height:13px; background:var(--ref); display:inline-block; }
+  .key-line { width:14px; height:0; border-top:1px solid var(--ref); display:inline-block; }
+  svg text { font-family:'Inter',sans-serif; font-size:10.5px; fill:var(--text-faint); font-variant-numeric:tabular-nums; }
+  svg .col { fill:var(--series); }
+  svg .hit-area { fill:transparent; outline:none; }
+  svg .hit-area:hover + .col, svg .hit-area:focus + .col { fill:var(--series-hover); }
+  svg .star { fill:var(--text); font-size:11px; }
+  .band { display:grid; grid-template-columns:96px 1fr; gap:4px 10px; align-items:center; padding:7px 0; border-top:1px solid var(--grid); outline:none; border-radius:4px; }
+  .band:first-child { border-top:none; }
+  .band:hover .band-fill, .band:focus .band-fill { background:var(--series-hover); }
+  .band-name { font-size:12.5px; color:var(--text); font-variant-numeric:tabular-nums; }
+  .band-track { position:relative; height:14px; }
+  .band-fill { position:absolute; left:0; top:0; bottom:0; background:var(--series); border-radius:0 4px 4px 0; }
+  .band-need { position:absolute; top:-4px; bottom:-4px; width:2px; margin-left:-1px; background:var(--ref); box-shadow:0 0 0 2px var(--panel); }
+  .band-read { grid-column:2; font-size:11.5px; color:var(--text-dim); font-variant-numeric:tabular-nums; }
+  .band-read b { color:var(--text); font-weight:600; }
+  details.tv { margin-top:10px; }
+  details.tv summary { font-size:11.5px; color:var(--text-faint); cursor:pointer; }
+  details.tv summary:hover { color:var(--text-dim); }
+  details.tv table { margin-top:8px; font-size:12px; }
+  #tip { position:fixed; z-index:50; pointer-events:none; background:#0B0F0E; border:1px solid var(--panel-line); border-radius:8px; padding:8px 10px; font-size:12px; line-height:1.45; color:var(--text-dim); max-width:240px; box-shadow:0 6px 20px rgba(0,0,0,.5); }
+  #tip b { color:var(--text); font-weight:600; font-size:13px; }
+  #tip .tip-h { color:var(--text-faint); font-size:11px; margin-bottom:2px; }
+
+  /* parlay log */
+  .day { font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.08em; color:var(--text-dim); margin:16px 0 6px; }
+  .day:first-child { margin-top:0; }
+  .parlay { display:flex; flex-wrap:wrap; align-items:center; gap:5px; padding:8px 0; border-top:1px solid var(--panel-line); }
+  .badge { font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; border-radius:5px; padding:3px 6px; border:1px solid var(--panel-line); color:var(--text-dim); flex:none; }
+  .badge.cashed { background:var(--green-dim); border-color:var(--green); color:var(--text); }
+  .badge.heart { background:var(--yellow-dim); border-color:var(--yellow); color:var(--text); }
+  .leg { font-size:12px; border-radius:6px; padding:3px 7px; border:1px solid var(--panel-line); color:var(--text-dim); }
+  .leg.hit { background:var(--green-dim); border-color:var(--green); color:var(--text); }
+  .leg.miss { background:var(--red-dim); border-color:var(--red); color:var(--text); }
+  .leg.dnp { background:var(--yellow-dim); border-color:var(--yellow); color:var(--text); }
+  .leg .who { color:var(--text-dim); }
+  .leg.mine { box-shadow:0 0 0 1.5px var(--text); }
+  .won { font-size:12.5px; font-weight:600; color:var(--text); margin-left:auto; }
+  .empty { font-size:13px; color:var(--text-dim); padding:10px 0; }
+
+  footer { margin-top:34px; padding-top:14px; border-top:1px solid var(--panel-line); font-size:11.5px; line-height:1.6; color:var(--text-faint); text-align:center; }
+  @media (max-width:520px) {
+    h1 { font-size:24px; }
+    .panel { padding:12px 10px; }
+    .band { grid-template-columns:78px 1fr; }
+    /* keep the sticky bar one row tall on a phone: swipe the chips sideways */
+    #bettor-chips { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+    #bettor-chips::-webkit-scrollbar { display:none; }
+    #bettor-chips .chip { flex:none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" id="back-link" href="/">&larr; Live tracker</a>
+    <p class="eyebrow">THE ARCHIVE</p>
+    <h1>BMBS History</h1>
+    <p class="note" id="range-note">Loading&hellip;</p>
+  </header>
+
+  <div id="app" hidden>
+    <div class="filterbar">
+      <p class="lbl">Bettor &mdash; filters everything below</p>
+      <div class="chips" id="bettor-chips"></div>
+    </div>
+
+    <div class="tiles" id="tiles"></div>
+    <p class="callout" id="callout" hidden></p>
+
+    <section id="sec-board">
+      <h2>Bettor leaderboard</h2>
+      <p class="sub">Every leg each person picked. Tap a row to filter the page to that bettor; tap a column to sort.</p>
+      <div class="panel scroll-x"><table id="board"></table></div>
+      <p class="foot"><b>Flat ROI</b> is hypothetical: one unit staked on each pick as a straight single at the listed odds. It isn't anyone's real profit &mdash; real stakes were never recorded &mdash; and odds were only logged from <span id="odds-from-1"></span>, so it covers picks since then. Small samples swing wildly. <b>Drought</b> is the longest run of consecutive misses.</p>
+    </section>
+
+    <section id="sec-slates">
+      <h2>Slate by slate</h2>
+      <p class="sub" id="slates-sub"></p>
+      <div class="panel">
+        <div class="legend"><span><i class="key-rect"></i>Share of legs that hit</span><span><i class="key-line"></i>Average</span><span>&#9733; a parlay cashed</span></div>
+        <div id="slate-chart"></div>
+        <details class="tv"><summary>Show as table</summary><div class="scroll-x"><table id="slate-table"></table></div></details>
+      </div>
+    </section>
+
+    <section id="sec-odds">
+      <h2>Are the odds worth it?</h2>
+      <p class="sub">Hit rate by odds band against the rate those odds need just to break even. A bar that stops short of its marker is a band that loses money over time. Odds logged from <span id="odds-from-2"></span>.</p>
+      <div class="panel">
+        <div class="legend"><span><i class="key-rect"></i>Actual hit rate</span><span><i class="key-tick"></i>Break-even needed</span></div>
+        <div id="odds-chart"></div>
+      </div>
+    </section>
+
+    <section id="sec-players">
+      <h2>Players</h2>
+      <p class="sub">Who gets picked and who delivers. Tap a name to see every parlay they were in.</p>
+      <div class="panel">
+        <div class="controls">
+          <input type="search" id="player-search" placeholder="Search players" aria-label="Search players">
+          <div class="chips" id="minpick-chips" role="group" aria-label="Minimum picks"></div>
+        </div>
+        <div class="scroll-x"><table id="players"></table></div>
+        <button class="more" id="players-more" hidden></button>
+      </div>
+    </section>
+
+    <section id="sec-hearts">
+      <h2>Heartbreakers</h2>
+      <p class="sub" id="hearts-sub"></p>
+      <div class="panel scroll-x"><table id="killers"></table></div>
+      <p class="foot">A heartbreaker is a parlay of two or more legs where every leg hit except one. The &ldquo;parlay killer&rdquo; is the one that didn&rsquo;t.</p>
+    </section>
+
+    <section id="sec-away">
+      <h2>The ones that got away</h2>
+      <p class="sub" id="away-sub"></p>
+      <div class="panel scroll-x"><table id="away"></table></div>
+      <p class="foot" id="away-foot"></p>
+    </section>
+
+    <section id="sec-log">
+      <h2>Every parlay</h2>
+      <p class="sub">&#10003; hit &nbsp;&middot;&nbsp; &#10007; miss &nbsp;&middot;&nbsp; &ndash; didn&rsquo;t play (leg voided). Dollar amounts are the winnings the group recorded.</p>
+      <div class="panel">
+        <div class="controls">
+          <div class="chips" id="outcome-chips" role="group" aria-label="Outcome"></div>
+          <input type="search" id="log-search" placeholder="Filter by player" aria-label="Filter parlays by player">
+        </div>
+        <div id="log"></div>
+        <button class="more" id="log-more" hidden></button>
+      </div>
+    </section>
+  </div>
+
+  <footer id="footer-line">history imported daily from the group&rsquo;s tracking sheet &middot; <a href="/">back to the live tracker</a></footer>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+"use strict";
+// ---------- tiny DOM helpers (all data goes in via textContent) ----------
+function el(tag, attrs, kids) {
+  const n = document.createElement(tag);
+  if (attrs) for (const k in attrs) {
+    if (k === "class") n.className = attrs[k];
+    else if (k === "text") n.textContent = attrs[k];
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), attrs[k]);
+    else if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+  }
+  for (const c of [].concat(kids || [])) if (c !== null && c !== undefined) n.append(c);
+  return n;
+}
+const SVG_NS = "http://www.w3.org/2000/svg";
+function svg(tag, attrs, text) {
+  const n = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+const $ = id => document.getElementById(id);
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtDate(iso) { const p = iso.split("-"); return MONTHS[+p[1] - 1] + " " + (+p[2]); }
+function pct(n, d) { return d ? (100 * n / d).toFixed(1) + "%" : "—"; }
+function fmtOdds(o) { return o === null || o === undefined ? "—" : (o > 0 ? "+" : "") + Math.round(o); }
+function fmtUnits(u) { return (u > 0 ? "+" : u < 0 ? "−" : "") + Math.abs(u).toFixed(2) + "u"; }
+function fmtMoney(m) { return "$" + m.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+// ---------- state ----------
+let DATA = null;
+const STATE = { bettor: null, minPicks: 5, playerSearch: "", playersShown: 25, outcome: "all", logSearch: "", logShown: 40 };
+const SORTS = {};   // table id -> { key, dir }
+
+// ---------- derivations ----------
+function parlayOutcome(p) {
+  let hit = 0, miss = 0, pending = 0;
+  for (const l of p.legs) { if (l.status === "hit") hit++; else if (l.status === "miss") miss++; else if (l.status === "pending") pending++; }
+  if (miss) return "miss";
+  if (pending) return "pending";
+  return hit ? "hit" : "void";
+}
+function isHeartbreaker(p) {
+  if (p.legs.length < 2) return false;
+  let hit = 0, miss = 0, pending = 0;
+  for (const l of p.legs) { if (l.status === "hit") hit++; else if (l.status === "miss") miss++; else if (l.status === "pending") pending++; }
+  return miss === 1 && pending === 0 && hit >= 1;
+}
+function unitReturn(odds) { return odds > 0 ? odds / 100 : 100 / Math.abs(odds); }
+function impliedProb(odds) { return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100); }
+function resolved(l) { return l.status === "hit" || l.status === "miss"; }
+function allLegs(bettor) {
+  const out = [];
+  for (const p of DATA.parlays) for (const l of p.legs) if (!bettor || l.bettor === bettor) out.push({ leg: l, parlay: p });
+  return out;
+}
+function bettorNames() {
+  const counts = new Map();
+  for (const p of DATA.parlays) for (const l of p.legs) counts.set(l.bettor, (counts.get(l.bettor) || 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(e => e[0]);
+}
+function bettorStats(name) {
+  const legs = allLegs(name).filter(x => resolved(x.leg));
+  let hits = 0, units = 0, priced = 0, hitOddsSum = 0, hitOddsN = 0, best = null, run = 0, drought = 0, killed = 0;
+  for (const { leg } of legs) {
+    const isHit = leg.status === "hit";
+    if (isHit) { hits++; run = 0; } else { run++; drought = Math.max(drought, run); }
+    if (leg.odds !== null && leg.odds !== undefined) {
+      priced++;
+      units += isHit ? unitReturn(leg.odds) : -1;
+      if (isHit) { hitOddsSum += leg.odds; hitOddsN++; if (!best || leg.odds > best.odds) best = leg; }
+    }
+  }
+  for (const p of DATA.parlays) if (isHeartbreaker(p) && p.legs.find(l => l.status === "miss").bettor === name) killed++;
+  return { name, legs: legs.length, hits, rate: legs.length ? hits / legs.length : 0,
+           avgHitOdds: hitOddsN ? hitOddsSum / hitOddsN : null, best, priced,
+           units: priced ? units : null, roi: priced ? units / priced : null, drought, killed };
+}
+
+// ---------- generic sortable table ----------
+// cols: [{ key, label, num, title, value(row) -> sortable, cell(row) -> Node|string }]
+function renderTable(id, cols, rows, opts) {
+  opts = opts || {};
+  const table = $(id);
+  const sort = SORTS[id] || (SORTS[id] = { key: opts.sortKey, dir: opts.sortDir || "desc" });
+  const col = cols.find(c => c.key === sort.key) || cols[0];
+  const sign = sort.dir === "asc" ? 1 : -1;
+  const sorted = rows.slice().sort((a, b) => {
+    const va = col.value(a), vb = col.value(b);
+    if (va === null || va === undefined) return (vb === null || vb === undefined) ? 0 : 1;   // blanks always last
+    if (vb === null || vb === undefined) return -1;
+    if (typeof va === "string") return sign * va.localeCompare(vb);
+    return sign * (va - vb);
+  });
+  const shown = opts.limit ? sorted.slice(0, opts.limit) : sorted;
+  table.replaceChildren();
+  const htr = el("tr");
+  for (const c of cols) {
+    const th = el("th", { class: c.num ? "num" : "", scope: "col", title: c.title || null });
+    if (c.key === sort.key) th.setAttribute("aria-sort", sort.dir === "asc" ? "ascending" : "descending");
+    th.append(el("button", { type: "button", text: c.label, onclick: () => {
+      if (sort.key === c.key) sort.dir = sort.dir === "asc" ? "desc" : "asc";
+      else { sort.key = c.key; sort.dir = c.num ? "desc" : "asc"; }
+      renderAll();
+    } }));
+    htr.append(th);
+  }
+  table.append(el("thead", null, htr));
+  const tbody = el("tbody");
+  for (const r of shown) {
+    const tr = el("tr");
+    if (opts.onRow) {
+      tr.className = "clickable" + (opts.isSelected && opts.isSelected(r) ? " selected" : "");
+      tr.addEventListener("click", ev => { if (!ev.target.closest("button")) opts.onRow(r); });
+    }
+    for (const c of cols) {
+      const out = c.cell(r);
+      const td = el("td", { class: (c.num ? "num " : "") + (c.cls || "") });
+      if (out instanceof Node) td.append(out); else td.textContent = out;
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  if (!shown.length) tbody.append(el("tr", null, el("td", { colspan: cols.length, class: "dim", text: opts.empty || "Nothing to show." })));
+  table.append(tbody);
+  return sorted.length;
+}
+function signed(text, v) { return el("span", { class: v > 0 ? "pos" : v < 0 ? "neg" : "", text }); }
+
+// ---------- tooltip (enhances; every value is also in a table view) ----------
+function showTip(lines, x, y) {
+  const tip = $("tip");
+  tip.replaceChildren();
+  lines.forEach((ln, i) => tip.append(el("div", { class: i === 0 ? "tip-h" : "" }, ln)));
+  tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.max(6, Math.min(x + 14, window.innerWidth - r.width - 6)) + "px";
+  tip.style.top = Math.max(6, (y - r.height - 12 < 6 ? y + 18 : y - r.height - 12)) + "px";
+}
+function hideTip() { $("tip").hidden = true; }
+function attachTip(node, linesFn) {
+  node.addEventListener("pointermove", ev => showTip(linesFn(), ev.clientX, ev.clientY));
+  node.addEventListener("pointerleave", hideTip);
+  node.addEventListener("focus", () => { const r = node.getBoundingClientRect(); showTip(linesFn(), r.left + r.width / 2, r.top); });
+  node.addEventListener("blur", hideTip);
+}
+function strongLine(strong, rest) { return [el("b", { text: strong }), document.createTextNode(rest ? " " + rest : "")]; }
+
+// ---------- sections ----------
+function renderChips() {
+  const box = $("bettor-chips");
+  box.replaceChildren();
+  const mk = (label, value) => el("button", { type: "button", class: "chip", "aria-pressed": String(STATE.bettor === value), text: label,
+    onclick: () => { setBettor(value); } });
+  box.append(mk("Everyone", null));
+  for (const n of bettorNames()) box.append(mk(n, n));
+}
+function setBettor(value) {
+  STATE.bettor = STATE.bettor === value ? null : value;
+  STATE.logShown = 40; STATE.playersShown = 25;
+  renderAll();
+}
+
+function tile(label, value, foot) {
+  return el("div", { class: "tile" }, [el("div", { class: "t-label", text: label }), el("div", { class: "t-value", text: value }), foot ? el("div", { class: "t-foot", text: foot }) : null]);
+}
+function renderTiles() {
+  const b = STATE.bettor;
+  const legs = allLegs(b).filter(x => resolved(x.leg));
+  const hits = legs.filter(x => x.leg.status === "hit").length;
+  const parlays = DATA.parlays.filter(p => !b || p.legs.some(l => l.bettor === b));
+  const cashed = parlays.filter(p => parlayOutcome(p) === "hit");
+  const decided = parlays.filter(p => ["hit", "miss"].includes(parlayOutcome(p)));
+  const wonTotal = cashed.reduce((s, p) => s + (p.won || 0), 0);
+  const hearts = DATA.parlays.filter(isHeartbreaker);
+  const slates = new Set(parlays.map(p => p.date)).size;
+  const box = $("tiles");
+  box.replaceChildren(
+    tile("Slates", String(slates), fmtDate(DATA.firstSlate) + " – " + fmtDate(DATA.lastSlate)),
+    tile(b ? b + "'s hit rate" : "Leg hit rate", pct(hits, legs.length), hits + " of " + legs.length + " legs"),
+    tile(b ? "Parlays cashed (in on)" : "Parlays cashed", cashed.length + " of " + decided.length, wonTotal ? fmtMoney(wonTotal) + " recorded" : "")
+  );
+  if (b) {
+    const s = bettorStats(b);
+    box.append(tile("Flat ROI", s.units === null ? "—" : fmtUnits(s.units), s.priced ? "hypothetical · " + s.priced + " priced picks" : "no priced picks"));
+    box.append(tile("Parlays killed", String(s.killed), "the only miss on the ticket"));
+  } else {
+    box.append(tile("Heartbreakers", String(hearts.length), "missed by exactly one leg"));
+  }
+
+  const g = DATA.gotAway, c = $("callout");
+  if (g && g.players && g.players.length && !b) {
+    let pd = 0, ph = 0, fd = 0, fh = 0;
+    for (const p of g.players) { pd += p.pickedDays; ph += p.pickedDayHits; fd += p.freeDays; fh += p.freeDayHits; }
+    c.replaceChildren(document.createTextNode("Among the " + g.players.length + " most-picked players, they homered on "),
+      el("b", { text: pct(ph, pd) }), document.createTextNode(" of the days the group picked them — and on "),
+      el("b", { text: pct(fh, fd) }), document.createTextNode(" of the days it didn't. Picking the day hasn't beaten picking at random."));
+    c.hidden = false;
+  } else c.hidden = true;
+}
+
+function renderBoard() {
+  const rows = bettorNames().map(bettorStats);
+  renderTable("board", [
+    { key: "name", label: "Bettor", value: r => r.name, cell: r => r.name },
+    { key: "legs", label: "Legs", num: true, value: r => r.legs, cell: r => String(r.legs) },
+    { key: "hits", label: "Hits", num: true, value: r => r.hits, cell: r => String(r.hits) },
+    { key: "rate", label: "Hit %", num: true, value: r => r.rate, cell: r => pct(r.hits, r.legs) },
+    { key: "units", label: "Flat ROI", num: true, title: "Hypothetical: 1 unit on every priced pick as a single", value: r => r.units,
+      cell: r => r.units === null ? "—" : signed(fmtUnits(r.units), r.units) },
+    { key: "avgHitOdds", label: "Avg hit odds", num: true, value: r => r.avgHitOdds, cell: r => fmtOdds(r.avgHitOdds) },
+    { key: "best", label: "Best hit", value: r => r.best ? r.best.odds : null, cell: r => r.best ? r.best.pick + " " + fmtOdds(r.best.odds) : "—" },
+    { key: "drought", label: "Drought", num: true, title: "Longest run of consecutive misses", value: r => r.drought, cell: r => String(r.drought) },
+    { key: "killed", label: "Killed", num: true, title: "Heartbreaker parlays where this bettor's leg was the only miss", value: r => r.killed, cell: r => String(r.killed) }
+  ], rows, { sortKey: "rate", onRow: r => setBettor(r.name), isSelected: r => r.name === STATE.bettor });
+}
+
+function slateRows() {
+  const by = new Map();
+  for (const p of DATA.parlays) {
+    const s = by.get(p.date) || { date: p.date, legs: 0, hits: 0, cashed: 0, won: 0 };
+    for (const l of p.legs) if (resolved(l) && (!STATE.bettor || l.bettor === STATE.bettor)) { s.legs++; if (l.status === "hit") s.hits++; }
+    if (parlayOutcome(p) === "hit" && (!STATE.bettor || p.legs.some(l => l.bettor === STATE.bettor))) { s.cashed++; s.won += p.won || 0; }
+    by.set(p.date, s);
+  }
+  return [...by.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+function renderSlates() {
+  const rows = slateRows();
+  const totL = rows.reduce((s, r) => s + r.legs, 0), totH = rows.reduce((s, r) => s + r.hits, 0);
+  const avg = totL ? totH / totL : 0;
+  const who = STATE.bettor ? STATE.bettor + "'s" : "the group's";
+  $("slates-sub").textContent = "Share of " + who + " legs that hit on each slate. Hover or tap a bar for the detail.";
+
+  const host = $("slate-chart");
+  host.replaceChildren();
+  const W = Math.max(280, host.clientWidth || 700), H = 190, padL = 34, padR = 8, padT = 16, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const maxRate = Math.max(0.1, ...rows.map(r => r.legs ? r.hits / r.legs : 0));
+  const step = maxRate > 0.6 ? 0.25 : 0.1;
+  const top = Math.ceil(maxRate / step - 1e-9) * step;
+  const y = v => padT + plotH - (v / top) * plotH;
+  const s = svg("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Hit rate per slate; the same numbers are in the table below" });
+  for (let v = 0; v <= top + 1e-9; v += step) {
+    s.append(svg("line", { x1: padL, x2: W - padR, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    s.append(svg("text", { x: padL - 6, y: y(v) + 3.5, "text-anchor": "end" }, Math.round(v * 100) + "%"));
+  }
+  const slot = plotW / Math.max(1, rows.length), bw = Math.max(2, Math.min(24, slot - 2));
+  const labelEvery = Math.max(1, Math.ceil(rows.length / Math.max(2, Math.floor(plotW / 58))));
+  rows.forEach((r, i) => {
+    const cx = padL + slot * i + slot / 2, rate = r.legs ? r.hits / r.legs : 0;
+    const hit = svg("rect", { class: "hit-area", x: cx - slot / 2, y: padT - 12, width: slot, height: plotH + 12, tabindex: 0,
+      "aria-label": fmtDate(r.date) + ": " + r.hits + " of " + r.legs + " legs hit" });
+    attachTip(hit, () => {
+      const lines = [fmtDate(r.date), strongLine(pct(r.hits, r.legs), "· " + r.hits + " of " + r.legs + " legs hit")];
+      if (r.cashed) lines.push("★ " + r.cashed + " parlay" + (r.cashed > 1 ? "s" : "") + " cashed" + (r.won ? " · " + fmtMoney(r.won) : ""));
+      return lines;
+    });
+    s.append(hit);
+    const h = Math.max(rate > 0 ? 2 : 0, y(0) - y(rate)), rr = Math.min(4, bw / 2, h);
+    // rounded data-end, square at the baseline
+    s.append(svg("path", { class: "col", "pointer-events": "none",
+      d: h ? "M" + (cx - bw / 2) + "," + y(0) + "v" + (-(h - rr)) + "q0," + (-rr) + " " + rr + "," + (-rr) + "h" + (bw - 2 * rr) + "q" + rr + ",0 " + rr + "," + rr + "v" + (h - rr) + "z" : "" }));
+    if (r.cashed) s.append(svg("text", { class: "star", x: cx, y: y(rate) - 4, "text-anchor": "middle", "pointer-events": "none" }, "★"));
+    if (i % labelEvery === 0) s.append(svg("text", { x: cx, y: H - 6, "text-anchor": "middle" }, fmtDate(r.date)));
+  });
+  if (totL) s.append(svg("line", { x1: padL, x2: W - padR, y1: y(avg), y2: y(avg), stroke: "var(--ref)", "stroke-width": 1, "pointer-events": "none" }));
+  host.append(s);
+
+  renderTable("slate-table", [
+    { key: "date", label: "Slate", value: r => r.date, cell: r => fmtDate(r.date) },
+    { key: "legs", label: "Legs", num: true, value: r => r.legs, cell: r => String(r.legs) },
+    { key: "hits", label: "Hits", num: true, value: r => r.hits, cell: r => String(r.hits) },
+    { key: "rate", label: "Hit %", num: true, value: r => r.legs ? r.hits / r.legs : null, cell: r => pct(r.hits, r.legs) },
+    { key: "cashed", label: "Cashed", num: true, value: r => r.cashed, cell: r => r.cashed ? r.cashed + (r.won ? " · " + fmtMoney(r.won) : "") : "—" }
+  ], rows, { sortKey: "date", sortDir: "desc" });
+}
+
+const BANDS = [
+  { label: "under +300", lo: -Infinity, hi: 300 },
+  { label: "+300 to +399", lo: 300, hi: 400 },
+  { label: "+400 to +499", lo: 400, hi: 500 },
+  { label: "+500 to +599", lo: 500, hi: 600 },
+  { label: "+600 and up", lo: 600, hi: Infinity }
+];
+function renderOdds() {
+  const legs = allLegs(STATE.bettor).map(x => x.leg).filter(l => resolved(l) && l.odds !== null && l.odds !== undefined);
+  $("odds-from-1").textContent = $("odds-from-2").textContent = DATA.oddsFrom ? fmtDate(DATA.oddsFrom) : "partway through";
+  const host = $("odds-chart");
+  host.replaceChildren();
+  const rows = BANDS.map(b => {
+    const inBand = legs.filter(l => l.odds >= b.lo && l.odds < b.hi);
+    const hits = inBand.filter(l => l.status === "hit").length;
+    const need = inBand.length ? inBand.reduce((s, l) => s + impliedProb(l.odds), 0) / inBand.length : 0;
+    return { band: b.label, n: inBand.length, hits, rate: inBand.length ? hits / inBand.length : 0, need };
+  }).filter(r => r.n > 0);
+  if (!rows.length) { host.append(el("p", { class: "empty", text: "No priced picks to chart yet." })); return; }
+  const scale = Math.max(0.3, ...rows.map(r => Math.max(r.rate, r.need))) * 1.08;
+  for (const r of rows) {
+    const gap = (r.rate - r.need) * 100;
+    const row = el("div", { class: "band", tabindex: 0, "data-band": r.band }, [
+      el("div", { class: "band-name", text: r.band }),
+      el("div", { class: "band-track" }, [
+        el("div", { class: "band-fill", style: "width:" + (100 * r.rate / scale).toFixed(2) + "%" }),
+        el("div", { class: "band-need", style: "left:" + (100 * r.need / scale).toFixed(2) + "%" })
+      ]),
+      el("div", { class: "band-read" }, [el("b", { text: pct(r.hits, r.n) }),
+        document.createTextNode(" hit · needs " + (100 * r.need).toFixed(1) + "% · " + r.hits + " of " + r.n + (r.n < 20 ? " · small sample" : ""))])
+    ]);
+    attachTip(row, () => [r.band, strongLine(pct(r.hits, r.n), "hit (" + r.hits + " of " + r.n + ")"),
+      "Break-even: " + (100 * r.need).toFixed(1) + "%", (gap >= 0 ? "+" : "−") + Math.abs(gap).toFixed(1) + " pts vs break-even"]);
+    host.append(row);
+  }
+}
+
+function playerRows() {
+  const by = new Map();
+  for (const { leg, parlay } of allLegs(STATE.bettor)) {
+    if (!resolved(leg)) continue;
+    const r = by.get(leg.pick) || { pick: leg.pick, picks: 0, hits: 0, oddsSum: 0, oddsN: 0, last: "", who: new Map() };
+    r.picks++; if (leg.status === "hit") r.hits++;
+    if (leg.odds !== null && leg.odds !== undefined) { r.oddsSum += leg.odds; r.oddsN++; }
+    if (parlay.date > r.last) r.last = parlay.date;
+    r.who.set(leg.bettor, (r.who.get(leg.bettor) || 0) + 1);
+    by.set(leg.pick, r);
+  }
+  return [...by.values()].map(r => {
+    const top = [...r.who.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+    return Object.assign(r, { rate: r.hits / r.picks, avgOdds: r.oddsN ? r.oddsSum / r.oddsN : null, fan: top[0], fanN: top[1] });
+  });
+}
+function focusPlayer(pick) {
+  STATE.logSearch = pick; STATE.outcome = "all"; STATE.logShown = 40;
+  $("log-search").value = pick;
+  renderLog();
+  $("sec-log").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function playerLink(pick) { return el("button", { type: "button", class: "linkish", text: pick, onclick: () => focusPlayer(pick) }); }
+function renderPlayers() {
+  const box = $("minpick-chips");
+  box.replaceChildren();
+  for (const n of [1, 3, 5, 10]) box.append(el("button", { type: "button", class: "chip", "aria-pressed": String(STATE.minPicks === n),
+    text: n === 1 ? "All" : n + "+ picks", onclick: () => { STATE.minPicks = n; STATE.playersShown = 25; renderPlayers(); } }));
+  const q = STATE.playerSearch.trim().toLowerCase();
+  const rows = playerRows().filter(r => r.picks >= STATE.minPicks && (!q || r.pick.toLowerCase().includes(q)));
+  const total = renderTable("players", [
+    { key: "pick", label: "Player", value: r => r.pick, cell: r => playerLink(r.pick) },
+    { key: "picks", label: "Picks", num: true, value: r => r.picks, cell: r => String(r.picks) },
+    { key: "hits", label: "Hits", num: true, value: r => r.hits, cell: r => String(r.hits) },
+    { key: "rate", label: "Hit %", num: true, value: r => r.rate, cell: r => pct(r.hits, r.picks) },
+    { key: "avgOdds", label: "Avg odds", num: true, value: r => r.avgOdds, cell: r => fmtOdds(r.avgOdds) },
+    { key: "fan", label: "Picked most by", cls: "dim", value: r => r.fan, cell: r => r.fan + " (" + r.fanN + ")" },
+    { key: "last", label: "Last picked", cls: "dim", value: r => r.last, cell: r => fmtDate(r.last) }
+  ], rows, { sortKey: "picks", limit: STATE.playersShown, empty: "No players match." });
+  const more = $("players-more");
+  more.hidden = total <= STATE.playersShown;
+  more.textContent = "Show all " + total + " players";
+}
+
+function renderHearts() {
+  const b = STATE.bettor;
+  const multi = DATA.parlays.filter(p => p.legs.length >= 2 && ["hit", "miss"].includes(parlayOutcome(p)));
+  const hearts = DATA.parlays.filter(isHeartbreaker);
+  const by = new Map();
+  for (const p of hearts) {
+    const k = p.legs.find(l => l.status === "miss");
+    if (b && k.bettor !== b) continue;
+    const r = by.get(k.pick) || { pick: k.pick, n: 0, who: new Map(), last: "" };
+    r.n++; r.who.set(k.bettor, (r.who.get(k.bettor) || 0) + 1); if (p.date > r.last) r.last = p.date;
+    by.set(k.pick, r);
+  }
+  const rows = [...by.values()];
+  const mine = rows.reduce((s, r) => s + r.n, 0);
+  $("hearts-sub").textContent = b
+    ? b + "'s pick was the lone miss on " + mine + " of the group's " + hearts.length + " heartbreakers. These are the players that did it."
+    : hearts.length + " of " + multi.length + " multi-leg parlays (" + pct(hearts.length, multi.length) + ") came down to a single leg. These are the parlay killers — the one miss on an otherwise perfect ticket.";
+  renderTable("killers", [
+    { key: "pick", label: "Parlay killer", value: r => r.pick, cell: r => playerLink(r.pick) },
+    { key: "n", label: "Parlays killed", num: true, value: r => r.n, cell: r => String(r.n) },
+    { key: "who", label: "Picked by", cls: "dim wrap-ok", value: r => [...r.who.keys()].sort().join(", "),
+      cell: r => [...r.who.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).map(e => e[0] + (e[1] > 1 ? " ×" + e[1] : "")).join(", ") },
+    { key: "last", label: "Most recent", cls: "dim", value: r => r.last, cell: r => fmtDate(r.last) }
+  ], rows, { sortKey: "n", limit: 12, empty: "No heartbreakers here." });
+}
+
+function renderAway() {
+  const g = DATA.gotAway, sec = $("sec-away");
+  if (!g || !g.players || !g.players.length) { sec.hidden = true; return; }
+  sec.hidden = false;
+  const b = STATE.bettor;
+  let rows = g.players;
+  if (b) { const mine = new Set(allLegs(b).map(x => x.leg.pick)); rows = rows.filter(r => mine.has(r.pick)); }
+  $("away-sub").textContent = "Players the group backs often (" + g.minPicks + "+ picks) who went deep on days nobody had them"
+    + (b ? " — limited to players " + b + " has picked." : ".") + " Real MLB game logs, same date range.";
+  renderTable("away", [
+    { key: "name", label: "Player", value: r => r.name, cell: r => playerLink(r.pick) },
+    { key: "away", label: "Got away", num: true, title: "Days they homered when nobody picked them", value: r => r.gotAway.length, cell: r => String(r.gotAway.length) },
+    { key: "free", label: "HR% not picked", num: true, value: r => r.freeDays ? r.freeDayHits / r.freeDays : null, cell: r => pct(r.freeDayHits, r.freeDays) + " (" + r.freeDayHits + "/" + r.freeDays + ")" },
+    { key: "picked", label: "HR% when picked", num: true, value: r => r.pickedDays ? r.pickedDayHits / r.pickedDays : null, cell: r => pct(r.pickedDayHits, r.pickedDays) + " (" + r.pickedDayHits + "/" + r.pickedDays + ")" },
+    { key: "dates", label: "Days that got away", cls: "dim wrap-ok", value: r => r.gotAway[0] || null, cell: r => r.gotAway.length ? r.gotAway.map(fmtDate).join(", ") : "—" }
+  ], rows, { sortKey: "away", limit: 15, empty: "None of this bettor's players qualify yet." });
+  const off = g.checkedPickDays - g.agreeingPickDays;
+  $("away-foot").textContent = "Top 15 shown; sort any column. Percentages are days with a home run out of games played. Cross-check: the sheet's Hit/Miss marks match MLB's records on "
+    + g.agreeingPickDays + " of " + g.checkedPickDays + " pick-days" + (off ? " (" + off + " disagree" + (off === 1 ? "s" : "") + " — worth a look in the sheet)." : ".");
+}
+
+const OUTCOMES = [["all", "All"], ["cashed", "Cashed"], ["heart", "Heartbreakers"], ["missed", "Missed"]];
+const LEG_MARK = { hit: "✓", miss: "✗", dnp: "–", pending: "…" };
+function renderLog() {
+  const chips = $("outcome-chips");
+  chips.replaceChildren();
+  for (const [v, label] of OUTCOMES) chips.append(el("button", { type: "button", class: "chip", "aria-pressed": String(STATE.outcome === v), text: label,
+    onclick: () => { STATE.outcome = v; STATE.logShown = 40; renderLog(); } }));
+  const b = STATE.bettor, q = STATE.logSearch.trim().toLowerCase();
+  const list = DATA.parlays.filter(p => {
+    if (b && !p.legs.some(l => l.bettor === b)) return false;
+    if (q && !p.legs.some(l => l.pick.toLowerCase().includes(q))) return false;
+    const o = parlayOutcome(p);
+    if (STATE.outcome === "cashed") return o === "hit";
+    if (STATE.outcome === "heart") return isHeartbreaker(p);
+    if (STATE.outcome === "missed") return o === "miss";
+    return true;
+  }).map((p, i) => ({ p, i })).sort((x, y) => y.p.date.localeCompare(x.p.date) || x.i - y.i);
+
+  const host = $("log");
+  host.replaceChildren();
+  if (!list.length) host.append(el("p", { class: "empty", text: "No parlays match." }));
+  let day = null;
+  for (const { p } of list.slice(0, STATE.logShown)) {
+    if (p.date !== day) { day = p.date; host.append(el("div", { class: "day", text: fmtDate(p.date).toUpperCase() })); }
+    const o = parlayOutcome(p), heart = isHeartbreaker(p);
+    const row = el("div", { class: "parlay", "data-outcome": heart ? "heart" : o });
+    row.append(el("span", { class: "badge" + (o === "hit" ? " cashed" : heart ? " heart" : ""),
+      text: o === "hit" ? "Cashed" : heart ? "1 away" : o === "miss" ? "Missed" : o === "void" ? "Void" : "Pending" }));
+    for (const l of p.legs) {
+      const leg = el("span", { class: "leg " + l.status + (b && l.bettor === b ? " mine" : "") });
+      leg.append(document.createTextNode((LEG_MARK[l.status] || "") + " " + l.pick + " "), el("span", { class: "who", text: l.bettor + (l.odds ? " " + fmtOdds(l.odds) : "") }));
+      row.append(leg);
+    }
+    if (p.won) row.append(el("span", { class: "won", text: fmtMoney(p.won) }));
+    host.append(row);
+  }
+  const more = $("log-more");
+  more.hidden = list.length <= STATE.logShown;
+  more.textContent = "Show more (" + (list.length - STATE.logShown) + " left)";
+}
+
+function renderAll() {
+  renderChips(); renderTiles(); renderBoard(); renderSlates(); renderOdds(); renderPlayers(); renderHearts(); renderAway(); renderLog();
+}
+
+async function init() {
+  try {
+    const res = await fetch("../data/history.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    DATA = await res.json();
+    if (!DATA || !Array.isArray(DATA.parlays) || !DATA.parlays.length) throw new Error("no parlays in file");
+  } catch (err) {
+    $("range-note").textContent = "Couldn't load the history file (" + err.message + "). Try again in a minute.";
+    return;
+  }
+  DATA.parlays.sort((a, b) => a.date.localeCompare(b.date));   // stable; droughts need chronological order
+  const legs = DATA.parlays.reduce((s, p) => s + p.legs.length, 0);
+  $("range-note").replaceChildren(el("b", { text: DATA.parlays.length + " parlays" }), document.createTextNode(" and " + legs + " legs, "
+    + fmtDate(DATA.firstSlate) + " through " + fmtDate(DATA.lastSlate) + ". Finished slates only — today's action is on the live tracker."));
+  $("player-search").addEventListener("input", ev => { STATE.playerSearch = ev.target.value; STATE.playersShown = 25; renderPlayers(); });
+  $("log-search").addEventListener("input", ev => { STATE.logSearch = ev.target.value; STATE.logShown = 40; renderLog(); });
+  $("players-more").addEventListener("click", () => { STATE.playersShown = Infinity; renderPlayers(); });
+  $("log-more").addEventListener("click", () => { STATE.logShown += 60; renderLog(); });
+  let resizeT = null;
+  window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(renderSlates, 120); });
+  window.addEventListener("scroll", hideTip, { passive: true });
+  $("app").hidden = false;
+  renderAll();
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What the Home Run Card Can Do</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B0F0E; --panel: #131A18; --panel-line: #223028;
+    --green: #3ECF8E; --green-dim: #1E4A38;
+    --red: #E5636B; --red-dim: #4A2226;
+    --yellow: #E8C84A; --yellow-dim: #4A4318;
+    --amber: #E8B858; --text: #EDF2F0; --text-dim: #9AAAA3; --text-faint: #5E6E67;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; }
+  body { display:flex; justify-content:center; padding:24px 12px 56px; }
+  .card { width:100%; max-width:560px; }
+
+  .top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:22px; }
+  .brand { display:flex; align-items:center; gap:8px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; letter-spacing:.08em; color:var(--text-dim); text-transform:uppercase; }
+  .brand .dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+  .back-link { font-size:12px; font-weight:600; color:var(--green); text-decoration:none; border:1px solid var(--green); border-radius:100px; padding:6px 13px; white-space:nowrap; }
+
+  header.hero { padding:0 4px 18px; border-bottom:1px solid var(--panel-line); margin-bottom:22px; }
+  h1 { font-family:'Oswald',sans-serif; font-size:26px; font-weight:700; line-height:1.12; margin:0 0 10px; }
+  .lede { font-size:14px; line-height:1.6; color:var(--text-dim); margin:0; max-width:54ch; }
+
+  .sections { display:flex; flex-direction:column; gap:12px; }
+  section.card-item { background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:16px 16px 17px; }
+  .card-head { display:flex; align-items:center; gap:10px; margin-bottom:11px; }
+  .icon-badge { flex:none; width:30px; height:30px; border-radius:8px; background:var(--accent-dim, var(--green-dim)); display:flex; align-items:center; justify-content:center; }
+  .icon-badge svg { width:16px; height:16px; stroke:var(--accent, var(--green)); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  h2 { font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; margin:0; color:var(--text); }
+  ul { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
+  li { font-size:13.5px; line-height:1.55; color:var(--text-dim); padding-left:15px; position:relative; }
+  li::before { content:""; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:var(--accent, var(--green)); opacity:.55; }
+  li b { color:var(--text); font-weight:600; }
+  li .tag { display:inline-block; font-family:'Oswald',sans-serif; font-size:9px; font-weight:600; letter-spacing:.05em; padding:1.5px 6px; border-radius:4px; background:var(--accent-dim, var(--green-dim)); color:var(--accent, var(--green)); white-space:nowrap; }
+
+  .card--live, .card--context { --accent: var(--amber); --accent-dim: rgba(232,184,88,0.14); }
+
+  .legend-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:9px 12px; margin-top:2px; }
+  .legend-row { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-dim); }
+  .swatch { width:12px; height:12px; border-radius:3.5px; flex:none; border:1.5px solid transparent; }
+  .swatch.pending { background:transparent; border-color:var(--panel-line); }
+  .swatch.live { border-color:var(--amber); }
+  .swatch.hit { background:var(--green-dim); border-color:var(--green); }
+  .swatch.miss { background:var(--red-dim); border-color:var(--red); }
+  .swatch.na { background:var(--yellow-dim); border-color:var(--yellow); }
+
+  footer { margin-top:20px; padding-top:14px; border-top:1px solid var(--panel-line); font-size:11px; color:var(--text-faint); text-align:center; line-height:1.6; }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="top">
+    <div class="brand"><span class="dot"></span>Home Run Card</div>
+    <a class="back-link" href="index.html">&larr; Back to the live card</a>
+  </div>
+
+  <header class="hero">
+    <h1>What this site can do</h1>
+    <p class="lede">bmbs.bet turns your group's daily home run picks into a live scoreboard, tracking every leg against real MLB games as they happen &mdash; so you always know exactly where every bet stands.</p>
+  </header>
+
+  <div class="sections">
+
+    <section class="card-item card--live">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M7 6.8c1.3 1.6 2 3.4 2 5.2s-.7 3.6-2 5.2M17 6.8c-1.3 1.6-2 3.4-2 5.2s.7 3.6 2 5.2"/></svg></span>
+        <h2>Live tracking, no refreshing</h2>
+      </div>
+      <ul>
+        <li>Every leg updates on its own about every 20 seconds, straight from MLB's real game data &mdash; leave the tab open and watch it change.</li>
+        <li>The instant a home run shows up in the play-by-play, that leg turns green &mdash; even while the game is still going.</li>
+        <li>If a player gets pulled for a pinch hitter, that leg is marked <b>missed right away</b> instead of making you wait for the game to end.</li>
+        <li>A player whose team never takes the field for them is marked <b>"Didn't play"</b> and doesn't count as a loss.</li>
+      </ul>
+    </section>
+
+    <section class="card-item card--context">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5.5"/></svg></span>
+        <h2>Live at-bat context</h2>
+      </div>
+      <ul>
+        <li>While a game's in progress, see the current inning and whether your guy is up now or coming up soon.</li>
+        <li><span class="tag">AT THE PLATE NOW</span> and <span class="tag">GUARANTEED TO BAT THIS INNING</span> flag legs about to be decided.</li>
+        <li>An estimated at-bats-remaining count and rough odds of another trip to the plate, based on league-average outcomes.</li>
+        <li>One tap jumps straight to the live play-by-play on MLB Gameday.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2.2"/><path d="M3 9.5h18M8 3v4"/></svg></span>
+        <h2>Today's &amp; Yesterday's Picks</h2>
+      </div>
+      <ul>
+        <li>The current slate stays live and tracked all the way through midnight &mdash; a 10pm game doesn't get cut off by the calendar flipping over.</li>
+        <li>Once the very last game from that slate finishes, it moves automatically to <b>Yesterday's Picks</b> with final results.</li>
+        <li><b>Today's Picks</b> then waits for the next slate, and shows a queued heads-up if tomorrow's picks are already in but tonight isn't over yet.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 4v16M8.5 8c0-2 1.8-3 3.5-3s3.5 1 3.5 2.8c0 3.2-7 1.7-7 5C8.5 14.8 10.2 16 12 16s3.5-1 3.5-3"/></svg></span>
+        <h2>Running payout estimate</h2>
+      </div>
+      <ul>
+        <li>See an estimated total payout at the top of the page, updating live as bets hit.</li>
+        <li>If a leg is voided for a no-show player, the payout recalculates automatically for the legs still in play.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5z"/></svg></span>
+        <h2>Tap-to-filter scoreboard</h2>
+      </div>
+      <ul>
+        <li>Quick counts for Batting Now / Batting Soon, and for every bet and leg status &mdash; Open, Hit, Missed, N/A, Live, Not Started.</li>
+        <li>Tap any number to filter the whole page down to just that group. Tap it again to clear the filter.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17.5" cy="9" r="2.3"/><path d="M15.3 12.2c2 .3 3.7 1.9 3.7 4.2"/></svg></span>
+        <h2>Bettor Tracker</h2>
+      </div>
+      <ul>
+        <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the slate.</li>
+        <li>Tap a name to filter the whole page to just that person's legs.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M3.5 12h17M9 6v3.2M9 14.8V18"/></svg></span>
+        <h2>Parlays &amp; single bets</h2>
+      </div>
+      <ul>
+        <li>Multi-leg parlay cards show every leg's status at a glance, and gray out automatically the moment any one leg misses.</li>
+        <li>Straight single-player bets get their own tracker alongside the parlays.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span>
+        <h2>Color key</h2>
+      </div>
+      <div class="legend-grid">
+        <div class="legend-row"><span class="swatch pending"></span>Not started</div>
+        <div class="legend-row"><span class="swatch live"></span>In progress</div>
+        <div class="legend-row"><span class="swatch hit"></span>Home run</div>
+        <div class="legend-row"><span class="swatch miss"></span>Game final, no HR</div>
+        <div class="legend-row"><span class="swatch na"></span>Didn't play</div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer>No login and nothing to install &mdash; just open bmbs.bet. Powered by MLB's free public live data.<br><a href="index.html" style="color:var(--text-faint)">&larr; Back to the live card</a></footer>
+
+</div>
+</body>
+</html>

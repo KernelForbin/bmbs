@@ -8,6 +8,13 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
 - **`index.html`** — the entire live site. Single self-contained file:
   inline CSS, inline JS. No build step, no framework, no dependencies.
   Deploy = commit this file, GitHub Pages serves it directly.
+- **`features.html`** — a static, plain-language "what this site can do"
+  page for end users (the friend group), reusing `index.html`'s exact
+  color tokens/fonts so it reads as the same product. Linked subtly from
+  `index.html`'s footer ("what this site can do"). **Maintained by hand
+  only, on request** — the user explicitly does not want this kept in
+  sync automatically with feature commits. Don't touch it as a side effect
+  of an unrelated change; only edit it when asked to update it.
 - **`data/tickets.json`** — the current day's parlay/single-bet picks, in a
   specific schema (see below), stamped with the MLB game `date` the slate
   is for. This is LIVE DATA, not code. Regenerated only by

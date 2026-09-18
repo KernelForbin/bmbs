@@ -81,9 +81,23 @@ feeds aren't fetched at all.
 Per-leg states (five total): `hit`, `miss`, `na` (didn't play), `live` (game
 in progress, no HR yet), `not_started`. A player is resolved to `hit` the
 instant a HR appears in the live play-by-play, regardless of whether their
-game has finished. A pinch-hit-for player resolves straight to `miss`
-immediately (MLB has no re-entry rule, so this is provably correct, not a
-guess) rather than waiting for the game to end.
+game has finished.
+
+**Pinch Hit Protection.** Most of the user's books credit the bet if the
+player is pulled and whoever's since held their batting-order slot goes on
+to homer -- so a pulled player is NOT resolved to `miss` immediately (that
+was tried first and reverted; see `pinchHitProtection()`, `stateForPlayer()`
+in `index.html`). Instead they stay `live`/`not_started`/`miss` exactly
+like an unpulled player, tracking the entire chain of substitutes in that
+slot (a double-switch can sub twice) via the live feed's `slotHolders`.
+If any of them homers, the leg resolves to `hit` -- counted normally
+everywhere (payout, Bettor Tracker, scoreboard) -- but rendered with a
+visually distinct badge (green fill + diagonal yellow stripes, CSS class
+`php-hit`) and an explanatory note, so it's clear the hit came via PHP and
+not the named player's own bat. A player who already has his own hit
+before being pulled (rare -- e.g. pinch-run for right after homering)
+stays a plain, undecorated hit; PHP framing only applies when the credit
+comes from a substitute.
 
 Batting order tracking (current inning, "at the plate now" / "guaranteed to
 bat this inning" tags, at-bats-remaining estimate) comes from the same live

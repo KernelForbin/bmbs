@@ -48,6 +48,31 @@ def feed(abstract, roster, hrs=()):
                          "boxscore": {"teams": {"away": {"players": players}, "home": {"players": {}}}},
                          "linescore": {}}}
 
+def feed_lineup(abstract, lineup, hrs=()):
+    """Like feed(), but `lineup` is [{"name": ..., "battingOrder": "301"}, ...] so
+    tests can construct an explicit starter -> pinch hitter -> pinch hitter chain
+    in one batting-order slot (last two digits of battingOrder = substitution order)."""
+    players = {f"ID{i}": {"person": {"fullName": p["name"]}, "battingOrder": p["battingOrder"]} for i, p in enumerate(lineup)}
+    return {"gameData": {"status": {"abstractGameState": abstract}},
+            "liveData": {"plays": {"allPlays": [{"result": {"eventType": "home_run"}, "about": {"isTopInning": True},
+                                                 "matchup": {"batter": {"fullName": n}}} for n in hrs]},
+                         "boxscore": {"teams": {"away": {"players": players}, "home": {"players": {}}}},
+                         "linescore": {}}}
+
+def badge_classes(page, player_selector_text):
+    return page.evaluate(f"""() => {{
+        const rows = [...document.querySelectorAll('#content .single-row, #content .leg')];
+        const row = rows.find(r => r.textContent.includes({player_selector_text!r}));
+        return row ? row.querySelector('.mark-badge').className : null;
+    }}""")
+
+def context_text(page, player_selector_text):
+    return page.evaluate(f"""() => {{
+        const rows = [...document.querySelectorAll('#content .single-row, #content .leg')];
+        const row = rows.find(r => r.textContent.includes({player_selector_text!r}));
+        return row ? (row.querySelector('.leg-live-context')?.textContent.trim() ?? '') : null;
+    }}""")
+
 FX = {"tickets": None, "previous": None, "schedules": {}, "feeds": {}}
 SEEN = []
 
@@ -286,6 +311,83 @@ with sync_playwright() as p:
     assert text(page, "err-box") != "", "a non-404 failure should show the error banner"
     print("G2 OK: a genuine load failure still surfaces an error instead of 'no picks'")
 
+    assert not errors, errors
+    browser.close()
+
+    # ========== H: Pinch Hit Protection ==========
+    # Slot 3, away team: Original Guy (300) -> First Sub (301) -> Second Sub (302).
+    # Game 699 is an unrelated always-live game on the same date, included purely
+    # so the slate itself never rolls over to Yesterday mid-scenario (that's a
+    # separate feature, tested above) -- this block is only about how one leg
+    # resolves under Pinch Hit Protection.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Original Guy")])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(601, "Live"), (699, "Live")])}
+    lineup2 = [{"name": "Original Guy", "battingOrder": "300"}, {"name": "First Sub", "battingOrder": "301"}]
+    FX["feeds"] = {601: feed_lineup("Live", lineup2, hrs=[]), 699: feed_lineup("Live", [{"name": "Nobody Tracked", "battingOrder": "100"}])}
+
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 20, 0))
+    assert single_states(page) == {"Original Guy": "live"}, single_states(page)
+    assert "First Sub" in context_text(page, "Original Guy") and "Pinch Hit Protection" in context_text(page, "Original Guy")
+    assert "php-hit" not in badge_classes(page, "Original Guy")
+    print("H  OK: pulled player stays live (not an immediate miss) while the replacement is tracked")
+
+    # H2: the replacement goes deep -- credited as a hit, badge flips, payout/tracker follow.
+    FX["feeds"][601] = feed_lineup("Live", lineup2, hrs=["First Sub"])
+    poll(page)
+    assert single_states(page) == {"Original Guy": "hit"}, single_states(page)
+    ctx = context_text(page, "Original Guy")
+    assert "First Sub" in ctx and "Pinch Hit Protection" in ctx and "credited" in ctx.lower(), ctx
+    assert "php-hit" in badge_classes(page, "Original Guy")
+    assert text(page, "total-payout") == "$30.00", text(page, "total-payout")
+    assert text(page, "count-parlay-hit") == "1"
+    kenny_hit = page.evaluate("""() => {
+        const row = [...document.querySelectorAll('#bettor-list .bettor-row')].find(r => r.textContent.includes('Kenny'));
+        return row ? row.querySelector('.bettor-stat.hit .num').textContent : null;
+    }""")
+    assert kenny_hit == "1", f"Bettor Tracker should credit Kenny with the PHP hit, got {kenny_hit!r}"
+    print("H2 OK: replacement's HR is credited as a hit -- badge, payout, and bet counts all follow")
+
+    # H3: replacement never homers and the game finishes -- now a real miss, with an explanatory note.
+    FX["schedules"]["2026-09-19"] = schedule("2026-09-19", [(601, "Final"), (699, "Live")])
+    FX["feeds"][601] = feed_lineup("Final", lineup2, hrs=[])
+    poll(page)
+    assert single_states(page) == {"Original Guy": "miss"}, single_states(page)
+    ctx = context_text(page, "Original Guy")
+    assert "First Sub" in ctx and "didn't apply" in ctx
+    assert "php-hit" not in badge_classes(page, "Original Guy")
+    print("H3 OK: no HR from the replacement by game end -> resolves to a real miss, with a note explaining why")
+
+    assert not errors, errors
+    browser.close()
+
+    # H4: a SECOND substitution in the same slot -- credit must follow the whole chain,
+    # not just the immediate pinch hitter.
+    SEEN.clear()
+    lineup3 = [{"name": "Original Guy", "battingOrder": "300"},
+               {"name": "First Sub", "battingOrder": "301"},
+               {"name": "Second Sub", "battingOrder": "302"}]
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(601, "Live")])}
+    FX["feeds"] = {601: feed_lineup("Live", lineup3, hrs=["Second Sub"])}
+
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 20, 0))
+    assert single_states(page) == {"Original Guy": "hit"}, single_states(page)
+    ctx = context_text(page, "Original Guy")
+    assert "Second Sub" in ctx, ctx
+    print("H4 OK: credit follows a double-substitution chain to whoever actually homered")
+    assert not errors, errors
+    browser.close()
+
+    # H5: the ORIGINAL player homers himself and is later pulled (e.g. pinch-run for) --
+    # must stay a plain hit, no PHP messaging or striped badge for a hit he already earned.
+    SEEN.clear()
+    FX["feeds"] = {601: feed_lineup("Live", lineup2, hrs=["Original Guy"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 20, 0))
+    assert single_states(page) == {"Original Guy": "hit"}, single_states(page)
+    assert context_text(page, "Original Guy") == "", "no PHP note for a hit the player earned himself"
+    assert "php-hit" not in badge_classes(page, "Original Guy")
+    print("H5 OK: a player's own hit stays a plain hit even if he's pulled afterward")
     assert not errors, errors
     browser.close()
 

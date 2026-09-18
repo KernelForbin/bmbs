@@ -34,6 +34,10 @@
   .legend .sw.na { background:var(--yellow-dim); border-color:var(--yellow); }
   .legend .sw.live-game { border-color:var(--amber); }
   .legend .sw.pending { border-color:var(--panel-line); }
+  .legend .sw.php-hit {
+    background: repeating-linear-gradient(135deg, var(--yellow) 0 2.5px, transparent 2.5px 6px), var(--green-dim);
+    border-color: var(--green);
+  }
   .sync-line { font-size:11px; color:var(--text-faint); margin-top:10px; }
 
   .payout-box { margin-top:14px; background:linear-gradient(135deg, var(--green-dim), var(--panel)); border:1px solid var(--green); border-radius:10px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
@@ -101,6 +105,10 @@
   .leg-live-context { font-size:10.5px; color:var(--amber); line-height:1.4; margin-top:3px; word-wrap:break-word; }
   .leg-live-context.pinch-warning { color:var(--yellow); }
   .leg-live-context.pinch-warning b { color:var(--yellow); }
+  .leg-live-context.pinch-hit-credit { color:var(--green); }
+  .leg-live-context.pinch-hit-credit b { color:var(--green); }
+  .leg-live-context.pinch-hit-void { color:var(--text-faint); }
+  .leg-live-context.pinch-hit-void b { color:var(--text-faint); font-weight:600; }
   .leg-action-tag { font-size:10px; font-weight:700; letter-spacing:.04em; margin-top:3px; padding:2px 7px; border-radius:5px; display:inline-block; }
   .leg-action-tag.now { background:var(--green-dim); color:var(--green); border:1px solid var(--green); }
   .leg-action-tag.soon { background:var(--amber); color:#1a1200; }
@@ -116,6 +124,11 @@
   .mark-badge[data-state="live"] .dash { display:block; stroke:var(--amber); }
   .mark-badge[data-state="hit"] { background:var(--green-dim); border-color:var(--green); }
   .mark-badge[data-state="hit"] .check-path { display:block; stroke:var(--green); }
+  .mark-badge.php-hit[data-state="hit"] {
+    background: repeating-linear-gradient(135deg, var(--yellow) 0 3px, transparent 3px 7px), var(--green-dim);
+    border-color: var(--green);
+  }
+  .mark-badge.php-hit[data-state="hit"] .check-path { stroke: var(--text); filter: drop-shadow(0 0 1.5px var(--bg)); }
   .mark-badge[data-state="miss"] { background:var(--red-dim); border-color:var(--red); }
   .mark-badge[data-state="miss"] .x-path { display:block; stroke:var(--red); }
   .mark-badge[data-state="na"] { background:var(--yellow-dim); border-color:var(--yellow); color:var(--yellow); }
@@ -181,6 +194,7 @@
       <span><span class="sw pending"></span>Not started</span>
       <span><span class="sw live-game"></span>In progress</span>
       <span><span class="sw hit"></span>Home run</span>
+      <span><span class="sw php-hit"></span>Pinch Hit Protection</span>
       <span><span class="sw miss"></span>Game final, no HR</span>
       <span><span class="sw na"></span>Didn't play</span>
     </div>
@@ -544,6 +558,45 @@ function gamedayUrl(gamePk) {
   return `https://www.mlb.com/gameday/${gamePk}`;
 }
 
+// Pinch Hit Protection: most books credit the original bet if whoever's
+// since held that batting-order slot -- the immediate pinch hitter, or
+// any further substitute after them -- goes deep, rather than voiding the
+// bet the moment the original player is pulled. Returns null if the
+// player was never substituted out; otherwise { current, homeredBy,
+// gamedayLink }, where homeredBy is the name of whichever successor
+// actually hit the HR (null if none has, yet).
+function pinchHitProtection(playerName) {
+  const norm = normalizeName(playerName);
+  if (!RESULTS.substitutedOut || !RESULTS.substitutedOut.has(norm)) return null;
+  const loc = RESULTS.rosterSide && RESULTS.rosterSide.get(norm);
+  if (!loc) return null;
+  const game = RESULTS.gameInfo.get(loc.gamePk);
+  if (!game) return null;
+  const info = game.orderSlot.get(norm);
+  if (!info) return null;
+
+  const holders = (game.slotHolders[loc.side] && game.slotHolders[loc.side][info.slot]) || [];
+  const successors = holders.filter(h => h.orderFull > info.orderFull).sort((a, b) => a.orderFull - b.orderFull);
+  if (successors.length === 0) return null;
+
+  const homeredHolder = successors.find(h => RESULTS.hitNames.has(normalizeName(h.name)));
+  return {
+    current: successors[successors.length - 1].name,
+    homeredBy: homeredHolder ? homeredHolder.name : null,
+    gamedayLink: gamedayUrl(loc.gamePk)
+  };
+}
+
+// A "hit" state earned via Pinch Hit Protection rather than the named
+// player's own home run -- used to give that leg a visually distinct
+// badge instead of a plain checkmark.
+function isPhpCreditedHit(playerName) {
+  const norm = normalizeName(playerName);
+  if (RESULTS.hitNames && RESULTS.hitNames.has(norm)) return false; // the player's own HR, not a substitute's
+  const php = pinchHitProtection(playerName);
+  return !!(php && php.homeredBy);
+}
+
 // Polls MLB for one slate date. Returns { results, done, settled }; `done`
 // is the rollover signal -- every game on that date is Final (or there are
 // none), or the safety valve has passed.
@@ -599,10 +652,18 @@ function stateForPlayer(playerName) {
   if (!RESULTS.ready) return "not_started";
   if (RESULTS.hitNames.has(norm)) return "hit";
   // MLB has no re-entry rule: once pulled for a pinch hitter (or any
-  // substitute), a player is guaranteed zero further plate appearances,
-  // so we can resolve them to "miss" immediately rather than waiting for
-  // the whole game to go Final.
-  if (RESULTS.substitutedOut && RESULTS.substitutedOut.has(norm)) return "miss";
+  // substitute), a player is guaranteed zero further plate appearances of
+  // his own. That alone used to resolve the leg to "miss" immediately, but
+  // most of our books' bets carry Pinch Hit Protection: if whoever's since
+  // held that batting-order slot goes on to homer, the bet is credited as
+  // a hit anyway. So a substituted player is no longer force-resolved here
+  // -- if their replacement (or a replacement's replacement) has gone
+  // deep, credit the hit; otherwise fall through to the normal
+  // roster-status check below, same as any other leg.
+  if (RESULTS.substitutedOut && RESULTS.substitutedOut.has(norm)) {
+    const php = pinchHitProtection(playerName);
+    if (php && php.homeredBy) return "hit";
+  }
   if (RESULTS.rosterStatus.has(norm)) {
     return RESULTS.rosterStatus.get(norm) === "final" ? "miss" : "live";
   }
@@ -713,9 +774,10 @@ const btnSvg = `
     <path class="x-path" d="M6 6L18 18M18 6L6 18" stroke-width="2.3" stroke-linecap="round"/>
   </svg>`;
 
-function badge(state) {
+function badge(state, playerName) {
+  const phpHit = state === "hit" && isPhpCreditedHit(playerName);
   const inner = state === "na" ? "N/A" : btnSvg;
-  return `<div class="mark-badge" data-state="${state}">${inner}</div>`;
+  return `<div class="mark-badge${phpHit ? " php-hit" : ""}" data-state="${state}">${inner}</div>`;
 }
 
 // Small info line shown under a leg's meta when that leg's game is
@@ -726,15 +788,33 @@ function badge(state) {
 // that's already resolved, or on a parlay that's already dead from
 // another leg missing. Returns "" when there's nothing to show.
 function liveContextHtml(playerName, state, betIsOpen) {
+  const norm = normalizeName(playerName);
+  const ownHit = RESULTS.hitNames && RESULTS.hitNames.has(norm);
+  const php = !ownHit ? pinchHitProtection(playerName) : null;
+  if (php) {
+    const phpGamedayLine = php.gamedayLink
+      ? `<a href="${php.gamedayLink}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Track Live on Gameday &#8599;</a>`
+      : "";
+    if (php.homeredBy) {
+      return `<div class="leg-live-context pinch-hit-credit">&#128737; <b>${php.homeredBy}</b> went deep in relief of the original pick
+        &mdash; credited as a HIT under Pinch Hit Protection.</div>${phpGamedayLine}`;
+    }
+    if (state === "miss") {
+      return `<div class="leg-live-context pinch-hit-void">Pinch hit for by <b>${php.current}</b>
+        &mdash; no home run from the replacement, so Pinch Hit Protection didn't apply.</div>`;
+    }
+    return `<div class="leg-live-context pinch-warning">&#9888; Pinch hit for by <b>${php.current}</b>
+      &mdash; tracking his at-bats for Pinch Hit Protection.</div>${phpGamedayLine}`;
+  }
+
   const ctx = liveContextForPlayer(playerName);
-  if (!ctx) return "";
+  // Already resolved via his own hit before being pulled (e.g. pinch-run
+  // for right after homering) -- the checkmark says enough, nothing left
+  // to estimate.
+  if (!ctx || ctx.substitutedBy) return "";
   const gamedayLine = ctx.gamedayLink
     ? `<a href="${ctx.gamedayLink}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Track Live on Gameday &#8599;</a>`
     : "";
-  if (ctx.substitutedBy) {
-    return `<div class="leg-live-context pinch-warning">&#9888; ${ctx.inningLabel} &middot; pinch hit for by <b>${ctx.substitutedBy}</b>
-      &mdash; no more ABs expected. May be protected by your book's Pinch Hit Protection policy (check their rules).</div>${gamedayLine}`;
-  }
   const pct = Math.round(ctx.probAtLeastOne * 100);
   const exp = ctx.expected.toFixed(1);
   let actionTag = "";
@@ -910,7 +990,7 @@ function renderContent() {
         html += `<div class="leg state-${state}">
           <div class="leg-left"><div class="leg-player">${leg.player}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen)}</div>
           <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
-          ${badge(state)}
+          ${badge(state, leg.player)}
         </div>`;
       });
       if (visibleLegIdx.length < tk.legs.length) {
@@ -952,7 +1032,7 @@ function renderContent() {
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>
-      ${badge(state)}
+      ${badge(state, s.player)}
     </div>`;
   });
   html += `</div></div>`;

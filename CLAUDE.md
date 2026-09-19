@@ -220,6 +220,22 @@ Deliberately keyed on the player's own home run (`results.hitNames`), NOT on
 leg state: a leg credited through Pinch Hit Protection wasn't a bomb by the
 player the notification would name.
 
+**A bomb that cashes a bet is the same alert, upgraded** -- never a second
+one. `betsCashedBy()` asks which of today's bets naming that player are now
+fully hit (every single on him, plus any parlay his homer completed), and if
+any are, the overlay turns gold, rains dollar signs / money bags down the
+whole screen (behind the card, so nothing lands on the text), adds a line
+like "2-LEG PARLAY CASHED $154.00" / "SINGLE CASHED" / "2 BETS CASHED" with
+the combined payout, and holds longer (`BOMB_CASH_MS`). The push notification
+gets a money bag in the title and the same line as its body. It evaluates with
+the same `stateForPlayer()` / `evaluateTicket()` the tickets render from, so
+void legs, Pinch Hit Protection and adjusted payouts all agree with the page.
+Those helpers read the `RESULTS` global, which follows the TAB on screen, so
+`betsCashedBy()` swaps in today's results for the duration (restored in a
+`finally`) -- bombs are about today even while Yesterday is showing. Since
+every open single is an Iron, any picked player with a single on him gets the
+gold version; the plain green bomb is for homers that cash nothing yet.
+
 The two toggles themselves are hidden (not disabled -- `applyActiveTab()`
 sets `display:none` on `#notif-row`/`#notif-note`) while browsing Yesterday's
 Slate, since `checkForBombs()` only ever looks at `SLATES.today` and showing

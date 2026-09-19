@@ -657,7 +657,9 @@ with sync_playwright() as p:
     FX["feeds"][901] = feed("Live", ["Slugger", "Already Deep", "Other Guy", "Not Ours"], hrs=["Already Deep", "Slugger"])
     poll(page)
     assert bomb_text(page) == "Slugger BOMB!", bomb_text(page)
-    assert [n["title"] for n in notifs(page)] == ["Slugger BOMB! \U0001F4A3"], notifs(page)
+    # Slugger has a single riding on him, and a single cashes the moment he goes
+    # deep -- so his is the money version of the alert (scenario N covers those).
+    assert [n["title"] for n in notifs(page)] == ["Slugger BOMB! \U0001F4A3\U0001F4B0"], notifs(page)
     print("J2 OK: both on -> overlay and OS notification, once, despite two picks naming him")
 
     # J3: a further poll with no change re-triggers nothing.
@@ -675,8 +677,9 @@ with sync_playwright() as p:
     assert bomb_text(page) == "Slugger BOMB!", bomb_text(page)
     assert page.evaluate("BOMB_QUEUE.length") == 1, page.evaluate("BOMB_QUEUE")
     assert len(notifs(page)) == 2, "only picks notify -- 'Not Ours' is league-wide noise"
-    assert [n["title"] for n in notifs(page)][1] == "Other Guy BOMB! \U0001F4A3", notifs(page)
-    page.wait_for_timeout(int(page.evaluate("BOMB_MS")) + 300)
+    # Other Guy's homer finishes the Slugger / Other Guy card, so his is a cash alert too.
+    assert [n["title"] for n in notifs(page)][1] == "Other Guy BOMB! \U0001F4A3\U0001F4B0", notifs(page)
+    page.wait_for_timeout(int(page.evaluate("BOMB_CASH_MS")) + 300)   # Slugger's is the longer, money version
     assert bomb_text(page) == "Other Guy BOMB!", "queue should advance once the first overlay times out"
     print("J4 OK: only picked players notify; simultaneous bombs queue and drain one at a time")
     assert not errors, errors
@@ -950,6 +953,82 @@ with sync_playwright() as p:
     assert count(r"/game/1201/feed") >= 1, "a poll that threw left the guard wedged shut"
     print("M3 OK: a poll that throws still releases the guard")
     errors.clear()  # the deliberate "boom" above
+    assert not errors, errors
+    browser.close()
+
+    # ========== N: a bomb that cashes a bet says so ==========
+    # Same alert, more on it: when the home run completes a bet, the overlay goes
+    # gold, rains money instead of confetti, and names what cashed and for how much.
+    def bomb_cash(page):
+        return page.evaluate("""() => {
+            const host = document.getElementById('bomb-overlay');
+            if (!host.classList.contains('active')) return null;
+            const c = host.querySelector('.bomb-cash');
+            return { gold: !!host.querySelector('.bomb-card.cash'), money: host.querySelectorAll('.bomb-money').length,
+                     confetti: host.querySelectorAll('.bomb-confetti').length,
+                     cash: c ? c.textContent.replace(/\\s+/g, ' ').trim() : null };
+        }""")
+
+    def next_bomb(page):
+        page.evaluate("() => { clearTimeout(bombTimer); bombTimer = null; showNextBomb(); }")
+
+    SEEN.clear()
+    roster = ["Iron Man", "Setup Guy", "Plain Guy", "Single Guy", "Both Guy", "Other Leg", "Both Mate", "Void Mate"]
+    FX["tickets"] = tickets("2026-09-19",
+                            [("Kenny", "Single Guy"), ("Joe", "Both Guy")],
+                            [card(["Setup Guy", "Iron Man"], "Card 1 &middot; Iron"),          # Setup Guy already hit -> Iron Man is the Iron
+                             card(["Plain Guy", "Other Leg"], "Card 2 &middot; Not close"),    # nobody's hit: a HR here cashes nothing
+                             card(["Both Mate", "Both Guy"], "Card 3 &middot; Both")])         # Both Guy also has a single
+    FX["previous"] = tickets("2026-09-18", [("Memo", "Old Guy")])
+    FX["schedules"] = {"2026-09-18": schedule("2026-09-18", [(1401, "Final")]),
+                       "2026-09-19": schedule("2026-09-19", [(1402, "Live")])}
+    FX["feeds"] = {1401: feed("Final", ["Old Guy"]), 1402: feed("Live", roster, hrs=["Setup Guy", "Both Mate"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("granted"), prefs_stub(overlay=True, push=True)])
+    assert bomb_text(page) is None, "seeding poll must stay silent"
+
+    FX["feeds"][1402] = feed("Live", roster, hrs=["Setup Guy", "Both Mate", "Plain Guy"])
+    poll(page)
+    c = bomb_cash(page)
+    assert bomb_text(page) == "Plain Guy BOMB!" and not c["gold"] and c["cash"] is None and c["money"] == 0 and c["confetti"] > 0, c
+    assert notifs(page)[-1]["body"] == "Home run \u2014 bmbs.bet", notifs(page)[-1]
+    print("N1 OK: a home run that cashes nothing is the plain green bomb, exactly as before")
+
+    FX["feeds"][1402] = feed("Live", roster, hrs=["Setup Guy", "Both Mate", "Plain Guy", "Iron Man"])
+    poll(page)
+    next_bomb(page)
+    c = bomb_cash(page)
+    assert bomb_text(page) == "Iron Man BOMB!", bomb_text(page)
+    assert c["gold"] and c["money"] > 0 and c["confetti"] == 0, c
+    assert c["cash"].endswith("2-LEG PARLAY CASHED$100.00"), c["cash"]
+    n = notifs(page)[-1]
+    assert n["title"] == "Iron Man BOMB! \U0001F4A3\U0001F4B0" and "2-LEG PARLAY CASHED" in n["body"] and "$100.00" in n["body"], n
+    assert page.evaluate("BOMB_CASH_MS > BOMB_MS"), "a cash alert has more to read, so it stays up longer"
+    print("N2 OK: an Iron going deep -> gold alert, money rain, '2-LEG PARLAY CASHED $100.00', and the push says it too")
+
+    FX["feeds"][1402] = feed("Live", roster, hrs=["Setup Guy", "Both Mate", "Plain Guy", "Iron Man", "Single Guy"])
+    poll(page)
+    next_bomb(page)
+    assert bomb_text(page) == "Single Guy BOMB!" and bomb_cash(page)["cash"].endswith("SINGLE CASHED$30.00"), bomb_cash(page)
+    print("N3 OK: a single cashing is worded as a single")
+
+    FX["feeds"][1402] = feed("Live", roster, hrs=["Setup Guy", "Both Mate", "Plain Guy", "Iron Man", "Single Guy", "Both Guy"])
+    poll(page)
+    next_bomb(page)
+    assert bomb_text(page) == "Both Guy BOMB!" and bomb_cash(page)["cash"].endswith("2 BETS CASHED$130.00"), bomb_cash(page)
+    print("N4 OK: one swing cashing a parlay and a single -> '2 BETS CASHED' with the combined payout")
+
+    # The helpers the cash check leans on follow whichever tab is showing; a bomb
+    # is about TODAY's slate even while Yesterday's is on screen.
+    page.evaluate("() => { dismissBomb(); }")
+    FX["tickets"]["windows"][0]["tickets"].append(card(["Setup Guy", "Late Iron"], "Card 4 &middot; Late"))
+    FX["feeds"][1402] = feed("Live", roster + ["Late Iron"], hrs=["Setup Guy", "Both Mate", "Plain Guy", "Iron Man", "Single Guy", "Both Guy"])
+    poll(page)
+    page.click("#tab-btn-yesterday")
+    FX["feeds"][1402] = feed("Live", roster + ["Late Iron"], hrs=["Setup Guy", "Both Mate", "Plain Guy", "Iron Man", "Single Guy", "Both Guy", "Late Iron"])
+    poll(page)
+    assert bomb_text(page) == "Late Iron BOMB!" and bomb_cash(page)["cash"].endswith("2-LEG PARLAY CASHED$100.00"), (bomb_text(page), bomb_cash(page))
+    assert single_states(page) == {"Old Guy": "miss"}, "evaluating today's bets must not disturb the tab on screen"
+    print("N5 OK: cash detection reads today's slate even from the Yesterday tab, and leaves that tab alone")
     assert not errors, errors
     browser.close()
 

@@ -236,6 +236,12 @@ with sync_playwright() as p:
     check("A8 the baseball page has the same switch, pointing here",
           'class="sport active" href="/"' in BASEBALL_SRC and 'class="sport" href="/football/"' in BASEBALL_SRC)
 
+    labels = page.evaluate("[...document.querySelectorAll('.tab-btn')].map(b => b.firstChild.textContent.trim())")
+    check("A9 football's tabs are weeks, not days", labels == ["This Week's Picks", "Last Week's Picks"], str(labels))
+    body = page.inner_text("body")
+    check("A10 no 'today' / 'yesterday' wording anywhere a visitor can see", not re.search(r"today|yesterday", body, re.I), re.findall(r".{20}(?:today|yesterday).{20}", body, re.I)[:3])
+    check("A11 baseball keeps its own day-based labels", "Today's Picks<span" in BASEBALL_SRC and "Yesterday's Picks<span" in BASEBALL_SRC)
+
     # ---------- B. before kickoff ----------
     st = states(page)
     check("B1 everyone not started", set(st.values()) == {"not_started"}, str(st))
@@ -375,15 +381,50 @@ with sync_playwright() as p:
                                       {"LAR": [statline("8", "Puka Nacua", receiving=(7, 101, 1, 9)), statline("9", "Kyren Williams", rushing=(18, 77, 0))]},
                                       [scoring("p9", "LAR", "Passing Touchdown", "Puka Nacua 22 Yd pass from Matthew Stafford (Kick)", 3, "4:00", 17, 3)])
     poll(page)
-    check("I1 every game on every slate date is final -> Today goes back to waiting", page.is_visible("#waiting-panel") and "Waiting" in page.inner_text("#waiting-title"))
+    check("I1 the week's last game is final -> This Week goes back to waiting",
+          page.is_visible("#waiting-panel") and page.inner_text("#waiting-title") == "Waiting for this week's picks", page.inner_text("#waiting-title"))
     page.click("#tab-btn-yesterday")
     st = states(page)
-    check("I2 the finished slate is on the Yesterday tab, fully graded",
+    check("I2 the finished week is on the Last Week tab, fully graded",
           st["Puka Nacua"] == "hit" and st["Kyren Williams"] == "miss" and st["Josh Allen"] == "na", str(st))
     check("I3 no Live Drives on a finished slate", not page.evaluate("document.getElementById('drives-section').getClientRects().length > 0"))
     check("I4 sync line", page.inner_text("#sync-line").startswith("Final results for Sun, Sep 20"), page.inner_text("#sync-line"))
     check("I5 no script errors", not errors, str(errors))
     check("I6 no sideways scroll on a phone", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
+    check("I7 Last Week's header", "LAST WEEK'S SLATE" in page.inner_text("#eyebrow-text"), page.inner_text("#eyebrow-text"))
+
+    # ---------- J. a SUNDAY-ONLY card still holds This Week until Monday night ends ----------
+    # The rule is the week's last game, not the card's: nobody here is playing Monday.
+    TICKETS["windows"][0]["tickets"] = [TICKETS["windows"][0]["tickets"][0]]          # A.J. Brown + Tony Pollard, both Sunday
+    TICKETS["singles"] = TICKETS["singles"][:1]                                        # Saquon Barkley
+    FX["clock"] = datetime(2026, 9, 21, 4, 30, tzinfo=timezone.utc)                    # 12:30 AM ET Monday: Sunday is over
+    page.clock.set_fixed_time(FX["clock"])
+    FX["events"]["2004"] = event("2004", "pre")
+    SEEN.clear()
+    page.reload()
+    page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
+    page.evaluate("clearInterval(pollTimer)")
+    poll(page)
+    st = states(page)
+    check("J1 every pick is already graded...", st == {"A.J. Brown": "miss", "Tony Pollard": "hit", "Saquon Barkley": "hit"}, str(st))
+    check("J2 ...but the card stays on This Week's Picks: Monday night hasn't been played",
+          page.is_visible("#content") and not page.is_visible("#waiting-panel") and "THIS WEEK'S SLATE" in page.inner_text("#eyebrow-text"))
+    page.click("#tab-btn-yesterday")
+    check("J3 and Last Week is still empty", page.inner_text("#waiting-title") == "No picks submitted last week", page.inner_text("#waiting-title"))
+    page.click("#tab-btn-today")
+    poll(page); poll(page)
+    check("J4 Sunday's schedule is settled, so it's asked for once -- only Monday's is re-polled",
+          count(r"scoreboard\?dates=20260920") == 1 and count(r"scoreboard\?dates=20260921") >= 3,
+          f"{count(r'dates=20260920')} / {count(r'dates=20260921')}")
+    FX["clock"] = datetime(2026, 9, 22, 3, 30, tzinfo=timezone.utc)                    # 11:30 PM ET Monday
+    page.clock.set_fixed_time(FX["clock"])
+    FX["events"]["2004"] = event("2004", "post", 4, "0:00", (24, 10))
+    poll(page)
+    check("J5 Monday night goes final -> the card moves to Last Week's Picks",
+          page.is_visible("#waiting-panel") and page.inner_text("#waiting-title") == "Waiting for this week's picks")
+    page.click("#tab-btn-yesterday")
+    check("J6 ...where it's fully graded", states(page) == {"A.J. Brown": "miss", "Tony Pollard": "hit", "Saquon Barkley": "hit"}, str(states(page)))
+    check("J7 no script errors", not errors, str(errors))
     browser.close()
 
 print()

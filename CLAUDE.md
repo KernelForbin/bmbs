@@ -420,15 +420,24 @@ Josh Allens, and the linebacker's pick-six must not cash the quarterback.
 miss (a blocking tight end who never touched the ball really did lose). A pick
 the card couldn't resolve to an id and who has no stat line -> `na`.
 
-**Slates can span days.** Football cards are posted days ahead and can cover
-Thursday + Sunday + Monday, so the parser dates the slate from the NFL
-SCHEDULE, not the clock: each picked team's next not-yet-final game; `date` is
-the earliest, optional `endDate` the latest, never crossing the NFL week
-(Wednesday..Tuesday -- a flat "+4 days" from Sunday reaches next Thursday and
-once stretched a slate across two weeks). The page polls every date in the
-span and rolls to Yesterday only when every game on every date is Final (or 6am
-ET after `endDate`). If ESPN is unreachable the parser falls back to baseball's
-time heuristic rather than failing the upload.
+**A football slate is an NFL WEEK.** The tabs read "This Week's Picks" / "Last
+Week's Picks" (the internal names are still `today` / `yesterday`, as in the
+code football was assembled from), and a card stays on This Week until the
+week's LAST game -- Monday night -- is final, *even a Sunday-only card*. That's
+the user's rule (2026-09-19); don't shorten it to "the picked teams' last game".
+The parser dates the slate from the NFL SCHEDULE, not the clock (cards go up
+days early): `date` = the earliest upcoming game among the picked teams,
+`endDate` = the last day of that NFL week with any game on it, `weekEnds` = the
+week's Tuesday, which names the week. An NFL week runs Wednesday..Tuesday -- a
+flat "+4 days" from Sunday reaches next Thursday and once stretched a slate
+across two weeks. A second card in the SAME week (Thursday's, then Sunday's, or
+a correction) REPLACES the first and leaves Last Week alone; only a card for a
+new week archives the old one -- so a Thursday card's picks disappear when a
+Sunday card is uploaded unless the Sunday card repeats them. The page polls
+every date in the span (settled dates -- all Final, or empty and in the past --
+are asked once and cached in `SETTLED_SCHEDULES`) and rolls over when every
+game on every date is Final, or 6am ET after `endDate`. If ESPN is unreachable
+the parser falls back to the card's kickoff times and the following Monday.
 
 **Odds can be negative** (a star back is often -120; a home run never is).
 Every football odds regex takes `[+-]`, and the Bettor Tracker formats with

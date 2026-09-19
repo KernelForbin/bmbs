@@ -172,7 +172,7 @@ for fetch errors before assuming the parsing logic is wrong.
 ## Football: touchdown parlays (`/football/`)
 
 The football icon at the top of the site switches to a second tracker for
-anytime-touchdown bets -- same Today's / Yesterday's picks, payout estimate,
+anytime-touchdown bets -- This Week's / Last Week's picks, payout estimate,
 Irons, Bettor Tracker and alerts, with football's own panels: **Live Drives**
 (who has the ball, down & distance, red zone) and a **Touchdown Log**. It is a
 separate page (`football/index.html`) with its own data under `data/football/`
@@ -192,8 +192,13 @@ into `data/football/incoming_picks.txt` on GitHub, as with baseball.)
 Football cards use the same two templates as baseball. Differences the parser
 handles: odds can be negative (`-120`), players are stored with their ESPN
 athlete id so a missing "Jr." can't break matching, and the slate is dated from
-the NFL schedule -- so a Sunday card can go up on Friday, and a Thursday +
-Sunday + Monday card is one slate that stays on Today until Monday night ends.
+the NFL schedule -- so a Sunday card can go up on Friday.
+
+Football runs by the **week**: the tabs are "This Week's Picks" and "Last
+Week's Picks", and a card stays on This Week until the week's last game
+(Monday night) is final -- even if nobody on it plays Monday. Uploading a
+second card in the same week (say Thursday's, then Sunday's) replaces the
+first, so put everything you still want tracked on the newer card.
 
 Live data comes from ESPN's public NFL API, straight from each visitor's
 browser, every 15 seconds. If the NFL roster changes enough that a new player

@@ -31,12 +31,16 @@ What's different from baseball, on purpose:
   * athleteId. Names resolve against data/football/roster.json (built by
     build_football_roster.py), and the ESPN athlete id is stored on the leg
     so the live page matches by id, not by spelling.
-  * THE SLATE DATE COMES FROM THE NFL SCHEDULE, not from the clock. Baseball
-    cards are posted the day of; football cards go up days ahead (Saturday
-    for Sunday) and can span a week (Thursday + Sunday + Monday). So: each
-    picked team's next not-yet-final game is looked up on ESPN, `date` is
-    the earliest of those and `endDate` the latest (within one NFL week).
-    If ESPN can't be reached it falls back to baseball's time heuristic.
+  * A SLATE IS AN NFL WEEK, dated from the schedule, not from the clock.
+    The site shows "This Week's Picks" / "Last Week's Picks", and a card stays
+    on This Week until the week's LAST game (Monday night) is final -- even a
+    Sunday-only card. So: `date` is the earliest upcoming game among the
+    picked teams, `endDate` is the last day of that NFL week with any game on
+    it, and `weekEnds` (the week's Tuesday) names the week. A second card in
+    the SAME week (Thursday's, then Sunday's) replaces the first without
+    touching Last Week; only a card for a new week archives the old one.
+    If ESPN can't be reached it falls back to the card's own kickoff times
+    and the following Monday.
 
 Run:
     python scripts/parse_football_picks.py --file data/football/incoming_picks.txt
@@ -169,8 +173,14 @@ def time_heuristic(time_strs, now):
     return now.date().isoformat()
 
 
+def week_end(day_iso):
+    """The Tuesday on or after `day_iso`: an NFL week runs Wednesday..Tuesday."""
+    day = datetime.fromisoformat(day_iso).date()
+    return (day + timedelta(days=(1 - day.weekday()) % 7)).isoformat()
+
+
 def slate_dates_for(teams, time_strs, now, fetcher=fetch_json):
-    """(date, end_date): the span of the picked teams' next games."""
+    """(date, end_date): first game among the picked teams .. last game of that NFL week."""
     teams = {t for t in teams if t}
     try:
         games = upcoming_games(now, fetcher) if teams else []
@@ -185,8 +195,11 @@ def slate_dates_for(teams, time_strs, now, fetcher=fetch_json):
         for team in abbrs & teams:
             next_game.setdefault(team, day)
     if not next_game:
+        # No schedule to go by: the week still ends Monday night as far as we
+        # know (the day before week_end's Tuesday), never before the card's day.
         day = time_heuristic(time_strs, now)
-        return day, day
+        monday = (datetime.fromisoformat(week_end(day)).date() - timedelta(days=1)).isoformat()
+        return day, max(day, monday)
 
     # One slate never crosses into the next NFL week. A week runs Wednesday
     # to Tuesday (Thu / Sun / Mon games, the odd Tuesday), so the limit is the
@@ -196,16 +209,20 @@ def slate_dates_for(teams, time_strs, now, fetcher=fetch_json):
     # the limit (that case, or a mis-resolved name) is ignored for dating.
     days = sorted(next_game.values())
     first = days[0]
-    first_day = datetime.fromisoformat(first).date()
-    limit = (first_day + timedelta(days=(1 - first_day.weekday()) % 7)).isoformat()
-    kept = [d for d in days if d <= limit]
+    limit = week_end(first)
     for team, day in sorted(next_game.items()):
         if day > limit:
-            print(f"NOTE: {team}'s next game is {day}, outside this slate ({first}..{limit}) -- ignored for dating.", file=sys.stderr)
-    return first, kept[-1]
+            print(f"NOTE: {team}'s next game is {day}, outside this week ({first}..{limit}) -- ignored for dating.", file=sys.stderr)
+    # The slate holds until the WEEK's last game, whoever is playing in it: a
+    # Sunday-only card still belongs to This Week until Monday night ends.
+    last_game_day = max(d for d, _abbrs, _final in games if first <= d <= limit)
+    return first, last_game_day
 
 
-def archive_previous_slate(new_date):
+def archive_previous_slate(new_week):
+    """Archive the current card only when the new one is for a different NFL
+    week. Within a week (Thursday's card, then Sunday's; or a correction) the
+    new card simply replaces it and Last Week's Picks stays put."""
     if not TICKETS_PATH.exists():
         return
     try:
@@ -213,7 +230,7 @@ def archive_previous_slate(new_date):
     except (OSError, ValueError):
         return
     old_date = old.get("date")
-    if not old_date or old_date == new_date:   # same-slate re-upload: keep the archive as is
+    if not old_date or (old.get("weekEnds") or week_end(old_date)) == new_week:
         return
     PREVIOUS_PATH.write_text(json.dumps(old, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Archived {old_date} slate -> {PREVIOUS_PATH}")
@@ -393,12 +410,11 @@ def main():
 
     picks = legs + singles
     date, end_date = slate_dates_for([p["team"] for p in picks], [p.get("time", "") for p in legs] + [s.get("meta", "") for s in singles], datetime.now(ET))
-    payload = {"sport": "football", "date": date, "note": "", "windows": windows, "singles": singles}
-    if end_date != date:
-        payload["endDate"] = end_date
+    payload = {"sport": "football", "date": date, "endDate": end_date, "weekEnds": week_end(date),
+               "note": "", "windows": windows, "singles": singles}
 
     DATA.mkdir(parents=True, exist_ok=True)
-    archive_previous_slate(date)
+    archive_previous_slate(payload["weekEnds"])
     TICKETS_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     span = date if end_date == date else f"{date} .. {end_date}"
     print(f"Wrote {TICKETS_PATH} (slate: {span} ET)")

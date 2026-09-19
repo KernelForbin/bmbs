@@ -87,35 +87,51 @@ def dated(teams, now, times=()):
 
 
 FRI = datetime(2026, 9, 18, 23, 0, tzinfo=fp.ET)
+WEEK2 = ("2026-09-20", "2026-09-21")   # first pick plays Sunday; the week's last game is Monday night
 check("a Sunday card posted FRIDAY NIGHT is dated Sunday (baseball's clock rule would have said Friday)",
-      dated(["PHI", "CIN", "KC"], FRI, ["1:00 PM ET", "8:20 PM ET"]) == ("2026-09-20", "2026-09-20"))
-check("Sunday + Monday card spans both days", dated(["PHI", "KC", "LAR"], FRI) == ("2026-09-20", "2026-09-21"))
+      dated(["PHI", "CIN", "KC"], FRI, ["1:00 PM ET", "8:20 PM ET"])[0] == "2026-09-20")
+check("a SUNDAY-ONLY card still runs through Monday night: it's This Week's Picks until the week's last game ends",
+      dated(["PHI", "CIN", "KC"], FRI) == WEEK2, str(dated(["PHI", "CIN", "KC"], FRI)))
+check("Sunday + Monday card: same span", dated(["PHI", "KC", "LAR"], FRI) == WEEK2)
+check("a card covering Thursday night too starts Thursday and still ends Monday",
+      fp.slate_dates_for(["DET", "PHI", "LAR"], [], datetime(2026, 9, 17, 12, 0, tzinfo=fp.ET),
+                         lambda url: fake_espn(url) if "20260917" not in url else {"events": [{"status": {"type": {"state": "pre"}}, "competitions": [
+                             {"competitors": [{"team": {"abbreviation": "DET"}}, {"team": {"abbreviation": "BUF"}}]}]}]})
+      == ("2026-09-17", "2026-09-21"))
 check("posted Sunday night during the late game, for Monday: dated Monday",
       dated(["LAR", "NYG"], datetime(2026, 9, 20, 21, 0, tzinfo=fp.ET)) == ("2026-09-21", "2026-09-21"))
-check("a team that already played (BUF, next game Thursday) can't stretch the slate a week",
-      dated(["PHI", "KC", "BUF"], FRI) == ("2026-09-20", "2026-09-20"))
+check("the week ends on ITS last game: next Thursday's game belongs to next week, however the card is dated",
+      dated(["PHI", "KC", "BUF"], FRI) == WEEK2, str(dated(["PHI", "KC", "BUF"], FRI)))
 check("a FINAL game is never 'next': Thursday night, after DET@BUF ended, DET picks don't date the slate to Thursday",
-      dated(["DET", "PHI"], datetime(2026, 9, 17, 23, 59, tzinfo=fp.ET)) == ("2026-09-20", "2026-09-20"))
+      dated(["DET", "PHI"], datetime(2026, 9, 17, 23, 59, tzinfo=fp.ET)) == WEEK2)
+check("week_end: an NFL week runs Wednesday..Tuesday",
+      [fp.week_end(d) for d in ("2026-09-17", "2026-09-20", "2026-09-21", "2026-09-22", "2026-09-23")]
+      == ["2026-09-22", "2026-09-22", "2026-09-22", "2026-09-22", "2026-09-29"])
 
 
 def offline(url):
     raise OSError("no network")
 
 
-check("ESPN unreachable -> falls back to the card's times instead of failing the upload",
-      fp.slate_dates_for(["PHI"], ["1:00 PM ET"], datetime(2026, 9, 20, 9, 0, tzinfo=fp.ET), offline) == ("2026-09-20", "2026-09-20"))
+check("ESPN unreachable -> dated from the card's times, held through the following Monday, upload still succeeds",
+      fp.slate_dates_for(["PHI"], ["1:00 PM ET"], datetime(2026, 9, 20, 9, 0, tzinfo=fp.ET), offline) == WEEK2)
 check("...and a card whose kickoffs have all passed is tomorrow's",
-      fp.slate_dates_for(["PHI"], ["1:00 PM ET"], datetime(2026, 9, 20, 23, 0, tzinfo=fp.ET), offline)[0] == "2026-09-21")
+      fp.slate_dates_for(["PHI"], ["1:00 PM ET"], datetime(2026, 9, 20, 23, 0, tzinfo=fp.ET), offline) == ("2026-09-21", "2026-09-21"))
 
 # ---------- 4. archive guard, against a temp dir (never data/) ----------
 with tempfile.TemporaryDirectory() as td:
     td = Path(td)
     fp.TICKETS_PATH, fp.PREVIOUS_PATH = td / "tickets.json", td / "tickets-previous.json"
-    fp.TICKETS_PATH.write_text(json.dumps({"date": "2026-09-20"}), encoding="utf-8")
-    fp.archive_previous_slate("2026-09-20")
-    check("same-slate re-upload doesn't clobber the archive", not fp.PREVIOUS_PATH.exists())
-    fp.archive_previous_slate("2026-09-27")
-    check("a new slate archives the old one", json.loads(fp.PREVIOUS_PATH.read_text(encoding="utf-8"))["date"] == "2026-09-20")
+    fp.TICKETS_PATH.write_text(json.dumps({"date": "2026-09-17", "weekEnds": "2026-09-22"}), encoding="utf-8")
+    fp.archive_previous_slate("2026-09-22")
+    check("a second card in the SAME NFL week (Thursday's, then Sunday's) replaces it -- Last Week's Picks is left alone",
+          not fp.PREVIOUS_PATH.exists())
+    fp.archive_previous_slate("2026-09-29")
+    check("a card for a NEW week archives the old one", json.loads(fp.PREVIOUS_PATH.read_text(encoding="utf-8"))["date"] == "2026-09-17")
+    fp.PREVIOUS_PATH.unlink()
+    fp.TICKETS_PATH.write_text(json.dumps({"date": "2026-09-20"}), encoding="utf-8")   # written before weekEnds existed
+    fp.archive_previous_slate("2026-09-22")
+    check("a card with no weekEnds is placed in its week by its date", not fp.PREVIOUS_PATH.exists())
 
 # ---------- 5. roster builder ----------
 ESPN_ROSTERS = {
@@ -164,7 +180,9 @@ with tempfile.TemporaryDirectory() as td:
     check("CLI parses a card end to end", r.returncode == 0 and out.exists(), r.stderr[-300:])
     if out.exists():
         payload = json.loads(out.read_text(encoding="utf-8"))
-        check("output is marked football and dated", payload.get("sport") == "football" and len(payload.get("date", "")) == 10, str(payload.get("date")))
+        check("output is marked football, dated, and carries its week",
+              payload.get("sport") == "football" and len(payload.get("date", "")) == 10
+              and payload.get("endDate", "") >= payload["date"] and payload.get("weekEnds") == fp.week_end(payload["date"]), str(payload.get("date")))
     check("the real data/football/tickets.json was never touched", (real.read_bytes() if real.exists() else None) == before)
 
 print()

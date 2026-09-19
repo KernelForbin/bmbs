@@ -364,12 +364,12 @@
     <a class="sport active" href="/football/" aria-current="page"><span class="ico">&#127944;</span>Football</a>
   </nav>
   <div class="tabs">
-    <button class="tab-btn active" id="tab-btn-today" onclick="activateTab('today')">Today's Picks<span class="tab-date" id="tab-date-today"></span></button>
-    <button class="tab-btn" id="tab-btn-yesterday" onclick="activateTab('yesterday')">Yesterday's Picks<span class="tab-date" id="tab-date-yesterday"></span></button>
+    <button class="tab-btn active" id="tab-btn-today" onclick="activateTab('today')">This Week's Picks<span class="tab-date" id="tab-date-today"></span></button>
+    <button class="tab-btn" id="tab-btn-yesterday" onclick="activateTab('yesterday')">Last Week's Picks<span class="tab-date" id="tab-date-yesterday"></span></button>
   </div>
   <div class="queued-note" id="queued-note"></div>
   <header>
-    <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM ESPN</span></p>
+    <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">THIS WEEK'S SLATE &middot; LIVE FROM ESPN</span></p>
     <h1>BMBS Tracker</h1>
     <p class="note" id="dynamic-note"></p>
     <div class="legend">
@@ -417,7 +417,7 @@
   <div id="err-box"></div>
 
   <div class="waiting" id="waiting-panel" style="display:none">
-    <h2 id="waiting-title">Waiting for today's picks</h2>
+    <h2 id="waiting-title">Waiting for this week's picks</h2>
     <p id="waiting-text"></p>
   </div>
 
@@ -587,7 +587,21 @@ async function loadTicketsFile(path) {
 // a late game under the date it kicked off -- the 8:20 PM ET Sunday game is
 // 00:20Z Monday and still comes back for Sunday -- which is why polling is
 // keyed on the slate's dates and never on the clock.
+// A football slate runs the whole NFL week -- it's "This Week's Picks" until
+// the week's LAST game (Monday night) is final, even for a Sunday-only card; the
+// parser stamps endDate accordingly. That's up to six dates per poll, most of
+// them settled: a date whose games are all Final can't change, and neither can
+// an empty date that's already behind us (Friday, mid-week). Those are asked once.
+const SETTLED_SCHEDULES = new Map();
+
 async function getScheduleForDate(date) {
+  if (SETTLED_SCHEDULES.has(date)) return SETTLED_SCHEDULES.get(date);
+  const games = await fetchScheduleForDate(date);
+  if (games.length ? games.every(g => g.final) : date < todayET()) SETTLED_SCHEDULES.set(date, games);
+  return games;
+}
+
+async function fetchScheduleForDate(date) {
   const data = await fetchJson(`${ESPN}/scoreboard?dates=${date.replace(/-/g, "")}`);
   return (data.events || []).map(ev => {
     const comp = (ev.competitions || [])[0] || {};
@@ -605,7 +619,7 @@ async function getScheduleForDate(date) {
   });
 }
 
-// A slate covers one date or, for a Thursday-to-Monday card, a short run of them.
+// Every date from the card's first game through the end of its NFL week.
 function slateDates(tickets) {
   const out = [];
   const end = tickets.endDate && tickets.endDate >= tickets.date ? tickets.endDate : tickets.date;
@@ -2030,7 +2044,7 @@ function applyActiveTab() {
   queuedEl.classList.toggle("active", !!showQueued);
   if (showQueued) {
     queuedEl.innerHTML = `<b>${fmtSlateDate(SLATES.queued.tickets.date)} picks are already uploaded.</b> `
-      + `They take over this tab once the last ${fmtSlateDate(SLATES.today.tickets.date)} game goes final.`;
+      + `They take over this tab once this week's last game goes final.`;
   }
 
   const showSlate = !!slate;
@@ -2052,17 +2066,17 @@ function applyActiveTab() {
   document.getElementById("notif-note").style.display = showNotifControls ? "" : "none";
 
   if (ACTIVE_TAB === "today") {
-    document.getElementById("eyebrow-text").innerHTML = showSlate ? "TODAY'S SLATE &middot; LIVE FROM ESPN" : "TODAY'S SLATE";
-    document.getElementById("waiting-title").textContent = "Waiting for today's picks";
+    document.getElementById("eyebrow-text").innerHTML = showSlate ? "THIS WEEK'S SLATE &middot; LIVE FROM ESPN" : "THIS WEEK'S SLATE";
+    document.getElementById("waiting-title").textContent = "Waiting for this week's picks";
     document.getElementById("waiting-text").textContent = SLATES.yesterday
-      ? "Yesterday's results are in the other tab. This page picks up the new slate automatically once it's posted."
+      ? "Last week's results are in the other tab. This page picks up the new card automatically once it's posted."
       : "This page picks up the new slate automatically once it's posted.";
   } else {
-    document.getElementById("eyebrow-text").innerHTML = showSlate ? "YESTERDAY'S SLATE &middot; FINAL" : "YESTERDAY'S SLATE";
-    document.getElementById("waiting-title").textContent = "No picks submitted yesterday";
+    document.getElementById("eyebrow-text").innerHTML = showSlate ? "LAST WEEK'S SLATE &middot; FINAL" : "LAST WEEK'S SLATE";
+    document.getElementById("waiting-title").textContent = "No picks submitted last week";
     document.getElementById("waiting-text").textContent = SLATES.today
-      ? "Today's picks move over here once their last game goes final."
-      : "Nothing was submitted for the previous slate.";
+      ? "This week's picks move over here once the week's last game goes final."
+      : "Nothing was submitted for the previous week.";
   }
 }
 
@@ -2079,7 +2093,7 @@ function activateTab(tab) {
 function updateSyncLine() {
   const el = document.getElementById("sync-line");
   const slate = SLATES[ACTIVE_TAB];
-  if (!slate) { el.textContent = ACTIVE_TAB === "today" ? "Waiting for today's picks" : ""; return; }
+  if (!slate) { el.textContent = ACTIVE_TAB === "today" ? "Waiting for this week's picks" : ""; return; }
   const when = fmtSlateDate(slate.tickets.date);
   if (ACTIVE_TAB === "yesterday") {
     el.textContent = slate.results.noGames ? `No NFL games were scheduled for ${when}` : `Final results for ${when}`;

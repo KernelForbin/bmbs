@@ -205,7 +205,18 @@ is gone). Panel order is Live At Bats, Home Run Log, Bettor Tracker.
 Eligibility matches those tags: leg still `live` AND at least one bet it's on
 can still cash, so a dead parlay's hitter gets no tile. One tile per player
 however many tickets he's on (all distinct odds shown); the 🧇 appears if any
-of them is an Iron. The bettor filter narrows the tiles too.
+of them is an Iron.
+
+**Every scoreboard filter scopes the tiles**, through the same two predicates
+the ticket list uses (`ticketMatchesFilter`, `legPassesFilters`) so the panel
+can't disagree with the tickets under it: IRONS shows only hitters one swing
+from cashing something, a bettor filter only that person's picks, and they
+stack. Filtering is per bet, before players are merged, so under IRONS a tile
+lists only his Iron prices. HIT / MISSED and the non-LIVE leg chips leave
+nothing to show (a tile is by definition a live leg on an open bet) and the
+panel says the filter is why. Any new filter toggle must call
+`renderLiveAtBats()` -- forgetting that left the panel stale until the next
+poll once already.
 
 Tile order is fixed: finished at-bats still holding their spot, then at bat,
 then due up (the side batting now by distance from the plate -- ON DECK, IN

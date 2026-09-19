@@ -282,6 +282,39 @@ with sync_playwright() as p:
     page.evaluate("toggleBettorFilter('joe')")
     check("H2 the bettor filter narrows the tiles too", [x["player"] for x in tiles(page)] == ["On Deck"], str([x["player"] for x in tiles(page)]))
     page.evaluate("toggleBettorFilter(null)")
+
+    # ---------- I. the scoreboard filters scope the tiles, same rules as the tickets ----------
+    names = lambda: [x["player"] for x in tiles(page)]
+    everyone = ["Up Now", "On Deck", "In Hole", "Next Half"]
+    page.click("#chip-iron")
+    t = tiles(page)
+    check("I1 IRONS: only hitters one swing from cashing something", names() == ["Up Now", "Next Half"], str(names()))
+    check("I2 ...and a tile lists only the prices of his Iron bets (the single, not his 2-leg card)",
+          t[0]["odds"] == "+300" and all(x["iron"] for x in t), str([(x["player"], x["odds"], x["iron"]) for x in t]))
+    check("I3 the header says it's filtered, and counts what's left",
+          "Irons" in page.inner_text("#liveab-sub") and page.inner_text("#liveab-count") == "1 UP \u00b7 1 DUE", page.inner_text("#liveab-sub"))
+    check("I4 the ticket list below agrees with the tiles",
+          page.evaluate("[...document.querySelectorAll('#content .iron-mark')].length") >= 2)
+    page.evaluate("toggleBettorFilter('bernie')")
+    check("I5 filters stack: Irons + Bernie", names() == ["Next Half"], str(names()))
+    page.evaluate("toggleBettorFilter(null)")
+    page.click("#chip-iron")
+    check("I6 clearing the filter brings everyone back", names() == everyone, str(names()))
+    page.click("#chip-open")
+    check("I7 OPEN: every tile is on an open bet already, so nothing drops", names() == everyone, str(names()))
+    page.click("#chip-open")
+    page.click("#chip-hit")
+    check("I8 HIT bets: nobody on a cashed bet is still batting for it -> empty, and it says why",
+          names() == [] and "Hit bets" in page.inner_text("#liveab-grid") and "Clear the filter" in page.inner_text("#liveab-grid"), page.inner_text("#liveab-grid"))
+    page.click("#chip-hit")
+    page.click("#leg-chip-live")
+    check("I9 LIVE legs: all of them", names() == everyone, str(names()))
+    page.click("#leg-chip-live")
+    page.click("#leg-chip-not_started")
+    check("I10 NOT STARTED legs: none are at the plate", names() == [], str(names()))
+    page.click("#leg-chip-not_started")
+    check("I11 all filters off again", names() == everyone and "Filtered" not in page.inner_text("#liveab-sub"), page.inner_text("#liveab-sub"))
+
     check("H3 no sideways scroll on a phone", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
     check("H4 no script errors", not errors, str(errors))
     browser.close()

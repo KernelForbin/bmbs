@@ -1548,11 +1548,18 @@ const LAB_PA_RESULTS = new Set([
 
 // Every picked player who could still matter right now: leg unresolved, game
 // live, and at least one bet he's on still able to cash. One entry per player
-// however many tickets he's on. Honors the bettor filter.
+// however many tickets he's on.
+//
+// Every scoreboard filter applies here through the SAME two predicates the
+// ticket list uses, so the tiles can't disagree with the tickets below them:
+// Irons shows only hitters who'd cash something with one swing, a bettor
+// filter shows only that person's picks. Filtering happens per bet, before
+// the merge, so under Irons a player's tile lists only his Iron prices.
+// (A tile is by definition a live leg on an open bet, so HIT / MISSED and the
+// non-LIVE leg chips simply leave nothing to show -- the panel says why.)
 function labEligiblePicks() {
   const picks = new Map();
   function add(player, odds, rawWho, iron) {
-    if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return;
     const norm = normalizeName(player);
     let pick = picks.get(norm);
     if (!pick) { pick = { norm, player, odds: [], whos: [], iron: false }; picks.set(norm, pick); }
@@ -1562,11 +1569,15 @@ function labEligiblePicks() {
     if (iron) pick.iron = true;
   }
   EVALUATED.forEach(({ tk, states, evalRes }) => {
-    if (!isOpenOutcome(evalRes.outcome)) return;
-    tk.legs.forEach((leg, i) => { if (states[i] === "live") add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i])); });
+    if (!isOpenOutcome(evalRes.outcome) || !ticketMatchesFilter(evalRes)) return;
+    tk.legs.forEach((leg, i) => {
+      if (states[i] === "live" && legPassesFilters(states[i], leg.who, leg.player, true)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]));
+    });
   });
   EVALUATED_SINGLES.forEach(({ s, state, outcome, iron }) => {
-    if (state === "live" && outcome === "live") add(s.player, s.odds, s.who, iron);
+    if (state !== "live" || outcome !== "live") return;
+    if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(state, s.who, s.player, true)) return;
+    add(s.player, s.odds, s.who, iron);
   });
   return picks;
 }
@@ -1701,7 +1712,24 @@ function labResultTile(flash, now) {
     <div class="ab-line faint">${escapeHtml(detail.filter(Boolean).join(" \u00b7 "))}</div>${bomb}`);
 }
 
+function labFilterLabel() {
+  const bits = [];
+  if (CURRENT_FILTER) bits.push({ open: "Open bets", irons: "Irons", hit: "Hit bets", dead: "Missed bets" }[CURRENT_FILTER] || CURRENT_FILTER);
+  if (LEG_FILTER) bits.push({ hit: "Hit legs", miss: "Missed legs", na: "N/A legs", live: "Live legs", not_started: "Not-started legs" }[LEG_FILTER] || LEG_FILTER);
+  if (BETTOR_FILTER) {
+    const el = document.querySelector("#bettor-list .bettor-row.active-filter .bettor-name");
+    bits.push(`${el ? el.textContent : BETTOR_FILTER}'s picks`);
+  }
+  return bits.join(" + ");
+}
+
 function liveAbSubText(collapsed, nowCount, soonCount) {
+  const filtered = labFilterLabel();
+  if (filtered) {
+    const head = collapsed ? "Tap to expand &mdash; " : "";
+    const counts = [nowCount ? `<b>${nowCount}</b> at the plate` : "", soonCount ? `<b>${soonCount}</b> due up` : ""].filter(Boolean).join(", ");
+    return `${head}Filtered to <b>${escapeHtml(filtered)}</b>: ${counts || "nobody up or due"}.`;
+  }
   if (!collapsed) return `Your picks at the plate or guaranteed to bat this inning, pitch by pitch. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
   if (!nowCount && !soonCount) return "Tap to expand &mdash; none of your picks are due up right now.";
   const bits = [];
@@ -1748,7 +1776,9 @@ function renderLiveAtBats() {
 
   grid.innerHTML = tiles.length
     ? tiles.map(t => t.html).join("")
-    : `<p class="liveab-empty">None of your picks are at the plate or due up this inning. Tiles appear here the moment one is.</p>`;
+    : `<p class="liveab-empty">${labFilterLabel()
+        ? `Nobody matching <b>${escapeHtml(labFilterLabel())}</b> is at the plate or due up. Clear the filter to see everyone.`
+        : "None of your picks are at the plate or due up this inning. Tiles appear here the moment one is."}</p>`;
   countEl.textContent = nowCount || soonCount ? [nowCount ? `${nowCount} UP` : "", soonCount ? `${soonCount} DUE` : ""].filter(Boolean).join(" \u00b7 ") : "";
   document.getElementById("liveab-sub").innerHTML = liveAbSubText(collapsed, nowCount, soonCount);
 
@@ -1979,6 +2009,7 @@ function toggleFilter(key) {
   CURRENT_FILTER = (CURRENT_FILTER === key) ? null : key;
   updateFilterUI();
   renderContent();
+  renderLiveAtBats();
 }
 
 function updateLegFilterUI() {
@@ -1995,6 +2026,7 @@ function toggleLegFilter(state) {
   LEG_FILTER = (LEG_FILTER === state) ? null : state;
   updateLegFilterUI();
   renderContent();
+  renderLiveAtBats();
 }
 
 function updateBettorFilterUI() {

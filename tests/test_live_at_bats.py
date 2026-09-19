@@ -307,13 +307,7 @@ with sync_playwright() as p:
     check("I8 HIT bets: nobody on a cashed bet is still batting for it -> empty, and it says why",
           names() == [] and "Hit bets" in page.inner_text("#liveab-grid") and "Clear the filter" in page.inner_text("#liveab-grid"), page.inner_text("#liveab-grid"))
     page.click("#chip-hit")
-    page.click("#leg-chip-live")
-    check("I9 LIVE legs: all of them", names() == everyone, str(names()))
-    page.click("#leg-chip-live")
-    page.click("#leg-chip-not_started")
-    check("I10 NOT STARTED legs: none are at the plate", names() == [], str(names()))
-    page.click("#leg-chip-not_started")
-    check("I11 all filters off again", names() == everyone and "Filtered" not in page.inner_text("#liveab-sub"), page.inner_text("#liveab-sub"))
+    check("I9 all filters off again", names() == everyone and "Filtered" not in page.inner_text("#liveab-sub"), page.inner_text("#liveab-sub"))
 
     check("H3 no sideways scroll on a phone", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
     check("H4 no script errors", not errors, str(errors))

@@ -46,20 +46,16 @@
 
   .stat-row-label { font-family:'Oswald',sans-serif; font-size:10.5px; font-weight:600; letter-spacing:.1em; color:var(--text-faint); margin:16px 0 6px 2px; }
   .scoreboard { display:grid; grid-template-columns: repeat(3, 1fr); gap:7px; }
-  .scoreboard.legs-row { grid-template-columns: repeat(5, 1fr); gap:5px; }
   .scoreboard.bets-row { grid-template-columns: repeat(4, 1fr); gap:6px; }
   .bets-row .score-chip { padding:8px 2px; }
   .bets-row .num { font-size:15.5px; }
   .bets-row .lbl { font-size:8.5px; }
   .score-chip { background:var(--panel); border:1px solid var(--panel-line); border-radius:8px; padding:9px 3px; text-align:center; }
-  .legs-row .score-chip { padding:7px 2px; }
   .score-chip.clickable { cursor:pointer; user-select:none; transition:border-color .15s ease, background .15s ease; }
   .score-chip.clickable:active { transform:scale(0.97); }
   .score-chip.active-filter { border-color:var(--green); background:var(--green-dim); }
   .score-chip .num { font-family:'Oswald',sans-serif; font-size:17px; font-weight:700; }
-  .legs-row .num { font-size:14px; }
   .score-chip .lbl { font-size:9.5px; color:var(--text-faint); letter-spacing:.03em; margin-top:2px; }
-  .legs-row .lbl { font-size:8.5px; }
   .score-chip.hit .num { color:var(--green); }
   .score-chip.miss .num { color:var(--red); }
   .score-chip.na .num { color:var(--yellow); }
@@ -377,18 +373,6 @@
       <span class="clear-btn" onclick="toggleFilter(null)">Clear &times;</span>
     </div>
 
-    <p class="stat-row-label">LEGS &middot; tap to filter below</p>
-    <div class="scoreboard legs-row">
-      <div class="score-chip hit clickable" id="leg-chip-hit" onclick="toggleLegFilter('hit')"><div class="num" id="count-hit">0</div><div class="lbl">HIT</div></div>
-      <div class="score-chip miss clickable" id="leg-chip-miss" onclick="toggleLegFilter('miss')"><div class="num" id="count-miss">0</div><div class="lbl">MISSED</div></div>
-      <div class="score-chip na clickable" id="leg-chip-na" onclick="toggleLegFilter('na')"><div class="num" id="count-na">0</div><div class="lbl">N/A</div></div>
-      <div class="score-chip live-game clickable" id="leg-chip-live" onclick="toggleLegFilter('live')"><div class="num" id="count-live">0</div><div class="lbl">LIVE</div></div>
-      <div class="score-chip pending clickable" id="leg-chip-not_started" onclick="toggleLegFilter('not_started')"><div class="num" id="count-not-started">0</div><div class="lbl">NOT STARTED</div></div>
-    </div>
-    <div class="filter-status" id="leg-filter-status">
-      <span id="leg-filter-status-text"></span>
-      <span class="clear-btn" onclick="toggleLegFilter(null)">Clear &times;</span>
-    </div>
     </div>
   </header>
 
@@ -461,7 +445,6 @@ let TICKETS = null;
 let RESULTS = emptyResults();
 let pollTimer = null;
 let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'   (bet outcome)
-let LEG_FILTER = null;       // null | 'hit' | 'miss' | 'na' | 'live' | 'not_started'
 let BETTOR_FILTER = null;    // null | lowercased bettor key
 let EVALUATED = [];          // [{ win, tk, states, evalRes }]  (parlay cards)
 let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
@@ -1593,8 +1576,8 @@ const LAB_PA_RESULTS = new Set([
 // Irons shows only hitters who'd cash something with one swing, a bettor
 // filter shows only that person's picks. Filtering happens per bet, before
 // the merge, so under Irons a player's tile lists only his Iron prices.
-// (A tile is by definition a live leg on an open bet, so HIT / MISSED and the
-// non-LIVE leg chips simply leave nothing to show -- the panel says why.)
+// (A tile is by definition a live leg on an open bet, so HIT / MISSED simply
+// leave nothing to show -- the panel says why.)
 function labEligiblePicks() {
   const picks = new Map();
   function add(player, odds, rawWho, iron) {
@@ -1753,7 +1736,6 @@ function labResultTile(flash, now) {
 function labFilterLabel() {
   const bits = [];
   if (CURRENT_FILTER) bits.push({ open: "Open bets", irons: "Irons", hit: "Hit bets", dead: "Missed bets" }[CURRENT_FILTER] || CURRENT_FILTER);
-  if (LEG_FILTER) bits.push({ hit: "Hit legs", miss: "Missed legs", na: "N/A legs", live: "Live legs", not_started: "Not-started legs" }[LEG_FILTER] || LEG_FILTER);
   if (BETTOR_FILTER) {
     const el = document.querySelector("#bettor-list .bettor-row.active-filter .bettor-name");
     bits.push(`${el ? el.textContent : BETTOR_FILTER}'s picks`);
@@ -1840,7 +1822,6 @@ function toggleLiveAb() {
 function computeAll() {
   if (!TICKETS) return;
 
-  let legHit = 0, legMiss = 0, legNa = 0, legLive = 0, legNotStarted = 0;
   let betOpen = 0, betHit = 0, betMiss = 0, betIron = 0;
   let totalPayoutHit = 0;
   const bettors = new Map();
@@ -1850,13 +1831,6 @@ function computeAll() {
     if (!key) return null;
     if (!bettors.has(key)) bettors.set(key, { display: whoDisplayName(rawWho), hit: 0, miss: 0, hitOdds: [] });
     return bettors.get(key);
-  }
-  function countLeg(state) {
-    if (state === "hit") legHit++;
-    else if (state === "miss") legMiss++;
-    else if (state === "na") legNa++;
-    else if (state === "live") legLive++;
-    else legNotStarted++;
   }
 
   EVALUATED = [];
@@ -1873,7 +1847,6 @@ function computeAll() {
 
       tk.legs.forEach((leg, i) => {
         const state = states[i];
-        countLeg(state);
         const b = touchBettor(leg.who);
         if (b) {
           if (state === "hit") { b.hit++; const o = oddsToNumber(leg.odds); if (o !== null) b.hitOdds.push(o); }
@@ -1890,7 +1863,6 @@ function computeAll() {
     const iron = singleIsIron(state, outcome);
     EVALUATED_SINGLES.push({ s, state, outcome, iron });
     if (iron) betIron++;
-    countLeg(state);
 
     if (outcome === "dead") betMiss++;
     else if (outcome === "hit") { betHit++; totalPayoutHit += (s.payout || 0); }
@@ -1903,11 +1875,6 @@ function computeAll() {
     }
   });
 
-  document.getElementById("count-hit").textContent = legHit;
-  document.getElementById("count-miss").textContent = legMiss;
-  document.getElementById("count-na").textContent = legNa;
-  document.getElementById("count-live").textContent = legLive;
-  document.getElementById("count-not-started").textContent = legNotStarted;
   document.getElementById("count-parlay-open").textContent = betOpen;
   document.getElementById("count-parlay-iron").textContent = betIron;
   document.getElementById("count-parlay-hit").textContent = betHit;
@@ -1937,13 +1904,12 @@ function computeAll() {
 }
 
 function legPassesFilters(state, rawWho, playerName, betIsOpen) {
-  if (LEG_FILTER && state !== LEG_FILTER) return false;
   if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return false;
   return true;
 }
 
 // Renders #content (ticket windows + singles) from EVALUATED / EVALUATED_SINGLES,
-// respecting CURRENT_FILTER (bet outcome), LEG_FILTER (leg state), and
+// respecting CURRENT_FILTER (bet outcome) and
 // BETTOR_FILTER (person). Cheap enough to call on every filter click without re-polling.
 function renderContent() {
   const root = document.getElementById("content");
@@ -2000,7 +1966,7 @@ function renderContent() {
     html += `</div>`;
   });
 
-  const anyFilterActive = CURRENT_FILTER || LEG_FILTER || BETTOR_FILTER;
+  const anyFilterActive = CURRENT_FILTER || BETTOR_FILTER;
   if (!anyRendered && anyFilterActive) {
     html += `<p class="empty-filter-note">No parlay cards match this filter right now.</p>`;
   }
@@ -2050,23 +2016,6 @@ function toggleFilter(key) {
   renderLiveAtBats();
 }
 
-function updateLegFilterUI() {
-  ["hit", "miss", "na", "live", "not_started"].forEach(k => document.getElementById(`leg-chip-${k}`).classList.remove("active-filter"));
-  const statusEl = document.getElementById("leg-filter-status");
-  if (!LEG_FILTER) { statusEl.classList.remove("active"); return; }
-  const labels = { hit: "HIT", miss: "MISSED", na: "N/A", live: "LIVE", not_started: "NOT STARTED" };
-  document.getElementById(`leg-chip-${LEG_FILTER}`).classList.add("active-filter");
-  document.getElementById("leg-filter-status-text").textContent = `Showing only ${labels[LEG_FILTER]} legs`;
-  statusEl.classList.add("active");
-}
-
-function toggleLegFilter(state) {
-  LEG_FILTER = (LEG_FILTER === state) ? null : state;
-  updateLegFilterUI();
-  renderContent();
-  renderLiveAtBats();
-}
-
 function updateBettorFilterUI() {
   const statusEl = document.getElementById("bettor-filter-status");
   if (!BETTOR_FILTER) { statusEl.classList.remove("active"); return; }
@@ -2099,7 +2048,6 @@ function render() {
   renderContent();
   renderHrLog();
   updateFilterUI();
-  updateLegFilterUI();
   updateBettorFilterUI();
   renderLiveAtBats();
 }
@@ -2214,7 +2162,7 @@ function applyActiveTab() {
 function activateTab(tab) {
   if (tab === ACTIVE_TAB) return;
   ACTIVE_TAB = tab;
-  CURRENT_FILTER = LEG_FILTER = BETTOR_FILTER = null;
+  CURRENT_FILTER = BETTOR_FILTER = null;
   HR_EXPANDED.clear(); // the other tab's home runs, not this one's
   applyActiveTab();
   render();

@@ -315,7 +315,10 @@ with sync_playwright() as p:
     st = single_states(page)
     assert st == {"Player Hr": "hit", "Player Live": "live", "Player Miss": "miss", "Player Absent": "not_started"}, st
     assert leg_states(page) == {"Player Hr": "hit", "Player Live": "live"}, leg_states(page)
-    assert text(page, "count-live") == "2" and text(page, "count-hit") == "2", (text(page, "count-live"), text(page, "count-hit"))
+    bets = tuple(text(page, f"count-parlay-{k}") for k in ("open", "hit", "miss"))
+    assert bets == ("3", "1", "1"), bets   # open: the card + 2 singles; hit / missed: one single each
+    assert page.evaluate("!document.getElementById('leg-chip-hit') && !/LEGS/.test(document.getElementById('slate-stats').textContent)"), \
+        "the LEGS filter row was removed -- BETS covers it"
     assert count(r"schedule\?.*date=2026-09-18") == 0, "must not query the wall-clock date"
     assert "LIVE FROM MLB" in text(page, "eyebrow-text")
     assert not visible(page, "queued-note"), "nothing is queued behind the live slate here"
@@ -333,11 +336,11 @@ with sync_playwright() as p:
     page.click("#tab-btn-today")
     print("A3 OK: Yesterday tab shows the archived 9/16 slate with final results")
 
-    page.click("#leg-chip-hit")
+    page.click("#chip-hit")
     assert set(single_states(page).values()) == {"hit"}, single_states(page)
     page.click("#tab-btn-yesterday"); page.click("#tab-btn-today")
     assert set(single_states(page).values()) == {"hit", "live", "miss", "not_started"}, "filter should reset on tab switch"
-    print("A4 OK: leg filter works and resets when switching tabs")
+    print("A4 OK: bets filter works and resets when switching tabs")
 
     # ================= B: the last 9/17 game goes Final -> rollover =================
     FX["schedules"]["2026-09-17"] = schedule("2026-09-17", [(101, "Final"), (102, "Final")])

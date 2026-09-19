@@ -170,12 +170,21 @@ Two behaviours that are easy to break:
   shows under Open and under no filter at all -- not just under Irons.
 - **The Irons filter renders the FULL parlay**, every leg including the ones
   already hit, because the point is seeing how close the card is. The
-  leg-level filters' hide-non-matching-legs behaviour deliberately does not
-  apply; `renderContent()` still uses the leg filters to decide whether a
-  ticket appears, then overrides `visibleLegIdx` to all legs.
+  bettor filter's hide-non-matching-legs behaviour deliberately does not
+  apply; `renderContent()` still uses it to decide whether a ticket
+  appears, then overrides `visibleLegIdx` to all legs.
 
 A **dead** parlay is never an Iron even when one leg is numerically
 unresolved -- `outcome === "live"` excludes it, same as void.
+
+**The scoreboard is one row: BETS** (Open / Irons / Hit / Missed). There used
+to be a LEGS row under it (Hit / Missed / N/A / Live / Not Started, with a
+`LEG_FILTER`) and, above both, BATTING NOW / BATTING SOON. Both were removed
+on 2026-09-18 at the user's request -- Live At Bats replaced the batting
+chips, and the user judged the leg chips redundant with BETS. Don't add them
+back. The per-leg state colors on the tickets are unchanged; only the
+counters and their filter are gone. The remaining filters are
+`CURRENT_FILTER` (bets) and `BETTOR_FILTER`.
 
 **Test-helper trap:** `feed()` in `tests/test_page.py` numbers `battingOrder`
 per side, because the app reads the FIRST digit as the lineup slot. A flat
@@ -238,7 +247,7 @@ the ticket list uses (`ticketMatchesFilter`, `legPassesFilters`) so the panel
 can't disagree with the tickets under it: IRONS shows only hitters one swing
 from cashing something, a bettor filter only that person's picks, and they
 stack. Filtering is per bet, before players are merged, so under IRONS a tile
-lists only his Iron prices. HIT / MISSED and the non-LIVE leg chips leave
+lists only his Iron prices. HIT / MISSED leave
 nothing to show (a tile is by definition a live leg on an open bet) and the
 panel says the filter is why. Any new filter toggle must call
 `renderLiveAtBats()` -- forgetting that left the panel stale until the next

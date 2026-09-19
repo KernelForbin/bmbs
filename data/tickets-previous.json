@@ -1,0 +1,643 @@
+{
+  "date": "2026-09-18",
+  "note": "",
+  "windows": [
+    {
+      "title": "📊 4 THREE-LEG PARLAYS",
+      "tickets": [
+        {
+          "name": "Card 11",
+          "sub": "3-Leg",
+          "foot": "<b>$3.75</b> bet by Memo &middot; Potential payout <b>$208.89</b>",
+          "stake": 3.75,
+          "book": "Memo",
+          "payout": 208.89,
+          "legs": [
+            {
+              "id": "p0-c0-l0",
+              "player": "Pete Crow-Armstrong",
+              "team": "CHC",
+              "who": "Miggs",
+              "meta": "CHC &middot; Miggs",
+              "odds": "+240",
+              "time": "6:40 PM ET"
+            },
+            {
+              "id": "p0-c0-l1",
+              "player": "Seiya Suzuki",
+              "team": "CHC",
+              "who": "Kevin",
+              "meta": "CHC &middot; Kevin",
+              "odds": "+378",
+              "time": "6:40 PM ET"
+            },
+            {
+              "id": "p0-c0-l2",
+              "player": "Oneil Cruz",
+              "team": "PIT",
+              "who": "Memo",
+              "meta": "PIT &middot; Memo",
+              "odds": "+390",
+              "time": "6:40 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 12",
+          "sub": "3-Leg",
+          "foot": "<b>$3.75</b> bet by Memo &middot; Potential payout <b>$474.12</b>",
+          "stake": 3.75,
+          "book": "Memo",
+          "payout": 474.12,
+          "legs": [
+            {
+              "id": "p0-c1-l0",
+              "player": "Alex Bregman",
+              "team": "CHC",
+              "who": "Miggs",
+              "meta": "CHC &middot; Miggs",
+              "odds": "+520",
+              "time": "6:40 PM ET"
+            },
+            {
+              "id": "p0-c1-l1",
+              "player": "Elly De La Cruz",
+              "team": "CIN",
+              "who": "Kevin",
+              "meta": "CIN &middot; Kevin",
+              "odds": "+370",
+              "time": "6:40 PM ET"
+            },
+            {
+              "id": "p0-c1-l2",
+              "player": "Jackson Chourio",
+              "team": "MIL",
+              "who": "Noid",
+              "meta": "MIL &middot; Noid",
+              "odds": "+490",
+              "time": "7:05 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 13",
+          "sub": "3-Leg",
+          "foot": "<b>$3.75</b> bet by Memo &middot; Potential payout <b>$726.43</b>",
+          "stake": 3.75,
+          "book": "Memo",
+          "payout": 726.43,
+          "legs": [
+            {
+              "id": "p0-c2-l0",
+              "player": "Michael Conforto",
+              "team": "CHC",
+              "who": "Miggs",
+              "meta": "CHC &middot; Miggs",
+              "odds": "+570",
+              "time": "6:40 PM ET"
+            },
+            {
+              "id": "p0-c2-l1",
+              "player": "Bobby Witt Jr.",
+              "team": "KC",
+              "who": "Kevin",
+              "meta": "KC &middot; Kevin",
+              "odds": "+610",
+              "time": "6:40 PM ET"
+            },
+            {
+              "id": "p0-c2-l2",
+              "player": "Pete Alonso",
+              "team": "BAL",
+              "who": "Noid",
+              "meta": "BAL &middot; Noid",
+              "odds": "+370",
+              "time": "7:05 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 14",
+          "sub": "3-Leg",
+          "foot": "<b>$3.75</b> bet by Memo &middot; Potential payout <b>$954.86</b>",
+          "stake": 3.75,
+          "book": "Memo",
+          "payout": 954.86,
+          "legs": [
+            {
+              "id": "p0-c3-l0",
+              "player": "Junior Caminero",
+              "team": "TB",
+              "who": "Joe",
+              "meta": "TB &middot; Joe",
+              "odds": "+320",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p0-c3-l1",
+              "player": "Chase DeLauter",
+              "team": "CLE",
+              "who": "Bernie",
+              "meta": "CLE &middot; Bernie",
+              "odds": "+630",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p0-c3-l2",
+              "player": "Henry Bolte",
+              "team": "ATH",
+              "who": "Noid",
+              "meta": "ATH &middot; Noid",
+              "odds": "+920",
+              "time": "7:10 PM ET"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "🔗 10 TWO-LEG PARLAYS",
+      "tickets": [
+        {
+          "name": "Card 15",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Memo &middot; Potential payout <b>$168.15</b>",
+          "stake": 5.0,
+          "book": "Memo",
+          "payout": 168.15,
+          "legs": [
+            {
+              "id": "p1-c0-l0",
+              "player": "Wilyer Abreu",
+              "team": "BOS",
+              "who": "Chantra",
+              "meta": "BOS &middot; Chantra",
+              "odds": "+492",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p1-c0-l1",
+              "player": "Jo Adell",
+              "team": "CLE",
+              "who": "Didge",
+              "meta": "CLE &middot; Didge",
+              "odds": "+470",
+              "time": "7:10 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 16",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Kenny &middot; Potential payout <b>$60.00</b>",
+          "stake": 5.0,
+          "book": "Kenny",
+          "payout": 60.0,
+          "legs": [
+            {
+              "id": "p1-c1-l0",
+              "player": "Kyle Schwarber",
+              "team": "PHI",
+              "who": "Joe",
+              "meta": "PHI &middot; Joe",
+              "odds": "+285",
+              "time": "7:15 PM ET"
+            },
+            {
+              "id": "p1-c1-l1",
+              "player": "Juan Soto",
+              "team": "NYM",
+              "who": "Bernie",
+              "meta": "NYM &middot; Bernie",
+              "odds": "+290",
+              "time": "7:15 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 17",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Memo &middot; Potential payout <b>$137.26</b>",
+          "stake": 5.0,
+          "book": "Memo",
+          "payout": 137.26,
+          "legs": [
+            {
+              "id": "p1-c2-l0",
+              "player": "Francisco Lindor",
+              "team": "NYM",
+              "who": "Bailey",
+              "meta": "NYM &middot; Bailey",
+              "odds": "+425",
+              "time": "7:15 PM ET"
+            },
+            {
+              "id": "p1-c2-l1",
+              "player": "Carson Benge",
+              "team": "NYM",
+              "who": "Memo",
+              "meta": "NYM &middot; Memo",
+              "odds": "+650",
+              "time": "7:15 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 18",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Memo &middot; Potential payout <b>$154.00</b>",
+          "stake": 5.0,
+          "book": "Memo",
+          "payout": 154.0,
+          "legs": [
+            {
+              "id": "p1-c3-l0",
+              "player": "Bryce Harper",
+              "team": "PHI",
+              "who": "Chantra",
+              "meta": "PHI &middot; Chantra",
+              "odds": "+445",
+              "time": "7:15 PM ET"
+            },
+            {
+              "id": "p1-c3-l1",
+              "player": "Miguel Vargas",
+              "team": "CWS",
+              "who": "Kenny",
+              "meta": "CWS &middot; Kenny",
+              "odds": "+390",
+              "time": "7:40 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 19",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Memo &middot; Potential payout <b>$159.30</b>",
+          "stake": 5.0,
+          "book": "Memo",
+          "payout": 159.3,
+          "legs": [
+            {
+              "id": "p1-c4-l0",
+              "player": "Dillon Dingler",
+              "team": "DET",
+              "who": "Kenny",
+              "meta": "DET &middot; Kenny",
+              "odds": "+522",
+              "time": "7:40 PM ET"
+            },
+            {
+              "id": "p1-c4-l1",
+              "player": "Kody Clemens",
+              "team": "MIN",
+              "who": "Bailey",
+              "meta": "MIN &middot; Bailey",
+              "odds": "+450",
+              "time": "9:38 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 20",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Memo &middot; Potential payout <b>$139.65</b>",
+          "stake": 5.0,
+          "book": "Memo",
+          "payout": 139.65,
+          "legs": [
+            {
+              "id": "p1-c5-l0",
+              "player": "Vladimir Guerrero Jr.",
+              "team": "TOR",
+              "who": "Joe",
+              "meta": "TOR &middot; Joe",
+              "odds": "+450",
+              "time": "7:40 PM ET"
+            },
+            {
+              "id": "p1-c5-l1",
+              "player": "Colson Montgomery",
+              "team": "CWS",
+              "who": "Chantra",
+              "meta": "CWS &middot; Chantra",
+              "odds": "+415",
+              "time": "7:40 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 21",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Memo &middot; Potential payout <b>$86.95</b>",
+          "stake": 5.0,
+          "book": "Memo",
+          "payout": 86.95,
+          "legs": [
+            {
+              "id": "p1-c6-l0",
+              "player": "Mickey Moniak",
+              "team": "COL",
+              "who": "Didge",
+              "meta": "COL &middot; Didge",
+              "odds": "+390",
+              "time": "8:10 PM ET"
+            },
+            {
+              "id": "p1-c6-l1",
+              "player": "Yordan Alvarez",
+              "team": "HOU",
+              "who": "Bernie",
+              "meta": "HOU &middot; Bernie",
+              "odds": "+270",
+              "time": "8:10 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 22",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Memo &middot; Potential payout <b>$137.08</b>",
+          "stake": 5.0,
+          "book": "Memo",
+          "payout": 137.08,
+          "legs": [
+            {
+              "id": "p1-c7-l0",
+              "player": "Matt Olson",
+              "team": "ATL",
+              "who": "Bailey",
+              "meta": "ATL &middot; Bailey",
+              "odds": "+325",
+              "time": "8:10 PM ET"
+            },
+            {
+              "id": "p1-c7-l1",
+              "player": "Fernando Tatis Jr.",
+              "team": "SD",
+              "who": "Memo",
+              "meta": "SD &middot; Memo",
+              "odds": "+410",
+              "time": "9:40 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 23",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Memo &middot; Potential payout <b>$135.15</b>",
+          "stake": 5.0,
+          "book": "Memo",
+          "payout": 135.15,
+          "legs": [
+            {
+              "id": "p1-c8-l0",
+              "player": "Dominic Canzone",
+              "team": "SEA",
+              "who": "Kenny",
+              "meta": "SEA &middot; Kenny",
+              "odds": "+426",
+              "time": "8:10 PM ET"
+            },
+            {
+              "id": "p1-c8-l1",
+              "player": "Bryce Eldridge",
+              "team": "SF",
+              "who": "Didge",
+              "meta": "SF &middot; Didge",
+              "odds": "+440",
+              "time": "10:15 PM ET"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "💥 BONUS 5-MAN PARLAYS",
+      "tickets": [
+        {
+          "name": "Card 24",
+          "sub": "5-Leg",
+          "foot": "<b>$5.00</b> bet by Kenny &middot; Potential payout <b>$20,515.20</b>",
+          "stake": 5.0,
+          "book": "Kenny",
+          "payout": 20515.2,
+          "legs": [
+            {
+              "id": "p2-c0-l0",
+              "player": "James Wood",
+              "team": "WSH",
+              "who": "Chantra",
+              "meta": "WSH &middot; Chantra",
+              "odds": "+410",
+              "time": "7:05 PM ET"
+            },
+            {
+              "id": "p2-c0-l1",
+              "player": "Manny Machado",
+              "team": "SD",
+              "who": "Joe",
+              "meta": "SD &middot; Joe",
+              "odds": "+470",
+              "time": "7:05 PM ET"
+            },
+            {
+              "id": "p2-c0-l2",
+              "player": "Cal Raleigh",
+              "team": "SEA",
+              "who": "Kenny",
+              "meta": "SEA &middot; Kenny",
+              "odds": "+267",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p2-c0-l3",
+              "player": "Jose Ramirez",
+              "team": "CLE",
+              "who": "Bernie",
+              "meta": "CLE &middot; Bernie",
+              "odds": "+540",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p2-c0-l4",
+              "player": "Shea Langeliers",
+              "team": "ATH",
+              "who": "Bailey",
+              "meta": "ATH &middot; Bailey",
+              "odds": "+450",
+              "time": "7:40 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 25",
+          "sub": "5-Leg",
+          "foot": "<b>$5.00</b> bet by Memo &middot; Potential payout <b>$59,318.66</b>",
+          "stake": 5.0,
+          "book": "Memo",
+          "payout": 59318.66,
+          "legs": [
+            {
+              "id": "p2-c1-l0",
+              "player": "Isaac Paredes",
+              "team": "HOU",
+              "who": "Miggs",
+              "meta": "HOU &middot; Miggs",
+              "odds": "+540",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p2-c1-l1",
+              "player": "Mauricio Dubon",
+              "team": "ATL",
+              "who": "Noid",
+              "meta": "ATL &middot; Noid",
+              "odds": "+920",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p2-c1-l2",
+              "player": "William Contreras",
+              "team": "MIL",
+              "who": "Memo",
+              "meta": "MIL &middot; Memo",
+              "odds": "+570",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p2-c1-l3",
+              "player": "Brandon Nimmo",
+              "team": "TEX",
+              "who": "Kevin",
+              "meta": "TEX &middot; Kevin",
+              "odds": "+570",
+              "time": "7:15 PM ET"
+            },
+            {
+              "id": "p2-c1-l4",
+              "player": "Ben Rice",
+              "team": "NYY",
+              "who": "Didge",
+              "meta": "NYY &middot; Didge",
+              "odds": "+470",
+              "time": "7:40 PM ET"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "singles": [
+    {
+      "id": "single-0",
+      "who": "MEMO",
+      "player": "Chase Meidroth",
+      "team": "CWS",
+      "meta": "7:40 PM ET &middot; $5.00 bet",
+      "odds": "+1040",
+      "stake": 5.0,
+      "payout": 54.0,
+      "pp": "PP $54.00"
+    },
+    {
+      "id": "single-1",
+      "who": "MIGGS",
+      "player": "Jeremy Pena",
+      "team": "HOU",
+      "meta": "8:11 PM ET &middot; $5.00 bet",
+      "odds": "+590",
+      "stake": 5.0,
+      "payout": 34.5,
+      "pp": "PP $34.50"
+    },
+    {
+      "id": "single-2",
+      "who": "NOID",
+      "player": "A.J. Ewing",
+      "team": "NYM",
+      "meta": "7:15 PM ET &middot; $5.00 bet",
+      "odds": "+920",
+      "stake": 5.0,
+      "payout": 51.0,
+      "pp": "PP $51.00"
+    },
+    {
+      "id": "single-3",
+      "who": "CHANTRA",
+      "player": "Ivan Herrera",
+      "team": "STL",
+      "meta": "8:16 PM ET &middot; $5.00 bet",
+      "odds": "+920",
+      "stake": 5.0,
+      "payout": 54.0,
+      "pp": "PP $54.00"
+    },
+    {
+      "id": "single-4",
+      "who": "JOE",
+      "player": "Andres Gimenez",
+      "team": "TOR",
+      "meta": "8:05 PM ET &middot; $5.00 bet",
+      "odds": "+900",
+      "stake": 5.0,
+      "payout": 54.0,
+      "pp": "PP $54.00"
+    },
+    {
+      "id": "single-5",
+      "who": "KEVIN",
+      "player": "Alejandro Kirk",
+      "team": "TOR",
+      "meta": "7:05 PM ET &middot; $5.00 bet",
+      "odds": "+860",
+      "stake": 5.0,
+      "payout": 49.0,
+      "pp": "PP $49.00"
+    },
+    {
+      "id": "single-6",
+      "who": "KENNY",
+      "player": "Jake McCarthy",
+      "team": "COL",
+      "meta": "8:10 PM ET &middot; $5.00 bet",
+      "odds": "+770",
+      "stake": 5.0,
+      "payout": 46.0,
+      "pp": "PP $46.00"
+    },
+    {
+      "id": "single-7",
+      "who": "BAILEY",
+      "player": "Brock Rodden",
+      "team": "SEA",
+      "meta": "8:10 PM ET &middot; $5.00 bet",
+      "odds": "+760",
+      "stake": 5.0,
+      "payout": 44.5,
+      "pp": "PP $44.50"
+    },
+    {
+      "id": "single-8",
+      "who": "BERNIE",
+      "player": "Josh Naylor",
+      "team": "SEA",
+      "meta": "6:40 PM ET &middot; $5.00 bet",
+      "odds": "+760",
+      "stake": 5.0,
+      "payout": 43.0,
+      "pp": "PP $43.00"
+    },
+    {
+      "id": "single-9",
+      "who": "DIDGE",
+      "player": "Gabriel Moreno",
+      "team": "ARI",
+      "meta": "9:40 PM ET &middot; $5.00 bet",
+      "odds": "+750",
+      "stake": 5.0,
+      "payout": 43.0,
+      "pp": "PP $43.00"
+    }
+  ]
+}

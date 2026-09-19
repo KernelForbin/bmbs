@@ -3,7 +3,7 @@
   "note": "",
   "windows": [
     {
-      "title": "Part 1: Afternoon Early Birds (2:10 PM & 4:05 PM ET Mixed)",
+      "title": "PART 1: AFTERNOON EARLY BIRDS (2:10 PM & 4:05 PM ET MIXED)",
       "tickets": [
         {
           "name": "Card 1",
@@ -129,7 +129,7 @@
       ]
     },
     {
-      "title": "Part 2: Main Late Afternoon Window (4:10 PM ET)",
+      "title": "PART 2: MAIN LATE AFTERNOON WINDOW (4:10 PM ET)",
       "tickets": [
         {
           "name": "Card 5",
@@ -246,7 +246,7 @@
       ]
     },
     {
-      "title": "Part 3: Dinner Window (6:10 PM & 6:40 PM ET)",
+      "title": "PART 3: DINNER WINDOW (6:10 PM & 6:40 PM ET)",
       "tickets": [
         {
           "name": "Card 9",
@@ -400,7 +400,7 @@
       ]
     },
     {
-      "title": "Part 4: Prime Time Night Caps (7:10 PM & 8:40 PM ET)",
+      "title": "PART 4: PRIME TIME NIGHT CAPS (7:10 PM & 8:40 PM ET)",
       "tickets": [
         {
           "name": "Card 14",
@@ -433,7 +433,7 @@
       ]
     },
     {
-      "title": "Part 5: Bonus Bets (Unsorted)",
+      "title": "PART 5: BONUS BETS (UNSORTED)",
       "tickets": [
         {
           "name": "Card 15",
@@ -542,6 +542,69 @@
               "meta": "AZ &middot; Noid",
               "odds": "+490",
               "time": "8:10 PM ET"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "PART 6: LATE ADDITIONS",
+      "tickets": [
+        {
+          "name": "Card 17",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Bailey &middot; Potential payout <b>$151.25</b>",
+          "stake": 5.0,
+          "book": "Bailey",
+          "payout": 151.25,
+          "legs": [
+            {
+              "id": "p5-c0-l0",
+              "player": "Josh Naylor",
+              "team": "SEA",
+              "who": "Bailey",
+              "meta": "SEA &middot; Bailey",
+              "odds": "+450",
+              "time": "8:10 PM ET",
+              "market": "sb"
+            },
+            {
+              "id": "p5-c0-l1",
+              "player": "Ben Rice",
+              "team": "NYY",
+              "who": "Bailey",
+              "meta": "NYY &middot; Bailey",
+              "odds": "+450",
+              "time": "8:10 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 18",
+          "sub": "2-Leg",
+          "foot": "<b>$5.00</b> bet by Bailey &middot; Potential payout <b>$130.62</b>",
+          "stake": 5.0,
+          "book": "Bailey",
+          "payout": 130.62,
+          "legs": [
+            {
+              "id": "p5-c1-l0",
+              "player": "Josh Naylor",
+              "team": "SEA",
+              "who": "Bailey",
+              "meta": "SEA &middot; Bailey",
+              "odds": "+450",
+              "time": "8:10 PM ET",
+              "market": "sb"
+            },
+            {
+              "id": "p5-c1-l1",
+              "player": "Max Muncy",
+              "team": "LAD",
+              "who": "Bailey",
+              "meta": "LAD &middot; Bailey",
+              "odds": "+375",
+              "time": "9:10 PM ET"
             }
           ]
         }

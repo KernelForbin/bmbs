@@ -566,7 +566,7 @@ async function getScheduleForDate(date) {
 
 // The live feed is ~630KB raw / ~104KB gzipped per game, and on a full slate
 // we pull one per live game every poll. `fields` is a flat allow-list of field
-// NAMES (matched at any depth, not paths), and it cuts that to ~10KB gzipped
+// NAMES (matched at any depth, not paths), and it cuts that to ~15KB gzipped
 // -- which is what makes a 10s POLL_MS cheaper than the old 20s one.
 //
 // Verified 2026-09-18 against all 11 games live at the time: getGameSnapshot()
@@ -583,9 +583,10 @@ const FEED_FIELDS = [
   "weather", "condition", "temp", "wind",
   "teams", "away", "home", "abbreviation", "teamName",
   "liveData", "plays", "allPlays", "result", "eventType", "event",
-  "about", "isTopInning", "halfInning", "inning", "endTime", "startTime", "atBatIndex",
+  "about", "isTopInning", "halfInning", "inning", "endTime", "startTime", "atBatIndex", "isComplete",
   "matchup", "batter", "fullName", "batSide", "code", "pitcher", "pitchHand",
-  "playEvents", "isPitch", "details", "type", "description",
+  "playEvents", "isPitch", "details", "type", "description", "call",
+  "count", "balls", "strikes", "isOut",
   "pitchData", "startSpeed", "zone",
   "hitData", "launchSpeed", "launchAngle", "totalDistance", "trajectory",
   "boxscore", "players", "person", "battingOrder",

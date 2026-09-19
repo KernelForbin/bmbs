@@ -154,7 +154,7 @@ Per leg, three states:
 for 10s (`Cache-Control: max-age=10`), tells clients to wait 10s
 (`metaData.wait`), and in practice only republishes a game's feed every
 ~18-20s. To keep that affordable, each feed is requested with a `fields=`
-allow-list that trims it from ~104KB gzipped to ~10KB.
+allow-list that trims it from ~104KB gzipped to ~15KB.
 
 This relies on `statsapi.mlb.com` allowing unauthenticated, CORS-open
 browser requests (confirmed, no key or proxy needed). It's an unofficial,

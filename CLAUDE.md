@@ -111,7 +111,7 @@ term.
 **That 10s is only affordable because of `FEED_FIELDS`.** The full live feed is
 ~630KB raw / ~104KB gzipped *per game*, and a full slate pulls one per live
 game per poll -- over 1MB a cycle. `getGameSnapshot()` sends a `fields=`
-allow-list that cuts it to ~10KB gzipped, so 10s polling costs about a fifth of
+allow-list that cuts it to ~15KB gzipped, so 10s polling costs about a quarter of
 what the old 20s polling did. `fields` matches field NAMES at any depth, not
 paths, and a missing name silently yields `undefined` rather than erroring --
 so every name read out of `data` must be listed, including intermediate ones.
@@ -270,10 +270,10 @@ Two things learned from running against real live games, not mocks:
 It is pitch-by-pitch *as of the last poll*, not a live stream: several pitches
 can land at once, and a short at-bat can start and finish between polls (the
 result tile still shows). Pinch Hit Protection substitutes don't get tiles.
-No extra API calls -- it reads the same feeds already being fetched. If
-`FEED_FIELDS` is in play (10s polling), it needs `isComplete`, `count`,
-`balls`, `strikes`, `call` added, and `tests/test_feed_fields.py` must compare
-`currentAB` / `recentABs` too.
+No extra API calls -- it reads the same feeds already being fetched. Its
+fields (`isComplete`, `count`, `balls`, `strikes`, `call`, `isOut`) are in
+`FEED_FIELDS`, and `tests/test_feed_fields.py` compares `currentAB` /
+`recentABs` between the full and slim feed along with everything else.
 
 ## Home Run Log
 

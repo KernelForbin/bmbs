@@ -79,6 +79,7 @@ NORMALIZE = """async (pk) => {
     slotHolders: s.slotHolders,
     inning: s.inning, halfState: s.halfState, outs: s.outs,
     nextUpSlot: s.nextUpSlot, currentlyBattingSide: s.currentlyBattingSide,
+    currentAB: s.currentAB, recentABs: s.recentABs,   // Live At Bats: count, every pitch, results
   });
 }"""
 
@@ -130,8 +131,10 @@ with sync_playwright() as p:
 
         if from_full == from_slim:
             s = json.loads(from_full)
+            ab = s.get("currentAB") or {}
             print(f"PASS  {pk}  status={s['status']:7s} roster={len(s['rosterNames']):3d} "
-                  f"HRs={len(s['homeRuns'])} inning={s['inning']}")
+                  f"HRs={len(s['homeRuns'])} inning={s['inning']} recentABs={len(s.get('recentABs') or [])} "
+                  f"atBat={ab.get('batter', '-')} {ab.get('balls', '')}-{ab.get('strikes', '')} pitches={len(ab.get('pitches') or [])}")
         else:
             failures.append(pk)
             print(f"FAIL  {pk}  slim feed computed a DIFFERENT snapshot")

@@ -134,7 +134,8 @@ with tempfile.TemporaryDirectory() as tmp:
     out = tmp / "out" / "history.json"
     real = REPO / "data" / "history.json"
     before = real.read_bytes() if real.exists() else None
-    cmd = [sys.executable, str(REPO / "scripts" / "import_history.py"), "--from-dir", str(tmp), "--out", str(out), "--no-mlb"]
+    cmd = [sys.executable, str(REPO / "scripts" / "import_history.py"), "--from-dir", str(tmp), "--out", str(out), "--no-mlb",
+           "--results-dir", str(tmp / "no-recorded-slates")]   # sheet-only here; tests/test_record_results.py covers the merge
 
     r = subprocess.run(cmd, capture_output=True, text=True)
     check("CLI import succeeds offline", r.returncode == 0 and out.exists(), r.stderr[-300:])

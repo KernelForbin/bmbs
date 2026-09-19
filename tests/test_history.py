@@ -295,6 +295,58 @@ with sync_playwright() as p:
         "document.querySelector('#slate-chart svg').getBoundingClientRect().right <= document.querySelector('#slate-chart').getBoundingClientRect().right + 0.5"))
     browser.close()
 
+    # ---------- K. slates the tracker recorded itself (scripts/record_results.py) ----------
+    # They carry what the sheet never had: stakes, who placed the bet, singles,
+    # Pinch Hit Protection credits, home run distance.
+    site = json.loads(json.dumps(HISTORY))
+    site["recordedFrom"] = "2026-08-22"
+    site["lastSlate"] = "2026-08-22"
+    site["parlays"] += [
+        {"date": "2026-08-22", "set": 1, "src": "site", "name": "Card 1", "book": "Ann", "stake": 5.0, "payout": 80.0,
+         "returned": 80.0, "won": 80.0,
+         "legs": [dict(leg("Ann", "Judge", 300, "hit"), name="Aaron Judge", dist=431),
+                  dict(leg("Bob", "Soto", 300, "hit"), php="Pinch Guy")]},
+        {"date": "2026-08-22", "set": 1, "src": "site", "name": "Card 2", "book": "Cy", "stake": 3.0, "payout": 60.0,
+         "returned": 0.0, "legs": [leg("Cy", "Rice", 400, "miss"), leg("Ann", "Trout", 500, "hit")]},
+        {"date": "2026-08-22", "set": 1, "src": "site", "kind": "single", "book": "Bob", "stake": 5.0, "payout": 40.0,
+         "returned": 5.0, "legs": [leg("Bob", "Alonso", 700, "dnp")]},
+    ]
+    browser, page, requests, errors = serve(p, history=site)
+    page.wait_for_selector("#board tbody tr")
+    t = tiles(page)
+    check("K1 Real money tile: $13 staked, $85 back (the void single refunds its stake) -> +$72",
+          t[-1][0] == "Real money" and t[-1][1] == "+$72.00" and "$13.00 staked" in t[-1][2] and "$85.00 back" in t[-1][2]
+          and "3 bets since Aug 22" in t[-1][2], str(t[-1]))
+    check("K2 the older tiles keep their places", t[0][0] == "Slates" and t[3][0] == "Heartbreakers", str([x[0] for x in t]))
+    first_day = page.evaluate("""() => { const out = []; let on = false;
+        for (const n of document.querySelectorAll('#log > *')) {
+          if (n.classList.contains('day')) { if (on) break; on = true; continue; }
+          if (on) out.push(n.textContent); }
+        return out; }""")
+    check("K3 a cashed recorded bet shows what it paid and the stake", "$80.00 on $5.00" in first_day[0], first_day[0])
+    check("K4 a hit shows the home run's distance; a PHP credit names the substitute",
+          "431 ft" in first_day[0] and "PHP: Pinch Guy" in first_day[0], first_day[0])
+    check("K5 a losing recorded bet shows its stake", first_day[1].endswith("$3.00 bet"), first_day[1])
+    check("K6 a single is labelled, and a void one reads as refunded",
+          "Single" in first_day[2] and first_day[2].endswith("$5.00 refunded"), first_day[2])
+    check("K7 the full name rides along as a tooltip", page.evaluate(
+        "[...document.querySelectorAll('#log .leg')].some(l => l.title === 'Aaron Judge')"))
+    check("K8 footer says where the two halves of the history come from",
+          "tracking sheet" in page.inner_text("#footer-line") and "Aug 22" in page.inner_text("#footer-line"))
+    chip(page, "bettor-chips", "Cy")
+    t = tiles(page)
+    check("K9 with a bettor selected, Real money is the bets that person PLACED",
+          "Cy placed" in t[-1][0] and t[-1][1] == "−$3.00", str(t[-1]))
+    check("K10 no script errors, still only one data request", not errors and
+          sorted(set(u for u in requests if "fonts.g" not in u)) == [ORIGIN + "/data/history.json", ORIGIN + "/history/"], str(errors))
+    browser.close()
+
+    # sheet-only history (no recorded slates yet) shows no money tile at all
+    browser, page, requests, errors = serve(p)
+    page.wait_for_selector("#board tbody tr")
+    check("K11 no recorded bets -> no Real money tile", all(x[0] != "Real money" for x in tiles(page)))
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

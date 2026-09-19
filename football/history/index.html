@@ -3,14 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BMBS Tracker — History</title>
+<title>BMBS Football — History</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!--
-  Standalone History page. Deliberately shares NOTHING with /index.html:
-  no MLB polling, none of the live slate files. Its only data source is the static file
-  /data/history.json, written by scripts/import_history.py.
+  Football's standalone History page. Adapted ONCE from /history/index.html and
+  independent since -- like football/index.html, a fix that applies to both is
+  made twice. Shares nothing with the live football tracker: no ESPN polling,
+  none of the slate files. Its only data source is the static file
+  /data/football/history.json, written by scripts/record_football_results.py.
 -->
 <style>
   :root {
@@ -145,9 +147,9 @@
 <body>
 <div class="wrap">
   <header>
-    <a class="back" id="back-link" href="/">&larr; Live tracker</a>
+    <a class="back" id="back-link" href="/football/">&larr; Football tracker</a>
     <p class="eyebrow">THE ARCHIVE</p>
-    <h1>BMBS History</h1>
+    <h1>Football History</h1>
     <p class="note" id="range-note">Loading&hellip;</p>
   </header>
 
@@ -158,17 +160,16 @@
     </div>
 
     <div class="tiles" id="tiles"></div>
-    <p class="callout" id="callout" hidden></p>
 
     <section id="sec-board">
       <h2>Bettor leaderboard</h2>
       <p class="sub">Every leg each person picked. Tap a row to filter the page to that bettor; tap a column to sort.</p>
       <div class="panel scroll-x"><table id="board"></table></div>
-      <p class="foot"><b>Flat ROI</b> is hypothetical: one unit staked on each pick as a straight single at the listed odds. It isn't anyone's real profit &mdash; real stakes weren't written down until the tracker began keeping its own record (the <b>Real money</b> tile covers those bets) &mdash; and odds were only logged from <span id="odds-from-1"></span>, so it covers picks since then. Small samples swing wildly. <b>Drought</b> is the longest run of consecutive misses.</p>
+      <p class="foot"><b>Flat ROI</b> is hypothetical: one unit staked on each pick as a straight single at the listed odds &mdash; a way to compare pickers, not anyone's real profit (the <b>Real money</b> tile is that).<span id="odds-from-1" hidden></span> Small samples swing wildly. <b>Drought</b> is the longest run of consecutive misses.</p>
     </section>
 
     <section id="sec-slates">
-      <h2>Slate by slate</h2>
+      <h2>Week by week</h2>
       <p class="sub" id="slates-sub"></p>
       <div class="panel">
         <div class="legend"><span><i class="key-rect"></i>Share of legs that hit</span><span><i class="key-line"></i>Average</span><span>&#9733; a parlay cashed</span></div>
@@ -179,7 +180,7 @@
 
     <section id="sec-odds">
       <h2>Are the odds worth it?</h2>
-      <p class="sub">Hit rate by odds band against the rate those odds need just to break even. A bar that stops short of its marker is a band that loses money over time. Odds logged from <span id="odds-from-2"></span>.</p>
+      <p class="sub">Hit rate by odds band against the rate those odds need just to break even. A bar that stops short of its marker is a band that loses money over time. <span id="odds-from-2" hidden></span></p>
       <div class="panel">
         <div class="legend"><span><i class="key-rect"></i>Actual hit rate</span><span><i class="key-tick"></i>Break-even needed</span></div>
         <div id="odds-chart"></div>
@@ -206,16 +207,10 @@
       <p class="foot">A heartbreaker is a parlay of two or more legs where every leg hit except one. The &ldquo;parlay killer&rdquo; is the one that didn&rsquo;t.</p>
     </section>
 
-    <section id="sec-away">
-      <h2>The ones that got away</h2>
-      <p class="sub" id="away-sub"></p>
-      <div class="panel scroll-x"><table id="away"></table></div>
-      <p class="foot" id="away-foot"></p>
-    </section>
 
     <section id="sec-log">
       <h2>Every parlay</h2>
-      <p class="sub">&#10003; hit &nbsp;&middot;&nbsp; &#10007; miss &nbsp;&middot;&nbsp; &ndash; didn&rsquo;t play (leg voided). A dollar amount on the right is what a cashed bet paid; on bets the tracker recorded itself, the stake is shown too, a hit shows how far the home run went, and <b>PHP</b> marks a leg credited through Pinch Hit Protection (a substitute in his lineup spot went deep).</p>
+      <p class="sub">&#10003; hit &nbsp;&middot;&nbsp; &#10007; miss &nbsp;&middot;&nbsp; &ndash; didn&rsquo;t play (leg voided). A dollar amount on the right is what a cashed bet paid; otherwise it&rsquo;s the stake. A hit shows how many touchdowns he scored and the longest one.</p>
       <div class="panel">
         <div class="controls">
           <div class="chips" id="outcome-chips" role="group" aria-label="Outcome"></div>
@@ -227,7 +222,7 @@
     </section>
   </div>
 
-  <footer id="footer-line"><span id="footer-source">history imported daily from the group&rsquo;s tracking sheet</span> &middot; <a href="/">back to the live tracker</a></footer>
+  <footer id="footer-line"><span id="footer-source">each NFL week is recorded by the tracker itself, the morning after its last game</span> &middot; <a href="/football/">back to the football tracker</a> &middot; <a href="/history/">baseball history</a></footer>
 </div>
 <div id="tip" hidden></div>
 
@@ -409,7 +404,7 @@ function renderTiles() {
   const slates = new Set(parlays.map(p => p.date)).size;
   const box = $("tiles");
   box.replaceChildren(
-    tile("Slates", String(slates), fmtDate(DATA.firstSlate) + " – " + fmtDate(DATA.lastSlate)),
+    tile("Weeks", String(slates), fmtDate(DATA.firstSlate) + " – " + fmtDate(DATA.lastSlate)),
     tile(b ? b + "'s hit rate" : "Leg hit rate", pct(hits, legs.length), hits + " of " + legs.length + " legs"),
     tile(b ? "Bets cashed (in on)" : "Bets cashed", cashed.length + " of " + decided.length, wonTotal ? fmtMoney(wonTotal) + " recorded" : "")
   );
@@ -431,15 +426,6 @@ function renderTiles() {
       fmtMoney(staked) + " staked · " + fmtMoney(back) + " back · " + money.length + " bets since " + fmtDate(DATA.recordedFrom || money[0].date)));
   }
 
-  const g = DATA.gotAway, c = $("callout");
-  if (g && g.players && g.players.length && !b) {
-    let pd = 0, ph = 0, fd = 0, fh = 0;
-    for (const p of g.players) { pd += p.pickedDays; ph += p.pickedDayHits; fd += p.freeDays; fh += p.freeDayHits; }
-    c.replaceChildren(document.createTextNode("Among the " + g.players.length + " most-picked players, they homered on "),
-      el("b", { text: pct(ph, pd) }), document.createTextNode(" of the days the group picked them — and on "),
-      el("b", { text: pct(fh, fd) }), document.createTextNode(" of the days it didn't. Picking the day hasn't beaten picking at random."));
-    c.hidden = false;
-  } else c.hidden = true;
 }
 
 function renderBoard() {
@@ -473,7 +459,7 @@ function renderSlates() {
   const totL = rows.reduce((s, r) => s + r.legs, 0), totH = rows.reduce((s, r) => s + r.hits, 0);
   const avg = totL ? totH / totL : 0;
   const who = STATE.bettor ? STATE.bettor + "'s" : "the group's";
-  $("slates-sub").textContent = "Share of " + who + " legs that hit on each slate. Hover or tap a bar for the detail.";
+  $("slates-sub").textContent = "Share of " + who + " legs that scored each week. Hover or tap a bar for the detail.";
 
   const host = $("slate-chart");
   host.replaceChildren();
@@ -483,7 +469,7 @@ function renderSlates() {
   const step = maxRate > 0.6 ? 0.25 : 0.1;
   const top = Math.ceil(maxRate / step - 1e-9) * step;
   const y = v => padT + plotH - (v / top) * plotH;
-  const s = svg("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Hit rate per slate; the same numbers are in the table below" });
+  const s = svg("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Hit rate per week; the same numbers are in the table below" });
   for (let v = 0; v <= top + 1e-9; v += step) {
     s.append(svg("line", { x1: padL, x2: W - padR, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 }));
     s.append(svg("text", { x: padL - 6, y: y(v) + 3.5, "text-anchor": "end" }, Math.round(v * 100) + "%"));
@@ -511,7 +497,7 @@ function renderSlates() {
   host.append(s);
 
   renderTable("slate-table", [
-    { key: "date", label: "Slate", value: r => r.date, cell: r => fmtDate(r.date) },
+    { key: "date", label: "Week of", value: r => r.date, cell: r => fmtDate(r.date) },
     { key: "legs", label: "Legs", num: true, value: r => r.legs, cell: r => String(r.legs) },
     { key: "hits", label: "Hits", num: true, value: r => r.hits, cell: r => String(r.hits) },
     { key: "rate", label: "Hit %", num: true, value: r => r.legs ? r.hits / r.legs : null, cell: r => pct(r.hits, r.legs) },
@@ -520,11 +506,11 @@ function renderSlates() {
 }
 
 const BANDS = [
-  { label: "under +300", lo: -Infinity, hi: 300 },
-  { label: "+300 to +399", lo: 300, hi: 400 },
-  { label: "+400 to +499", lo: 400, hi: 500 },
-  { label: "+500 to +599", lo: 500, hi: 600 },
-  { label: "+600 and up", lo: 600, hi: Infinity }
+  { label: "favorites (−)", lo: -Infinity, hi: 100 },
+  { label: "+100 to +199", lo: 100, hi: 200 },
+  { label: "+200 to +299", lo: 200, hi: 300 },
+  { label: "+300 to +499", lo: 300, hi: 500 },
+  { label: "+500 and up", lo: 500, hi: Infinity }
 ];
 function renderOdds() {
   const legs = allLegs(STATE.bettor).map(x => x.leg).filter(l => resolved(l) && l.odds !== null && l.odds !== undefined);
@@ -626,26 +612,6 @@ function renderHearts() {
   ], rows, { sortKey: "n", limit: 12, empty: "No heartbreakers here." });
 }
 
-function renderAway() {
-  const g = DATA.gotAway, sec = $("sec-away");
-  if (!g || !g.players || !g.players.length) { sec.hidden = true; return; }
-  sec.hidden = false;
-  const b = STATE.bettor;
-  let rows = g.players;
-  if (b) { const mine = new Set(allLegs(b).map(x => x.leg.pick)); rows = rows.filter(r => mine.has(r.pick)); }
-  $("away-sub").textContent = "Players the group backs often (" + g.minPicks + "+ picks) who went deep on days nobody had them"
-    + (b ? " — limited to players " + b + " has picked." : ".") + " Real MLB game logs, same date range.";
-  renderTable("away", [
-    { key: "name", label: "Player", value: r => r.name, cell: r => playerLink(r.pick) },
-    { key: "away", label: "Got away", num: true, title: "Days they homered when nobody picked them", value: r => r.gotAway.length, cell: r => String(r.gotAway.length) },
-    { key: "free", label: "HR% not picked", num: true, value: r => r.freeDays ? r.freeDayHits / r.freeDays : null, cell: r => pct(r.freeDayHits, r.freeDays) + " (" + r.freeDayHits + "/" + r.freeDays + ")" },
-    { key: "picked", label: "HR% when picked", num: true, value: r => r.pickedDays ? r.pickedDayHits / r.pickedDays : null, cell: r => pct(r.pickedDayHits, r.pickedDays) + " (" + r.pickedDayHits + "/" + r.pickedDays + ")" },
-    { key: "dates", label: "Days that got away", cls: "dim wrap-ok", value: r => r.gotAway[0] || null, cell: r => r.gotAway.length ? r.gotAway.map(fmtDate).join(", ") : "—" }
-  ], rows, { sortKey: "away", limit: 15, empty: "None of this bettor's players qualify yet." });
-  const off = g.checkedPickDays - g.agreeingPickDays;
-  $("away-foot").textContent = "Top 15 shown; sort any column. Percentages are days with a home run out of games played. Cross-check: the sheet's Hit/Miss marks match MLB's records on "
-    + g.agreeingPickDays + " of " + g.checkedPickDays + " pick-days" + (off ? " (" + off + " disagree" + (off === 1 ? "s" : "") + " — worth a look in the sheet)." : ".");
-}
 
 const OUTCOMES = [["all", "All"], ["cashed", "Cashed"], ["heart", "Heartbreakers"], ["missed", "Missed"]];
 const LEG_MARK = { hit: "✓", miss: "✗", dnp: "–", pending: "…" };
@@ -679,7 +645,7 @@ function renderLog() {
     for (const l of p.legs) {
       const leg = el("span", { class: "leg " + l.status + (b && l.bettor === b ? " mine" : ""), title: l.name || null });
       leg.append(document.createTextNode((LEG_MARK[l.status] || "") + " " + l.pick + " "), el("span", { class: "who", text: l.bettor + (l.odds ? " " + fmtOdds(l.odds) : "") }));
-      const extra = [l.php ? "PHP: " + l.php : null, l.status === "hit" && l.dist ? l.dist + " ft" : null].filter(Boolean).join(" · ");
+      const extra = [l.status === "hit" && l.tds > 1 ? l.tds + " TD" : null, l.status === "hit" && typeof l.yards === "number" ? l.yards + " yd" : null].filter(Boolean).join(" · ");
       if (extra) leg.append(el("span", { class: "extra", text: " · " + extra }));
       row.append(leg);
     }
@@ -693,25 +659,30 @@ function renderLog() {
 }
 
 function renderAll() {
-  renderChips(); renderTiles(); renderBoard(); renderSlates(); renderOdds(); renderPlayers(); renderHearts(); renderAway(); renderLog();
+  renderChips(); renderTiles(); renderBoard(); renderSlates(); renderOdds(); renderPlayers(); renderHearts(); renderLog();
 }
 
 async function init() {
   try {
-    const res = await fetch("../data/history.json", { cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    DATA = await res.json();
-    if (!DATA || !Array.isArray(DATA.parlays) || !DATA.parlays.length) throw new Error("no parlays in file");
+    const res = await fetch("../../data/football/history.json", { cache: "no-store" });
+    if (res.status !== 404) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      DATA = await res.json();
+    }
+    if (!DATA || !Array.isArray(DATA.parlays) || !DATA.parlays.length) {
+      // No finished week on file yet. A normal state, not an error.
+      $("range-note").textContent = "No finished weeks yet. The first one lands here the morning after its last game — "
+        + "usually Tuesday, once Monday night is final. This week's action is on the football tracker.";
+      return;
+    }
   } catch (err) {
     $("range-note").textContent = "Couldn't load the history file (" + err.message + "). Try again in a minute.";
     return;
   }
   DATA.parlays.sort((a, b) => a.date.localeCompare(b.date));   // stable; droughts need chronological order
   const legs = DATA.parlays.reduce((s, p) => s + p.legs.length, 0);
-  if (DATA.recordedFrom) $("footer-source").textContent = "slates before " + fmtDate(DATA.recordedFrom)
-    + " come from the group’s tracking sheet · since then the tracker records each finished slate itself, every morning";
-  $("range-note").replaceChildren(el("b", { text: DATA.parlays.length + " parlays" }), document.createTextNode(" and " + legs + " legs, "
-    + fmtDate(DATA.firstSlate) + " through " + fmtDate(DATA.lastSlate) + ". Finished slates only — today's action is on the live tracker."));
+  $("range-note").replaceChildren(el("b", { text: DATA.parlays.length + " bets" }), document.createTextNode(" and " + legs + " legs, "
+    + fmtDate(DATA.firstSlate) + " through " + fmtDate(DATA.lastSlate) + ". Finished weeks only — this week's action is on the football tracker."));
   $("player-search").addEventListener("input", ev => { STATE.playerSearch = ev.target.value; STATE.playersShown = 25; renderPlayers(); });
   $("log-search").addEventListener("input", ev => { STATE.logSearch = ev.target.value; STATE.logShown = 40; renderLog(); });
   $("players-more").addEventListener("click", () => { STATE.playersShown = Infinity; renderPlayers(); });

@@ -1,14 +1,31 @@
-name: Import History
+name: Record Results & Build History
 
-# Refreshes data/history.json (the History page's only data source) from the
-# group's tracking sheet. Runs once a day at a quiet hour, well away from the
-# evening picks upload, so it doesn't race parse-picks.yml for the push.
-# It writes data/history.json and nothing else -- never the tickets files.
+# The site's memory. Once a day, at a quiet hour:
+#   1. baseball: grade any finished slate into data/results/<date>.json
+#   2. baseball: rebuild data/history.json = the group's sheet (older slates)
+#                + every recorded slate
+#   3. football: grade any finished NFL week into data/football/results/, and
+#                rebuild data/football/history.json
+#
+# Why a morning schedule and not "the moment Today rolls to Yesterday": that
+# rollover happens inside each visitor's browser -- there is no server to
+# notice it. Catching it here would mean a cron polling all evening, which is
+# exactly what used to race parse-picks.yml and the Discord bot for the push.
+# By 9am ET every game (West Coast, extra innings, Monday night) is long over,
+# overnight scoring corrections are in, and nobody is uploading picks. A slate
+# stays in tickets.json / tickets-previous.json for at least a day after it
+# ends, so one run a day sees every slate; a missed day is picked up the next.
+#
+# ONE job, ONE commit: the steps write different files, so they can't conflict,
+# and a single push can't race itself. It writes only data/results/,
+# data/history.json, data/football/results/ and data/football/history.json --
+# never the tickets files. The file keeps its old name so the schedule's
+# history in the Actions tab stays in one place.
 
 on:
   schedule:
-    - cron: "0 13 * * *"   # 9am ET (8am in winter): last night's slate has been marked by then
-  workflow_dispatch: {}     # manual run from the Actions tab, e.g. right after fixing the sheet
+    - cron: "0 13 * * *"   # 9am ET (8am in winter)
+  workflow_dispatch: {}     # manual run from the Actions tab
 
 permissions:
   contents: write
@@ -18,7 +35,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  import:
+  record:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repo
@@ -29,22 +46,38 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Standard library only. Any failure (sheet unreachable, layout changed,
-      # MLB down, history would shrink) exits non-zero here, before anything
-      # is committed, so the page keeps serving yesterday's good file.
-      - name: Import the sheet into data/history.json
+      # Standard library only, all three. Each script writes nothing unless it
+      # succeeds, and a failure in one must not stop the others or the commit of
+      # what did succeed -- so they continue on error and the job is failed at
+      # the very end instead.
+      - name: "Baseball: record finished slates"
+        id: record
+        continue-on-error: true
+        run: python scripts/record_results.py
+
+      - name: "Baseball: rebuild data/history.json (sheet + recorded slates)"
+        id: history
+        continue-on-error: true
         run: python scripts/import_history.py
+
+      - name: "Football: record finished weeks, rebuild data/football/history.json"
+        id: football
+        continue-on-error: true
+        run: python scripts/record_football_results.py
 
       - name: Commit and push if changed
         run: |
           git config user.name "hr-checklist-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data/history.json
+          for path in data/results data/football/results data/football/history.json; do
+            if [ -e "$path" ]; then git add "$path"; fi
+          done
           if git diff --cached --quiet; then
-            echo "History unchanged."
+            echo "Nothing new to record."
             exit 0
           fi
-          git commit -m "Import history -> history.json $(date -u +'%Y-%m-%d')"
+          git commit -m "Record results -> history $(date -u +'%Y-%m-%d')"
           for attempt in 1 2 3 4 5; do
             if git push; then
               echo "Pushed on attempt $attempt."
@@ -55,4 +88,10 @@ jobs:
             sleep 3
           done
           echo "Failed to push after retries." >&2
+          exit 1
+
+      - name: Fail the run if any step above failed
+        if: steps.record.outcome == 'failure' || steps.history.outcome == 'failure' || steps.football.outcome == 'failure'
+        run: |
+          echo "record=${{ steps.record.outcome }} history=${{ steps.history.outcome }} football=${{ steps.football.outcome }}" >&2
           exit 1

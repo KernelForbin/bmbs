@@ -204,6 +204,32 @@ Live data comes from ESPN's public NFL API, straight from each visitor's
 browser, every 15 seconds. If the NFL roster changes enough that a new player
 can't be found: `python scripts/build_football_roster.py`.
 
+## The results archive (how history gets written)
+
+The live pages grade picks in your browser and remember nothing, so once a day
+(9am ET, `.github/workflows/import-history.yml`) the repo writes finished
+slates down:
+
+1. `scripts/record_results.py` grades any finished baseball slate into
+   `data/results/<date>.json` -- one file per slate, kept forever: every bet
+   with its stake and payout, every leg's result, home run distances, Pinch Hit
+   Protection credits, and every home run hit in the league that day.
+2. `scripts/import_history.py` rebuilds `data/history.json` from the group's
+   sheet (older slates) **plus** those recorded slates. Where both have a date,
+   the tracker's record wins -- so the sheet no longer has to be kept up.
+3. `scripts/record_football_results.py` does the same per NFL week into
+   `data/football/results/` and builds `data/football/history.json`, which the
+   football History page (`/football/history/`) reads.
+
+It runs in the morning rather than the moment a slate ends because there is no
+server watching the games -- the site is static -- and a slate stays on the
+Yesterday tab long enough that one run a day never misses one. To record sooner,
+run the workflow by hand from the Actions tab; re-running is always safe.
+
+One thing the archive gets right that the live page currently doesn't: a player
+who sat on the bench all game is recorded as "didn't play" (void), where the
+live page shows a miss.
+
 ## History page (`/history/`)
 
 `history/index.html` is a separate, standalone page: the group's whole

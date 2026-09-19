@@ -63,7 +63,7 @@ DATA = ROOT / "data" / "football"
 TICKETS_PATH = DATA / "tickets.json"
 PREVIOUS_PATH = DATA / "tickets-previous.json"
 ROSTER_PATH = DATA / "roster.json"
-SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={ymd}"
+SCOREBOARD = "https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={ymd}"
 LOOKAHEAD_DAYS = 7   # how far ahead a card can be posted
 
 try:

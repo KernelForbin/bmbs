@@ -32,7 +32,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_PATH = ROOT / "data" / "football" / "roster.json"
-API = "https://site.api.espn.com/apis/site/v2/sports/football/nfl"
+API = "https://site.web.api.espn.com/apis/site/v2/sports/football/nfl"
 
 SKILL = {"QB", "RB", "WR", "TE", "FB"}
 SUFFIX_RE = re.compile(r"\s+(jr|sr|ii|iii|iv|v)$")

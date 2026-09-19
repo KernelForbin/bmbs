@@ -1,7 +1,21 @@
 #!/usr/bin/env python3
 """
-Imports the group's hand-kept "Bombs" Google Sheet into data/history.json,
-the static file the History page (history/index.html) reads.
+Builds data/history.json, the static file the History page
+(history/index.html) reads, from TWO sources:
+
+  1. the group's hand-kept "Bombs" Google Sheet -- every slate up to the day
+     the tracker started keeping its own record (2026-09-18), and
+  2. data/results/<date>.json -- slates the tracker recorded itself
+     (scripts/record_results.py): the same legs, plus what the sheet never
+     had -- singles, real stakes and payouts, who placed each bet, full player
+     names, MLB ids, Pinch Hit Protection credits, home run distances.
+
+On a date both sources cover, THE TRACKER'S RECORD WINS and the sheet's rows
+for that date are dropped, so it doesn't matter whether anyone keeps filling
+in the sheet. If the sheet can't be read at all (unshared, deleted, layout
+changed), the sheet-sourced parlays already in data/history.json are reused
+with a warning -- history.json is itself the local copy of the sheet -- so a
+dead sheet can never stop new slates from being added.
 
 The sheet is only ever read here, at import time -- the page itself never
 talks to Google. Two tabs hold the log, in the same column layout:
@@ -48,6 +62,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_PATH = ROOT / "data" / "history.json"
+RESULTS_DIR = ROOT / "data" / "results"
 MAP_PATH = ROOT / "scripts" / "history_player_map.json"
 
 SHEET_ID = "1u9vCGxGeU6HTeNOASOFzxOFb90lIgURejm34Twgjq2A"
@@ -183,6 +198,8 @@ def pick_days(parlays, pick):
     days = {}
     for p in parlays:
         for leg in p["legs"]:
+            if leg.get("php"):
+                continue   # credited through a substitute's home run: MLB's log rightly says he didn't homer
             if leg["pick"] == pick and leg["status"] in ("hit", "miss") and days.get(p["date"]) != "hit":
                 days[p["date"]] = leg["status"]
     return days
@@ -234,6 +251,112 @@ def got_away(parlays, players, fetcher=fetch):
         })
     return {"minPicks": GOT_AWAY_MIN_PICKS, "checkedPickDays": agree_total + contra_total,
             "agreeingPickDays": agree_total, "players": rows}
+
+
+# ---------------- slates the tracker recorded itself ----------------
+
+SITE_STATUS = {"hit": "hit", "miss": "miss", "na": "dnp"}   # anything else (suspended game) is pending
+
+
+def load_recorded(results_dir=RESULTS_DIR):
+    """Every data/results/<date>.json, oldest first."""
+    slates = []
+    for path in sorted(Path(results_dir).glob("*.json")) if Path(results_dir).is_dir() else []:
+        slate = json.loads(path.read_text(encoding="utf-8"))
+        if slate.get("date") and slate.get("sport", "baseball") == "baseball":
+            slates.append(slate)
+    return sorted(slates, key=lambda s: s["date"])
+
+
+def recorded_parlays(slates, players):
+    """Recorded slates in history.json's shape. Returns (parlays, extra_players).
+
+    The sheet knows players by the group's shorthand ("Judge", "PCA"); the
+    tracker knows them by full name and MLB id. So one player doesn't become two
+    rows, a recorded leg takes the sheet's nickname whenever the hand-reviewed
+    player map ties that nickname to the same MLB id (or, for a player who
+    never appeared in a boxscore, the same full name). Anyone else keeps his
+    full name -- and since his id came from the boxscore he was graded from, not
+    from a guess, he joins the got-away check without a map entry.
+    """
+    by_id = {info["id"]: pick for pick, info in players.items()}
+    by_name = {norm(info["name"]): pick for pick, info in players.items()}
+    extra = {}
+
+    def leg_of(src):
+        pick = by_id.get(src.get("mlbId")) or by_name.get(norm(src["player"])) or src["player"]
+        if src.get("mlbId") and pick not in players:
+            extra[pick] = {"id": src["mlbId"], "name": src["player"]}
+        leg = {"bettor": src.get("who") or "", "pick": pick, "odds": src.get("odds"),
+               "status": SITE_STATUS.get(src.get("state"), "pending")}
+        if src["player"] != pick:
+            leg["name"] = src["player"]
+        if src.get("team"):
+            leg["team"] = src["team"]
+        if src.get("php"):
+            leg["php"] = src["php"]
+        dists = [hr["distance"] for hr in src.get("homeRuns") or [] if hr.get("distance")]
+        if dists:
+            leg["dist"] = round(max(dists))
+        return leg
+
+    def bet_of(slate, src, legs, single=False):
+        bet = {"date": slate["date"], "set": 1, "src": "site", "legs": legs}
+        if single:
+            bet["kind"] = "single"
+        for key in ("name", "book"):
+            if src.get(key):
+                bet[key] = src[key]
+        if single and legs[0]["bettor"]:
+            bet["book"] = legs[0]["bettor"]
+        for key in ("stake", "payout", "returned"):
+            if src.get(key) is not None:
+                bet[key] = src[key]
+        if src.get("outcome") == "hit" and src.get("returned"):
+            bet["won"] = src["returned"]
+        return bet
+
+    parlays = []
+    for slate in slates:
+        for p in slate.get("parlays") or []:
+            parlays.append(bet_of(slate, p, [leg_of(l) for l in p["legs"]]))
+        for s in slate.get("singles") or []:
+            parlays.append(bet_of(slate, s, [leg_of(s)], single=True))
+    return parlays, extra
+
+
+def drop_misdated_copies(sheet, site):
+    """Sheet slates that are really a recorded slate filed under the day before/after.
+
+    Happened on the very first recorded slate: the tracker dated it 2026-09-18
+    (MLB confirms those home runs were hit on the 18th) while the sheet logged
+    the same 50 legs under 9/17 -- so the merged history counted it twice. Same
+    bettors at the same odds, one day apart, is the same slate; the tracker's
+    dating comes from the MLB schedule, so its copy is the one kept.
+    """
+    def prints(parlays):
+        out = {}
+        for p in parlays:
+            for leg in p["legs"]:
+                key = (leg["bettor"], leg["odds"])
+                out[key] = out.get(key, 0) + 1
+        return out
+
+    site_dates = {p["date"] for p in site}
+    drop = set()
+    for d in sorted(site_dates):
+        mine = prints([p for p in site if p["date"] == d])
+        for delta in (-1, 1):
+            other = (date.fromisoformat(d) + timedelta(days=delta)).isoformat()
+            theirs = prints([p for p in sheet if p["date"] == other])
+            if other in site_dates or not theirs:
+                continue
+            shared = sum(min(n, theirs.get(k, 0)) for k, n in mine.items())
+            if shared >= 0.8 * max(sum(mine.values()), sum(theirs.values())):
+                drop.add(other)
+                print(f"NOTE: the sheet's {other} slate is the same bets the tracker recorded as {d} "
+                      f"({shared} matching legs) -- keeping the tracker's copy only.", file=sys.stderr)
+    return [p for p in sheet if p["date"] not in drop]
 
 
 # ---------------- drafting the player map ----------------
@@ -315,10 +438,29 @@ def dump(payload):
     return "{\n" + ",\n".join(parts) + "\n}\n"
 
 
-def build(texts, player_map, today, with_mlb=True, fetcher=fetch):
+def parse_sheet(texts, player_map, today):
     parlays = []
     for text in texts:
         parlays += parse_tab(text, player_map["aliases"], today)
+    return parlays
+
+
+def build(texts, player_map, today, with_mlb=True, fetcher=fetch, recorded=None, sheet_parlays=None):
+    """texts: the sheet's CSV tabs (or pass already-parsed `sheet_parlays`).
+    recorded: slates from data/results/ -- they replace the sheet on their dates."""
+    parlays = list(sheet_parlays) if sheet_parlays is not None else parse_sheet(texts, player_map, today)
+    players = dict(player_map["players"])
+    recorded = recorded or []
+    if recorded:
+        site, extra = recorded_parlays(recorded, players)
+        covered = {s["date"] for s in recorded}
+        dropped = [p for p in parlays if p["date"] in covered]
+        if dropped:
+            print(f"NOTE: {len(dropped)} sheet parlay(s) on {len({p['date'] for p in dropped})} date(s) the tracker "
+                  f"recorded itself were dropped in favour of the tracker's record.", file=sys.stderr)
+        parlays = [p for p in parlays if p["date"] not in covered]
+        parlays = drop_misdated_copies(parlays, site) + site
+        players.update(extra)
     # Stable sort: by slate, keeping each tab's own row order within a day.
     parlays.sort(key=lambda p: (p["date"], p["set"]))
     if not parlays:
@@ -329,8 +471,10 @@ def build(texts, player_map, today, with_mlb=True, fetcher=fetch):
         "firstSlate": slates[0],
         "lastSlate": slates[-1],
         "oddsFrom": with_odds[0] if with_odds else None,
+        # first slate the tracker recorded itself: real stakes, payouts and singles exist from here on
+        "recordedFrom": recorded[0]["date"] if recorded else None,
         "parlays": parlays,
-        "gotAway": got_away(parlays, player_map["players"], fetcher) if with_mlb and player_map["players"] else None,
+        "gotAway": got_away(parlays, players, fetcher) if with_mlb and players else None,
     }
     return payload
 
@@ -339,18 +483,31 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from-dir", help="read archive.csv / log.csv from here instead of downloading")
     ap.add_argument("--out", default=str(OUT_PATH))
+    ap.add_argument("--results-dir", default=str(RESULTS_DIR), help="recorded slates to merge in (data/results)")
     ap.add_argument("--no-mlb", action="store_true", help="skip the MLB game-log join")
     ap.add_argument("--draft-map", action="store_true", help="propose history_player_map.json entries and exit")
     ap.add_argument("--allow-shrink", action="store_true", help="write even if the result has fewer parlays than the existing file")
     args = ap.parse_args()
 
-    if args.from_dir:
-        texts = [(Path(args.from_dir) / f"{name}.csv").read_text(encoding="utf-8") for name, _ in TABS]
-    else:
-        texts = [fetch(EXPORT_URL.format(sid=SHEET_ID, gid=gid)) for _, gid in TABS]
-
     player_map = load_map()
     today = date.today()
+    out = Path(args.out)
+
+    # The sheet is the legacy source. If it can't be read, carry on from the copy
+    # of it already in history.json rather than blocking newly recorded slates.
+    texts, sheet_parlays = None, None
+    try:
+        if args.from_dir:
+            texts = [(Path(args.from_dir) / f"{name}.csv").read_text(encoding="utf-8") for name, _ in TABS]
+        else:
+            texts = [fetch(EXPORT_URL.format(sid=SHEET_ID, gid=gid)) for _, gid in TABS]
+        sheet_parlays = parse_sheet(texts, player_map, today)
+    except (OSError, ValueError) as err:
+        if args.draft_map or not out.exists():
+            raise
+        sheet_parlays = [p for p in json.loads(out.read_text(encoding="utf-8")).get("parlays", []) if p.get("src") != "site"]
+        print(f"WARNING: couldn't read the sheet ({err}). Reusing the {len(sheet_parlays)} sheet parlays already in "
+              f"{out.name}; recorded slates are still merged.", file=sys.stderr)
 
     if args.draft_map:
         parlays = []
@@ -361,7 +518,10 @@ def main():
         print(json.dumps(proposed, indent=2, ensure_ascii=False))
         return
 
-    payload = build(texts, player_map, today, with_mlb=not args.no_mlb)
+    recorded = load_recorded(args.results_dir)
+    payload = build(texts, player_map, today, with_mlb=not args.no_mlb, recorded=recorded, sheet_parlays=sheet_parlays)
+    if recorded:
+        print(f"Merged {len(recorded)} slate(s) recorded by the tracker ({recorded[0]['date']} .. {recorded[-1]['date']}).")
     legs = sum(len(p["legs"]) for p in payload["parlays"])
     print(f"Parsed {len(payload['parlays'])} parlays ({legs} legs), "
           f"{payload['firstSlate']} .. {payload['lastSlate']}.")
@@ -369,7 +529,6 @@ def main():
         ga = payload["gotAway"]
         print(f"Got-away join: {len(ga['players'])} players; sheet and MLB agree on "
               f"{ga['agreeingPickDays']} of {ga['checkedPickDays']} pick-days.")
-    out = Path(args.out)
     # History only ever grows. Fewer parlays than last time means rows were
     # deleted or the sheet layout moved -- a person should look, not a cron job.
     if out.exists() and not args.allow_shrink:

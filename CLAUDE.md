@@ -77,9 +77,13 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
 - **`data/history.json`** — the History page's only data source. PIPELINE
   DATA like the tickets files: written only by `scripts/import_history.py`,
   never hand-edited.
+- **`data/results/<date>.json`** — one permanent record per finished slate,
+  written only by `scripts/record_results.py` (see "Results archive" below).
+  PIPELINE DATA. Football's twin is `data/football/results/<weekEnds>.json`.
 - **`scripts/import_history.py`** + **`scripts/history_player_map.json`** +
-  **`.github/workflows/import-history.yml`** — import the group's Google
-  Sheet into `data/history.json`, daily at 9am ET.
+  **`.github/workflows/import-history.yml`** — build `data/history.json` from
+  the group's Google Sheet (older slates) plus `data/results/` (slates the
+  tracker recorded itself), daily at 9am ET.
 - **`CNAME`** — contains `bmbs.bet`, required by GitHub Pages for the custom domain.
 
 ## How live tracking actually works (important, don't reinvent this)
@@ -398,8 +402,11 @@ script), and the Discord bot's routing. Keep it that way:
 then OMITS the header for a real browser on another origin. The same API on
 **`site.web.api.espn.com`** (and `sports.core.api.espn.com`) is allowed. This
 was only caught by fetching from bmbs.bet in real Chromium after curl said it
-was fine -- test CORS in a browser, never with curl. Python scripts may use
-either host. Endpoints, all keyless:
+was fine -- test CORS in a browser, never with curl. **Python must use
+`site.web.api.espn.com` too:** on 2026-09-19 `site.api.espn.com` answered
+`urllib` with 403 (Akamai) while curl still got 200, which had silently pushed
+`parse_football_picks.py` onto its no-schedule fallback. All three football
+scripts were switched. Endpoints, all keyless:
 - `scoreboard?dates=YYYYMMDD` -- one date per call (a date RANGE returns 400).
   Games are filed under their ET date, so a Sunday 8:20 PM game (00:20Z Monday)
   is still Sunday's -- same property the MLB schedule has.
@@ -460,8 +467,95 @@ when a teammate scored); the pick's own touchdown turns his tile into a
 football, then the play, ~14s. Same seeding / stale / off-tab guards as Live At
 Bats. Alerts and preferences use their own localStorage keys (`bmbs.fb.*`).
 
-No History page for football yet (no source data), and `features/index.html`
-doesn't mention football -- it's hand-maintained on request.
+Football's History page is `/football/history/` -- see "Results archive".
+`features/index.html` is hand-maintained on request and doesn't mention either
+History archive change yet.
+
+## Results archive -- the site's memory (both sports)
+
+The live pages grade every pick in the visitor's browser and keep nothing; a
+slate that rolls off Yesterday / Last Week was simply gone. Since 2026-09-19 a
+daily job writes finished slates down, and the History pages read from that.
+
+- **`scripts/record_results.py`** -> **`data/results/<date>.json`**, one file per
+  baseball slate, kept forever. The permanent record: every bet as posted
+  (card, who placed it, stake, listed payout, legs with player / team / bettor /
+  odds / time), each leg's result + MLB id + Pinch Hit Protection credit + the
+  Statcast detail of his home runs, each bet's outcome and what it actually
+  returned, and every home run in the league that day.
+- **`scripts/import_history.py`** then rebuilds `data/history.json` from TWO
+  sources: the group's sheet (every slate before the tracker kept its own
+  record) and `data/results/`. **On a date both cover, the tracker's record
+  wins** and the sheet's rows are dropped, so it doesn't matter whether anyone
+  keeps filling in the sheet. If the sheet can't be read at all, the sheet
+  parlays already in `history.json` are reused with a warning -- a dead sheet
+  must never block new slates.
+- **`scripts/record_football_results.py`** ->
+  **`data/football/results/<weekEnds>.json`** (one per NFL week) and rebuilds
+  **`data/football/history.json`**, which **`football/history/index.html`**
+  (`/football/history/`) reads. Football has no sheet: this IS its history. The
+  page was adapted ONCE from `history/index.html` and is independent since
+  (same rule as `football/index.html`); an absent or empty history file is a
+  normal state ("No finished weeks yet"), not an error.
+- All three run from **`.github/workflows/import-history.yml`** (file name kept
+  so the Actions history stays in one place), once a day at 9am ET, ONE job and
+  ONE commit. Each step continues on error so one sport failing can't block the
+  other's commit; the job is failed at the very end instead.
+
+**Why 9am and not "when Today rolls to Yesterday":** that rollover happens
+inside each visitor's browser -- there is no server to notice it. Catching it
+would take a cron polling all evening, which is exactly what gotcha 3 is about.
+A slate sits in `tickets.json` / `tickets-previous.json` for at least a day
+after it ends, so one run a day sees every slate, and a missed day is caught by
+the next. The user asked the question and this was the answer; don't move it to
+an evening schedule.
+
+A slate is recorded when every game on its date(s) is Final, or two days later
+regardless (suspended game; that record is `"complete": false` and is re-graded
+on later runs). A record carries a hash of the picks it was graded from: same
+picks -> skipped without touching the network; picks corrected afterwards ->
+graded again. Re-running is always safe.
+
+**The graders are ports of the pages' own grading** (`stateForPlayer`, Pinch Hit
+Protection, `evaluateTicket`, football's id-then-name+team matching), and were
+checked against the live site on the first real slate: all 50 legs of
+2026-09-18 and all 36 league home runs matched. A change to a page's grading
+rules has to be made in its recorder too.
+
+**One deliberate difference, baseball only:** MLB's boxscore lists the whole
+active roster, and `index.html` only asks "is he in the boxscore?", so a player
+who sat on the bench all game shows on the live page as a MISS. He didn't play;
+books void that. The recorder requires a plate appearance -- benched, or only a
+pinch runner / late defensive sub -> `na`. Found on the first recorded slate:
+Andres Gimenez and Bryce Eldridge (2026-09-18) were misses on the page, and the
+group's own sheet had Gimenez as DNP. **The live page still has this bug** as of
+2026-09-19 -- it was reported to the user rather than fixed, because
+`index.html`'s grading isn't touched without asking.
+
+Things learned from the first merge, all handled in `import_history.py`:
+- **The sheet mis-dates slates.** It logged the 2026-09-18 slate under 9/17
+  (MLB confirms those homers were on the 18th), so the merged history counted it
+  twice. `drop_misdated_copies()` drops a sheet slate one day either side of a
+  recorded one when 80%+ of its (bettor, odds) legs match. The tracker's date
+  comes from the MLB schedule, so its copy is the one kept.
+- **The sheet's hand-typed marks have errors** the tracker doesn't: on that same
+  slate it had Miguel Vargas (homered, 403 ft) as a miss and Dillon Dingler
+  (3 plate appearances) as DNP.
+- **Names.** The sheet uses shorthand ("Judge", "PCA"), the tracker full names.
+  A recorded leg takes the sheet's nickname when `history_player_map.json` ties
+  it to the same MLB id, so one player isn't two rows; the full name rides along
+  as `name`. Anyone unmapped keeps his full name and may therefore appear twice
+  in the Players table until someone adds a map entry (`--draft-map`). Recorded
+  players join "the ones that got away" without a map entry -- their id came
+  from the boxscore they were graded from, not a guess.
+- The sheet already logged singles as 1-leg rows (since 9/14), so recorded
+  singles are 1-leg bets too, flagged `"kind": "single"`.
+
+`history.json` additions on recorded bets: `src: "site"`, `kind`, `name`, `book`
+(who placed it), `stake`, `payout`, `returned`, `won`; on legs: `name`, `team`,
+`php`, `dist`. Top level: `recordedFrom`. The History page uses them for a
+**Real money** tile (actual staked vs returned -- possible for the first time,
+since the sheet never had stakes) and stake / distance / PHP detail in the log.
 
 ## History page (separate from live tracking — keep it that way)
 
@@ -508,7 +602,8 @@ Data facts worth knowing before touching the importer:
   page footnotes the count; it does not silently "fix" the sheet.
 - The daily Action is a deliberate, user-chosen exception to the "no
   automated commit workflows" caution in gotcha 3. It runs at a quiet hour
-  and commits `data/history.json` only. The importer refuses to write a
+  and commits only `data/history.json`, `data/results/` and football's twins
+  (see "Results archive"). The importer refuses to write a
   history with fewer parlays than the committed one (`--allow-shrink`).
 - `dump()` writes no timestamp, so an unchanged sheet produces no commit.
 
@@ -561,7 +656,9 @@ after a dash during parsing — don't reintroduce this).
    copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
    and `data/incoming_picks.txt` (plus their `data/football/` twins) are live user data, managed only through
    the picks-upload → GitHub Actions pipeline. `data/history.json` is pipeline data too (only
-   `scripts/import_history.py` writes it). Code changes should only
+   `scripts/import_history.py` writes it), and so are `data/results/`,
+   `data/football/results/` and `data/football/history.json` (only the two
+   `record_*_results.py` scripts write them). Code changes should only
    ever touch `index.html`, `football/index.html`, `history/`, `features/`, `scripts/`,
    `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
 
@@ -636,6 +733,13 @@ on failure:
 - `tests/test_football_parser.py` — football parser (both templates, negative
   odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
   roster builder, and the Discord bot's file-name routing. Fully offline.
+- `tests/test_record_results.py` — the baseball recorder against a fake MLB
+  (own HR, PHP credit, benched -> void, void-leg re-pricing, refunds, the
+  not-yet-final / backstop / already-recorded / corrected-picks cases) and the
+  merge into `history.json` (mis-dated sheet copy, nickname mapping, dead sheet).
+- `tests/test_football_history.py` — the football recorder against a fake ESPN,
+  the history file it builds, and `football/history/index.html` in Chromium
+  (empty state, isolation block, phone width). Fully offline.
 - `tests/test_build_roster.py` — `scripts/build_roster.py`, fully offline: a
   fake fetcher standing in for the MLB API, checking suffixes and accents
   survive and a missing-abbreviation team or a name collision doesn't crash.
@@ -646,6 +750,7 @@ python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
+python tests/test_record_results.py && python tests/test_football_history.py
 python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>What the BMBS Tracker Can Do</title>
+<title id="page-title">What the BMBS Tracker Can Do</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -20,11 +20,18 @@
   body { display:flex; justify-content:center; padding:24px 12px 56px; }
   .card { width:100%; max-width:560px; }
 
-  .top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:22px; }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px; }
   .brand { display:flex; align-items:center; gap:8px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; letter-spacing:.08em; color:var(--text-dim); text-transform:uppercase; }
   .brand .dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
   .back-link { font-size:12px; font-weight:600; color:var(--green); text-decoration:none; border:1px solid var(--green); border-radius:100px; padding:6px 13px; white-space:nowrap; }
+
+  /* ---- sport switch: same look as the live trackers, but a same-page toggle here (Features is one static page, not two apps) ---- */
+  .sport-switch { display:flex; gap:4px; margin:0 0 22px; padding:4px; background:var(--panel); border:1px solid var(--panel-line); border-radius:12px; }
+  .sport-switch .sport { flex:1; display:flex; align-items:center; justify-content:center; gap:7px; padding:8px 10px; border-radius:9px; font:inherit; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim); background:none; border:none; cursor:pointer; transition:background .15s ease, color .15s ease; }
+  .sport-switch .sport:hover { color:var(--text); }
+  .sport-switch .sport.active { background:var(--green-dim); color:var(--text); box-shadow:inset 0 0 0 1px var(--green); }
+  .sport-switch .ico { font-size:16px; line-height:1; }
 
   header.hero { padding:0 4px 18px; border-bottom:1px solid var(--panel-line); margin-bottom:22px; }
   h1 { font-family:'Oswald',sans-serif; font-size:26px; font-weight:700; line-height:1.12; margin:0; }
@@ -62,9 +69,15 @@
 
   <div class="top">
     <div class="brand"><span class="dot"></span>BMBS Tracker</div>
-    <a class="back-link" href="/">&larr; Back to the live card</a>
+    <a class="back-link" id="back-link" href="/">&larr; Back to the live card</a>
   </div>
 
+  <nav class="sport-switch" aria-label="Sport">
+    <button type="button" class="sport active" id="switch-baseball" onclick="showSport('baseball')"><span class="ico">&#9918;</span>Baseball</button>
+    <button type="button" class="sport" id="switch-football" onclick="showSport('football')"><span class="ico">&#127944;</span>Football</button>
+  </nav>
+
+  <div id="baseball-content">
   <header class="hero">
     <h1>What the BMBS Tracker Can Do</h1>
   </header>
@@ -241,9 +254,190 @@
     </section>
 
   </div>
+  </div>
 
-  <footer>No login and nothing to install &mdash; just open bmbs.bet. Powered by MLB's free public live data.<br><a href="/" style="color:var(--text-faint)">&larr; Back to the live card</a></footer>
+  <div id="football-content" style="display:none">
+  <header class="hero">
+    <h1>What the Football Tracker Can Do</h1>
+  </header>
+
+  <div class="sections">
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span>
+        <h2>Color key</h2>
+      </div>
+      <div class="legend-grid">
+        <div class="legend-row"><span class="swatch pending"></span>Not started</div>
+        <div class="legend-row"><span class="swatch live"></span>In progress</div>
+        <div class="legend-row"><span class="swatch hit"></span>Touchdown</div>
+        <div class="legend-row"><span class="swatch miss"></span>Game final, no TD</div>
+        <div class="legend-row"><span class="swatch na"></span>Didn't play</div>
+        <div class="legend-row"><span class="swatch-emoji">🧇</span>Iron &mdash; one TD from cashing</div>
+      </div>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2.2"/><path d="M3 9.5h18M8 3v4"/></svg></span>
+        <h2>This Week's &amp; Last Week's Picks</h2>
+      </div>
+      <ul>
+        <li>Football runs by the <b>NFL week</b>, not the calendar day &mdash; a card can go up days ahead (Saturday for Sunday, or earlier for a Thursday-night pick) and cover Thursday, Sunday and Monday games all at once.</li>
+        <li><b>This Week's Picks</b> stays put through the whole week, even if every pick on the card plays Sunday &mdash; it only moves once the week's very last game (usually Monday night) goes final.</li>
+        <li>Once it moves, it lands in <b>Last Week's Picks</b> with final results, and This Week waits for the next card &mdash; showing a queued heads-up if it's already uploaded but the week isn't over yet.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 4v16M8.5 8c0-2 1.8-3 3.5-3s3.5 1 3.5 2.8c0 3.2-7 1.7-7 5C8.5 14.8 10.2 16 12 16s3.5-1 3.5-3"/></svg></span>
+        <h2>Running payout estimate</h2>
+      </div>
+      <ul>
+        <li>See a running total payout at the top of the page, updating live as bets hit.</li>
+        <li>If a leg is voided for a player who was inactive, the payout recalculates automatically for the legs still in play.</li>
+        <li>Favorites are handled properly &mdash; a pick at <b>-120</b> reads as negative everywhere on the page, never garbled into something like "+-120".</li>
+        <li>Treat it as an <b>estimate</b>, not a settled figure &mdash; it's built from the odds on the picks as written, and your book has the final say.</li>
+      </ul>
+    </section>
+
+    <section class="card-item card--live">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M7 6.8c1.3 1.6 2 3.4 2 5.2s-.7 3.6-2 5.2M17 6.8c-1.3 1.6-2 3.4-2 5.2s.7 3.6 2 5.2"/></svg></span>
+        <h2>Live tracking, no refreshing</h2>
+      </div>
+      <ul>
+        <li>Every leg updates on its own about every 15 seconds, straight from ESPN's real NFL data &mdash; leave the tab open and watch it change.</li>
+        <li>The instant a touchdown shows up in the box score, that leg turns green &mdash; even while the game is still going. A thrown touchdown never credits the passer, only whoever caught, ran, or returned it in.</li>
+        <li>A player who was inactive for the game is marked <b>"Didn't play"</b> and doesn't count as a loss &mdash; but a player who dressed and simply never found the end zone is a real miss.</li>
+      </ul>
+    </section>
+
+    <section class="card-item card--context">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5.5"/></svg></span>
+        <h2>Live game context</h2>
+      </div>
+      <ul>
+        <li>While a game's in progress, see the score, the clock, and his stat line so far right under the pick.</li>
+        <li><span class="tag">IN THE RED ZONE</span> and <span class="tag">HAS THE BALL</span> flag legs whose offense is on the field right now, closest to paying off.</li>
+        <li>Once his game is final, the live line is replaced with his final stat line.</li>
+        <li>One tap jumps straight to the live play-by-play on ESPN.</li>
+      </ul>
+    </section>
+
+    <section class="card-item card--live">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="7.5" height="6.5" rx="1.6"/><rect x="13" y="4.5" width="7.5" height="6.5" rx="1.6"/><rect x="3.5" y="13" width="7.5" height="6.5" rx="1.6"/><rect x="13" y="13" width="7.5" height="6.5" rx="1.6"/><circle cx="7.2" cy="7.7" r="1" fill="currentColor" stroke="none"/></svg></span>
+        <h2>Live Drives</h2>
+      </div>
+      <ul>
+        <li>Tap <b>Live Drives</b> to open a wall of tiles: every pick whose game is live, sorted by how close he is to paying off. Even closed, its header tells you how many are in the red zone or on the field.</li>
+        <li><span class="tag">RED ZONE</span> tiles come first, then <span class="tag">HAS THE BALL</span>, then everyone else waiting on their <span class="tag">DEFENSE</span> or <span class="tag">HALFTIME</span>. Each tile shows the score, the clock, down &amp; distance, and his stats so far.</li>
+        <li>When a drive ends, the result holds the tile for a few seconds &mdash; <b>PUNT</b>, <b>FIELD GOAL</b>, or <b>TD &mdash; NOT HIM</b> if a teammate scored instead &mdash; then it drops off and everyone slides up.</li>
+        <li>When your own pick scores, his tile turns into a 🏈 first, then shows the play &mdash; how many yards, and how it happened.</li>
+        <li>A 🧇 marks an Iron, so you can see at a glance which drive could cash something. The scoreboard filters work here too: tap <b>IRONS</b> and only those players remain; tap a name in the Bettor Tracker and it's just that person's guys.</li>
+        <li>Only picks that can still win something appear &mdash; a player on a parlay that's already dead doesn't take up a tile. Tap any tile for ESPN.</li>
+      </ul>
+    </section>
+
+    <section class="card-item card--live">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M5 13.5 9 9.5l3.2 3.2L19 6"/><path d="M14.6 6H19v4.4"/></svg></span>
+        <h2>Irons &mdash; one score away</h2>
+      </div>
+      <ul>
+        <li>An <b>Iron</b> is any bet sitting exactly one touchdown from cashing: a parlay where every leg but one has hit, or any single that's still open.</li>
+        <li>A 🧇 waffle marks the exact player who still has to find the end zone, so you can spot what you're sweating at a glance. It's always visible &mdash; you don't have to switch filters to see it.</li>
+        <li>Tap the <b>IRONS</b> counter to see just those bets. Parlays show <b>every</b> leg, hits included, so you get the full picture of how close the card is.</li>
+      </ul>
+    </section>
+
+    <section class="card-item card--live">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="11.5" cy="13" r="6.2"/><path d="M15.9 8.6 18.4 6M17 4.4l2.6 2.6M11.5 6.8V4M9.7 4h3.6"/></svg></span>
+        <h2>Touchdown alerts</h2>
+      </div>
+      <ul>
+        <li>When someone in the week's picks finds the end zone, the page announces it: <b>"&lt;Player&gt; TOUCHDOWN! 🏈"</b>.</li>
+        <li>If that score <b>cashes a bet</b> &mdash; an Iron finishing off a parlay, or a single coming home &mdash; the same alert goes gold 💰: money rains down the screen and it tells you what hit and for how much, like <b>"2-LEG PARLAY CASHED &middot; $154.00"</b>. One score that cashes several bets adds them up. The push notification says it too.</li>
+        <li>Two independent switches at the top &mdash; <b>Overlay</b> (a celebration right on the page) and <b>Push</b> (a normal phone/desktop notification, even if you're on another tab). Have either, both, or neither; the setting sticks on that device.</li>
+        <li>Push has to be switched on by you, and your browser will ask permission first. It works while the page is open somewhere &mdash; not once you've closed it entirely.</li>
+        <li>Opening the page mid-game <b>won't</b> bury you in alerts for touchdowns that already happened &mdash; you only get told about ones scored while you're watching.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5z"/></svg></span>
+        <h2>Tap-to-filter scoreboard</h2>
+      </div>
+      <ul>
+        <li>Quick counts of where your bets stand &mdash; Open, Irons, Hit, Missed.</li>
+        <li>Tap any number to filter the whole page down to just that group &mdash; the tickets and the Live Drives tiles alike. Tap it again to clear the filter.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>
+        <h2>Touchdown Log</h2>
+      </div>
+      <ul>
+        <li>A tap-to-open log of every touchdown scored this week, newest first &mdash; on both the This Week and Last Week tabs.</li>
+        <li>Switch between <b>Our Picks</b> and <b>All Touchdowns</b> (every game). Either way, anyone in the group's picks is highlighted so you can spot the ones that matter.</li>
+        <li>Tap any touchdown for the full play &mdash; how it happened, who threw it (if it was a pass), and the score it made &mdash; plus a link straight to that game on ESPN.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17.5" cy="9" r="2.3"/><path d="M15.3 12.2c2 .3 3.7 1.9 3.7 4.2"/></svg></span>
+        <h2>Bettor Tracker</h2>
+      </div>
+      <ul>
+        <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the week.</li>
+        <li>Tap a name to filter the whole page to just that person's legs &mdash; including who shows up in Live Drives.</li>
+      </ul>
+    </section>
+
+  </div>
+  </div>
+
+  <footer id="site-footer">No login and nothing to install &mdash; just open bmbs.bet. Powered by <span id="footer-source">MLB's free public live data</span>.<br><a id="footer-back" href="/" style="color:var(--text-faint)">&larr; Back to the live card</a></footer>
 
 </div>
+<script>
+function showSport(sport) {
+  var isBaseball = sport !== "football";
+  document.getElementById("baseball-content").style.display = isBaseball ? "" : "none";
+  document.getElementById("football-content").style.display = isBaseball ? "none" : "";
+  document.getElementById("switch-baseball").classList.toggle("active", isBaseball);
+  document.getElementById("switch-football").classList.toggle("active", !isBaseball);
+
+  var backHref = isBaseball ? "/" : "/football/";
+  var backText = "← Back to " + (isBaseball ? "the live card" : "the football tracker");
+  document.getElementById("back-link").href = backHref;
+  document.getElementById("back-link").textContent = backText;
+  document.getElementById("footer-back").href = backHref;
+  document.getElementById("footer-back").textContent = backText;
+  document.getElementById("footer-source").textContent = isBaseball ? "MLB's free public live data" : "ESPN's free public NFL data";
+
+  var title = isBaseball ? "What the BMBS Tracker Can Do" : "What the Football Tracker Can Do";
+  document.getElementById("page-title").textContent = title;
+
+  // Reflected in the URL (via replaceState, no reload) so the choice survives a
+  // refresh and can be linked directly -- e.g. the football tracker's own
+  // footer links here with ?sport=football so it opens on the right list.
+  var params = new URLSearchParams(location.search);
+  if (isBaseball) { params.delete("sport"); } else { params.set("sport", "football"); }
+  var qs = params.toString();
+  history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+}
+
+showSport(new URLSearchParams(location.search).get("sport") === "football" ? "football" : "baseball");
+</script>
 </body>
 </html>

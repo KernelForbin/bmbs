@@ -321,6 +321,13 @@ that's the point of the All mode. "Matters" = named in this tab's
 tickets.json, OR a substitute whose HR is currently crediting one of our
 legs under Pinch Hit Protection.
 
+**The collapsed header itself carries a live `N OURS &middot; M TOTAL` pill**
+(`#hrlog-count`, styled like Live At Bats' count pill) so the tally is
+visible without expanding the panel. It reflects both filters' totals
+regardless of which one (`HR_FILTER`) is currently selected, is recomputed
+every `renderHrLog()` call (poll, tab switch, new upload), and is empty --
+hidden by `.hrlog-count:empty` -- when the slate has zero home runs so far.
+
 Rows are tap-to-expand rather than a wide table: 16 columns of Statcast
 detail cannot render on a 560px phone-first page, so the collapsed row
 carries hitter/team/inning/pitcher/distance/exit-velo and the expanded

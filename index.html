@@ -90,7 +90,9 @@
   .hrlog-section { margin: 0 0 14px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 10px; }
   .hrlog-section.collapsed { padding-bottom:14px; }
   .hrlog-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
-  .hrlog-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; }
+  .hrlog-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px; }
+  .hrlog-count { font-family:'Inter',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.03em; color:var(--green); background:var(--green-dim); border:1px solid var(--green); border-radius:999px; padding:1px 8px; }
+  .hrlog-count:empty { display:none; }
   .hrlog-chevron { color:var(--text-faint); font-size:12px; transition:transform .18s ease; }
   .hrlog-section.collapsed .hrlog-chevron { transform:rotate(-90deg); }
   .hrlog-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 8px; }
@@ -425,7 +427,7 @@
 
   <div class="hrlog-section collapsed" id="hrlog-section">
     <div class="hrlog-head" onclick="toggleHrLog()">
-      <p class="hrlog-title">Home Run Log</p>
+      <p class="hrlog-title">Home Run Log <span class="hrlog-count" id="hrlog-count"></span></p>
       <span class="hrlog-chevron">&#9660;</span>
     </div>
     <p class="hrlog-sub" id="hrlog-sub">Tap to expand &mdash; see every home run hit today, or just your picks.</p>
@@ -1620,6 +1622,10 @@ function renderHrLog() {
 
   const all = (RESULTS && RESULTS.homeRuns) || [];
   const relevant = relevantHrNames();
+  const ourCount = all.filter(hr => relevant.has(normalizeName(hr.batter))).length;
+  const countEl = document.getElementById("hrlog-count");
+  if (countEl) countEl.textContent = all.length ? `${ourCount} OURS · ${all.length} TOTAL` : "";
+
   const rows = HR_FILTER === "picks" ? all.filter(hr => relevant.has(normalizeName(hr.batter))) : all;
 
   if (rows.length === 0) {

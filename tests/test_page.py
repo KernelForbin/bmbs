@@ -586,6 +586,11 @@ with sync_playwright() as p:
     assert "PIT" in rows[0]["sub"] and "Top 4" in rows[0]["sub"] and "Some Pitcher" in rows[0]["sub"], rows[0]["sub"]
     print("I2 OK: 'Our Picks' shows only picked hitters, with team/inning/pitcher summary")
 
+    # I2b: the header pill counts ours vs league-wide, independent of the
+    # filter currently selected (Our Picks is active here, yet it reads 3 total).
+    assert text(page, "hrlog-count") == "1 OURS · 3 TOTAL", text(page, "hrlog-count")
+    print("I2b OK: header pill shows 'N OURS · M TOTAL' regardless of the active filter")
+
     # I3: All Home Runs -- every HR league-wide, newest first, picks still highlighted.
     page.click("#hrlog-btn-all")
     rows = hr_rows(page)
@@ -629,6 +634,11 @@ with sync_playwright() as p:
     assert hr_rows(page) == []
     assert "All Home Runs" in text(page, "hrlog-list"), text(page, "hrlog-list")
     print("I7 OK: empty 'Our Picks' state points at the All Home Runs filter")
+
+    # I8: the pill recomputes with the new slate -- 0 of our (new) picks have
+    # gone deep, but the league-wide total is untouched by the ticket swap.
+    assert text(page, "hrlog-count") == "0 OURS · 3 TOTAL", text(page, "hrlog-count")
+    print("I8 OK: header pill recomputes 'ours' on a new upload without changing the league total")
 
     assert not errors, errors
     browser.close()

@@ -116,4 +116,35 @@ assert five_man["stake"] == 5.0 and five_man["payout"] == 20515.20 and five_man[
 assert not five_man["name"].endswith("&middot;") and "  " not in five_man["name"], five_man["name"]
 print("OK: second template (\"Ticket N:\" cards) parses 10 singles + 15 cards (40 legs) across 3 sections")
 
+# --- 5. third raw-text template: "Ticket #N (Bettor - $X Bet) [PP: $Y]" header,
+# legs as "* (Bettor) Player - TEAM (+ODDS) - TIME ET", grouped under "Part N: ..."
+# headers -- a real Discord upload on 2026-09-19 that the first two formats
+# parsed as zero tickets (exit 1, nothing written -- the real slate never posted).
+hash_text = (REPO / "tests" / "fixtures" / "discord_ticket_hash_format.txt").read_text(encoding="utf-8")
+h_windows, h_singles, h_raw = pp.parse(hash_text, team_by_name, canon)
+
+# "Part 2" isn't here: its one ticket has a single leg, so it became a single
+# (see below) and left the window empty -- same rule that drops an empty
+# section in template 2.
+assert [w["title"] for w in h_windows] == [
+    "Part 1: Afternoon Early Birds (2:10 PM & 4:05 PM ET Mixed)",
+    "Part 5: Bonus Bets (Unsorted)",
+], [w["title"] for w in h_windows]
+# a lone leg under its own "Ticket #N (...)" header is a single, same rule as template 2
+assert len(h_singles) == 1, h_singles
+counts = [len(c["legs"]) for w in h_windows for c in w["tickets"]]
+assert sorted(counts) == [2, 3, 5], counts
+single = h_singles[0]
+assert (single["who"], single["player"], single["team"], single["odds"]) == ("FRANCHER", "Pete Crow-Armstrong", "CHC", "+330"), single
+assert single["stake"] == 5.0 and single["payout"] == 330.0
+# stake/payout/book live in the ticket's own header line, not a separate footer
+five_leg = next(c for w in h_windows for c in w["tickets"] if len(c["legs"]) == 5)
+assert (five_leg["stake"], five_leg["payout"], five_leg["book"]) == (5.0, 29471.0, "Kenny"), five_leg
+# a name typed without its suffix still resolves against the roster
+witt_leg = next(l for w in h_windows for c in w["tickets"] for l in c["legs"] if l["who"] == "Kenny" and l["team"] == "KC")
+assert witt_leg["player"] == "Bobby Witt Jr.", witt_leg
+assert len(h_windows) == 2, len(h_windows)
+print("OK: third template (\"Ticket #N (...)\" cards under \"Part N:\" headers) "
+      "parses 1 single + 3 cards (10 legs) across 2 sections")
+
 print("\nALL PARSER TESTS PASSED")

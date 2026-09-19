@@ -50,6 +50,22 @@ response has them stripped, and both forms parse identically.
     * Alec Burleson (+430) | 1:15 PM ET (Bernie)
     Bet by Memo: $3.00 | PP: $533.52
 
+Two other templates the group has posted, both fully supported (see
+TICKET_START_RE / TICKET_HASH_START_RE below for the exact grammar):
+
+    * Ticket 1: 7:40 PM ET | Chase Meidroth (White Sox) +1040 (Memo)
+                (Bet by Memo) [Bet: $5 | PP: 54.00]
+
+    Ticket #1 (Memo - $9 Bet) [PP: $151.99]
+    * (Chantra) Riley Greene - DET (+314) - 2:10 PM ET
+    * (Kenny) Munetaka Murakami - CWS (+438) - 2:10 PM ET
+
+A ticket is a single or a parlay card purely by how many leg lines it
+actually has -- never by which section/"Part N:" header it sits under, or
+what a header's own leg-count claim says (seen for real: a "10 TWO-LEG
+PARLAYS" header with only 9 tickets under it). A window that ends up with
+no cards (every one of its tickets turned out to be a single) is dropped.
+
 The output also carries "date": the MLB game date (YYYY-MM-DD, ET) the
 slate is for -- see slate_date_for(). When that date differs from the
 one already in data/tickets.json, the old file is first copied to
@@ -116,6 +132,22 @@ TICKET_LEG_RE = re.compile(
 )
 TICKET_FOOT_RE = re.compile(
     r"^\(Bet by\s+([A-Za-z]+)\)\s*\[Bet:\s*\$([\d,.]+)\s*\|\s*PP:\s*\$?([\d,.]+)\]\s*$", re.IGNORECASE
+)
+
+# ---- third raw-text template: "Ticket #N (Bettor - $X Bet) [PP: $Y]" header
+# (stake and payout live in the header itself, no separate footer line),
+# legs as "* (Bettor) Player - TEAM (+ODDS) - TIME ET", grouped under
+# "Part N: <window description>" headers. First seen 2026-09-19 (a real
+# Discord upload the first two templates parsed as zero tickets). Reuses the
+# second template's ticket/window machinery below -- same internal shape,
+# just populated by different regexes -- so a single leg still becomes a
+# single and a window is still keyed by whatever header text came before it.
+PART_HEADER_RE = re.compile(r"^Part\s+\d+\s*:\s*.+$", re.IGNORECASE)
+TICKET_HASH_START_RE = re.compile(
+    r"^Ticket\s*#(\d+)\s*\(([A-Za-z]+)\s*-\s*\$([\d,.]+)\s*Bet\)\s*\[PP:\s*\$?([\d,.]+)\]\s*$", re.IGNORECASE
+)
+TICKET_HASH_LEG_RE = re.compile(
+    BULLET + r"\(([^)]+)\)\s*(.+?)\s+-\s+([A-Z]{2,4})\s*\(\+(\d+)\)\s*-\s*([\d: ]*[AP]M\s*ET)\s*$", re.IGNORECASE
 )
 
 
@@ -221,6 +253,12 @@ def parse(text, team_by_name, canonical_by_norm):
             windows_append_card(current_card)
         current_card = None
 
+    def flush_ticket():
+        nonlocal current_ticket
+        if current_ticket is not None:
+            finalize_ticket(current_ticket, current_ticket["_num"])
+            current_ticket = None
+
     def windows_append_card(card):
         current_section["tickets"].append(card)
 
@@ -262,12 +300,13 @@ def parse(text, team_by_name, canonical_by_norm):
 
     for raw in lines:
         line = raw.strip()
-        if not line or line.startswith("---"):
+        if not line or re.fullmatch(r"[-=]{3,}", line):
             continue
 
         header_text = section_header(line)
         if header_text is not None:
             flush_card()
+            flush_ticket()
             last_header_title = header_text
             if SINGLES_HEADER_RE.search(header_text):
                 mode = "singles"
@@ -280,15 +319,30 @@ def parse(text, team_by_name, canonical_by_norm):
                 mode = None
             continue
 
+        if PART_HEADER_RE.match(line):
+            flush_card()
+            flush_ticket()
+            last_header_title = line
+            mode = None
+            current_section = None
+            continue
+
         ticket_start = TICKET_START_RE.match(line)
         if ticket_start:
-            if current_ticket is not None:
-                finalize_ticket(current_ticket, current_ticket["_num"])
+            flush_ticket()
             current_ticket = {"_num": re.match(r"^\*?\s*Ticket\s+(\d+)", line, re.IGNORECASE).group(1),
                                "_legs": [], "_book": None, "_stake": None, "_pp": None}
             leg = TICKET_LEG_RE.match(ticket_start.group(1).strip())
             if leg:
                 current_ticket["_legs"].append(leg.groups())
+            continue
+
+        hash_start = TICKET_HASH_START_RE.match(line)
+        if hash_start:
+            flush_ticket()
+            num, book, stake, pp = hash_start.groups()
+            current_ticket = {"_num": num, "_legs": [], "_book": book,
+                               "_stake": clean_num(stake), "_pp": clean_num(pp)}
             continue
 
         if current_ticket is not None:
@@ -298,12 +352,16 @@ def parse(text, team_by_name, canonical_by_norm):
                 current_ticket["_book"] = book
                 current_ticket["_stake"] = clean_num(stake)
                 current_ticket["_pp"] = clean_num(pp)
-                finalize_ticket(current_ticket, current_ticket["_num"])
-                current_ticket = None
+                flush_ticket()
                 continue
             leg = TICKET_LEG_RE.match(line)
             if leg:
                 current_ticket["_legs"].append(leg.groups())
+                continue
+            hash_leg = TICKET_HASH_LEG_RE.match(line)
+            if hash_leg:
+                who, player_raw, team_raw, odds, time_ = hash_leg.groups()
+                current_ticket["_legs"].append((time_, player_raw, team_raw, odds, who))
                 continue
 
         if mode == "parlay":
@@ -374,8 +432,7 @@ def parse(text, team_by_name, canonical_by_norm):
                 continue
 
     flush_card()
-    if current_ticket is not None:
-        finalize_ticket(current_ticket, current_ticket["_num"])
+    flush_ticket()
 
     # Drop windows that ended up with nothing in them (e.g. a document title
     # line like "HOME RUN PARLAY CARD" that happens to look header-shaped).

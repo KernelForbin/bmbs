@@ -85,14 +85,17 @@ Discord intake channel and confirm with a reaction — see
 `incoming_picks.txt` → workflow → `tickets.json` pipeline.
 
 ### If the picks format changes
-`scripts/parse_picks.py`'s docstring documents the exact expected shape.
-`test_picks.txt` in this repo is a full real example you can diff against.
-The markdown markers (`## ` on section headers, `* ` on item lines) are
-optional — text copied out of a rendered Gemini response has them
-stripped, and both forms parse identically.
-If a new day's format doesn't match (a new section type, a reworded footer
-line), the parser will likely under-count or print a WARNING — paste the
-new format to Claude and ask for the parser to be updated to match.
+`scripts/parse_picks.py`'s docstring documents the exact expected shape(s) —
+the group's picks-generation prompt has changed template twice already
+(most recently 2026-09-19), each time with no warning, and the parser now
+accepts all three. `test_picks.txt` in this repo is a full real example of
+the original one.
+If a new day's format doesn't match any of them, the parser exits non-zero
+with `WARNING: parsed nothing` and the Action fails loudly rather than
+silently posting an empty/wrong slate — check the Actions tab, grab the raw
+text from that failed run's upload, and paste it to Claude to add support
+for the new shape (a fourth template is just another regex pair, same as
+the last two).
 
 ### Updating the roster
 `data/roster.json` doesn't update itself — it's a snapshot. Refresh it any

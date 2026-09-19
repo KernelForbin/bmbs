@@ -71,6 +71,20 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   response has them stripped, and that silently broke parsing once.
   Stamps `date` from the listed start times: a slate posted after its
   last first pitch is for tomorrow, otherwise it's for today (ET).
+  **The group's picks-generation prompt has changed template at least twice
+  without warning**, each time parsing to zero tickets (exit 1, nothing
+  written, so the real slate silently never posts) until the new shape was
+  added: the original `## Longshot` / `## N-Leg Parlay Cards` headers, then
+  "`* Ticket N: TIME | Player (Team) +ODDS (Bettor)`" footed by "`(Bet by X)
+  [Bet: $Y | PP: Z]`" (2026-09-18), then "`Ticket #N (Bettor - $X Bet) [PP:
+  $Y]`" headers with "`* (Bettor) Player - TEAM (+ODDS) - TIME ET`" legs
+  grouped under "`Part N: ...`" headers (2026-09-19). All three parse from
+  the same input, decided purely by which regex a line matches, and a ticket
+  is a single vs. a parlay card by its actual leg count, never by which
+  header/window it sits under. **If a new upload parses to zero again,
+  that's a fourth template, not a regression** — check the Action's run log
+  for `WARNING: parsed nothing`, get the raw text, and add support the same
+  way (`tests/test_parser.py` has a fixture + assertions per template).
 - **`history/index.html`** — the standalone History page at `/history/`
   (see "History page" below). Own inline CSS/JS; shares nothing with
   `index.html` except one footer link each way.

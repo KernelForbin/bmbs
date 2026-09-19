@@ -319,11 +319,24 @@ gzipped per game); `test_feed_fields.py` compares steals and bases too.
 **Odds can be minus money now** (a steal often is). Every baseball odds regex
 takes `[+-]`, and the Bettor Tracker / tiles format with `fmtOdds()`.
 
-**The parser's steal marker is a guess, on purpose.** No real steal card existed
-when this was built, so `take_market()` lifts `SB` / `Stolen Base(s)` /
-`Steal(s)` / `To Steal` out of a line before the usual patterns run, and honours
-it on a leg line, a ticket header, or a section header (until the next header).
-When the first real card arrives, check it parses and tighten this if needed.
+**How a card says "steal".** The first real one (2026-09-19, kept as
+`tests/fixtures/discord_prop_legs_with_steals.txt`) spells the market out on
+every leg, prop-style, under a ticket header with an extra combined-odds bracket:
+`Ticket #17 (Bailey - $5 Bet) [+2925] [PP: $151.25]` then
+`- Josh Naylor - Stolen Bases O0.5 (+450) - SEA @ COL - 8:10 PM ET` /
+`- Ben Rice - Home Runs O0.5 (+450) - NYY @ ARI - 8:10 PM ET`. No per-leg bettor
+(the leg belongs to whoever placed the ticket), a matchup instead of a team (the
+roster supplies the team). `TICKET_PROP_LEG_RE` reads it; an over other than 0.5
+gets a NOTE, since the tracker only knows "at least one". The older, tolerant
+`take_market()` (a bare `SB` / `Stolen Base` / `Steal` on a leg line, ticket
+header or section header) is kept for cards that mark steals that way instead.
+
+**A bet line nothing understands is never dropped silently.** Before the prop
+format was handled, that same card parsed "successfully" as 16 of its 18 tickets
+and said nothing. Now any unmatched line that looks like a bet (`BETLIKE_RE`: a
+`Ticket #N` header, or a bulleted line with odds) is logged as a WARNING and
+summarized in `tickets.json`'s `note`, which the page shows at the top -- the
+slate still posts, but the group can see something is missing.
 
 **History mixes the two markets** in hit rates and odds bands -- steals are
 priced nothing like homers. Legs are tagged (`market: "sb"`) so they can be split

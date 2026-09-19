@@ -144,8 +144,23 @@ TICKET_FOOT_RE = re.compile(
 # single and a window is still keyed by whatever header text came before it.
 PART_HEADER_RE = re.compile(r"^Part\s+\d+\s*:\s*.+$", re.IGNORECASE)
 TICKET_HASH_START_RE = re.compile(
-    r"^Ticket\s*#(\d+)\s*\(([A-Za-z]+)\s*-\s*\$([\d,.]+)\s*Bet\)\s*\[PP:\s*\$?([\d,.]+)\]\s*$", re.IGNORECASE
+    r"^Ticket\s*#(\d+)\s*\(([A-Za-z]+)\s*-\s*\$([\d,.]+)\s*Bet\)\s*(?:\[[^\]]*\]\s*)*?\[PP:\s*\$?([\d,.]+)\]\s*$", re.IGNORECASE
 )
+# ...and its prop-style leg, first seen on the first real card with a steal on it
+# (2026-09-19, "PART 6: LATE ADDITIONS"):
+#     Ticket #17 (Bailey - $5 Bet) [+2925] [PP: $151.25]
+#     - Josh Naylor - Stolen Bases O0.5 (+450) - SEA @ COL - 8:10 PM ET
+#     - Ben Rice - Home Runs O0.5 (+450) - NYY @ ARI - 8:10 PM ET
+# The market is spelled out on every leg, the game is a matchup rather than the
+# player's team, and there is no per-leg bettor -- the leg belongs to whoever
+# placed the ticket. A leading "(Bettor)" is still honoured if a card adds one.
+TICKET_PROP_LEG_RE = re.compile(
+    BULLET + r"(?:\(([^)]+)\)\s*)?(.+?)\s+-\s+(stolen\s+bases?|steals?|SB|home\s+runs?|HRs?)"
+    r"(?:\s+O(?:ver)?\s*(\d+(?:\.\d+)?))?\s*\(([+-]\d+)\)\s*-\s*(.+?)\s*-\s*([\d: ]*[AP]M\s*ET)\s*$", re.IGNORECASE
+)
+# A line that is obviously part of a bet. If one of these reaches the end of the
+# loop unmatched, a bet is about to go untracked -- say so, loudly (see main()).
+BETLIKE_RE = re.compile(r"^\*?\s*Ticket\s*#?\s*\d+|^[*\-•]\s.*\([+-]\d{3,}\)", re.IGNORECASE)
 TICKET_HASH_LEG_RE = re.compile(
     BULLET + r"\(([^)]+)\)\s*(.+?)\s+-\s+([A-Z]{2,4})\s*\(([+-]\d+)\)\s*-\s*([\d: ]*[AP]M\s*ET)\s*$", re.IGNORECASE
 )
@@ -273,6 +288,8 @@ def parse(text, team_by_name, canonical_by_norm):
     # ---- steal markers: the section's default, and the open ticket's ----
     section_sb = False
     ticket_sb = False
+    unread = []          # bet-looking lines no pattern understood
+    parse.unread = unread
 
     def market_for(leg_sb):
         return "sb" if (leg_sb or ticket_sb or section_sb) else "hr"
@@ -401,6 +418,16 @@ def parse(text, team_by_name, canonical_by_norm):
             if leg:
                 current_ticket["_legs"].append(leg.groups() + (market_for(sb_here),))
                 continue
+            prop_leg = TICKET_PROP_LEG_RE.match(original)
+            if prop_leg:
+                who, player_raw, market_word, threshold, odds, matchup, time_ = prop_leg.groups()
+                if threshold and float(threshold) != 0.5:
+                    print(f"NOTE: '{original}' is an over-{threshold} bet; the tracker only knows 'at least one' -- "
+                          f"it will be marked a hit on the FIRST one.", file=sys.stderr)
+                mkt = "hr" if re.match(r"h", market_word, re.IGNORECASE) else "sb"
+                # no team code on these lines: resolve_player() supplies it from the roster
+                current_ticket["_legs"].append((time_, player_raw, "", odds, who or current_ticket["_book"] or "", mkt))
+                continue
             hash_leg = TICKET_HASH_LEG_RE.match(line)
             if hash_leg:
                 who, player_raw, team_raw, odds, time_ = hash_leg.groups()
@@ -475,6 +502,9 @@ def parse(text, team_by_name, canonical_by_norm):
                 })
                 single_idx += 1
                 continue
+
+        if BETLIKE_RE.search(original):
+            unread.append(original)
 
     flush_card()
     flush_ticket()
@@ -560,7 +590,18 @@ def main():
     all_times += [s["time"] for s in raw_singles if s.get("time")]
     slate_date = slate_date_for(all_times, datetime.now(ET))
 
-    payload = {"date": slate_date, "note": "", "windows": windows, "singles": out_singles}
+    # A bet line nothing understood means a bet that is NOT being tracked. The
+    # upload still posts (better most of a slate than none), but the page's note
+    # line says so where the group will see it, instead of only an Actions log.
+    unread = getattr(parse, "unread", [])
+    note = ""
+    if unread:
+        for line in unread:
+            print(f"WARNING: couldn't read: {line}", file=sys.stderr)
+        note = (f"&#9888; {len(unread)} line{'s' if len(unread) != 1 else ''} on the card couldn't be read, so "
+                f"{'those bets are' if len(unread) != 1 else 'that bet is'} NOT being tracked &mdash; first one: "
+                f"&ldquo;{unread[0][:70]}&rdquo;")
+    payload = {"date": slate_date, "note": note, "windows": windows, "singles": out_singles}
     TICKETS_PATH.parent.mkdir(parents=True, exist_ok=True)
     archive_previous_slate(slate_date)
     TICKETS_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")

@@ -84,6 +84,15 @@ Discord intake channel and confirm with a reaction — see
 `discord-bot/README.md`. Either route ends up in the same
 `incoming_picks.txt` → workflow → `tickets.json` pipeline.
 
+### Stolen base bets
+A leg is a home run bet unless the card marks it as a steal -- write `SB` (or
+"Stolen Base" / "Steal") on the leg's line, on the ticket's header, or on a
+section header, e.g. `* (Kenny) Elly De La Cruz - CIN (-120) SB - 6:40 PM ET`.
+One ticket can mix home run and steal legs. Steal legs show a STEAL tag, get
+their own alert, and appear in the Live Bet Tracker while the player is on base.
+Rules: a steal is a hit the moment it happens; there is no Pinch Hit Protection
+for steals; and a player who never got into the game is void.
+
 ### If the picks format changes
 `scripts/parse_picks.py`'s docstring documents the exact expected shape(s) —
 the group's picks-generation prompt has changed template twice already

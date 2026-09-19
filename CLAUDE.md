@@ -271,7 +271,68 @@ notification controls next to frozen, archived results is misleading. This
 is visibility only: the saved settings and Today's actual notifications are
 completely unaffected by which tab happens to be on screen.
 
+## Bet markets: home runs and stolen bases
+
+Since 2026-09-19 a leg can be a STOLEN BASE bet: `"market": "sb"` on the leg or
+single. **No market field means home run**, and that default is the whole
+safety story: `stateForLeg()` hands a market-less leg straight to the untouched
+`stateForPlayer()`, the parser writes no market on home run legs (a home-run-only
+card's `tickets.json` is byte-for-byte what it was), and `test_page.py` /
+`test_live_at_bats.py` pass unchanged. One ticket can mix markets, and one
+player can be on both (his steal leg and his home run leg grade separately).
+The user asked for HR + steals only; a third market would follow the same path.
+
+**Grading a steal leg** (`stateForSteal()`; mirrored in `record_results.py`'s
+`grade_steal()` -- change one, change the other). Three rules the user decided:
+- A hit is a `stolen_base_*` RUNNER event. Steals live in each play's
+  `runners[]`, inside somebody else's plate appearance -- usually one that isn't
+  complete yet -- never in the play's own `result`. Verified on a live game:
+  a `pickoff_caught_stealing_3b` was in the feed with `isComplete: false`. One
+  steal can be several runner entries (one per base-to-base segment), so events
+  are keyed on at-bat + `playIndex` + runner. `caught_stealing_*` and
+  `pickoff_caught_stealing_*` are attempts, not hits.
+- **No Pinch Hit Protection.** A pulled player can't re-enter, so with no steal
+  he's a miss immediately and his replacement's steal credits nobody.
+- **"Played" = appeared in the game** (holds a batting-order spot), NOT "came to
+  the plate": a pinch runner can steal without batting. On a finished game's
+  roster without getting in -> `na`. (Deliberately different from home run legs.)
+
+**Alerts are per market.** A bomb fires only for a player we have a HOME RUN
+bet on, a steal alert ("STOLE 2ND!", blue; gold + money rain when it cashes
+something) only for a steal pick, and `betsCashedBy()` takes the market so a
+steal can't re-announce a parlay his homer finished an hour ago. The Home Run
+Log's "ours" is home-run picks only. Same seeding flood guard, same queue.
+
+**Live Bet Tracker** (the panel formerly "Live At Bats"; ids and the
+`bmbs.liveab.open` key kept). Home run tiles are unchanged. A steal pick gets
+an **ON 1ST / 2ND / 3RD** tile (blue) while he's on base -- base diamond, outs,
+who's batting, and whether the next base is open or "blocked -- runner on 2nd".
+Order: results, then runners with an open base, hitters at the plate, blocked
+runners, then due-up. A steal pick who reaches goes straight to his on-base tile
+(the "Single" result would only sit in front of it). Results: "Stole 2nd!" holds
+like a home run, "Caught stealing" / "STRANDED" / "OFF THE BASES" briefly. Bases
+come from `linescore.offense.first/second/third`; watched against live games
+alongside `currentPlay.matchup.postOn*` and the two never disagreed.
+`FEED_FIELDS` gained `runners, runner, playIndex, first, second, third` (~1-2 KB
+gzipped per game); `test_feed_fields.py` compares steals and bases too.
+
+**Odds can be minus money now** (a steal often is). Every baseball odds regex
+takes `[+-]`, and the Bettor Tracker / tiles format with `fmtOdds()`.
+
+**The parser's steal marker is a guess, on purpose.** No real steal card existed
+when this was built, so `take_market()` lifts `SB` / `Stolen Base(s)` /
+`Steal(s)` / `To Steal` out of a line before the usual patterns run, and honours
+it on a leg line, a ticket header, or a section header (until the next header).
+When the first real card arrives, check it parses and tighten this if needed.
+
+**History mixes the two markets** in hit rates and odds bands -- steals are
+priced nothing like homers. Legs are tagged (`market: "sb"`) so they can be split
+later; the log marks them "SB". Steal legs are excluded from the MLB home-run
+cross-check and from "the ones that got away".
+
 ## Live At Bats
+
+(Now titled **Live Bet Tracker** on the page -- see "Bet markets" above for the steal tiles. Everything below still describes the home run tiles.)
 
 A collapsed-by-default panel (Today tab only; open/closed is remembered in
 `localStorage` as `bmbs.liveab.open`) showing one tile per picked player who
@@ -732,6 +793,10 @@ on failure:
 - `tests/test_live_at_bats.py` — the Live At Bats panel: one mocked game walked
   forward poll by poll (live count, strikeout, home run/bomb, stale at-bat,
   tab switch), with the pinned clock moved by hand instead of sleeping.
+- `tests/test_steals.py` — stolen base bets end to end on the page: grading
+  (appeared / void / pulled), mixed HR+steal tickets, the steal alert plain and
+  cashed, on-base / blocked / stole / caught / stranded tiles, no bomb for a
+  steal-only pick's homer, minus-money odds.
 - `tests/test_history.py` — Playwright against `history/index.html` with a
   hand-worked `history.json` fixture: the isolation guarantee (block A),
   every stat, sorting/filters, chart tooltips, degraded data, phone width.
@@ -761,7 +826,7 @@ on failure:
 ```
 pip install -r tests/requirements.txt
 python -m playwright install chromium
-python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py
+python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py && python tests/test_steals.py
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py

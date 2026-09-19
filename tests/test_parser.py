@@ -147,4 +147,41 @@ assert len(h_windows) == 2, len(h_windows)
 print("OK: third template (\"Ticket #N (...)\" cards under \"Part N:\" headers) "
       "parses 1 single + 3 cards (10 legs) across 2 sections")
 
+# --- 6. stolen base bets. No real steal card exists yet (2026-09-19), so the
+# parser accepts the marker wherever a card might plausibly put it: on the leg,
+# on the ticket header, or on a section header. Home run legs carry NO market
+# field, so a home-run-only card's tickets.json is unchanged by any of this.
+sb_text = """Part 1: Evening Window
+Ticket #1 (Memo - $5 Bet) [PP: $61.00]
+* (Kenny) Elly De La Cruz - CIN (-120) SB - 6:40 PM ET
+* (Joe) Kyle Schwarber - PHI (+240) - 4:10 PM ET
+
+Ticket #2 (Memo - $5 Bet) [PP: $40.00] - Stolen Bases
+* (Bernie) Jose Ramirez - CLE (+150) - 8:10 PM ET
+* (Noid) Bobby Witt - KC (+130) - 6:40 PM ET
+
+Part 2: Stolen Base Singles
+Ticket #3 (Kenny - $5 Bet) [PP: $12.50]
+* (Kenny) Chandler Simpson - TB (+150) - 4:10 PM ET
+
+Part 3: Bonus Bets
+Ticket #4 (Kenny - $5 Bet) [PP: $30.00]
+* (Kenny) Pete Alonso - BAL (+500) - 4:05 PM ET
+"""
+s_windows, s_singles, _ = pp.parse(sb_text, team_by_name, canon)
+mixed, all_sb = s_windows[0]["tickets"]
+# one ticket, two markets; minus money keeps its sign
+assert [(l["player"], l["odds"], l.get("market")) for l in mixed["legs"]] == [
+    ("Elly De La Cruz", "-120", "sb"), ("Kyle Schwarber", "+240", None)], mixed["legs"]
+# a marker on the ticket header covers every leg under it
+assert [l.get("market") for l in all_sb["legs"]] == ["sb", "sb"], all_sb["legs"]
+# a section header's marker lasts until the next header, and no longer
+assert [(x["player"], x.get("market")) for x in s_singles] == [("Chandler Simpson", "sb"), ("Pete Alonso", None)], s_singles
+# every earlier fixture is a home run card: not one leg or single may have grown a market
+for wins, sgl in ((g_windows, g_singles), (m_windows, m_singles), (t_windows, t_singles), (h_windows, h_singles)):
+    assert not any("market" in l for w in wins for c in w["tickets"] for l in c["legs"]) and not any("market" in x for x in sgl)
+plain = "* (Kenny) Pete Alonso - BAL (+500) - 4:05 PM ET"
+assert pp.take_market(plain) == (plain, False)
+print("OK: steal markers on a leg / ticket / section; mixed parlays; minus-money odds; home run cards unchanged")
+
 print("\nALL PARSER TESTS PASSED")

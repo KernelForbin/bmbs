@@ -19,6 +19,12 @@ the page said miss, the group's own sheet correctly said DNP). The permanent
 record gets it right: on a Final game's roster but never came to the plate
 (benched, or only a pinch runner / late defensive sub) -> "na".
 
+STOLEN BASE LEGS (`"market": "sb"` on the leg; no market = home run) are graded
+the way index.html's stateForSteal() grades them: a stolen_base_* runner event
+is a hit; NO Pinch Hit Protection; and "played" means APPEARED IN THE GAME
+(holds a batting-order spot), not "came to the plate" -- a pinch runner can
+steal without batting. On a finished game's roster without getting in -> "na".
+
 Those files are the permanent record. scripts/import_history.py folds them
 into data/history.json (what the History page reads) next to the older slates
 imported from the group's sheet.
@@ -166,6 +172,30 @@ def game_snapshot(game_pk, feed):
             "gamePk": game_pk,
         })
 
+    # Stolen bases: runner events inside somebody else's plate appearance. One
+    # steal can appear as several runner entries (one per segment), hence the key.
+    sb_names, steals, seen_steals = set(), [], set()
+    for play in plays:
+        about = play.get("about") or {}
+        for r in play.get("runners") or []:
+            det = r.get("details") or {}
+            etype = det.get("eventType") or ""
+            name = (det.get("runner") or {}).get("fullName")
+            stole, caught = etype.startswith("stolen_base"), "caught_stealing" in etype
+            if not name or not (stole or caught):
+                continue
+            key = (play.get("atBatIndex"), det.get("playIndex"), normalize_name(name))
+            if key in seen_steals:
+                continue
+            seen_steals.add(key)
+            if stole:
+                sb_names.add(normalize_name(name))
+            steals.append({"runner": name, "runnerId": (det.get("runner") or {}).get("id"), "caught": caught,
+                           "base": "home" if "home" in etype else "3rd" if "3b" in etype else "2nd",
+                           "inning": about.get("inning"), "half": about.get("halfInning") or "",
+                           "pitcher": ((play.get("matchup") or {}).get("pitcher") or {}).get("fullName") or "",
+                           "team": abbr("away" if about.get("isTopInning") else "home"), "gamePk": game_pk})
+
     roster = {}         # normalized name -> MLB person id (everyone in the boxscore)
     played = set()      # ...of whom, those who actually got into the game
     order_slot = {}     # normalized name -> {slot, side, orderFull}
@@ -199,6 +229,7 @@ def game_snapshot(game_pk, feed):
                     slot_holders[side].setdefault(slot, []).append({"name": full, "orderFull": order_full})
 
     return {"status": status, "gamePk": game_pk, "hrNames": hr_names, "homeRuns": home_runs, "roster": roster, "played": played,
+            "sbNames": sb_names, "steals": steals,
             "orderSlot": order_slot, "slotHolders": slot_holders,
             "matchup": f"{abbr('away')} @ {abbr('home')}" if abbr("away") and abbr("home") else ""}
 
@@ -214,7 +245,7 @@ def poll_slate(day, fetcher=fetch_json):
             abstract = ((g.get("status") or {}).get("abstractGameState")) or ""
             games.append({"gamePk": g["gamePk"], "final": abstract == "Final", "preview": abstract == "Preview"})
 
-    results = {"hitNames": set(), "rosterStatus": {}, "rosterSide": {}, "rosterIds": {}, "substitutedOut": set(),
+    results = {"hitNames": set(), "sbNames": set(), "steals": [], "inBox": {}, "appeared": set(), "rosterStatus": {}, "rosterSide": {}, "rosterIds": {}, "substitutedOut": set(),
                "homeRuns": [], "gameInfo": {}, "games": len(games),
                "allScheduledFinal": all(g["final"] for g in games), "allGamesFinal": True}
     for g in games:
@@ -224,13 +255,17 @@ def poll_slate(day, fetcher=fetch_json):
         snap = game_snapshot(g["gamePk"], fetcher(f"{MLB_API}/v1.1/game/{g['gamePk']}/feed/live"))
         results["hitNames"] |= snap["hrNames"]
         results["homeRuns"] += snap["homeRuns"]
+        results["sbNames"] |= snap["sbNames"]
+        results["steals"] += snap["steals"]
         if snap["status"] != "preview":
             for norm, pid in snap["roster"].items():
                 results["rosterIds"][norm] = pid
+                results["inBox"][norm] = snap["status"]     # steal legs ask "was he there", not "did he bat"
                 # benched all game in a game that's over = didn't play (see the docstring)
                 if snap["status"] != "final" or norm in snap["played"]:
                     results["rosterStatus"][norm] = snap["status"]
             for norm, info in snap["orderSlot"].items():
+                results["appeared"].add(norm)
                 results["rosterSide"][norm] = {"side": info["side"], "gamePk": snap["gamePk"]}
                 holders = snap["slotHolders"][info["side"]].get(info["slot"], [])
                 if holders and max(h["orderFull"] for h in holders) > info["orderFull"]:
@@ -270,6 +305,20 @@ def grade_player(results, player):
     return ("na" if results["allGamesFinal"] else "not_started"), None
 
 
+def grade_steal(results, player):
+    """index.html's stateForSteal()."""
+    norm = normalize_name(player)
+    if norm in results["sbNames"]:
+        return "hit"
+    if norm in results["substitutedOut"]:
+        return "miss"                       # pulled, can't re-enter, and nobody inherits a steal bet
+    if norm in results["inBox"]:
+        if results["inBox"][norm] != "final":
+            return "live"
+        return "miss" if norm in results["appeared"] else "na"
+    return "na" if results["allGamesFinal"] else "not_started"
+
+
 def evaluate_ticket(stake, payout, legs):
     """index.html's evaluateTicket(). legs: [(state, odds_number)] -> (outcome, returned)."""
     states = [s for s, _ in legs]
@@ -300,7 +349,8 @@ def hr_detail(hr):
 
 def grade_leg(results, src):
     player = src.get("player") or ""
-    state, php_by = grade_player(results, player)
+    steal = src.get("market") == "sb"
+    state, php_by = (grade_steal(results, player), None) if steal else grade_player(results, player)
     norm = normalize_name(player)
     leg = {"player": player, "team": src.get("team") or "", "who": who_name(src.get("who")),
            "odds": odds_to_number(src.get("odds")), "state": state, "mlbId": results["rosterIds"].get(norm)}
@@ -312,7 +362,12 @@ def grade_leg(results, src):
     credited = normalize_name(php_by) if php_by else norm
     if php_by:
         leg["php"] = php_by
-    if state == "hit":
+    if steal:
+        leg["market"] = "sb"
+        mine = [st for st in results["steals"] if normalize_name(st["runner"]) == norm]
+        if mine:
+            leg["steals"] = [{k: st[k] for k in ("base", "caught", "inning", "half", "pitcher") if st.get(k) not in (None, "")} for st in mine]
+    elif state == "hit":
         leg["homeRuns"] = [hr_detail(hr) for hr in results["homeRuns"] if normalize_name(hr["batter"]) == credited]
     return leg
 
@@ -339,7 +394,10 @@ def grade_slate(tickets, results):
 
     bets = parlays + singles
     all_legs = [l for p in parlays for l in p["legs"]] + singles
-    picked = {normalize_name(l["player"]) for l in all_legs} | {normalize_name(l["php"]) for l in all_legs if l.get("php")}
+    hr_legs = [l for l in all_legs if l.get("market") != "sb"]
+    picked = {normalize_name(l["player"]) for l in hr_legs} | {normalize_name(l["php"]) for l in hr_legs if l.get("php")}
+    sb_picked = {normalize_name(l["player"]) for l in all_legs if l.get("market") == "sb"}
+    stolen = [st for st in results["steals"] if not st["caught"]]
     complete = all(b["outcome"] != "live" for b in bets)
     return {
         "sport": "baseball",
@@ -356,11 +414,14 @@ def grade_slate(tickets, results):
             "returned": round2(sum(b["returned"] or 0 for b in bets)),
             "ourHomeRuns": sum(1 for hr in results["homeRuns"] if normalize_name(hr["batter"]) in picked),
             "leagueHomeRuns": len(results["homeRuns"]),
+            "ourSteals": sum(1 for st in stolen if normalize_name(st["runner"]) in sb_picked),
+            "leagueSteals": len(stolen),
         },
         "note": tickets.get("note") or "",
         "parlays": parlays,
         "singles": singles,
         "homeRuns": results["homeRuns"],
+        "steals": results["steals"],
     }
 
 

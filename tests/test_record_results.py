@@ -227,6 +227,66 @@ with tempfile.TemporaryDirectory() as tmp:
     check("G1 CLI: a future slate exits cleanly without the network", run.returncode == 0 and "hasn't been played" in run.stdout, run.stdout + run.stderr)
     check("G2 the real data/results was never touched", (sorted(p.name for p in real.glob("*.json")) if real.exists() else []) == before)
 
+    # ---------- H. stolen base legs ----------
+    def steal(name, etype, idx=0):
+        return {"details": {"eventType": etype, "runner": {"id": 99, "fullName": name}, "playIndex": idx}, "movement": {}}
+
+    sb_game = feed("Final",
+                   away=[player(31, "Swiped One", 100, 4), player(32, "Ran Nowhere", 200, 4), player(33, "Got Caught", 300, 3),
+                         player(34, "Pinch Runner", 401, 0),              # never batted -- but he DID get in, and he stole
+                         player(35, "Bench Warmer"),                       # never got in at all
+                         player(36, "Pulled Early", 500, 1), player(37, "His Replacement", 501, 3)],
+                   home=[player(38, "Homers Too", 100, 4)],
+                   plays=[hr(38, "Homers Too", 4, top=False)])
+    sb_game["liveData"]["plays"]["allPlays"].append({
+        "result": {"eventType": "walk", "event": "Walk"}, "about": {"atBatIndex": 9, "isTopInning": True, "halfInning": "top", "inning": 5, "isComplete": True},
+        "matchup": {"batter": {"id": 32, "fullName": "Ran Nowhere"}, "pitcher": {"fullName": "Some Pitcher"}}, "playEvents": [],
+        "runners": [steal("Swiped One", "stolen_base_2b"), steal("Swiped One", "stolen_base_2b"),      # one steal, two segments
+                    steal("Got Caught", "caught_stealing_3b", 1), steal("Pinch Runner", "stolen_base_home", 2),
+                    steal("His Replacement", "stolen_base_2b", 3)]})
+
+    def fake_sb(url):
+        if "/schedule" in url:
+            return {"dates": [{"games": [{"gamePk": 7, "status": {"abstractGameState": "Final"}}]}]}
+        return sb_game
+
+    def S(name, who, odds, market="sb"):
+        return dict(L(name, who, odds), market=market) if market else L(name, who, odds)
+
+    sb_tickets = {"date": "2026-09-18", "note": "", "windows": [{"title": "Mixed", "tickets": [
+        {"name": "Card 1", "sub": "2-Leg", "stake": 5.0, "book": "Ann", "payout": 60.0,
+         "legs": [S("Homers Too", "Ann", "+400", None), S("Swiped One", "Bob", "-120")]},          # HR + STEAL, both hit
+        {"name": "Card 2", "sub": "2-Leg", "stake": 5.0, "book": "Bob", "payout": 40.0,
+         "legs": [S("Got Caught", "Bob", "+150"), S("Homers Too", "Cy", "+300")]},                  # he homered -- but this leg needs a STEAL
+        {"name": "Card 3", "sub": "2-Leg", "stake": 5.0, "book": "Cy", "payout": 45.0,
+         "legs": [S("Pinch Runner", "Cy", "+200"), S("Bench Warmer", "Ann", "+250")]},              # hit + void -> re-priced
+    ]}], "singles": [dict(S("Pulled Early", "KENNY", "+180"), stake=5.0, payout=14.0),
+                     dict(S("Ran Nowhere", "JOE", "+160"), stake=5.0, payout=13.0)]}
+    out_sb = Path(tmp) / "steals"
+    rr.record(sb_tickets, out_sb, today, fetcher=fake_sb)
+    sb = json.loads((out_sb / "2026-09-18.json").read_text(encoding="utf-8"))
+    sc = {c["name"]: c for c in sb["parlays"]}
+    check("H1 mixed ticket: the home run leg and the steal leg are each graded in their own market, and it cashes",
+          [(l["player"], l.get("market"), l["state"]) for l in sc["Card 1"]["legs"]] == [("Homers Too", None, "hit"), ("Swiped One", "sb", "hit")]
+          and sc["Card 1"]["outcome"] == "hit", str(sc["Card 1"]["legs"]))
+    check("H2 a home run does NOT cash a steal leg on the same player", sc["Card 2"]["legs"][1]["state"] == "miss" and "homeRuns" not in sc["Card 2"]["legs"][1])
+    check("H3 caught stealing is not a steal", sc["Card 2"]["legs"][0]["state"] == "miss" and sc["Card 2"]["legs"][0]["steals"][0]["caught"] is True)
+    check("H4 'appeared in the game', not 'came to the plate': a pinch runner who never batted still cashes his steal",
+          sc["Card 3"]["legs"][0]["state"] == "hit" and sc["Card 3"]["legs"][0]["steals"][0]["base"] == "home")
+    check("H5 never got into the game -> void, and the ticket is re-priced on the leg that did: $5 x 3.00 = $15",
+          sc["Card 3"]["legs"][1]["state"] == "na" and (sc["Card 3"]["outcome"], sc["Card 3"]["returned"]) == ("hit", 15.0), str(sc["Card 3"]))
+    check("H6 no Pinch Hit Protection for steals: his replacement stealing credits nobody",
+          sb["singles"][0]["state"] == "miss" and "php" not in sb["singles"][0])
+    check("H7 played all game, never ran -> miss", sb["singles"][1]["state"] == "miss")
+    check("H8 one steal reported in two segments is recorded once; the day's attempts are all kept",
+          len(sb["steals"]) == 4 and sb["summary"]["leagueSteals"] == 3 and sb["summary"]["ourSteals"] == 2, str(sb["summary"]))
+    check("H9 'our home runs' only counts players we had a HOME RUN bet on", sb["summary"]["ourHomeRuns"] == 1)
+    merged = ih.build([SHEET], pmap, date(2026, 9, 19), with_mlb=False, recorded=[sb])
+    site_legs = [l for b in merged["parlays"] if b.get("src") == "site" for l in b["legs"]]
+    check("H10 history.json: steal legs are flagged, home run legs are not, and only home runs get a distance",
+          sum(1 for l in site_legs if l.get("market") == "sb") == 7 and not any(l.get("dist") for l in site_legs if l.get("market") == "sb"))
+    check("H11 a steal bet is never checked against MLB's HOME RUN log", "2026-09-18" not in ih.pick_days(merged["parlays"], "Swiped One"))
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

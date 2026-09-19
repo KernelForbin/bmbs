@@ -75,7 +75,7 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
 ## How live tracking actually works (important, don't reinvent this)
 
 `index.html` polls the **MLB Stats API directly from the visitor's own
-browser** every ~20 seconds — `statsapi.mlb.com`, which is free, keyless,
+browser** every ~10 seconds — `statsapi.mlb.com`, which is free, keyless,
 and has open CORS (confirmed working, not a guess). This is NOT a
 server-side cron job. There is no backend. Every viewer's browser
 independently computes hit/miss/live state from the same public data.
@@ -99,6 +99,32 @@ be yanked onto the Yesterday tab mid-game. Instead the newer slate is held
 as `SLATES.queued` (a small note on the Today tab says so) and takes over
 the moment the live one goes final. Final games' feeds are cached and never re-fetched; Preview games'
 feeds aren't fetched at all.
+
+**Poll cadence is 10s, and that's the floor -- don't lower it.** Measured
+2026-09-18 against live games: the feed carries `metaData.wait: 10`, responses
+ship `Cache-Control: max-age=10`, and a game's feed only regenerated every
+~18-20s (byte-identical payloads for 17+ seconds at a stretch). Polling faster
+just re-downloads cached bytes; it cannot make MLB publish sooner. MLB's own
+publish lag (~15-20s) dominates total latency, so the interval is the small
+term.
+
+**That 10s is only affordable because of `FEED_FIELDS`.** The full live feed is
+~630KB raw / ~104KB gzipped *per game*, and a full slate pulls one per live
+game per poll -- over 1MB a cycle. `getGameSnapshot()` sends a `fields=`
+allow-list that cuts it to ~10KB gzipped, so 10s polling costs about a fifth of
+what the old 20s polling did. `fields` matches field NAMES at any depth, not
+paths, and a missing name silently yields `undefined` rather than erroring --
+so every name read out of `data` must be listed, including intermediate ones.
+`tests/test_feed_fields.py` fetches both the full and slim feed for every
+currently-live game and requires `getGameSnapshot()` to compute identical
+results; run it after touching that list. It pins both requests with
+`timecode=` so a live game moving mid-check can't look like a lost field.
+
+**Polls are non-overlapping** (`pollOnce()`): a full slate can take longer than
+10s on a slow connection, and `setInterval` doesn't wait, so two polls could
+finish out of order and write a stale slate over a fresher one. A tick landing
+mid-poll is dropped. The guard releases in a `finally`, or one thrown error
+would kill polling for the rest of the session.
 
 Per-leg states (five total): `hit`, `miss`, `na` (didn't play), `live` (game
 in progress, no HR yet), `not_started`. A player is resolved to `hit` the
@@ -460,12 +486,16 @@ on failure:
   every stat, sorting/filters, chart tooltips, degraded data, phone width.
 - `tests/test_history_import.py` — the importer, fully offline: inline CSV
   "tabs", a fake MLB fetcher, temp-dir output, the shrink guard.
+- `tests/test_feed_fields.py` — the one test that DOES hit the network, since
+  mocked fixtures can't prove a `fields=` allow-list is complete. Full vs slim
+  feed for every live game, through the page's own `getGameSnapshot()`.
 
 ```
 pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py
 python tests/test_history_import.py && python tests/test_history.py
+python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 
 Windows note: `venv` fails on very long paths and Windows Python has no tz
@@ -481,4 +511,4 @@ into `data/incoming_picks.txt` via GitHub's web editor, or upload a `.txt`
 in the Discord intake channel (see `discord-bot/README.md`) → commit →
 GitHub Actions runs `parse_picks.py` → `tickets.json` updates (and the
 prior slate is archived if the date changed) → live site reflects it on
-the next poll cycle (~20s).
+the next poll cycle (~10s).

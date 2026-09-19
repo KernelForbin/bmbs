@@ -446,7 +446,15 @@
 <div id="bomb-overlay" role="status" aria-live="polite"></div>
 
 <script>
-const POLL_MS = 20000;
+// 10s, matching what the API itself asks for: every live feed carries
+// `metaData.wait: 10`, and responses ship `Cache-Control: max-age=10`, so
+// polling faster than this is served the same cached bytes. Measured
+// 2026-09-18: a live game's feed regenerated roughly every 18-20s, and the
+// same payload came back byte-identical for 17+ seconds at a stretch.
+// Polling at 10s doesn't make MLB publish sooner -- it just halves how long
+// we sit on an update that's already out. Affordable only because of
+// FEED_FIELDS below; don't drop the interval further without re-measuring.
+const POLL_MS = 10000;
 const API_BASE = "https://statsapi.mlb.com/api";
 
 let TICKETS = null;
@@ -546,7 +554,8 @@ async function loadTicketsFile(path) {
 // stays under its start date, which is why polling is keyed on the slate's
 // date and never on the clock.
 async function getScheduleForDate(date) {
-  const data = await fetchJson(`${API_BASE}/v1/schedule?sportId=1&date=${date}`);
+  const data = await fetchJson(
+    `${API_BASE}/v1/schedule?sportId=1&date=${date}&fields=dates,games,gamePk,status,abstractGameState`);
   const games = [];
   (data.dates || []).forEach(d => (d.games || []).forEach(g => {
     const abstract = (g.status && g.status.abstractGameState) || "";
@@ -555,8 +564,36 @@ async function getScheduleForDate(date) {
   return games;
 }
 
+// The live feed is ~630KB raw / ~104KB gzipped per game, and on a full slate
+// we pull one per live game every poll. `fields` is a flat allow-list of field
+// NAMES (matched at any depth, not paths), and it cuts that to ~10KB gzipped
+// -- which is what makes a 10s POLL_MS cheaper than the old 20s one.
+//
+// Verified 2026-09-18 against all 11 games live at the time: getGameSnapshot()
+// returned byte-identical results from the slim and full feeds (status, HR
+// names, full Statcast detail, rosters, batting order, inning/outs, next-up
+// slots). tests/test_feed_fields.py re-runs that check against live games.
+//
+// Every name below is load-bearing -- anything read out of `data` in this
+// function needs its name here, including intermediate ones. Dropping a name
+// doesn't error, it silently yields undefined, so re-run that test after
+// editing this list.
+const FEED_FIELDS = [
+  "gameData", "status", "abstractGameState", "venue", "name",
+  "weather", "condition", "temp", "wind",
+  "teams", "away", "home", "abbreviation", "teamName",
+  "liveData", "plays", "allPlays", "result", "eventType", "event",
+  "about", "isTopInning", "halfInning", "inning", "endTime", "startTime", "atBatIndex",
+  "matchup", "batter", "fullName", "batSide", "code", "pitcher", "pitchHand",
+  "playEvents", "isPitch", "details", "type", "description",
+  "pitchData", "startSpeed", "zone",
+  "hitData", "launchSpeed", "launchAngle", "totalDistance", "trajectory",
+  "boxscore", "players", "person", "battingOrder",
+  "linescore", "currentInning", "inningState", "outs", "offense",
+].join(",");
+
 async function getGameSnapshot(gamePk) {
-  const data = await fetchJson(`${API_BASE}/v1.1/game/${gamePk}/feed/live`);
+  const data = await fetchJson(`${API_BASE}/v1.1/game/${gamePk}/feed/live?fields=${FEED_FIELDS}`);
   const abstract = (data.gameData && data.gameData.status && data.gameData.status.abstractGameState) || "";
   const status = abstract === "Final" ? "final" : (abstract === "Preview" ? "preview" : "live");
 
@@ -2212,15 +2249,33 @@ async function pollAndRender() {
   updateSyncLine();
 }
 
+// setInterval doesn't wait for an async callback, so on a slow connection a
+// full slate's worth of feeds can still be in flight when the next tick
+// fires. Two overlapping polls can finish out of order and write a stale
+// slate over a fresher one, so a tick that lands mid-poll is skipped -- the
+// poll already running is about to deliver the same data anyway. This
+// mattered little at 20s; at 10s it's a real possibility.
+let pollInFlight = false;
+
+async function pollOnce() {
+  if (pollInFlight) return;
+  pollInFlight = true;
+  try {
+    await pollAndRender();
+  } finally {
+    pollInFlight = false;
+  }
+}
+
 function schedulePolling() {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(() => {
-    if (document.visibilityState === "visible") pollAndRender();
+    if (document.visibilityState === "visible") pollOnce();
   }, POLL_MS);
 }
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") pollAndRender();
+  if (document.visibilityState === "visible") pollOnce();
 });
 
 async function init() {

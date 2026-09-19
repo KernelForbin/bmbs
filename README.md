@@ -125,11 +125,11 @@ looks wrong.
 ## Live home run tracking (near-instant, client-side)
 
 `index.html` polls the MLB Stats API **directly from each visitor's
-browser** every 20 seconds while the tab is open (pausing when the tab
+browser** every 10 seconds while the tab is open (pausing when the tab
 isn't visible, to be a good citizen of a free public API). This replaced an
 earlier design that relied on a GitHub Actions cron job committing results
 every 10 minutes; that approach was removed from the repo on 2026-09-18.
-The client-side version is faster (~20s vs 10+ min) and needs no
+The client-side version is faster (~10s vs 10+ min) and needs no
 server-side moving parts at all.
 
 Polling is keyed on the slate's own date rather than the wall clock, so a
@@ -149,6 +149,12 @@ Per leg, three states:
   for that leg rather than a loss.
 - Anything not yet meeting one of the above stays in the neutral
   "in progress" state.
+
+10 seconds is as fast as this can usefully go: the API caches responses
+for 10s (`Cache-Control: max-age=10`), tells clients to wait 10s
+(`metaData.wait`), and in practice only republishes a game's feed every
+~18-20s. To keep that affordable, each feed is requested with a `fields=`
+allow-list that trims it from ~104KB gzipped to ~10KB.
 
 This relies on `statsapi.mlb.com` allowing unauthenticated, CORS-open
 browser requests (confirmed, no key or proxy needed). It's an unofficial,

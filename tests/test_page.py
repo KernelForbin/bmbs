@@ -890,4 +890,64 @@ with sync_playwright() as p:
     assert not errors, errors
     browser.close()
 
+    # ========== M: overlapping polls are skipped ==========
+    # POLL_MS is 10s and a full slate's feeds can take longer than that on a
+    # slow connection. setInterval fires regardless, so without a guard two
+    # polls run at once and can finish out of order, writing a stale slate
+    # over a fresher one. A tick landing mid-poll must be dropped.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Player Live")])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(1201, "Live")])}
+    FX["feeds"] = {1201: feed("Live", ["Player Live"], hrs=[])}
+
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0))
+    assert page.evaluate("typeof pollOnce === 'function'"), "pollOnce guard is missing"
+
+    # Stand in for the slow part of a poll with a promise the test resolves by
+    # hand, so "still in flight" is exact rather than a race against a timer.
+    page.evaluate("""() => {
+        window.__calls = 0;
+        window.__release = null;
+        window.__origRefresh = refreshEverything;
+        refreshEverything = () => { window.__calls++; return new Promise(r => { window.__release = r; }); };
+    }""")
+
+    page.evaluate("() => { pollOnce(); }")                # starts, then blocks (not awaited)
+    page.wait_for_function("window.__calls === 1")
+    page.evaluate("() => { pollOnce(); pollOnce(); pollOnce(); }")   # ticks landing mid-poll
+    page.wait_for_timeout(100)
+    assert page.evaluate("window.__calls") == 1, \
+        f"overlapping polls not suppressed: {page.evaluate('window.__calls')} concurrent refreshes"
+    print("M  OK: a poll tick that lands while one is already running is skipped")
+
+    # ...and once the in-flight poll finishes, polling resumes normally.
+    page.evaluate("window.__release()")
+    page.wait_for_timeout(100)
+    page.evaluate("() => { pollOnce(); }")
+    page.wait_for_function("window.__calls === 2")
+    print("M2 OK: the guard releases once the in-flight poll finishes")
+
+    # A poll that throws must release the guard, or polling dies for the rest
+    # of the session. render() sits outside pollAndRender's own try/catch, so
+    # throwing there is a real rejection -- only the `finally` recovers it.
+    page.evaluate("""() => {
+        window.__release();
+        refreshEverything = window.__origRefresh;
+        window.__origRender = render;
+        render = () => { throw new Error("boom"); };
+    }""")
+    page.wait_for_timeout(150)
+    page.evaluate("() => { pollOnce().catch(() => {}); }")
+    page.wait_for_timeout(300)
+    page.evaluate("render = window.__origRender")
+    SEEN.clear()
+    page.evaluate("pollOnce()")
+    page.wait_for_timeout(500)
+    assert count(r"/game/1201/feed") >= 1, "a poll that threw left the guard wedged shut"
+    print("M3 OK: a poll that throws still releases the guard")
+    errors.clear()  # the deliberate "boom" above
+    assert not errors, errors
+    browser.close()
+
 print("\nALL PAGE TESTS PASSED")

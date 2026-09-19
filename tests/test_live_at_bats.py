@@ -236,6 +236,34 @@ with sync_playwright() as p:
     t = tiles(page)
     check("D5 dropped after ~9s; everyone moves up", [x["player"] for x in t] == ["On Deck", "In Hole", "Next Half"], str([x["player"] for x in t]))
 
+    # ---------- D6-D9. the real MLB API quirk: linescore lags play-by-play ----------
+    # Confirmed against live games on 2026-09-18: liveData.linescore.offense.batter
+    # keeps naming whoever's plate appearance just ENDED for the whole gap until the
+    # next one starts -- not a one-poll blip, stale for 45+ seconds in some cases.
+    # Every other scenario in this file has game()'s `batter` already advanced to
+    # the truth the instant an at-bat ends, which is unrealistic and was hiding
+    # this bug. This one deliberately leaves it stale, as the real feed does.
+    FX["feed"] = game(BASE + [play(200, "Up Now", False, [pitch("C", "Called Strike")], 0, 1)], "Bottom", 0, "Up Now")
+    poll(page)
+    check("D6 Up Now genuinely at the plate", tiles(page)[0]["player"] == "Up Now" and tiles(page)[0]["count"] == "0-1")
+
+    # He grounds out. The play is complete, but no new play exists yet for the next
+    # hitter, and offense.batter is passed as "Up Now" -- stale, exactly as MLB's
+    # own feed reports it during this gap.
+    FX["feed"] = game(BASE + [play(200, "Up Now", False, [pitch("C", "Called Strike"), pitch("X", "In play, out(s)")], 0, 1, "Groundout", "field_out", True)],
+                      "Bottom", 1, "Up Now")
+    poll(page)
+    check("D7 result tile shows the groundout", tiles(page)[0]["player"] == "Up Now" and tiles(page)[0]["result"] == "Groundout")
+
+    # Advance past the result hold, with the feed still stuck in that same gap
+    # (unchanged -- MLB hasn't posted the next plate appearance yet either).
+    advance(page, 9)
+    t = tiles(page)
+    check("D8 THE BUG: Up Now must not reappear as a live at-bat once his result drops",
+          not any(x["player"] == "Up Now" and x["kind"] == "now" for x in t), str(t))
+    check("D9 the actual next hitter (On Deck, the next lineup slot) takes his place instead",
+          t[0]["player"] == "On Deck" and t[0]["kind"] == "now", str(t[0] if t else None))
+
     # ---------- E. a home run ----------
     FX["feed"] = game(BASE + [play(42, "Up Now", False, COUNT_1_2, 1, 3, "Strikeout", "strikeout", True, end=FX["clock"] - timedelta(seconds=30)),
                               play(43, "On Deck", False, [pitch("B", "Ball"), pitch("X", "In play, run(s)", "Four-Seam Fastball", 98.4)], 1, 0, "Home Run", "home_run", False, end=FX["clock"],

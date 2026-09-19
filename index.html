@@ -773,11 +773,26 @@ async function getGameSnapshot(gamePk) {
   const nextUpSlot = {};
   ["away", "home"].forEach(side => {
     let slot = null;
-    if (side === currentlyBattingSide && offense && offense.batter && offense.batter.fullName) {
-      const info = orderSlot.get(normalizeName(offense.batter.fullName));
+    // Prefer currentAB (the in-progress plate appearance, straight from
+    // play-by-play) over linescore.offense.batter. Confirmed against live
+    // games on 2026-09-18: offense.batter keeps naming whoever's plate
+    // appearance just ENDED for the entire gap until the next one starts --
+    // stale for 45+ seconds in some cases, not a one-poll blip. Trusting it
+    // during that gap re-flagged the batter who just finished as "at the
+    // plate" with no current pitch data once his result tile expired (a
+    // ghost tile in Live At Bats). currentAB is only ever set while
+    // status === "live" and the last play is genuinely incomplete, so it
+    // can't itself be stale the same way.
+    if (side === currentlyBattingSide && currentAB && currentAB.batter) {
+      const info = orderSlot.get(normalizeName(currentAB.batter));
       if (info) slot = info.slot;
     }
     if (slot === null) {
+      // No at-bat in progress for this side right now -- either it's the
+      // other side's turn, or (for currentlyBattingSide) we're in that same
+      // gap between at-bats. Either way, the last known batter's slot + 1
+      // is who's actually up next, which is exactly right for the gap case
+      // too: it names the incoming hitter instead of the one who just left.
       const last = lastBatterSlot(side);
       slot = last ? (last % 9) + 1 : null;
     }

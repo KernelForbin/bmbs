@@ -1,0 +1,71 @@
+name: Parse New Football Picks
+
+# The football twin of parse-picks.yml. Fires only on the FOOTBALL incoming
+# file and writes only under data/football/ -- it can't touch the baseball
+# slate, and parse-picks.yml can't touch this one.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/football/incoming_picks.txt"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: parse-football-picks
+  cancel-in-progress: true
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Skip the placeholder
+        id: gate
+        run: |
+          if head -c 11 data/football/incoming_picks.txt | grep -q "PLACEHOLDER"; then
+            echo "Nothing uploaded yet -- skipping."
+            echo "run=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Reads the NFL schedule from ESPN to date the slate; falls back to the
+      # card's own kickoff times if ESPN can't be reached.
+      - name: Parse data/football/incoming_picks.txt into data/football/tickets.json
+        if: steps.gate.outputs.run == 'yes'
+        run: python scripts/parse_football_picks.py --file data/football/incoming_picks.txt
+
+      - name: Commit and push if changed
+        if: steps.gate.outputs.run == 'yes'
+        run: |
+          git config user.name "hr-checklist-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/football/tickets.json
+          [ -f data/football/tickets-previous.json ] && git add data/football/tickets-previous.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Parse new football picks -> football/tickets.json $(date -u +'%Y-%m-%d %H:%M UTC')"
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt), rebasing and retrying..."
+            git pull --rebase origin main
+            sleep 3
+          done
+          echo "Failed to push after retries." >&2
+          exit 1

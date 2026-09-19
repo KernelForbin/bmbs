@@ -65,13 +65,23 @@ single lightweight process with no external state beyond `.env`.
 
 1. Your friend saves his picks text as a `.txt` file (e.g. copy Gemini's
    output into Notepad and save) and drags it into the intake channel as
-   an attachment -- no message text needed.
-2. The bot reads the file and posts a preview (character/line count + a
-   snippet) with ✅ / ❌ reactions.
-3. He reacts ✅. The bot pushes the file's contents to
-   `data/incoming_picks.txt` and replies with the commit link.
-   `parse-picks.yml` runs automatically from there, same as a manual
-   GitHub web-editor paste.
+   an attachment -- no message text needed. **The file name says which
+   sport it is**, and must start with one of:
+
+   | Name starts with | For | Example |
+   |---|---|---|
+   | `baseball` | home run cards | `baseball_2026-09-20.txt` |
+   | `football` | touchdown cards | `football_week2.txt` |
+
+   Anything else is refused with a note asking for a rename -- nothing is
+   pushed. The bot never guesses the sport from the text: both cards use the
+   same template, and a wrong guess would overwrite the other sport's slate.
+2. The bot reads the file and posts a preview (which sport, character/line
+   count + a snippet) with ✅ / ❌ reactions.
+3. He reacts ✅. The bot pushes the file's contents to that sport's incoming
+   file (`data/incoming_picks.txt` or `data/football/incoming_picks.txt`)
+   and replies with the commit link. That sport's parse workflow runs
+   automatically from there, same as a manual GitHub web-editor paste.
 4. ❌ or letting it time out (60s default) discards the upload --
    nothing is written.
 
@@ -79,3 +89,8 @@ Only attachments in the configured channel (and, if set, from an allowed
 user ID) are ever considered, so unrelated chatter or files elsewhere in
 the server can't trigger a push. If someone attaches a non-`.txt` file
 there, the bot points that out instead of silently ignoring it.
+
+**After changing `bot.py`, restart the bot** -- it's a long-running process
+and keeps running the code it started with. With the Task Scheduler setup:
+end the `pythonw.exe` running `bot.py` (or reboot), then run the scheduled
+task again.

@@ -358,6 +358,95 @@ feed's boxscore `battingOrder` field, combined with a negative-binomial
 model using a league-average 68.5% out rate (NOT the specific hitter's real
 stats — this is disclosed in the UI, don't remove that framing).
 
+## Football (anytime-touchdown) tracker -- a separate site in the same repo
+
+`football/index.html` at `/football/` is the NFL twin of the baseball page:
+Today's / Yesterday's picks, payout estimate, Irons, Bettor Tracker, touchdown
+alerts (with the cash version), a **Touchdown Log**, and **Live Drives** (the
+analogue of Live At Bats). Built 2026-09-19 under the instruction "do not
+modify anything we have done to the baseball configuration" except three
+things: the sport switch at the top of `index.html` (markup + CSS only, no
+script), and the Discord bot's routing. Keep it that way:
+
+- It was assembled ONCE from `index.html` as of commit `2268dc1` (the
+  sport-agnostic slate/tab/filter/alert code is byte-identical) and is now an
+  independent file. There is no build step and no shared script -- a fix that
+  applies to both sports is made twice, on purpose. `tests/test_football.py`
+  block A enforces the isolation both ways.
+- Own data: `data/football/{tickets,tickets-previous}.json` (LIVE DATA, same
+  rules as baseball's), `data/football/incoming_picks.txt` (paste target),
+  `data/football/roster.json`. Own parser `scripts/parse_football_picks.py`,
+  own workflow `parse-football-picks.yml`, own roster builder
+  `scripts/build_football_roster.py`. None of them import baseball's.
+- **The Discord bot routes by FILE NAME only**: `baseball*.txt` ->
+  `data/incoming_picks.txt`, `football*.txt` -> `data/football/incoming_picks.txt`,
+  anything else is refused with a rename hint. It never inspects the text --
+  the cards share a template, and a guess would eventually overwrite the wrong
+  sport's slate. The bot runs from this clone on the user's Windows machine
+  (Task Scheduler), so a change to `discord-bot/bot.py` does nothing until that
+  process is restarted.
+
+**Data source: ESPN, from the visitor's browser, no backend -- but mind the host.**
+`site.api.espn.com` answers `curl` with `Access-Control-Allow-Origin: *` and
+then OMITS the header for a real browser on another origin. The same API on
+**`site.web.api.espn.com`** (and `sports.core.api.espn.com`) is allowed. This
+was only caught by fetching from bmbs.bet in real Chromium after curl said it
+was fine -- test CORS in a browser, never with curl. Python scripts may use
+either host. Endpoints, all keyless:
+- `scoreboard?dates=YYYYMMDD` -- one date per call (a date RANGE returns 400).
+  Games are filed under their ET date, so a Sunday 8:20 PM game (00:20Z Monday)
+  is still Sunday's -- same property the MLB schedule has.
+- `summary?event=ID` -- ~60KB gzipped, cached only ~3s (`max-age=3`), can't be
+  trimmed. Boxscore has athlete ids and a TD column per category.
+- core `.../competitors/{teamId}/roster` -- per-game `didNotPlay` flags.
+Polls every 15s. Final games are fetched once; pre-game ones not at all; live
+games none of the picks are in are refreshed once a minute (they only feed the
+"All Touchdowns" log).
+
+**What counts as a hit.** Anytime TD = the boxscore TD column summed over
+rushing, receiving, defensive, interceptions, kickReturns, puntReturns.
+**Passing is excluded** -- throwing one doesn't cash the passer. Scoring-play
+text is parsed only to describe the touchdown and as a by-name backstop.
+
+**Picks match by ESPN athlete id first, name second.** The parser stores
+`athleteId` on every leg. Names normalize with generational suffixes STRIPPED
+on both sides (ESPN writes "James Cook III", "Marvin Harrison Jr."; cards
+don't) -- the lesson baseball learned live with "Fernando Tatis". A by-name hit
+only counts if the touchdown was scored for the pick's own team: there are two
+Josh Allens, and the linebacker's pick-six must not cash the quarterback.
+
+**miss vs void.** Game Final and the pick has a stat line -> miss. No stat line
+-> ask the roster endpoint: `didNotPlay` (or absent) -> `na` (void), played ->
+miss (a blocking tight end who never touched the ball really did lose). A pick
+the card couldn't resolve to an id and who has no stat line -> `na`.
+
+**Slates can span days.** Football cards are posted days ahead and can cover
+Thursday + Sunday + Monday, so the parser dates the slate from the NFL
+SCHEDULE, not the clock: each picked team's next not-yet-final game; `date` is
+the earliest, optional `endDate` the latest, never crossing the NFL week
+(Wednesday..Tuesday -- a flat "+4 days" from Sunday reaches next Thursday and
+once stretched a slate across two weeks). The page polls every date in the
+span and rolls to Yesterday only when every game on every date is Final (or 6am
+ET after `endDate`). If ESPN is unreachable the parser falls back to baseball's
+time heuristic rather than failing the upload.
+
+**Odds can be negative** (a star back is often -120; a home run never is).
+Every football odds regex takes `[+-]`, and the Bettor Tracker formats with
+`fmtOdds()` so an average never renders as "+-135".
+
+**Live Drives.** A football pick is "live" for three hours, so the panel sorts
+by whether his OFFENSE is on the field: RED ZONE (red tiles, closest to the
+goal line first), HAS THE BALL, then ON DEFENSE / HALFTIME. Possession comes
+from the LAST PLAY's end state -- after a score ESPN's "current drive" still
+names the team that just scored while the ball goes the other way. When a drive
+ends its result holds the tile ~9s ("Punt", "Field Goal", and "TD -- not him"
+when a teammate scored); the pick's own touchdown turns his tile into a
+football, then the play, ~14s. Same seeding / stale / off-tab guards as Live At
+Bats. Alerts and preferences use their own localStorage keys (`bmbs.fb.*`).
+
+No History page for football yet (no source data), and `features/index.html`
+doesn't mention football -- it's hand-maintained on request.
+
 ## History page (separate from live tracking — keep it that way)
 
 `history/index.html` exists under a HARD CONSTRAINT from the user: it must
@@ -454,10 +543,10 @@ after a dash during parsing — don't reintroduce this).
    got shipped in delivery zips and silently overwrote the user's real
    picks multiple times because "copy the zip contents over the repo" also
    copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
-   and `data/incoming_picks.txt` are live user data, managed only through
+   and `data/incoming_picks.txt` (plus their `data/football/` twins) are live user data, managed only through
    the picks-upload → GitHub Actions pipeline. `data/history.json` is pipeline data too (only
    `scripts/import_history.py` writes it). Code changes should only
-   ever touch `index.html`, `history/`, `features/`, `scripts/`,
+   ever touch `index.html`, `football/index.html`, `history/`, `features/`, `scripts/`,
    `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
 
 2. **Date handling is genuinely tricky here — games run past midnight.**
@@ -524,6 +613,13 @@ on failure:
 - `tests/test_feed_fields.py` — the one test that DOES hit the network, since
   mocked fixtures can't prove a `fields=` allow-list is complete. Full vs slim
   feed for every live game, through the page's own `getGameSnapshot()`.
+- `tests/test_football.py` — the football page: one mocked Sunday+Monday slate
+  walked poll by poll (red zone, touchdown + cash alert, "TD -- not him", punt,
+  the two Josh Allens, id-vs-name matching, inactive -> void, multi-day
+  rollover, background-game cadence) plus the two-way isolation block.
+- `tests/test_football_parser.py` — football parser (both templates, negative
+  odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
+  roster builder, and the Discord bot's file-name routing. Fully offline.
 - `tests/test_build_roster.py` — `scripts/build_roster.py`, fully offline: a
   fake fetcher standing in for the MLB API, checking suffixes and accents
   survive and a missing-abbreviation team or a name collision doesn't crash.
@@ -533,6 +629,7 @@ pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
+python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 

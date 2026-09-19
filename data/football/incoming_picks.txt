@@ -1,0 +1,6 @@
+PLACEHOLDER -- no football card has been uploaded yet.
+
+Upload a .txt whose file name starts with "football" in the Discord intake
+channel (or paste a touchdown card over this text and commit). That triggers
+.github/workflows/parse-football-picks.yml, which builds
+data/football/tickets.json for https://bmbs.bet/football/.

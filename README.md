@@ -169,6 +169,36 @@ undocumented API and could change without notice — if results stop
 updating, check the browser console on the live page first (F12 → Console)
 for fetch errors before assuming the parsing logic is wrong.
 
+## Football: touchdown parlays (`/football/`)
+
+The football icon at the top of the site switches to a second tracker for
+anytime-touchdown bets -- same Today's / Yesterday's picks, payout estimate,
+Irons, Bettor Tracker and alerts, with football's own panels: **Live Drives**
+(who has the ball, down & distance, red zone) and a **Touchdown Log**. It is a
+separate page (`football/index.html`) with its own data under `data/football/`
+and its own parser; nothing about the baseball tracker depends on it.
+
+Uploading works the same way, through the same Discord channel -- the **file
+name** decides the sport:
+
+| File name starts with | Goes to | Tracker |
+|---|---|---|
+| `baseball` | `data/incoming_picks.txt` | bmbs.bet |
+| `football` | `data/football/incoming_picks.txt` | bmbs.bet/football |
+
+Anything else is refused with a note asking for a rename. (Or paste a card
+into `data/football/incoming_picks.txt` on GitHub, as with baseball.)
+
+Football cards use the same two templates as baseball. Differences the parser
+handles: odds can be negative (`-120`), players are stored with their ESPN
+athlete id so a missing "Jr." can't break matching, and the slate is dated from
+the NFL schedule -- so a Sunday card can go up on Friday, and a Thursday +
+Sunday + Monday card is one slate that stays on Today until Monday night ends.
+
+Live data comes from ESPN's public NFL API, straight from each visitor's
+browser, every 15 seconds. If the NFL roster changes enough that a new player
+can't be found: `python scripts/build_football_roster.py`.
+
 ## History page (`/history/`)
 
 `history/index.html` is a separate, standalone page: the group's whole

@@ -992,6 +992,11 @@ with sync_playwright() as p:
     assert bomb_text(page) == "Plain Guy BOMB!" and not c["gold"] and c["cash"] is None and c["money"] == 0 and c["confetti"] > 0, c
     assert notifs(page)[-1]["body"] == "Home run \u2014 bmbs.bet", notifs(page)[-1]
     print("N1 OK: a home run that cashes nothing is the plain green bomb, exactly as before")
+    # Asked about someone who HASN'T gone deep, the answer is "nothing" -- his
+    # single isn't cashed just because it exists.
+    assert page.evaluate("betsCashedBy(SLATES.today, 'Single Guy').length") == 0, "an open single isn't a cashed one"
+    assert page.evaluate("betsCashedBy(SLATES.today, 'Iron Man').length") == 0, "an Iron that hasn't hit hasn't cashed"
+    print("N1b OK: nothing is 'cashed' for a player who hasn't homered")
 
     FX["feeds"][1402] = feed("Live", roster, hrs=["Setup Guy", "Both Mate", "Plain Guy", "Iron Man"])
     poll(page)

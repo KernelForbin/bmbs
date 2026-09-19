@@ -1360,7 +1360,11 @@ function betsCashedBy(slate, playerName) {
       if (res.outcome === "hit") cashed.push({ kind: "parlay", legs: legs.length, payout: res.adjustedPayout || 0 });
     }));
     (slate.tickets.singles || []).forEach(sg => {
-      if (normalizeName(sg.player) === norm) cashed.push({ kind: "single", legs: 1, payout: sg.payout || 0 });
+      // Checked, not assumed: the alert only asks about someone who just homered,
+      // but the answer should be right whoever asks.
+      if (normalizeName(sg.player) === norm && stateForPlayer(sg.player) === "hit") {
+        cashed.push({ kind: "single", legs: 1, payout: sg.payout || 0 });
+      }
     });
     return cashed;
   } finally {

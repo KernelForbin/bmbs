@@ -119,7 +119,13 @@ with sync_playwright() as p:
         # the slim fetch to the exact instant the full response describes
         # (`timecode` and `fields` compose), so any diff is really a lost field.
         at = (full.get("metaData") or {}).get("timeStamp", "")
-        pin = f"?timecode={at}&" if at else "?"
+        # Only pin a game that's actually moving. A finished game can't change
+        # between requests, and pinning one REWINDS it: its last timeStamp
+        # predates the flip to Final, so the pinned copy comes back "Live" --
+        # which looked exactly like fields= breaking status until it was
+        # checked against the unpinned request the site really sends.
+        moving = ((full.get("gameData") or {}).get("status") or {}).get("abstractGameState") == "Live"
+        pin = f"?timecode={at}&" if at and moving else "?"
         slim = get(API.format(pk=pk) + pin + "fields=" + fields)
         full_bytes += len(json.dumps(full))
         slim_bytes += len(json.dumps(slim))

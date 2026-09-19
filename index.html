@@ -69,7 +69,7 @@
   .filter-status.active { display:flex; }
   .filter-status .clear-btn { cursor:pointer; text-decoration:underline; font-weight:600; }
 
-  .bettor-section { margin: 22px 0 28px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 6px; }
+  .bettor-section { margin: 0 0 28px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 6px; }
   .bettor-section.collapsed { padding-bottom:14px; }
   .bettor-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
   .bettor-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; }
@@ -91,7 +91,7 @@
   .bettor-stat.miss .num { color:var(--red); }
   .bettor-stat.odds .num { color:var(--amber); }
 
-  .hrlog-section { margin: 0 0 28px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 10px; }
+  .hrlog-section { margin: 0 0 14px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 10px; }
   .hrlog-section.collapsed { padding-bottom:14px; }
   .hrlog-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
   .hrlog-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; }
@@ -100,6 +100,62 @@
   .hrlog-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 8px; }
   .hrlog-body { display:block; }
   .hrlog-section.collapsed .hrlog-body { display:none; }
+
+  /* ---- Live At Bats ---- */
+  .liveab-section { margin: 22px 0 14px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 12px; }
+  .liveab-section.collapsed { padding-bottom:14px; }
+  .liveab-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
+  .liveab-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px; }
+  .liveab-count { font-family:'Inter',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.03em; color:var(--green); background:var(--green-dim); border:1px solid var(--green); border-radius:999px; padding:1px 8px; }
+  .liveab-count:empty { display:none; }
+  .liveab-chevron { color:var(--text-faint); font-size:12px; transition:transform .18s ease; }
+  .liveab-section.collapsed .liveab-chevron { transform:rotate(-90deg); }
+  .liveab-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 0; }
+  .liveab-section.collapsed .liveab-body { display:none; }
+  .liveab-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:7px; margin-top:10px; }
+  .liveab-empty { grid-column:1 / -1; font-size:12px; color:var(--text-faint); padding:6px 2px 2px; }
+  .ab-tile { position:relative; display:block; text-decoration:none; color:inherit; background:var(--bg); border:1px solid var(--panel-line); border-radius:9px; padding:8px 9px 8px; overflow:hidden; }
+  .ab-top { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .ab-tag { font-size:9px; font-weight:700; letter-spacing:.07em; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .ab-odds { font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; color:var(--amber); white-space:nowrap; flex:none; }
+  .ab-name { font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; line-height:1.15; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ab-line { font-size:10.5px; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ab-line.faint { color:var(--text-faint); }
+  .ab-countrow { display:flex; align-items:center; gap:7px; margin-top:5px; }
+  .ab-count { font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; line-height:1; letter-spacing:.02em; }
+  .ab-pitches { display:flex; flex-wrap:wrap; gap:3px; min-width:0; }
+  .ab-pitch { width:15px; height:15px; border-radius:50%; font-size:8.5px; font-weight:700; line-height:15px; text-align:center; border:1px solid var(--panel-line); color:var(--text-dim); box-sizing:content-box; }
+  .ab-pitch.ball { border-color:var(--green); color:var(--green); }
+  .ab-pitch.strike { border-color:var(--red); color:var(--red); background:var(--red-dim); }
+  .ab-pitch.foul { border-color:var(--yellow); color:var(--yellow); }
+  .ab-pitch.inplay { border-color:var(--text); color:var(--bg); background:var(--text); }
+  .ab-outs { display:inline-flex; gap:2px; vertical-align:middle; margin-left:2px; }
+  .ab-outs i { width:5px; height:5px; border-radius:50%; border:1px solid var(--text-faint); display:inline-block; box-sizing:content-box; }
+  .ab-outs i.on { background:var(--amber); border-color:var(--amber); }
+  /* at the plate: lit up, everything else recedes */
+  .ab-tile.now { border-color:var(--green); background:linear-gradient(160deg, var(--green-dim), var(--bg) 70%); box-shadow:0 0 0 1px var(--green-dim); }
+  .ab-tile.now .ab-tag { color:var(--green); }
+  .ab-tile.now .ab-tag::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--green); margin-right:5px; animation:pulse 1.6s ease-in-out infinite; vertical-align:1px; }
+  .ab-tile.soon { border-style:dashed; }
+  .ab-tile.soon .ab-line { white-space:normal; }
+  .ab-tile.soon .ab-name { color:var(--text-dim); }
+  .ab-tile.soon.ondeck { border-color:var(--amber); border-style:solid; }
+  .ab-tile.soon.ondeck .ab-tag { color:var(--amber); }
+  .ab-tile.soon.ondeck .ab-name { color:var(--text); }
+  /* the at-bat just ended: hold the result, then the tile drops off */
+  .ab-tile.result { border-color:var(--red); background:var(--red-dim); animation:abSettle .35s ease-out; }
+  .ab-tile.result .ab-line { white-space:normal; }
+  .ab-tile.result.onbase { border-color:var(--yellow); background:var(--yellow-dim); }
+  .ab-tile.result.homer { border-color:var(--green); background:var(--green-dim); }
+  .ab-result { font-family:'Oswald',sans-serif; font-size:16px; font-weight:700; letter-spacing:.03em; line-height:1.1; margin-top:5px; text-transform:uppercase; }
+  .ab-tile.homer .ab-result { color:var(--green); }
+  .ab-bomb { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; background:var(--green-dim); animation:abBomb .5s cubic-bezier(.2,1.6,.4,1); }
+  .ab-bomb .e { font-size:40px; line-height:1; }
+  .ab-bomb .n { font-family:'Oswald',sans-serif; font-size:12px; font-weight:700; letter-spacing:.08em; color:var(--green); max-width:92%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  @keyframes abBomb { 0% { transform:scale(.3); opacity:0; } 100% { transform:scale(1); opacity:1; } }
+  @keyframes abSettle { 0% { transform:scale(1.04); } 100% { transform:scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .ab-bomb, .ab-tile.result { animation:none; } .ab-tile.now .ab-tag::before { animation:none; } }
+  @media (max-width:380px) { .liveab-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; } .ab-tile { padding:7px 7px; } .ab-name { font-size:14px; } }
 
   .hrlog-filter { display:flex; gap:6px; margin:6px 0 4px; }
   .hrlog-filter button { flex:1; background:var(--bg); border:1px solid var(--panel-line); color:var(--text-dim); font-family:'Oswald',sans-serif; font-size:11px; font-weight:600; letter-spacing:.05em; padding:7px 6px; border-radius:7px; cursor:pointer; }
@@ -309,16 +365,6 @@
       <span class="amt" id="total-payout">$0.00</span>
     </div>
 
-    <p class="stat-row-label">RIGHT NOW &middot; tap to filter below</p>
-    <div class="scoreboard" style="grid-template-columns: repeat(2, 1fr);">
-      <div class="score-chip live-game clickable" id="action-chip-now" onclick="toggleActionFilter('now')"><div class="num" id="count-batting-now">0</div><div class="lbl">BATTING NOW</div></div>
-      <div class="score-chip live-game clickable" id="action-chip-soon" onclick="toggleActionFilter('soon')"><div class="num" id="count-batting-soon">0</div><div class="lbl">BATTING SOON</div></div>
-    </div>
-    <div class="filter-status" id="action-filter-status">
-      <span id="action-filter-status-text"></span>
-      <span class="clear-btn" onclick="toggleActionFilter(null)">Clear &times;</span>
-    </div>
-
     <p class="stat-row-label">BETS &middot; tap to filter below</p>
     <div class="scoreboard bets-row">
       <div class="score-chip pending clickable" id="chip-open" onclick="toggleFilter('open')"><div class="num" id="count-parlay-open">0</div><div class="lbl">OPEN</div></div>
@@ -353,16 +399,14 @@
     <p id="waiting-text"></p>
   </div>
 
-  <div class="bettor-section collapsed" id="bettor-section">
-    <div class="bettor-head" onclick="toggleBettorSection()">
-      <p class="bettor-title">Bettor Tracker</p>
-      <span class="bettor-chevron">&#9660;</span>
+  <div class="liveab-section collapsed" id="liveab-section">
+    <div class="liveab-head" onclick="toggleLiveAb()">
+      <p class="liveab-title">Live At Bats <span class="liveab-count" id="liveab-count"></span></p>
+      <span class="liveab-chevron">&#9660;</span>
     </div>
-    <p class="bettor-sub" id="bettor-sub">Tap to expand &mdash; see hit/miss breakdown per person.</p>
-    <div class="bettor-body" id="bettor-list"></div>
-    <div class="filter-status" id="bettor-filter-status">
-      <span id="bettor-filter-status-text"></span>
-      <span class="clear-btn" onclick="toggleBettorFilter(null)">Clear &times;</span>
+    <p class="liveab-sub" id="liveab-sub">Tap to expand &mdash; follow your picks pitch by pitch.</p>
+    <div class="liveab-body">
+      <div class="liveab-grid" id="liveab-grid"></div>
     </div>
   </div>
 
@@ -378,6 +422,19 @@
         <button type="button" id="hrlog-btn-all" onclick="setHrFilter('all')">ALL HOME RUNS</button>
       </div>
       <div id="hrlog-list"></div>
+    </div>
+  </div>
+
+  <div class="bettor-section collapsed" id="bettor-section">
+    <div class="bettor-head" onclick="toggleBettorSection()">
+      <p class="bettor-title">Bettor Tracker</p>
+      <span class="bettor-chevron">&#9660;</span>
+    </div>
+    <p class="bettor-sub" id="bettor-sub">Tap to expand &mdash; see hit/miss breakdown per person.</p>
+    <div class="bettor-body" id="bettor-list"></div>
+    <div class="filter-status" id="bettor-filter-status">
+      <span id="bettor-filter-status-text"></span>
+      <span class="clear-btn" onclick="toggleBettorFilter(null)">Clear &times;</span>
     </div>
   </div>
 
@@ -397,7 +454,6 @@ let RESULTS = emptyResults();
 let pollTimer = null;
 let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'   (bet outcome)
 let LEG_FILTER = null;       // null | 'hit' | 'miss' | 'na' | 'live' | 'not_started'
-let ACTION_FILTER = null;    // null | 'now' | 'soon'
 let BETTOR_FILTER = null;    // null | lowercased bettor key
 let EVALUATED = [];          // [{ win, tk, states, evalRes }]  (parlay cards)
 let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
@@ -565,6 +621,64 @@ async function getGameSnapshot(gamePk) {
     });
   });
 
+  // At-bat detail for the Live At Bats panel. allPlays' last entry is the
+  // plate appearance in progress (it IS liveData.plays.currentPlay -- checked
+  // against live games), everything before it is finished.
+  //
+  // about.isComplete is the ONLY trustworthy "finished" signal. A result event
+  // is not: the live feed writes mid-at-bat actions into result.event while the
+  // hitter is still up (seen for real: "Batter Timeout" on an 0-1 count, which
+  // briefly announced a timeout as the at-bat's outcome). The event fallback is
+  // only for feeds that carry no isComplete at all.
+  function atBatOf(play, idx) {
+    const result = play.result || {};
+    const matchup = play.matchup || {};
+    const count = play.count || {};
+    const pitches = [];
+    let hit = null;
+    (play.playEvents || []).forEach(e => {
+      if (!e) return;
+      if (e.hitData) hit = e.hitData;
+      if (!e.isPitch) return;
+      const det = e.details || {};
+      const speed = e.pitchData && e.pitchData.startSpeed;
+      pitches.push({
+        code: det.code || "",
+        call: (det.call && det.call.description) || det.description || "",
+        type: (det.type && det.type.description) || "",
+        mph: typeof speed === "number" ? speed : null
+      });
+    });
+    return {
+      key: `${gamePk}-${play.atBatIndex !== undefined ? play.atBatIndex : idx}`,
+      gamePk,
+      batter: (matchup.batter && matchup.batter.fullName) || "",
+      pitcher: (matchup.pitcher && matchup.pitcher.fullName) || "",
+      balls: typeof count.balls === "number" ? count.balls : 0,
+      strikes: typeof count.strikes === "number" ? count.strikes : 0,
+      pitches,
+      complete: (play.about && typeof play.about.isComplete === "boolean")
+        ? play.about.isComplete
+        : !!(result.eventType || result.event),
+      event: result.event || "",
+      eventType: result.eventType || "",
+      isOut: result.isOut === true,
+      endTime: (play.about && play.about.endTime) || "",
+      distance: hit && typeof hit.totalDistance === "number" ? hit.totalDistance : null,
+      exitVelo: hit && typeof hit.launchSpeed === "number" ? hit.launchSpeed : null
+    };
+  }
+  let currentAB = null;
+  const recentABs = [];
+  // Only the tail: a poll can't fall further behind than a few batters, and
+  // this runs for every live game on every poll.
+  plays.slice(-12).forEach((play, i) => {
+    const ab = atBatOf(play, plays.length - Math.min(12, plays.length) + i);
+    if (!ab.batter) return;
+    if (ab.complete) recentABs.push(ab);
+    else if (status === "live") currentAB = ab;
+  });
+
   const rosterNames = new Set();
   // normalized name -> starting batting-order slot (1-9) + side, only set
   // for players who were in the starting lineup; bench/pinch entries
@@ -631,7 +745,7 @@ async function getGameSnapshot(gamePk) {
     nextUpSlot[side] = slot;
   });
 
-  return { status, hrNames, homeRuns, rosterNames, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk };
+  return { status, hrNames, homeRuns, rosterNames, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk, currentAB, recentABs };
 }
 
 // How many more outs a team's side needs to record before the (assumed
@@ -724,7 +838,8 @@ function battingContextFor(playerName, side, gamePk) {
   return {
     inning: game.inning, halfState: game.halfState, slot: info.slot,
     probAtLeastOne, expected, substitutedBy: null,
-    isCurrentlyBatting, guaranteedThisHalfInning, gamePk
+    isCurrentlyBatting, guaranteedThisHalfInning, gamePk,
+    battersAway: d, sideBatting: side === game.currentlyBattingSide
   };
 }
 
@@ -866,6 +981,9 @@ function liveContextForPlayer(playerName) {
     substitutedBy: ctx.substitutedBy || null,
     isCurrentlyBatting: !!ctx.isCurrentlyBatting,
     guaranteedThisHalfInning: !!ctx.guaranteedThisHalfInning,
+    battersAway: typeof ctx.battersAway === "number" ? ctx.battersAway : null,
+    sideBatting: !!ctx.sideBatting,
+    gamePk: loc.gamePk || null,
     gamedayLink: loc.gamePk ? gamedayUrl(loc.gamePk) : null
   };
 }
@@ -1029,9 +1147,9 @@ function liveContextHtml(playerName, state, betIsOpen) {
     &middot; ~${exp} AB left &middot; ${pct}% chance of another AB</div>${gamedayLine}`;
 }
 
-// 'now' | 'soon' | null -- used only by the Batting Now / Batting Soon
-// filter and scoreboard counts. Same eligibility rule as the tag above:
-// leg must still be unresolved, and its bet must still be able to hit.
+// 'now' | 'soon' | null. Same eligibility rule as the tag above: leg must
+// still be unresolved, and its bet must still be able to hit. (Once fed a
+// pair of scoreboard filter chips; the Live At Bats panel replaced those.)
 function battingActionState(playerName, state, betIsOpen) {
   if (state !== "live" || !betIsOpen) return null;
   const ctx = liveContextForPlayer(playerName);
@@ -1401,13 +1519,260 @@ function toggleHrLog() {
   document.getElementById("hrlog-sub").innerHTML = hrLogSubText();
 }
 
+// ---------------- live at bats ----------------
+
+const LAB_RESULT_MS = 9000;   // a finished at-bat's result holds its tile this long...
+const LAB_HOMER_MS = 14000;   // ...a home run earns a longer look,
+const LAB_BOMB_MS = 3200;     // the first stretch of which the tile is just a bomb
+const LAB_STALE_MS = 180000;  // an at-bat that ended longer ago than this isn't news
+const LS_LIVEAB = "bmbs.liveab.open";
+
+// seen:         every finished at-bat already accounted for, so each is announced once
+// prevEligible: who had a live leg as of the previous poll -- a hitter who just
+//               homered is "hit" now and no longer eligible, but was a poll ago
+// flashes:      normalized name -> finished at-bat still holding its tile
+const LAB = { date: null, seeded: false, seen: new Set(), prevEligible: new Map(), flashes: new Map() };
+let labTimer = null;
+
+// The only outcomes worth announcing: ones that actually end a plate
+// appearance. A whitelist on purpose -- a "play" can also end on a runner event
+// (inning-ending caught stealing: the hitter is still up next inning), and an
+// event type nobody anticipated should cost a missed tile, never a wrong one.
+const LAB_PA_RESULTS = new Set([
+  "single", "double", "triple", "home_run", "walk", "intent_walk", "hit_by_pitch",
+  "strikeout", "strikeout_double_play", "strikeout_triple_play",
+  "field_out", "force_out", "grounded_into_double_play", "double_play", "triple_play",
+  "fielders_choice", "fielders_choice_out", "field_error", "catcher_interf",
+  "sac_fly", "sac_bunt", "sac_fly_double_play", "sac_bunt_double_play"
+]);
+
+// Every picked player who could still matter right now: leg unresolved, game
+// live, and at least one bet he's on still able to cash. One entry per player
+// however many tickets he's on. Honors the bettor filter.
+function labEligiblePicks() {
+  const picks = new Map();
+  function add(player, odds, rawWho, iron) {
+    if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return;
+    const norm = normalizeName(player);
+    let pick = picks.get(norm);
+    if (!pick) { pick = { norm, player, odds: [], whos: [], iron: false }; picks.set(norm, pick); }
+    if (odds && !pick.odds.includes(odds)) pick.odds.push(odds);
+    const who = whoDisplayName(rawWho);
+    if (who && !pick.whos.includes(who)) pick.whos.push(who);
+    if (iron) pick.iron = true;
+  }
+  EVALUATED.forEach(({ tk, states, evalRes }) => {
+    if (!isOpenOutcome(evalRes.outcome)) return;
+    tk.legs.forEach((leg, i) => { if (states[i] === "live") add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i])); });
+  });
+  EVALUATED_SINGLES.forEach(({ s, state, outcome, iron }) => {
+    if (state === "live" && outcome === "live") add(s.player, s.odds, s.who, iron);
+  });
+  return picks;
+}
+
+// Once per poll. Same flood guard as the bomb notifications: the first poll
+// for a slate records what's already happened without announcing any of it.
+function trackLiveAtBats() {
+  const slate = SLATES.today;
+  if (!slate || !slate.tickets || !slate.results || !slate.results.ready) return;
+  if (LAB.date !== slate.tickets.date) {
+    LAB.date = slate.tickets.date;
+    LAB.seeded = false;
+    LAB.seen = new Set();
+    LAB.prevEligible = new Map();
+    LAB.flashes = new Map();
+  }
+  // EVALUATED describes whichever tab is on screen, so eligibility is only
+  // knowable on Today. Off-tab polls still mark at-bats seen, so coming back
+  // doesn't replay everything that finished in the meantime.
+  const onToday = ACTIVE_TAB === "today" && TICKETS === slate.tickets;
+  const eligible = onToday ? labEligiblePicks() : null;
+  const now = Date.now();
+
+  slate.results.gameInfo.forEach(game => (game.recentABs || []).forEach(ab => {
+    if (LAB.seen.has(ab.key)) return;
+    LAB.seen.add(ab.key);
+    if (!LAB.seeded || !onToday || !LAB_PA_RESULTS.has(ab.eventType)) return;
+    // Polling pauses while the tab is hidden; on return, what finished while
+    // it was away is history, not something that "just happened".
+    const ended = Date.parse(ab.endTime);
+    if (!Number.isNaN(ended) && now - ended > LAB_STALE_MS) return;
+    const norm = normalizeName(ab.batter);
+    const pick = eligible.get(norm) || LAB.prevEligible.get(norm);
+    if (!pick) return;
+    const homer = ab.eventType === "home_run";
+    LAB.flashes.set(norm, { pick, ab, homer, onBase: !homer && !ab.isOut, at: now, until: now + (homer ? LAB_HOMER_MS : LAB_RESULT_MS) });
+  }));
+
+  LAB.seeded = true;
+  if (onToday) LAB.prevEligible = eligible;
+}
+
+function labShortName(full) {
+  const parts = String(full || "").trim().split(/\s+/);
+  if (parts.length < 2) return parts[0] || "";
+  const last = parts[parts.length - 1];
+  return /^(jr\.?|sr\.?|ii|iii|iv)$/i.test(last) && parts.length > 2 ? `${parts[parts.length - 2]} ${last}` : last;
+}
+
+function labOddsText(odds) {
+  if (odds.length <= 2) return odds.join("/");
+  const nums = odds.map(oddsToNumber).filter(n => n !== null).sort((a, b) => a - b);
+  return nums.length ? `+${nums[0]} to +${nums[nums.length - 1]}` : odds[0];
+}
+
+function labPitchChip(pitch) {
+  const code = (pitch.code || "").replace("*", "");
+  const call = pitch.call || "";
+  let cls = "", label = code || "\u00b7";
+  if ((code && "BIPV".includes(code)) || (!code && /ball/i.test(call))) { cls = "ball"; label = "B"; }
+  else if (code === "H") { cls = "ball"; label = "H"; }
+  else if ((code && "CA".includes(code)) || (!code && /called strike/i.test(call))) { cls = "strike"; label = "C"; }
+  else if ((code && "SWMTQ".includes(code)) || (!code && /strike/i.test(call))) { cls = "strike"; label = "S"; }
+  else if ((code && "FLRO".includes(code)) || (!code && /foul/i.test(call))) { cls = "foul"; label = "F"; }
+  else if ((code && "XDE".includes(code)) || (!code && /in play/i.test(call))) { cls = "inplay"; label = "X"; }
+  const tip = [pitch.type, pitch.mph !== null ? `${pitch.mph.toFixed(1)} mph` : "", call].filter(Boolean).join(" \u00b7 ");
+  return `<span class="ab-pitch ${cls}" title="${escapeHtml(tip)}">${escapeHtml(label)}</span>`;
+}
+
+const LAB_PITCH_SHORT = {
+  "Four-Seam Fastball": "4-Seam", "Two-Seam Fastball": "2-Seam", "Curveball": "Curve", "Knuckle Curve": "K-Curve",
+  "Changeup": "Change", "Forkball": "Fork", "Knuckleball": "Knuckler"
+};
+
+// "Foul · 4-Seam 97": the call first, since that's what changed the count.
+function labPitchLine(pitch) {
+  const type = LAB_PITCH_SHORT[pitch.type] || pitch.type;
+  const what = [type, pitch.mph !== null ? Math.round(pitch.mph) : ""].filter(Boolean).join(" ");
+  return [pitch.call, what].filter(Boolean).join(" \u00b7 ");
+}
+
+function labOutsDots(outs) {
+  if (typeof outs !== "number") return "";
+  return `<span class="ab-outs" title="${outs} out">${[0, 1, 2].map(i => `<i class="${i < outs ? "on" : ""}"></i>`).join("")}</span>`;
+}
+
+function labTileShell(cls, tag, pick, link, inner) {
+  const href = link ? ` href="${link}" target="_blank" rel="noopener"` : "";
+  return `<a class="ab-tile ${cls}"${href} data-player="${escapeHtml(pick.player)}" title="${escapeHtml(pick.whos.join(", "))}">
+    <div class="ab-top"><span class="ab-tag">${tag}</span><span class="ab-odds">${escapeHtml(labOddsText(pick.odds))}${pick.iron ? ironMark() : ""}</span></div>
+    <div class="ab-name">${escapeHtml(pick.player)}</div>${inner}</a>`;
+}
+
+function labNowTile(pick, ctx) {
+  const game = RESULTS.gameInfo.get(ctx.gamePk) || {};
+  const ab = game.currentAB && normalizeName(game.currentAB.batter) === pick.norm ? game.currentAB : null;
+  const who = escapeHtml(pick.whos.join(", "));
+  const where = `${ab && ab.pitcher ? `vs ${escapeHtml(labShortName(ab.pitcher))} &middot; ` : ""}${ctx.inningLabel} ${labOutsDots(game.outs)}`;
+  let lastLine = who;
+  if (ab && ab.pitches.length) {
+    lastLine = escapeHtml(labPitchLine(ab.pitches[ab.pitches.length - 1])) + (who ? ` &middot; ${who}` : "");
+  } else if (!ab) {
+    lastLine = `Stepping in${who ? ` &middot; ${who}` : ""}`;
+  }
+  return labTileShell("now", "AT BAT", pick, ctx.gamedayLink, `
+    <div class="ab-line">${where}</div>
+    <div class="ab-countrow"><span class="ab-count">${ab ? ab.balls : 0}-${ab ? ab.strikes : 0}</span><span class="ab-pitches">${ab ? ab.pitches.map(labPitchChip).join("") : ""}</span></div>
+    <div class="ab-line faint">${lastLine}</div>`);
+}
+
+function labSoonTile(pick, ctx) {
+  const game = RESULTS.gameInfo.get(ctx.gamePk) || {};
+  const d = ctx.battersAway;
+  const tag = ctx.sideBatting
+    ? (d === 1 ? "ON DECK" : d === 2 ? "IN THE HOLE" : "DUE UP")
+    : (d === 0 ? "LEADS OFF NEXT" : d === 1 ? "DUE UP 2ND" : d === 2 ? "DUE UP 3RD" : "DUE UP");
+  const facing = ctx.sideBatting && game.currentAB && game.currentAB.pitcher ? ` &middot; vs ${escapeHtml(labShortName(game.currentAB.pitcher))}` : "";
+  return labTileShell(`soon${ctx.sideBatting && d === 1 ? " ondeck" : ""}`, tag, pick, ctx.gamedayLink, `
+    <div class="ab-line">${ctx.inningLabel} ${ctx.sideBatting ? labOutsDots(game.outs) : ""}${facing}${pick.whos.length ? ` &middot; ${escapeHtml(pick.whos.join(", "))}` : ""}</div>`);
+}
+
+function labResultTile(flash, now) {
+  const { pick, ab, homer, onBase } = flash;
+  const detail = homer
+    ? [ab.distance !== null ? `${Math.round(ab.distance)} ft` : "", ab.exitVelo !== null ? `${ab.exitVelo.toFixed(1)} mph` : "", ab.pitcher ? `off ${labShortName(ab.pitcher)}` : ""]
+    : [ab.pitches.length ? `${ab.pitches.length} pitch${ab.pitches.length === 1 ? "" : "es"}` : "", ab.pitcher ? `vs ${labShortName(ab.pitcher)}` : "",
+       pick.whos.join(", ")];
+  const bomb = homer && now < flash.at + LAB_BOMB_MS
+    ? `<div class="ab-bomb"><span class="e">&#128163;</span><span class="n">${escapeHtml(pick.player.toUpperCase())}</span></div>` : "";
+  return labTileShell(`result${homer ? " homer" : onBase ? " onbase" : ""}`, homer ? "GONE" : "AT-BAT OVER", pick, gamedayUrl(ab.gamePk), `
+    <div class="ab-result">${escapeHtml(ab.event || (homer ? "Home Run" : "At-bat over"))}</div>
+    <div class="ab-line faint">${escapeHtml(detail.filter(Boolean).join(" \u00b7 "))}</div>${bomb}`);
+}
+
+function liveAbSubText(collapsed, nowCount, soonCount) {
+  if (!collapsed) return `Your picks at the plate or guaranteed to bat this inning, pitch by pitch. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
+  if (!nowCount && !soonCount) return "Tap to expand &mdash; none of your picks are due up right now.";
+  const bits = [];
+  if (nowCount) bits.push(`<b>${nowCount}</b> at the plate`);
+  if (soonCount) bits.push(`<b>${soonCount}</b> due up this inning`);
+  return `Tap to expand &mdash; ${bits.join(", ")}.`;
+}
+
+// Cheap, and called from three places: every poll, every filter/tab change,
+// and its own timer -- result tiles expire between polls, so the panel can't
+// wait up to a full poll interval to let one go.
+function renderLiveAtBats() {
+  const section = document.getElementById("liveab-section");
+  if (!section) return;
+  if (labTimer) { clearTimeout(labTimer); labTimer = null; }
+  const grid = document.getElementById("liveab-grid");
+  const countEl = document.getElementById("liveab-count");
+  const collapsed = section.classList.contains("collapsed");
+  if (ACTIVE_TAB !== "today" || !TICKETS) {
+    grid.innerHTML = ""; countEl.textContent = "";
+    return;
+  }
+
+  const now = Date.now();
+  LAB.flashes.forEach((flash, norm) => { if (flash.until <= now) LAB.flashes.delete(norm); });
+
+  const tiles = [];
+  LAB.flashes.forEach(flash => tiles.push({ rank: 0, order: flash.at, html: labResultTile(flash, now) }));
+  let nowCount = 0, soonCount = 0;
+  labEligiblePicks().forEach(pick => {
+    if (LAB.flashes.has(pick.norm)) return;   // his result is still on screen
+    const ctx = liveContextForPlayer(pick.player);
+    if (!ctx || ctx.substitutedBy) return;
+    if (ctx.isCurrentlyBatting) {
+      nowCount++;
+      tiles.push({ rank: 1, order: 0, html: labNowTile(pick, ctx) });
+    } else if (ctx.guaranteedThisHalfInning) {
+      soonCount++;
+      // soonest first: the side batting now, then the side due up next half
+      tiles.push({ rank: 2, order: (ctx.sideBatting ? 0 : 10) + (ctx.battersAway || 0), html: labSoonTile(pick, ctx) });
+    }
+  });
+  tiles.sort((a, b) => a.rank - b.rank || a.order - b.order);
+
+  grid.innerHTML = tiles.length
+    ? tiles.map(t => t.html).join("")
+    : `<p class="liveab-empty">None of your picks are at the plate or due up this inning. Tiles appear here the moment one is.</p>`;
+  countEl.textContent = nowCount || soonCount ? [nowCount ? `${nowCount} UP` : "", soonCount ? `${soonCount} DUE` : ""].filter(Boolean).join(" \u00b7 ") : "";
+  document.getElementById("liveab-sub").innerHTML = liveAbSubText(collapsed, nowCount, soonCount);
+
+  let next = Infinity;
+  LAB.flashes.forEach(flash => {
+    const bombEnds = flash.at + LAB_BOMB_MS;
+    next = Math.min(next, flash.homer && now < bombEnds ? bombEnds : flash.until);
+  });
+  if (next !== Infinity) labTimer = setTimeout(renderLiveAtBats, Math.max(50, next - now + 20));
+}
+
+function toggleLiveAb() {
+  const section = document.getElementById("liveab-section");
+  section.classList.toggle("collapsed");
+  lsSet(LS_LIVEAB, !section.classList.contains("collapsed"));
+  renderLiveAtBats();
+}
+
 // Full pass: computes scoreboard totals, bettor stats, and the EVALUATED
 // arrays content is rendered from (both parlays and singles). Called once per poll.
 function computeAll() {
   if (!TICKETS) return;
 
   let legHit = 0, legMiss = 0, legNa = 0, legLive = 0, legNotStarted = 0;
-  let battingNow = 0, battingSoon = 0;
   let betOpen = 0, betHit = 0, betMiss = 0, betIron = 0;
   let totalPayoutHit = 0;
   const bettors = new Map();
@@ -1425,11 +1790,6 @@ function computeAll() {
     else if (state === "live") legLive++;
     else legNotStarted++;
   }
-  function countAction(playerName, state, betIsOpen) {
-    const action = battingActionState(playerName, state, betIsOpen);
-    if (action === "now") battingNow++;
-    else if (action === "soon") battingSoon++;
-  }
 
   EVALUATED = [];
   TICKETS.windows.forEach((win) => {
@@ -1446,7 +1806,6 @@ function computeAll() {
       tk.legs.forEach((leg, i) => {
         const state = states[i];
         countLeg(state);
-        countAction(leg.player, state, isOpenOutcome(evalRes.outcome));
         const b = touchBettor(leg.who);
         if (b) {
           if (state === "hit") { b.hit++; const o = oddsToNumber(leg.odds); if (o !== null) b.hitOdds.push(o); }
@@ -1464,7 +1823,6 @@ function computeAll() {
     EVALUATED_SINGLES.push({ s, state, outcome, iron });
     if (iron) betIron++;
     countLeg(state);
-    countAction(s.player, state, outcome === "live");
 
     if (outcome === "dead") betMiss++;
     else if (outcome === "hit") { betHit++; totalPayoutHit += (s.payout || 0); }
@@ -1482,8 +1840,6 @@ function computeAll() {
   document.getElementById("count-na").textContent = legNa;
   document.getElementById("count-live").textContent = legLive;
   document.getElementById("count-not-started").textContent = legNotStarted;
-  document.getElementById("count-batting-now").textContent = battingNow;
-  document.getElementById("count-batting-soon").textContent = battingSoon;
   document.getElementById("count-parlay-open").textContent = betOpen;
   document.getElementById("count-parlay-iron").textContent = betIron;
   document.getElementById("count-parlay-hit").textContent = betHit;
@@ -1515,7 +1871,6 @@ function computeAll() {
 function legPassesFilters(state, rawWho, playerName, betIsOpen) {
   if (LEG_FILTER && state !== LEG_FILTER) return false;
   if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return false;
-  if (ACTION_FILTER && battingActionState(playerName, state, betIsOpen) !== ACTION_FILTER) return false;
   return true;
 }
 
@@ -1577,7 +1932,7 @@ function renderContent() {
     html += `</div>`;
   });
 
-  const anyFilterActive = CURRENT_FILTER || LEG_FILTER || BETTOR_FILTER || ACTION_FILTER;
+  const anyFilterActive = CURRENT_FILTER || LEG_FILTER || BETTOR_FILTER;
   if (!anyRendered && anyFilterActive) {
     html += `<p class="empty-filter-note">No parlay cards match this filter right now.</p>`;
   }
@@ -1642,22 +1997,6 @@ function toggleLegFilter(state) {
   renderContent();
 }
 
-function updateActionFilterUI() {
-  ["now", "soon"].forEach(k => document.getElementById(`action-chip-${k}`).classList.remove("active-filter"));
-  const statusEl = document.getElementById("action-filter-status");
-  if (!ACTION_FILTER) { statusEl.classList.remove("active"); return; }
-  const labels = { now: "BATTING NOW", soon: "BATTING SOON" };
-  document.getElementById(`action-chip-${ACTION_FILTER}`).classList.add("active-filter");
-  document.getElementById("action-filter-status-text").textContent = `Showing only legs ${labels[ACTION_FILTER]}`;
-  statusEl.classList.add("active");
-}
-
-function toggleActionFilter(state) {
-  ACTION_FILTER = (ACTION_FILTER === state) ? null : state;
-  updateActionFilterUI();
-  renderContent();
-}
-
 function updateBettorFilterUI() {
   const statusEl = document.getElementById("bettor-filter-status");
   if (!BETTOR_FILTER) { statusEl.classList.remove("active"); return; }
@@ -1672,6 +2011,7 @@ function toggleBettorFilter(key) {
   computeAll();   // rebuild bettor rows so the clicked one gets active-filter styling
   updateBettorFilterUI();
   renderContent();
+  renderLiveAtBats();
 }
 
 function toggleBettorSection() {
@@ -1691,7 +2031,7 @@ function render() {
   updateFilterUI();
   updateLegFilterUI();
   updateBettorFilterUI();
-  updateActionFilterUI();
+  renderLiveAtBats();
 }
 
 // ---------------- slates / tabs / boot ----------------
@@ -1771,6 +2111,8 @@ function applyActiveTab() {
   const showSlate = !!slate;
   ["slate-stats", "bettor-section", "hrlog-section", "content"].forEach(id => { document.getElementById(id).style.display = showSlate ? "" : "none"; });
   document.getElementById("hrlog-sub").innerHTML = hrLogSubText();
+  // Nobody is at the plate in an archived slate.
+  document.getElementById("liveab-section").style.display = (showSlate && ACTIVE_TAB === "today") ? "" : "none";
   document.getElementById("waiting-panel").style.display = showSlate ? "none" : "";
   document.getElementById("live-dot").style.display = (ACTIVE_TAB === "today" && showSlate) ? "" : "none";
   if (!showSlate) document.getElementById("dynamic-note").innerHTML = "";
@@ -1802,7 +2144,7 @@ function applyActiveTab() {
 function activateTab(tab) {
   if (tab === ACTIVE_TAB) return;
   ACTIVE_TAB = tab;
-  CURRENT_FILTER = LEG_FILTER = ACTION_FILTER = BETTOR_FILTER = null;
+  CURRENT_FILTER = LEG_FILTER = BETTOR_FILTER = null;
   HR_EXPANDED.clear(); // the other tab's home runs, not this one's
   applyActiveTab();
   render();
@@ -1833,6 +2175,8 @@ async function pollAndRender() {
   checkForBombs();
   applyActiveTab();
   render();
+  trackLiveAtBats();   // needs the EVALUATED arrays render() just rebuilt
+  renderLiveAtBats();
   updateSyncLine();
 }
 
@@ -1849,6 +2193,7 @@ document.addEventListener("visibilitychange", () => {
 
 async function init() {
   initNotifPrefs();
+  if (lsGet(LS_LIVEAB) === "1") document.getElementById("liveab-section").classList.remove("collapsed");
   await pollAndRender();
   schedulePolling();
 }

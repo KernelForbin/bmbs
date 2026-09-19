@@ -192,6 +192,52 @@ notification controls next to frozen, archived results is misleading. This
 is visibility only: the saved settings and Today's actual notifications are
 completely unaffected by which tab happens to be on screen.
 
+## Live At Bats
+
+A collapsed-by-default panel (Today tab only; open/closed is remembered in
+`localStorage` as `bmbs.liveab.open`) showing one tile per picked player who
+is **at the plate** or **guaranteed to bat this half-inning** -- the same
+`liveContextForPlayer()` logic behind the per-leg "AT THE PLATE NOW" /
+"GUARANTEED TO BAT" tags, which are still on the tickets. It replaced the
+BATTING NOW / BATTING SOON scoreboard chips and their filter (`ACTION_FILTER`
+is gone). Panel order is Live At Bats, Home Run Log, Bettor Tracker.
+
+Eligibility matches those tags: leg still `live` AND at least one bet it's on
+can still cash, so a dead parlay's hitter gets no tile. One tile per player
+however many tickets he's on (all distinct odds shown); the 🧇 appears if any
+of them is an Iron. The bettor filter narrows the tiles too.
+
+Tile order is fixed: finished at-bats still holding their spot, then at bat,
+then due up (the side batting now by distance from the plate -- ON DECK, IN
+THE HOLE -- then the side due up next half). A finished at-bat's result holds
+its tile ~9s (home run ~14s, the first ~3s as a bomb), then drops and the rest
+slide up. Result tiles expire on their own timer, not the poll.
+
+**How it knows an at-bat ended** (`trackLiveAtBats()`, once per poll):
+`getGameSnapshot()` returns `currentAB` plus the last dozen finished plays as
+`recentABs`; each finished play's key is announced once. Same flood guard as
+bombs -- the first poll seeds without announcing -- plus `LAB.prevEligible`,
+because a hitter who just homered is `hit` now and no longer "eligible" but
+was a poll ago. At-bats that ended >3 min ago (tab was asleep) and at-bats
+that finish while the Yesterday tab is showing are marked seen, not announced.
+
+Two things learned from running against real live games, not mocks:
+- **`about.isComplete` is the only trustworthy "finished" signal.** The feed
+  writes mid-at-bat actions into `result.event` while the hitter is still up
+  -- a real "Batter Timeout" on an 0-1 count got announced as an at-bat's
+  outcome before this was fixed. Never infer completion from `result.event`.
+- **Only whitelisted event types are announced** (`LAB_PA_RESULTS`). A "play"
+  can also end on a runner event (inning-ending caught stealing: same hitter
+  leads off next inning). Unknown types cost a missed tile, never a wrong one.
+
+It is pitch-by-pitch *as of the last poll*, not a live stream: several pitches
+can land at once, and a short at-bat can start and finish between polls (the
+result tile still shows). Pinch Hit Protection substitutes don't get tiles.
+No extra API calls -- it reads the same feeds already being fetched. If
+`FEED_FIELDS` is in play (10s polling), it needs `isComplete`, `count`,
+`balls`, `strikes`, `call` added, and `tests/test_feed_fields.py` must compare
+`currentAB` / `recentABs` too.
+
 ## Home Run Log
 
 A collapsed-by-default panel on both tabs listing every home run from that
@@ -395,6 +441,9 @@ on failure:
   Covers the past-midnight slate, the all-Final rollover, a new upload
   landing, the 6am backstop, and filter regressions.
 
+- `tests/test_live_at_bats.py` — the Live At Bats panel: one mocked game walked
+  forward poll by poll (live count, strikeout, home run/bomb, stale at-bat,
+  tab switch), with the pinned clock moved by hand instead of sleeping.
 - `tests/test_history.py` — Playwright against `history/index.html` with a
   hand-worked `history.json` fixture: the isolation guarantee (block A),
   every stat, sorting/filters, chart tooltips, degraded data, phone width.
@@ -404,7 +453,7 @@ on failure:
 ```
 pip install -r tests/requirements.txt
 python -m playwright install chromium
-python tests/test_parser.py && python tests/test_page.py
+python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py
 python tests/test_history_import.py && python tests/test_history.py
 ```
 

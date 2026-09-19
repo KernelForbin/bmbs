@@ -38,7 +38,7 @@ assert shape(g_windows, g_singles) == shape(m_windows, m_singles), "formats pars
 assert len(g_windows) == 3 and sum(len(w["tickets"]) for w in g_windows) == 12 and len(g_singles) == 8
 
 # who-cleaning still strips the "(Noid — Listed as Herb Hernandez)" aside
-herb = [l for w in g_windows for c in w["tickets"] for l in c["legs"] if "Hernandez" in l["player"]][0]
+herb = [l for w in g_windows for c in w["tickets"] for l in c["legs"] if "Hern" in l["player"]][0]
 assert herb["who"] == "Noid", herb
 # bonus 4-leg cards use team codes instead of times
 bonus = g_windows[2]["tickets"][0]["legs"][0]

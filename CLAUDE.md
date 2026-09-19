@@ -52,8 +52,18 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   user's own always-on Windows machine): a friend uploads a `.txt` in a
   Discord channel, confirms with a reaction, and the bot commits it here
   via the GitHub Contents API.
-- **`data/roster.json`** — name/team lookup built once from an uploaded MLB
-  roster CSV, used to normalize player names and teams during parsing.
+- **`data/roster.json`** — name/team lookup, used to normalize player names
+  and teams during parsing. Built by `scripts/build_roster.py` straight
+  from the MLB Stats API (every team's active roster). Originally a
+  one-time upload of a roster CSV instead; that CSV had every generational
+  suffix (Jr./Sr./II/III/IV) stripped from its name column, which silently
+  broke live matching for anyone who has one -- confirmed 2026-09-18 when
+  Fernando Tatis Jr., Bobby Witt Jr. and Vladimir Guerrero Jr. were all
+  picked in the same live slate and none of the three could resolve a hit
+  OR a miss all game (stuck at `not_started`, since `normalizeName()`
+  doesn't strip suffixes -- MLB's own feed always includes them, so the
+  fix is matching them, never stripping them). Rebuilt from the API instead
+  of re-uploading a CSV; not a live-data file, ordinary to regenerate.
 - **`scripts/parse_picks.py`** — parses the raw picks text format into
   `tickets.json`. Also resolves player names against `roster.json` (exact
   match, then fuzzy). Accepts the text with or without markdown markers
@@ -514,12 +524,15 @@ on failure:
 - `tests/test_feed_fields.py` — the one test that DOES hit the network, since
   mocked fixtures can't prove a `fields=` allow-list is complete. Full vs slim
   feed for every live game, through the page's own `getGameSnapshot()`.
+- `tests/test_build_roster.py` — `scripts/build_roster.py`, fully offline: a
+  fake fetcher standing in for the MLB API, checking suffixes and accents
+  survive and a missing-abbreviation team or a name collision doesn't crash.
 
 ```
 pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py
-python tests/test_history_import.py && python tests/test_history.py
+python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 

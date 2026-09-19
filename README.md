@@ -95,10 +95,17 @@ line), the parser will likely under-count or print a WARNING — paste the
 new format to Claude and ask for the parser to be updated to match.
 
 ### Updating the roster
-`data/roster.json` is built once from your uploaded CSV and checked into
-the repo — it doesn't update itself. If MLB rosters change (trades,
-call-ups) enough to matter, give Claude an updated CSV and ask it to
-regenerate `data/roster.json`.
+`data/roster.json` doesn't update itself — it's a snapshot. Refresh it any
+time with:
+
+```
+python scripts/build_roster.py
+```
+
+This pulls every team's current active roster straight from the MLB Stats
+API (no CSV, no upload) and rebuilds the file. Worth re-running after
+trades or September call-ups if a newly-added player gets picked and the
+site can't find them.
 
 ## How matching works
 

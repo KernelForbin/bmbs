@@ -110,13 +110,13 @@ BET_FOOT_RE = re.compile(
 )
 BULLET = r"^(?:[*\-•]\s*)?"
 SINGLE_LINE_RE = re.compile(
-    BULLET + r"([A-Za-z]+)\s*:\s*(.+?)\s*\(\+(\d+)\)\s*\|\s*"
+    BULLET + r"([A-Za-z]+)\s*:\s*(.+?)\s*\(([+-]\d+)\)\s*\|\s*"
     r"(?:\(([^)]+)\)\s*)?([\d: ]*[AP]M ET)?\s*[•·]?\s*\$([\d,.]+)\s*bet\s*\|\s*PP:\s*\$([\d,.]+)",
     re.IGNORECASE
 )
-LEG_LINE_RE = re.compile(BULLET + r"(.+?)\s*\(\+(\d+)\)\s*\|\s*(.+?)\s*\(([^)]+)\)\s*$")
+LEG_LINE_RE = re.compile(BULLET + r"(.+?)\s*\(([+-]\d+)\)\s*\|\s*(.+?)\s*\(([^)]+)\)\s*$")
 TIME_RE = re.compile(r"\d{1,2}:\d{2}\s*[AP]M\s*ET", re.IGNORECASE)
-ODDS_RE = re.compile(r"\(\+\d+\)")
+ODDS_RE = re.compile(r"\([+-]\d+\)")
 
 # ---- second raw-text template: "Ticket N: TIME | Player (Team) +ODDS (Bettor)",
 # one leg per line, closed by a "(Bet by X) [Bet: $Y | PP: Z]" footer line. Seen
@@ -128,7 +128,7 @@ ODDS_RE = re.compile(r"\(\+\d+\)")
 # under it (seen for real: a "10 TWO-LEG PARLAYS" header with only 9 under it).
 TICKET_START_RE = re.compile(r"^\*?\s*Ticket\s+\d+\s*:\s*(.+)$", re.IGNORECASE)
 TICKET_LEG_RE = re.compile(
-    r"^([\d: ]*[AP]M\s*ET)\s*\|\s*(.+?)\s*\(([^)]+)\)\s*\+(\d+)\s*\(([^)]+)\)\s*$", re.IGNORECASE
+    r"^([\d: ]*[AP]M\s*ET)\s*\|\s*(.+?)\s*\(([^)]+)\)\s*([+-]\d+)\s*\(([^)]+)\)\s*$", re.IGNORECASE
 )
 TICKET_FOOT_RE = re.compile(
     r"^\(Bet by\s+([A-Za-z]+)\)\s*\[Bet:\s*\$([\d,.]+)\s*\|\s*PP:\s*\$?([\d,.]+)\]\s*$", re.IGNORECASE
@@ -144,11 +144,54 @@ TICKET_FOOT_RE = re.compile(
 # single and a window is still keyed by whatever header text came before it.
 PART_HEADER_RE = re.compile(r"^Part\s+\d+\s*:\s*.+$", re.IGNORECASE)
 TICKET_HASH_START_RE = re.compile(
-    r"^Ticket\s*#(\d+)\s*\(([A-Za-z]+)\s*-\s*\$([\d,.]+)\s*Bet\)\s*\[PP:\s*\$?([\d,.]+)\]\s*$", re.IGNORECASE
+    r"^Ticket\s*#(\d+)\s*\(([A-Za-z]+)\s*-\s*\$([\d,.]+)\s*Bet\)\s*(?:\[[^\]]*\]\s*)*?\[PP:\s*\$?([\d,.]+)\]\s*$", re.IGNORECASE
 )
+# ...and its prop-style leg, first seen on the first real card with a steal on it
+# (2026-09-19, "PART 6: LATE ADDITIONS"):
+#     Ticket #17 (Bailey - $5 Bet) [+2925] [PP: $151.25]
+#     - Josh Naylor - Stolen Bases O0.5 (+450) - SEA @ COL - 8:10 PM ET
+#     - Ben Rice - Home Runs O0.5 (+450) - NYY @ ARI - 8:10 PM ET
+# The market is spelled out on every leg, the game is a matchup rather than the
+# player's team, and there is no per-leg bettor -- the leg belongs to whoever
+# placed the ticket. A leading "(Bettor)" is still honoured if a card adds one.
+TICKET_PROP_LEG_RE = re.compile(
+    BULLET + r"(?:\(([^)]+)\)\s*)?(.+?)\s+-\s+(stolen\s+bases?|steals?|SB|home\s+runs?|HRs?)"
+    r"(?:\s+O(?:ver)?\s*(\d+(?:\.\d+)?))?\s*\(([+-]\d+)\)\s*-\s*(.+?)\s*-\s*([\d: ]*[AP]M\s*ET)\s*$", re.IGNORECASE
+)
+# A line that is obviously part of a bet. If one of these reaches the end of the
+# loop unmatched, a bet is about to go untracked -- say so, loudly (see main()).
+BETLIKE_RE = re.compile(r"^\*?\s*Ticket\s*#?\s*\d+|^[*\-•]\s.*\([+-]\d{3,}\)", re.IGNORECASE)
 TICKET_HASH_LEG_RE = re.compile(
-    BULLET + r"\(([^)]+)\)\s*(.+?)\s+-\s+([A-Z]{2,4})\s*\(\+(\d+)\)\s*-\s*([\d: ]*[AP]M\s*ET)\s*$", re.IGNORECASE
+    BULLET + r"\(([^)]+)\)\s*(.+?)\s+-\s+([A-Z]{2,4})\s*\(([+-]\d+)\)\s*-\s*([\d: ]*[AP]M\s*ET)\s*$", re.IGNORECASE
 )
+
+
+# ---- bet markets: home runs (the default) and stolen bases ----
+# A leg is a home run bet unless the card says otherwise. No steal card has been
+# posted yet (as of 2026-09-19), so this is deliberately tolerant about WHERE
+# the card says it, not a guess at one exact shape:
+#   * on the leg's own line      "* (Kenny) Elly De La Cruz - CIN (+150) SB - 6:40 PM ET"
+#   * on the ticket's header     "Ticket #4 (Memo - $5 Bet) [PP: $40.00] - Stolen Bases"
+#   * on a section header        "Part 3: Stolen Base Parlays"  (until the next header)
+# written as SB / Stolen Base(s) / Steal(s) / To Steal (a Base), bare or in
+# ( ) or [ ]. The marker is lifted out of the line before the usual patterns
+# run, so it can sit anywhere without breaking them. Home run legs get NO
+# market field at all -- tickets.json for a home-run-only card is byte-for-byte
+# what it was before steals existed.
+SB_MARK_RE = re.compile(
+    r"[\(\[]?\s*\b(?:SB|stolen\s+bases?|steals?|to\s+steal(?:\s+a\s+base)?)\b\s*[\)\]]?", re.IGNORECASE)
+
+
+def take_market(line):
+    """-> (line with any steal marker removed, whether there was one)."""
+    m = SB_MARK_RE.search(line)
+    if not m:
+        return line, False
+    clean = line[:m.start()] + " " + line[m.end():]
+    clean = re.sub(r"\s*([-|])\s*(?:[-|]\s*)+", r" \1 ", clean)     # "- -" where the marker sat between separators
+    clean = re.sub(r"\s{2,}", " ", clean).strip()
+    clean = re.sub(r"\s*[-|:]\s*$", "", clean)                      # ...or a separator left dangling at the end
+    return clean, True
 
 
 def normalize_name(name):
@@ -242,6 +285,15 @@ def parse(text, team_by_name, canonical_by_norm):
     current_card = None
     single_idx = 0
 
+    # ---- steal markers: the section's default, and the open ticket's ----
+    section_sb = False
+    ticket_sb = False
+    unread = []          # bet-looking lines no pattern understood
+    parse.unread = unread
+
+    def market_for(leg_sb):
+        return "sb" if (leg_sb or ticket_sb or section_sb) else "hr"
+
     # ---- state for the "Ticket N:" template (see TICKET_START_RE above) ----
     last_header_title = None
     ticket_windows_by_title = {}
@@ -275,13 +327,14 @@ def parse(text, team_by_name, canonical_by_norm):
         if not legs_raw or ticket["_stake"] is None:
             return  # malformed/truncated ticket (e.g. file cut off) -- drop, don't guess
         if len(legs_raw) == 1:
-            time_, player_raw, team_raw, odds, who = legs_raw[0]
+            time_, player_raw, team_raw, odds, who, mkt = legs_raw[0]
             canon_name, team = resolve_player(player_raw, team_by_name, canonical_by_norm)
             singles.append({
                 "who": who.strip().upper(),
                 "player": canon_name,
                 "team": team or team_raw.strip(),
-                "odds": f"+{odds}",
+                "odds": odds,
+                "market": mkt,
                 "matchup": "",
                 "time": time_.strip(),
                 "stake": ticket["_stake"],
@@ -289,9 +342,9 @@ def parse(text, team_by_name, canonical_by_norm):
             })
         else:
             legs = []
-            for time_, player_raw, team_raw, odds, who in legs_raw:
+            for time_, player_raw, team_raw, odds, who, mkt in legs_raw:
                 canon_name, team = resolve_player(player_raw, team_by_name, canonical_by_norm)
-                legs.append({"player": canon_name, "odds": f"+{odds}", "who": who.strip(),
+                legs.append({"player": canon_name, "odds": odds, "who": who.strip(), "market": mkt,
                              "team": team or team_raw.strip(), "time": time_.strip()})
             card = {"name": f"Card {num}", "sub": "", "tag": None,
                     "_stake": ticket["_stake"], "_book": ticket["_book"],
@@ -299,14 +352,18 @@ def parse(text, team_by_name, canonical_by_norm):
             ticket_window(last_header_title)["tickets"].append(card)
 
     for raw in lines:
-        line = raw.strip()
-        if not line or re.fullmatch(r"[-=]{3,}", line):
+        original = raw.strip()
+        if not original or re.fullmatch(r"[-=]{3,}", original):
             continue
+        # headers keep their wording (it's the window title); everything else is
+        # matched with the steal marker lifted out
+        line, sb_here = take_market(original)
 
-        header_text = section_header(line)
+        header_text = section_header(original)
         if header_text is not None:
             flush_card()
             flush_ticket()
+            section_sb, ticket_sb = sb_here, False
             last_header_title = header_text
             if SINGLES_HEADER_RE.search(header_text):
                 mode = "singles"
@@ -319,10 +376,11 @@ def parse(text, team_by_name, canonical_by_norm):
                 mode = None
             continue
 
-        if PART_HEADER_RE.match(line):
+        if PART_HEADER_RE.match(original):
             flush_card()
             flush_ticket()
-            last_header_title = line
+            section_sb, ticket_sb = sb_here, False
+            last_header_title = original
             mode = None
             current_section = None
             continue
@@ -330,16 +388,18 @@ def parse(text, team_by_name, canonical_by_norm):
         ticket_start = TICKET_START_RE.match(line)
         if ticket_start:
             flush_ticket()
+            ticket_sb = False   # this template's first line is also its first leg: the marker is the leg's
             current_ticket = {"_num": re.match(r"^\*?\s*Ticket\s+(\d+)", line, re.IGNORECASE).group(1),
                                "_legs": [], "_book": None, "_stake": None, "_pp": None}
             leg = TICKET_LEG_RE.match(ticket_start.group(1).strip())
             if leg:
-                current_ticket["_legs"].append(leg.groups())
+                current_ticket["_legs"].append(leg.groups() + (market_for(sb_here),))
             continue
 
         hash_start = TICKET_HASH_START_RE.match(line)
         if hash_start:
             flush_ticket()
+            ticket_sb = sb_here
             num, book, stake, pp = hash_start.groups()
             current_ticket = {"_num": num, "_legs": [], "_book": book,
                                "_stake": clean_num(stake), "_pp": clean_num(pp)}
@@ -356,18 +416,29 @@ def parse(text, team_by_name, canonical_by_norm):
                 continue
             leg = TICKET_LEG_RE.match(line)
             if leg:
-                current_ticket["_legs"].append(leg.groups())
+                current_ticket["_legs"].append(leg.groups() + (market_for(sb_here),))
+                continue
+            prop_leg = TICKET_PROP_LEG_RE.match(original)
+            if prop_leg:
+                who, player_raw, market_word, threshold, odds, matchup, time_ = prop_leg.groups()
+                if threshold and float(threshold) != 0.5:
+                    print(f"NOTE: '{original}' is an over-{threshold} bet; the tracker only knows 'at least one' -- "
+                          f"it will be marked a hit on the FIRST one.", file=sys.stderr)
+                mkt = "hr" if re.match(r"h", market_word, re.IGNORECASE) else "sb"
+                # no team code on these lines: resolve_player() supplies it from the roster
+                current_ticket["_legs"].append((time_, player_raw, "", odds, who or current_ticket["_book"] or "", mkt))
                 continue
             hash_leg = TICKET_HASH_LEG_RE.match(line)
             if hash_leg:
                 who, player_raw, team_raw, odds, time_ = hash_leg.groups()
-                current_ticket["_legs"].append((time_, player_raw, team_raw, odds, who))
+                current_ticket["_legs"].append((time_, player_raw, team_raw, odds, who, market_for(sb_here)))
                 continue
 
         if mode == "parlay":
             card_match = CARD_HEADER_RE.match(line)
             if card_match:
                 flush_card()
+                ticket_sb = sb_here
                 card_num, rest = card_match.groups()
                 tag = None
                 sub = rest
@@ -400,7 +471,7 @@ def parse(text, team_by_name, canonical_by_norm):
                 # already gives us the correct roster name above -- so strip
                 # anything after a dash/em-dash from who before storing it.
                 clean_who = re.split(r"[\u2014-]", who, maxsplit=1)[0].strip()
-                leg = {"player": canon_name, "odds": f"+{odds}", "who": clean_who}
+                leg = {"player": canon_name, "odds": odds, "who": clean_who, "market": market_for(sb_here)}
                 t = TIME_RE.search(middle)
                 if t:
                     leg["time"] = t.group(0)
@@ -422,7 +493,8 @@ def parse(text, team_by_name, canonical_by_norm):
                     "who": who.strip().upper(),
                     "player": canon_name,
                     "team": team,
-                    "odds": f"+{odds}",
+                    "odds": odds,
+                    "market": market_for(sb_here),
                     "matchup": (matchup or "").strip(),
                     "time": (time_ or "").strip(),
                     "stake": clean_num(stake),
@@ -430,6 +502,9 @@ def parse(text, team_by_name, canonical_by_norm):
                 })
                 single_idx += 1
                 continue
+
+        if BETLIKE_RE.search(original):
+            unread.append(original)
 
     flush_card()
     flush_ticket()
@@ -455,6 +530,8 @@ def parse(text, team_by_name, canonical_by_norm):
                     "odds": leg["odds"],
                     "time": leg["time"],
                 })
+                if leg.get("market") == "sb":
+                    legs[-1]["market"] = "sb"
             tag_html = f' &middot; {card["tag"]}' if card.get("tag") else ""
             sub_html = f' &middot; {card["sub"]}' if card.get("sub") else ""
             foot = (f'<b>${card["_stake"]:.2f}</b> bet by {card["_book"]} '
@@ -484,6 +561,8 @@ def parse(text, team_by_name, canonical_by_norm):
             "payout": s["pp"],
             "pp": f'PP ${s["pp"]:,.2f}',
         })
+        if s.get("market") == "sb":
+            out_singles[-1]["market"] = "sb"
 
     return out_windows, out_singles, singles
 
@@ -511,7 +590,18 @@ def main():
     all_times += [s["time"] for s in raw_singles if s.get("time")]
     slate_date = slate_date_for(all_times, datetime.now(ET))
 
-    payload = {"date": slate_date, "note": "", "windows": windows, "singles": out_singles}
+    # A bet line nothing understood means a bet that is NOT being tracked. The
+    # upload still posts (better most of a slate than none), but the page's note
+    # line says so where the group will see it, instead of only an Actions log.
+    unread = getattr(parse, "unread", [])
+    note = ""
+    if unread:
+        for line in unread:
+            print(f"WARNING: couldn't read: {line}", file=sys.stderr)
+        note = (f"&#9888; {len(unread)} line{'s' if len(unread) != 1 else ''} on the card couldn't be read, so "
+                f"{'those bets are' if len(unread) != 1 else 'that bet is'} NOT being tracked &mdash; first one: "
+                f"&ldquo;{unread[0][:70]}&rdquo;")
+    payload = {"date": slate_date, "note": note, "windows": windows, "singles": out_singles}
     TICKETS_PATH.parent.mkdir(parents=True, exist_ok=True)
     archive_previous_slate(slate_date)
     TICKETS_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")

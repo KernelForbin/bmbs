@@ -13,7 +13,7 @@
     --green: #3ECF8E; --green-dim: #1E4A38;
     --red: #E5636B; --red-dim: #4A2226;
     --yellow: #E8C84A; --yellow-dim: #4A4318;
-    --amber: #E8B858; --text: #EDF2F0; --text-dim: #9AAAA3; --text-faint: #5E6E67;
+    --amber: #E8B858; --steal: #5BB8F5; --steal-dim: #16384F; --text: #EDF2F0; --text-dim: #9AAAA3; --text-faint: #5E6E67;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; }
@@ -147,6 +147,20 @@
   .ab-tile.result.homer { border-color:var(--green); background:var(--green-dim); }
   .ab-result { font-family:'Oswald',sans-serif; font-size:16px; font-weight:700; letter-spacing:.03em; line-height:1.1; margin-top:5px; text-transform:uppercase; }
   .ab-tile.homer .ab-result { color:var(--green); }
+  /* steal tiles: a runner on base is "live" the way a hitter at the plate is */
+  .ab-tile.onbag { border-color:var(--steal); background:linear-gradient(160deg, var(--steal-dim), var(--bg) 70%); box-shadow:0 0 0 1px var(--steal-dim); }
+  .ab-tile.onbag .ab-tag { color:var(--steal); }
+  .ab-tile.onbag .ab-tag::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--steal); margin-right:5px; animation:pulse 1.6s ease-in-out infinite; vertical-align:1px; }
+  .ab-tile.onbag .ab-line { white-space:normal; }
+  .ab-tile.onbag.blocked { background:var(--bg); box-shadow:none; border-style:dashed; }
+  .ab-diamond { width:24px; height:17px; vertical-align:-4px; margin-right:6px; overflow:visible; }
+  .ab-diamond rect { fill:none; stroke:var(--text-faint); stroke-width:1; }
+  .ab-diamond rect.on { fill:var(--steal); stroke:var(--steal); }
+  .ab-tile.result.swiped { border-color:var(--steal); background:var(--steal-dim); }
+  .ab-tile.swiped .ab-result { color:var(--steal); }
+  .ab-bomb.swipe { background:var(--steal-dim); }
+  .ab-bomb.swipe .n { color:var(--steal); }
+  .ab-mkt { font-family:'Inter',sans-serif; font-size:8.5px; font-weight:700; letter-spacing:.06em; color:var(--steal); margin-right:3px; }
   .ab-bomb { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; background:var(--green-dim); animation:abBomb .5s cubic-bezier(.2,1.6,.4,1); }
   .ab-bomb .e { font-size:40px; line-height:1; }
   .ab-bomb .n { font-family:'Oswald',sans-serif; font-size:12px; font-weight:700; letter-spacing:.08em; color:var(--green); max-width:92%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -219,6 +233,10 @@
   .leg-action-tag { font-size:10px; font-weight:700; letter-spacing:.04em; margin-top:3px; padding:2px 7px; border-radius:5px; display:inline-block; }
   .leg-action-tag.now { background:var(--green-dim); color:var(--green); border:1px solid var(--green); }
   .leg-action-tag.soon { background:var(--amber); color:#1a1200; }
+  .leg-action-tag.steal { background:var(--steal-dim); color:var(--steal); border:1px solid var(--steal); }
+  .leg-live-context.steal-credit { color:var(--green); }
+  .mkt-tag { font-family:'Inter',sans-serif; font-size:9px; font-weight:700; letter-spacing:.07em; border-radius:4px; padding:1px 5px; vertical-align:2px; }
+  .mkt-tag.sb { color:var(--steal); background:var(--steal-dim); border:1px solid var(--steal); }
   .gameday-link { display:inline-block; font-size:10px; color:var(--green); margin-top:3px; text-decoration:underline; }
   .leg-right { flex:none; text-align:right; }
   .leg-odds { font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:var(--amber); }
@@ -307,6 +325,9 @@
     animation:bombIn .42s cubic-bezier(.2,1.5,.4,1) both, bombShake .45s .42s ease-in-out; }
   .bomb-emoji { font-size:30px; line-height:1; flex:none; animation:bombPulse .6s ease-in-out 2; }
   .bomb-name { display:block; font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; line-height:1.1; color:var(--text); word-wrap:break-word; }
+  .bomb-flash.steal { background:radial-gradient(circle at 50% 20%, rgba(91,184,245,.30), transparent 62%); }
+  .bomb-card.steal:not(.cash) { border-color:var(--steal); }
+  .bomb-card.steal:not(.cash) .bomb-word { color:var(--steal); }
   .bomb-word { display:block; font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; letter-spacing:.16em; color:var(--green); margin-top:2px; }
   /* Rains onto the card from above rather than across it, so nothing lands on the text. */
   .bomb-confetti-wrap { position:absolute; left:-10px; right:-10px; top:-62px; height:62px; overflow:hidden; pointer-events:none; }
@@ -367,9 +388,9 @@
     <div class="legend">
       <span><span class="sw pending"></span>Not started</span>
       <span><span class="sw live-game"></span>In progress</span>
-      <span><span class="sw hit"></span>Home run</span>
+      <span><span class="sw hit"></span><span id="legend-hit">Home run</span></span>
       <span><span class="sw php-hit"></span>Pinch Hit Protection</span>
-      <span><span class="sw miss"></span>Game final, no HR</span>
+      <span><span class="sw miss"></span><span id="legend-miss">Game final, no HR</span></span>
       <span><span class="sw na"></span>Didn't play</span>
     </div>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
@@ -416,7 +437,7 @@
 
   <div class="liveab-section collapsed" id="liveab-section">
     <div class="liveab-head" onclick="toggleLiveAb()">
-      <p class="liveab-title">Live At Bats <span class="liveab-count" id="liveab-count"></span></p>
+      <p class="liveab-title">Live Bet Tracker <span class="liveab-count" id="liveab-count"></span></p>
       <span class="liveab-chevron">&#9660;</span>
     </div>
     <p class="liveab-sub" id="liveab-sub">Tap to expand &mdash; follow your picks pitch by pitch.</p>
@@ -496,7 +517,7 @@ const SLATE_POLLS = new Map();
 const FINAL_SNAPSHOTS = new Map();
 
 function emptyResults() {
-  return { hitNames: new Set(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), homeRuns: [], gameInfo: new Map(), allGamesFinal: false, ready: false, noGames: false };
+  return { hitNames: new Set(), sbNames: new Set(), appeared: new Set(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), homeRuns: [], gameInfo: new Map(), allGamesFinal: false, ready: false, noGames: false };
 }
 
 // League-average probability that a plate appearance ends in an out. Not
@@ -605,6 +626,8 @@ const FEED_FIELDS = [
   "hitData", "launchSpeed", "launchAngle", "totalDistance", "trajectory",
   "boxscore", "players", "person", "battingOrder",
   "linescore", "currentInning", "inningState", "outs", "offense",
+  // stolen bases: every play's runner events, and who is standing on which base
+  "runners", "runner", "playIndex", "first", "second", "third",
 ].join(",");
 
 async function getGameSnapshot(gamePk) {
@@ -672,6 +695,38 @@ async function getGameSnapshot(gamePk) {
       zone: typeof pitchData.zone === "number" ? pitchData.zone : null
     });
   });
+
+  // Stolen bases, for steal bets. A steal is a RUNNER event inside somebody
+  // else's plate appearance -- usually one still in progress -- so it's read
+  // from each play's runners[], never from the play's own result. One steal can
+  // appear as several runner entries (one per base-to-base segment), hence the
+  // key. eventType spells out the base: stolen_base_2b / _3b / _home, and
+  // caught_stealing_* / pickoff_caught_stealing_* for the ones that didn't work.
+  const sbNames = new Set();
+  const steals = [];
+  const stealKeys = new Set();
+  plays.forEach((play, idx) => (play.runners || []).forEach(r => {
+    const det = (r && r.details) || {};
+    const type = det.eventType || "";
+    const stole = type.indexOf("stolen_base") === 0;
+    const caught = type.indexOf("caught_stealing") !== -1;
+    const name = det.runner && det.runner.fullName;
+    if (!name || (!stole && !caught)) return;
+    const atBat = play.atBatIndex !== undefined ? play.atBatIndex : idx;
+    const key = `${gamePk}-sb-${atBat}-${det.playIndex !== undefined ? det.playIndex : "x"}-${normalizeName(name)}`;
+    if (stealKeys.has(key)) return;
+    stealKeys.add(key);
+    if (stole) sbNames.add(normalizeName(name));
+    const ev = (play.playEvents || [])[det.playIndex] || {};
+    const about = play.about || {};
+    steals.push({
+      key, gamePk, runner: name, caught,
+      base: /home/.test(type) ? "home" : /3b/.test(type) ? "3rd" : "2nd",
+      time: ev.endTime || ev.startTime || about.endTime || about.startTime || "",
+      inning: about.inning || null, half: about.halfInning || "",
+      pitcher: (play.matchup && play.matchup.pitcher && play.matchup.pitcher.fullName) || ""
+    });
+  }));
 
   // At-bat detail for the Live At Bats panel. allPlays' last entry is the
   // plate appearance in progress (it IS liveData.plays.currentPlay -- checked
@@ -766,6 +821,9 @@ async function getGameSnapshot(gamePk) {
   const halfState = linescore.inningState || null; // "Top" | "Middle" | "Bottom" | "End"
   const outs = typeof linescore.outs === "number" ? linescore.outs : null;
   const offense = linescore.offense || null;
+  // Who is standing where, right now (names; null when the base is empty).
+  const baseName = b => (status === "live" && offense && offense[b] && offense[b].fullName) || null;
+  const bases = { first: baseName("first"), second: baseName("second"), third: baseName("third") };
 
   // "Next up" slot per side: who bats next (or is at the plate right now).
   function lastBatterSlot(side) {
@@ -812,7 +870,7 @@ async function getGameSnapshot(gamePk) {
     nextUpSlot[side] = slot;
   });
 
-  return { status, hrNames, homeRuns, rosterNames, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk, currentAB, recentABs };
+  return { status, hrNames, homeRuns, rosterNames, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk, currentAB, recentABs, sbNames, steals, bases };
 }
 
 // How many more outs a team's side needs to record before the (assumed
@@ -967,7 +1025,7 @@ async function pollSlate(date) {
   const snapshots = await Promise.all(games.map(g => {
     if (FINAL_SNAPSHOTS.has(g.gamePk)) return FINAL_SNAPSHOTS.get(g.gamePk);
     // Nothing from a not-yet-started game's feed is used below, so skip the download.
-    if (g.preview) return { status: "preview", gamePk: g.gamePk, hrNames: new Set(), homeRuns: [], rosterNames: new Set(), orderSlot: new Map(), slotHolders: { away: {}, home: {} } };
+    if (g.preview) return { status: "preview", gamePk: g.gamePk, hrNames: new Set(), homeRuns: [], rosterNames: new Set(), orderSlot: new Map(), slotHolders: { away: {}, home: {} }, sbNames: new Set(), steals: [], bases: {} };
     return getGameSnapshot(g.gamePk).then(snap => {
       if (snap.status === "final") FINAL_SNAPSHOTS.set(g.gamePk, snap);
       return snap;
@@ -975,6 +1033,8 @@ async function pollSlate(date) {
   }));
 
   const hitNames = new Set();
+  const sbNames = new Set();      // normalized name -> has stolen a base today
+  const appeared = new Set();     // normalized name -> actually got into a game (holds a batting-order spot)
   const rosterStatus = new Map(); // normalized name -> 'live' | 'final'
   const rosterSide = new Map();   // normalized name -> {side, gamePk}
   const gameInfo = new Map();     // gamePk -> snapshot
@@ -985,10 +1045,12 @@ async function pollSlate(date) {
   snapshots.forEach(snap => {
     if (!snap) { allFinal = false; return; }
     snap.hrNames.forEach(n => hitNames.add(n));
+    (snap.sbNames || []).forEach(n => sbNames.add(n));
     (snap.homeRuns || []).forEach(hr => homeRuns.push(hr));
     if (snap.status !== "preview") {
       snap.rosterNames.forEach(n => rosterStatus.set(n, snap.status));
       snap.orderSlot.forEach((info, n) => {
+        appeared.add(n);
         rosterSide.set(n, { side: info.side, gamePk: snap.gamePk });
         const holders = (snap.slotHolders[info.side] && snap.slotHolders[info.side][info.slot]) || [];
         const currentHolder = holders.reduce((a, b) => (!a || b.orderFull > a.orderFull ? b : a), null);
@@ -1000,7 +1062,7 @@ async function pollSlate(date) {
   });
 
   homeRuns.sort((a, b) => String(b.time).localeCompare(String(a.time))); // newest first, across games
-  const results = { hitNames, rosterStatus, rosterSide, substitutedOut, homeRuns, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
+  const results = { hitNames, sbNames, appeared, rosterStatus, rosterSide, substitutedOut, homeRuns, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
   const anyFetchFailed = snapshots.some(s => !s);
   return { results, done: allScheduledFinal || pastSafetyValve(date), settled: allScheduledFinal && !anyFetchFailed };
 }
@@ -1027,6 +1089,56 @@ function stateForPlayer(playerName) {
     return RESULTS.rosterStatus.get(norm) === "final" ? "miss" : "live";
   }
   return RESULTS.allGamesFinal ? "na" : "not_started";
+}
+
+// ---------------- bet markets ----------------
+// A leg is a HOME RUN bet unless it says otherwise: `market: "sb"` makes it a
+// stolen-base bet. No field at all means "hr", so every slate written before
+// steals existed -- and every home run leg since -- takes exactly the path it
+// always did: stateForLeg() hands it straight to stateForPlayer(), unchanged.
+function legMarket(leg) { return leg && leg.market === "sb" ? "sb" : "hr"; }
+
+function stateForLeg(leg) {
+  return legMarket(leg) === "sb" ? stateForSteal(leg.player) : stateForPlayer(leg.player);
+}
+
+// Steal bets differ from home run bets in two ways the user settled on:
+//  * NO Pinch Hit Protection. A pulled player can't re-enter, so with no steal
+//    in the book he's a miss right then -- nobody inherits the bet.
+//  * "Played" means APPEARED IN THE GAME, not "came to the plate": a pinch
+//    runner can steal without ever batting. On the roster of a finished game
+//    without ever getting in -> void.
+function stateForSteal(playerName) {
+  const norm = normalizeName(playerName);
+  if (!RESULTS.ready) return "not_started";
+  if (RESULTS.sbNames && RESULTS.sbNames.has(norm)) return "hit";
+  if (RESULTS.substitutedOut && RESULTS.substitutedOut.has(norm)) return "miss";
+  if (RESULTS.rosterStatus.has(norm)) {
+    if (RESULTS.rosterStatus.get(norm) !== "final") return "live";
+    return RESULTS.appeared && RESULTS.appeared.has(norm) ? "miss" : "na";
+  }
+  return RESULTS.allGamesFinal ? "na" : "not_started";
+}
+
+// Which base a player is standing on right now ("first" | "second" | "third"),
+// with what a steal tile needs to say about it. null when he isn't on base.
+function onBaseContext(playerName) {
+  const norm = normalizeName(playerName);
+  const loc = RESULTS.rosterSide && RESULTS.rosterSide.get(norm);
+  const game = loc && RESULTS.gameInfo.get(loc.gamePk);
+  if (!game || game.status !== "live" || !game.bases) return null;
+  const order = ["first", "second", "third"];
+  const at = order.find(b => game.bases[b] && normalizeName(game.bases[b]) === norm);
+  if (!at) return null;
+  const next = order[order.indexOf(at) + 1] || null;   // null = only home is left
+  const halfWord = game.halfState === "Top" ? "Top" : game.halfState === "Bottom" ? "Bot" : game.halfState || "";
+  return {
+    base: at, baseLabel: { first: "1ST", second: "2ND", third: "3RD" }[at],
+    nextOpen: next ? !game.bases[next] : true, nextLabel: next ? { second: "2nd", third: "3rd" }[next] : "home",
+    inningLabel: `${halfWord} ${game.inning || ""}`.trim(), outs: game.outs,
+    batter: (game.currentAB && game.currentAB.batter) || "", pitcher: (game.currentAB && game.currentAB.pitcher) || "",
+    gamePk: loc.gamePk, gamedayLink: gamedayUrl(loc.gamePk)
+  };
 }
 
 // Returns { inningLabel, probAtLeastOne, expected, substitutedBy,
@@ -1139,7 +1251,7 @@ function isIronLeg(evalRes, state) {
 }
 
 function ironMark() {
-  return ` <span class="iron-mark" title="Iron — one home run from cashing">\u{1F9C7}</span>`;
+  return ` <span class="iron-mark" title="Iron — one leg from cashing">\u{1F9C7}</span>`;
 }
 
 function whoKey(rawWho) {
@@ -1160,8 +1272,8 @@ const btnSvg = `
     <path class="x-path" d="M6 6L18 18M18 6L6 18" stroke-width="2.3" stroke-linecap="round"/>
   </svg>`;
 
-function badge(state, playerName) {
-  const phpHit = state === "hit" && isPhpCreditedHit(playerName);
+function badge(state, playerName, market) {
+  const phpHit = market !== "sb" && state === "hit" && isPhpCreditedHit(playerName);
   const inner = state === "na" ? "N/A" : btnSvg;
   return `<div class="mark-badge${phpHit ? " php-hit" : ""}" data-state="${state}">${inner}</div>`;
 }
@@ -1173,7 +1285,8 @@ function badge(state, playerName) {
 // sense when both are true -- no point flagging "batting now" on a leg
 // that's already resolved, or on a parlay that's already dead from
 // another leg missing. Returns "" when there's nothing to show.
-function liveContextHtml(playerName, state, betIsOpen) {
+function liveContextHtml(playerName, state, betIsOpen, market) {
+  if (market === "sb") return stealContextHtml(playerName, state, betIsOpen);
   const norm = normalizeName(playerName);
   const ownHit = RESULTS.hitNames && RESULTS.hitNames.has(norm);
   const php = !ownHit ? pinchHitProtection(playerName) : null;
@@ -1212,6 +1325,42 @@ function liveContextHtml(playerName, state, betIsOpen) {
   }
   return `${actionTag}<div class="leg-live-context">&#9918; ${ctx.inningLabel} &middot; batting ${ordinal(ctx.slot)}
     &middot; ~${exp} AB left &middot; ${pct}% chance of another AB</div>${gamedayLine}`;
+}
+
+// The same line for a STEAL leg. What matters is different: is he on base, and
+// is the next one open? No Pinch Hit Protection here, so a pulled player just
+// gets told so.
+function stealContextHtml(playerName, state, betIsOpen) {
+  const norm = normalizeName(playerName);
+  if (state === "hit") {
+    const st = stealsBy(norm).find(x => !x.caught);
+    return st ? `<div class="leg-live-context steal-credit">&#127939; Stole ${st.base}${st.inning ? ` in the ${ordinal(st.inning)}` : ""}.</div>` : "";
+  }
+  if (state === "miss" && RESULTS.substitutedOut && RESULTS.substitutedOut.has(norm)) {
+    return `<div class="leg-live-context pinch-hit-void">Pulled from the game without a steal &mdash; he can't re-enter, so this leg is a miss.</div>`;
+  }
+  if (state !== "live") return "";
+  const on = onBaseContext(playerName);
+  const link = gp => `<a href="${gamedayUrl(gp)}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Track Live on Gameday &#8599;</a>`;
+  if (on) {
+    const tag = betIsOpen ? `<div class="leg-action-tag steal">&#127939; ON ${on.baseLabel} NOW</div>` : "";
+    return `${tag}<div class="leg-live-context">${on.inningLabel} &middot; ${on.nextOpen ? `${on.nextLabel} is open` : `runner ahead on ${on.nextLabel}`}</div>${link(on.gamePk)}`;
+  }
+  const ctx = liveContextForPlayer(playerName);
+  if (!ctx) return "";
+  const caught = stealsBy(norm).filter(x => x.caught).length;
+  return `<div class="leg-live-context">&#9918; ${ctx.inningLabel} &middot; batting ${ordinal(ctx.slot)} &middot; needs to reach base${caught ? ` &middot; caught stealing ${caught === 1 ? "once" : caught + "x"}` : ""}</div>${link(ctx.gamePk)}`;
+}
+
+// Every steal attempt by one player on the slate on screen, in game order.
+function stealsBy(norm) {
+  const out = [];
+  RESULTS.gameInfo.forEach(game => (game.steals || []).forEach(st => { if (normalizeName(st.runner) === norm) out.push(st); }));
+  return out;
+}
+
+function marketTag(market) {
+  return market === "sb" ? ` <span class="mkt-tag sb" title="Stolen base bet">STEAL</span>` : "";
 }
 
 // 'now' | 'soon' | null. Same eligibility rule as the tag above: leg must
@@ -1375,22 +1524,26 @@ function moneyRainHtml() {
 // his first home run, and a bet can't have been complete without him, so it
 // completed on this swing (or shares the poll with a teammate's -- then both
 // alerts say so, which is true of both).
-function betsCashedBy(slate, playerName) {
+function betsCashedBy(slate, playerName, market) {
   const norm = normalizeName(playerName);
+  const mkt = market === "sb" ? "sb" : "hr";
+  // only bets he's on IN THIS MARKET: his steal mustn't announce a parlay his
+  // home run leg finished an hour ago
+  const mine = l => normalizeName(l.player) === norm && legMarket(l) === mkt;
   const saved = RESULTS;
   RESULTS = slate.results;
   try {
     const cashed = [];
     (slate.tickets.windows || []).forEach(w => (w.tickets || []).forEach(tk => {
       const legs = tk.legs || [];
-      if (!legs.some(l => normalizeName(l.player) === norm)) return;
-      const res = evaluateTicket(tk, legs.map(l => stateForPlayer(l.player)));
+      if (!legs.some(mine)) return;
+      const res = evaluateTicket(tk, legs.map(stateForLeg));
       if (res.outcome === "hit") cashed.push({ kind: "parlay", legs: legs.length, payout: res.adjustedPayout || 0 });
     }));
     (slate.tickets.singles || []).forEach(sg => {
       // Checked, not assumed: the alert only asks about someone who just homered,
       // but the answer should be right whoever asks.
-      if (normalizeName(sg.player) === norm && stateForPlayer(sg.player) === "hit") {
+      if (mine(sg) && stateForLeg(sg) === "hit") {
         cashed.push({ kind: "single", legs: 1, payout: sg.payout || 0 });
       }
     });
@@ -1432,18 +1585,21 @@ function showNextBomb() {
     bombTimer = null;
     return;
   }
-  const { name, cash } = next;
+  const { name, cash, steal } = next;
+  const emoji = steal ? "&#127939;" : "&#128163;";
+  const word = steal ? `STOLE ${escapeHtml(String(steal.base || "a base").toUpperCase())}!` : "BOMB!";
+  const kindCls = steal ? " steal" : "";
   host.innerHTML = cash
     ? `<div class="bomb-flash cash"></div>${moneyRainHtml()}
-    <div class="bomb-card cash">
-      <span class="bomb-emojis"><span class="bomb-emoji">&#128163;</span><span class="bomb-emoji">&#128176;</span></span>
-      <span><span class="bomb-name">${escapeHtml(name)}</span><span class="bomb-word">BOMB!</span>
+    <div class="bomb-card cash${kindCls}">
+      <span class="bomb-emojis"><span class="bomb-emoji">${emoji}</span><span class="bomb-emoji">&#128176;</span></span>
+      <span><span class="bomb-name">${escapeHtml(name)}</span><span class="bomb-word">${word}</span>
         <span class="bomb-cash">&#128176; ${escapeHtml(cash.label)}<span class="amt">${escapeHtml(cash.amount)}</span></span></span>
     </div>`
-    : `<div class="bomb-flash"></div>
-    <div class="bomb-card">
-      <span class="bomb-emoji">&#128163;</span>
-      <span><span class="bomb-name">${escapeHtml(name)}</span><span class="bomb-word">BOMB!</span></span>
+    : `<div class="bomb-flash${kindCls}"></div>
+    <div class="bomb-card${kindCls}">
+      <span class="bomb-emoji">${emoji}</span>
+      <span><span class="bomb-name">${escapeHtml(name)}</span><span class="bomb-word">${word}</span></span>
       ${confettiHtml()}
     </div>`;
   host.classList.add("active");
@@ -1466,15 +1622,32 @@ function fireBomb(playerName, cash) {
   }
 }
 
-// Every player named in a slate, deduped by normalized name so a player in
-// several legs is only ever one notification.
-function pickedNamesOf(tickets) {
+// The steal twin of fireBomb(): same two channels, same queue, its own look.
+function fireSteal(playerName, base, cash) {
+  const runner = String.fromCodePoint(0x1F3C3), bag = String.fromCodePoint(0x1F4B0);
+  if (PUSH_ON && supportsNotification() && window.Notification.permission === "granted") {
+    try {
+      new window.Notification(`${playerName} stole ${base}! ${runner}${cash ? bag : ""}`, {
+        body: cash ? `${cash.label}${cash.amount ? ` - ${cash.amount}` : ""} - bmbs.bet` : "Stolen base - bmbs.bet",
+        tag: `steal-${normalizeName(playerName)}`
+      });
+    } catch (e) { /* some browsers throw when constructed outside a SW */ }
+  }
+  if (OVERLAY_ON && document.visibilityState === "visible") {
+    BOMB_QUEUE.push({ name: playerName, cash: cash || null, steal: { base } });
+    if (!bombTimer) showNextBomb();
+  }
+}
+
+// Every player named in a slate FOR ONE MARKET, deduped by normalized name so a
+// player in several legs is only ever one notification. The market matters: a
+// home run by someone we only have to STEAL isn't our bomb, and vice versa.
+function pickedNamesOf(tickets, market) {
   const byNorm = new Map();
   if (!tickets) return byNorm;
-  (tickets.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(l => {
-    if (l.player) byNorm.set(normalizeName(l.player), l.player);
-  })));
-  (tickets.singles || []).forEach(s => { if (s.player) byNorm.set(normalizeName(s.player), s.player); });
+  const take = l => { if (l.player && (!market || legMarket(l) === market)) byNorm.set(normalizeName(l.player), l.player); };
+  (tickets.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(take)));
+  (tickets.singles || []).forEach(take);
   return byNorm;
 }
 
@@ -1494,17 +1667,32 @@ function checkForBombs() {
 
   const hitNames = slate.results.hitNames || new Set();
   const fresh = [];
-  pickedNamesOf(slate.tickets).forEach((display, norm) => {
+  pickedNamesOf(slate.tickets, "hr").forEach((display, norm) => {
     if (!hitNames.has(norm) || BOMB_STATE.notified.has(norm)) return;
     BOMB_STATE.notified.add(norm);
     fresh.push(display);
+  });
+
+  // Steal picks: announced on the first stolen base, which is the one that
+  // cashes the leg. Same notified set (prefixed), so the same seeding applies.
+  const sbNames = slate.results.sbNames || new Set();
+  const freshSteals = [];
+  pickedNamesOf(slate.tickets, "sb").forEach((display, norm) => {
+    if (!sbNames.has(norm) || BOMB_STATE.notified.has("sb:" + norm)) return;
+    BOMB_STATE.notified.add("sb:" + norm);
+    let base = "a base";
+    slate.results.gameInfo.forEach(game => (game.steals || []).forEach(st => {
+      if (base === "a base" && !st.caught && normalizeName(st.runner) === norm) base = st.base;
+    }));
+    freshSteals.push({ display, base });
   });
 
   if (!BOMB_STATE.seeded) {
     BOMB_STATE.seeded = true; // first poll for this slate: record, don't announce
     return;
   }
-  fresh.forEach(name => fireBomb(name, cashSummary(betsCashedBy(slate, name))));
+  fresh.forEach(name => fireBomb(name, cashSummary(betsCashedBy(slate, name, "hr"))));
+  freshSteals.forEach(({ display, base }) => fireSteal(display, base, cashSummary(betsCashedBy(slate, display, "sb"))));
 }
 
 // ---------------- home run log ----------------
@@ -1563,9 +1751,9 @@ function relevantHrNames() {
   if (!TICKETS) return set;
   const picked = [];
   (TICKETS.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(l => {
-    if (l.player) picked.push(l.player);
+    if (l.player && legMarket(l) === "hr") picked.push(l.player);
   })));
-  (TICKETS.singles || []).forEach(s => { if (s.player) picked.push(s.player); });
+  (TICKETS.singles || []).forEach(s => { if (s.player && legMarket(s) === "hr") picked.push(s.player); });
   picked.forEach(name => {
     set.add(normalizeName(name));
     const php = pinchHitProtection(name);
@@ -1673,7 +1861,12 @@ const LS_LIVEAB = "bmbs.liveab.open";
 // prevEligible: who had a live leg as of the previous poll -- a hitter who just
 //               homered is "hit" now and no longer eligible, but was a poll ago
 // flashes:      normalized name -> finished at-bat still holding its tile
-const LAB = { date: null, seeded: false, seen: new Set(), prevEligible: new Map(), flashes: new Map() };
+// seenSteals / prevOnBase are the steal-bet twins of seen / prevEligible: steal
+// attempts already accounted for, and which steal picks were standing on a base
+// a poll ago (so leaving the bases without a steal can be said out loud).
+// Flashes are keyed by normalized name for an at-bat result and "sb:"+name for
+// a steal result, so one player can't have the two fight over a tile.
+const LAB = { date: null, seeded: false, seen: new Set(), prevEligible: new Map(), flashes: new Map(), seenSteals: new Set(), prevOnBase: new Map() };
 let labTimer = null;
 
 // The only outcomes worth announcing: ones that actually end a plate
@@ -1701,11 +1894,13 @@ const LAB_PA_RESULTS = new Set([
 // leave nothing to show -- the panel says why.)
 function labEligiblePicks() {
   const picks = new Map();
-  function add(player, odds, rawWho, iron) {
+  function add(player, odds, rawWho, iron, market) {
     const norm = normalizeName(player);
     let pick = picks.get(norm);
-    if (!pick) { pick = { norm, player, odds: [], whos: [], iron: false }; picks.set(norm, pick); }
-    if (odds && !pick.odds.includes(odds)) pick.odds.push(odds);
+    if (!pick) { pick = { norm, player, odds: [], oddsSb: [], whos: [], iron: false, hr: false, sb: false }; picks.set(norm, pick); }
+    const list = market === "sb" ? pick.oddsSb : pick.odds;
+    pick[market === "sb" ? "sb" : "hr"] = true;
+    if (odds && !list.includes(odds)) list.push(odds);
     const who = whoDisplayName(rawWho);
     if (who && !pick.whos.includes(who)) pick.whos.push(who);
     if (iron) pick.iron = true;
@@ -1713,13 +1908,13 @@ function labEligiblePicks() {
   EVALUATED.forEach(({ tk, states, evalRes }) => {
     if (!isOpenOutcome(evalRes.outcome) || !ticketMatchesFilter(evalRes)) return;
     tk.legs.forEach((leg, i) => {
-      if (states[i] === "live" && legPassesFilters(states[i], leg.who, leg.player, true)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]));
+      if (states[i] === "live" && legPassesFilters(states[i], leg.who, leg.player, true)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]), legMarket(leg));
     });
   });
   EVALUATED_SINGLES.forEach(({ s, state, outcome, iron }) => {
     if (state !== "live" || outcome !== "live") return;
     if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(state, s.who, s.player, true)) return;
-    add(s.player, s.odds, s.who, iron);
+    add(s.player, s.odds, s.who, iron, legMarket(s));
   });
   return picks;
 }
@@ -1735,6 +1930,8 @@ function trackLiveAtBats() {
     LAB.seen = new Set();
     LAB.prevEligible = new Map();
     LAB.flashes = new Map();
+    LAB.seenSteals = new Set();
+    LAB.prevOnBase = new Map();
   }
   // EVALUATED describes whichever tab is on screen, so eligibility is only
   // knowable on Today. Off-tab polls still mark at-bats seen, so coming back
@@ -1754,9 +1951,40 @@ function trackLiveAtBats() {
     const norm = normalizeName(ab.batter);
     const pick = eligible.get(norm) || LAB.prevEligible.get(norm);
     if (!pick) return;
-    const homer = ab.eventType === "home_run";
-    LAB.flashes.set(norm, { pick, ab, homer, onBase: !homer && !ab.isOut, at: now, until: now + (homer ? LAB_HOMER_MS : LAB_RESULT_MS) });
+    // a home run only plays as a bomb on this tile if he's a home run pick
+    const homer = ab.eventType === "home_run" && pick.hr !== false;
+    LAB.flashes.set(norm, { pick, ab, homer, burst: homer, onBase: !homer && !ab.isOut, at: now, until: now + (homer ? LAB_HOMER_MS : LAB_RESULT_MS) });
   }));
+
+  // Steal attempts by steal picks: same once-only, seeded, not-stale rules.
+  const stoleNow = new Set();
+  slate.results.gameInfo.forEach(game => (game.steals || []).forEach(st => {
+    if (LAB.seenSteals.has(st.key)) return;
+    LAB.seenSteals.add(st.key);
+    if (!LAB.seeded || !onToday) return;
+    const when = Date.parse(st.time);
+    if (!Number.isNaN(when) && now - when > LAB_STALE_MS) return;
+    const norm = normalizeName(st.runner);
+    const pick = eligible.get(norm) || LAB.prevEligible.get(norm);
+    if (!pick || !pick.sb) return;
+    stoleNow.add(norm);
+    LAB.flashes.set("sb:" + norm, { pick, steal: st, burst: !st.caught, at: now, until: now + (st.caught ? LAB_RESULT_MS : LAB_HOMER_MS) });
+  }));
+
+  // A steal pick who was on base a poll ago and isn't now, with no attempt to
+  // show for it: say so, briefly, instead of letting the tile just vanish.
+  if (onToday) {
+    const onBaseNow = new Map();
+    eligible.forEach(pick => { if (pick.sb) { const on = onBaseContext(pick.player); if (on) onBaseNow.set(pick.norm, { pick, on }); } });
+    if (LAB.seeded) LAB.prevOnBase.forEach((was, norm) => {
+      if (onBaseNow.has(norm) || stoleNow.has(norm) || LAB.flashes.has("sb:" + norm) || !eligible.has(norm)) return;
+      const game = RESULTS.gameInfo.get(was.on.gamePk) || {};
+      const loc = RESULTS.rosterSide.get(norm);
+      const stranded = !loc || game.currentlyBattingSide !== loc.side || (game.outs || 0) >= 3;
+      LAB.flashes.set("sb:" + norm, { pick: was.pick, left: true, stranded, gamePk: was.on.gamePk, at: now, until: now + LAB_RESULT_MS });
+    });
+    LAB.prevOnBase = onBaseNow;
+  }
 
   LAB.seeded = true;
   if (onToday) LAB.prevEligible = eligible;
@@ -1769,10 +1997,20 @@ function labShortName(full) {
   return /^(jr\.?|sr\.?|ii|iii|iv)$/i.test(last) && parts.length > 2 ? `${parts[parts.length - 2]} ${last}` : last;
 }
 
+function fmtOdds(n) { return (n > 0 ? "+" : "") + n; }
+
 function labOddsText(odds) {
   if (odds.length <= 2) return odds.join("/");
   const nums = odds.map(oddsToNumber).filter(n => n !== null).sort((a, b) => a - b);
-  return nums.length ? `+${nums[0]} to +${nums[nums.length - 1]}` : odds[0];
+  return nums.length ? `${fmtOdds(nums[0])} to ${fmtOdds(nums[nums.length - 1])}` : odds[0];
+}
+
+// A home-run-only pick reads exactly as it always has; a steal price is labelled.
+function labOddsHtml(pick) {
+  const hr = pick.odds && pick.odds.length ? escapeHtml(labOddsText(pick.odds)) : "";
+  const sb = pick.oddsSb && pick.oddsSb.length ? `<span class="ab-mkt">SB</span>${escapeHtml(labOddsText(pick.oddsSb))}` : "";
+  if (!sb) return hr;
+  return hr ? `<span class="ab-mkt" style="color:var(--text-dim)">HR</span>${hr} ${sb}` : sb;
 }
 
 function labPitchChip(pitch) {
@@ -1809,7 +2047,7 @@ function labOutsDots(outs) {
 function labTileShell(cls, tag, pick, link, inner) {
   const href = link ? ` href="${link}" target="_blank" rel="noopener"` : "";
   return `<a class="ab-tile ${cls}"${href} data-player="${escapeHtml(pick.player)}" title="${escapeHtml(pick.whos.join(", "))}">
-    <div class="ab-top"><span class="ab-tag">${tag}</span><span class="ab-odds">${escapeHtml(labOddsText(pick.odds))}${pick.iron ? ironMark() : ""}</span></div>
+    <div class="ab-top"><span class="ab-tag">${tag}</span><span class="ab-odds">${labOddsHtml(pick)}${pick.iron ? ironMark() : ""}</span></div>
     <div class="ab-name">${escapeHtml(pick.player)}</div>${inner}</a>`;
 }
 
@@ -1854,6 +2092,44 @@ function labResultTile(flash, now) {
     <div class="ab-line faint">${escapeHtml(detail.filter(Boolean).join(" \u00b7 "))}</div>${bomb}`);
 }
 
+function labDiamond(bases) {
+  const b = bases || {};
+  const bag = (x, y, on) => `<rect x="${x}" y="${y}" width="6" height="6" transform="rotate(45 ${x + 3} ${y + 3})" class="${on ? "on" : ""}"/>`;
+  return `<svg class="ab-diamond" viewBox="0 0 26 18" aria-hidden="true">${bag(10, 1, b.second)}${bag(1, 10, b.third)}${bag(19, 10, b.first)}</svg>`;
+}
+
+// A steal pick standing on a base: the one moment a steal bet can cash.
+function labOnBaseTile(pick, on) {
+  const game = RESULTS.gameInfo.get(on.gamePk) || {};
+  const who = escapeHtml(pick.whos.join(", "));
+  const lane = on.nextOpen ? `${on.nextLabel} is open` : `blocked &mdash; runner on ${on.nextLabel}`;
+  const scene = [on.batter ? `${escapeHtml(labShortName(on.batter))} batting` : "", on.pitcher ? `vs ${escapeHtml(labShortName(on.pitcher))}` : "", who].filter(Boolean).join(" &middot; ");
+  return labTileShell(`onbag${on.nextOpen ? "" : " blocked"}`, `ON ${on.baseLabel}`, pick, on.gamedayLink, `
+    <div class="ab-line">${labDiamond(game.bases)}${on.inningLabel} ${labOutsDots(on.outs)}</div>
+    <div class="ab-line">${lane}</div>
+    <div class="ab-line faint">${scene}</div>`);
+}
+
+function labStealResultTile(flash, now) {
+  const { pick, steal } = flash;
+  const who = pick.whos.join(", ");
+  if (flash.left) {
+    return labTileShell("result onbase", flash.stranded ? "STRANDED" : "OFF THE BASES", pick, gamedayUrl(flash.gamePk), `
+      <div class="ab-result">${flash.stranded ? "Left on base" : "No longer on base"}</div>
+      <div class="ab-line faint">${escapeHtml(["no steal that trip", who].filter(Boolean).join(" \u00b7 "))}</div>`);
+  }
+  if (steal.caught) {
+    return labTileShell("result", "CAUGHT", pick, gamedayUrl(steal.gamePk), `
+      <div class="ab-result">Caught stealing ${escapeHtml(steal.base)}</div>
+      <div class="ab-line faint">${escapeHtml(["still needs one", who].filter(Boolean).join(" \u00b7 "))}</div>`);
+  }
+  const burst = now < flash.at + LAB_BOMB_MS
+    ? `<div class="ab-bomb swipe"><span class="e">&#127939;</span><span class="n">${escapeHtml(pick.player.toUpperCase())}</span></div>` : "";
+  return labTileShell("result swiped", "SAFE", pick, gamedayUrl(steal.gamePk), `
+    <div class="ab-result">Stole ${escapeHtml(steal.base)}!</div>
+    <div class="ab-line faint">${escapeHtml([steal.pitcher ? `off ${labShortName(steal.pitcher)}` : "", who].filter(Boolean).join(" \u00b7 "))}</div>${burst}`);
+}
+
 function labFilterLabel() {
   const bits = [];
   if (CURRENT_FILTER) bits.push({ open: "Open bets", irons: "Irons", hit: "Hit bets", dead: "Missed bets" }[CURRENT_FILTER] || CURRENT_FILTER);
@@ -1864,17 +2140,26 @@ function labFilterLabel() {
   return bits.join(" + ");
 }
 
-function liveAbSubText(collapsed, nowCount, soonCount) {
+function slateHasSteals() {
+  if (!TICKETS) return false;
+  return (TICKETS.windows || []).some(w => (w.tickets || []).some(t => (t.legs || []).some(l => legMarket(l) === "sb")))
+    || (TICKETS.singles || []).some(s => legMarket(s) === "sb");
+}
+
+function liveAbSubText(collapsed, nowCount, soonCount, onCount) {
   const filtered = labFilterLabel();
+  const steals = slateHasSteals();
   if (filtered) {
     const head = collapsed ? "Tap to expand &mdash; " : "";
-    const counts = [nowCount ? `<b>${nowCount}</b> at the plate` : "", soonCount ? `<b>${soonCount}</b> due up` : ""].filter(Boolean).join(", ");
+    const counts = [nowCount ? `<b>${nowCount}</b> at the plate` : "", onCount ? `<b>${onCount}</b> on base` : "", soonCount ? `<b>${soonCount}</b> due up` : ""].filter(Boolean).join(", ");
     return `${head}Filtered to <b>${escapeHtml(filtered)}</b>: ${counts || "nobody up or due"}.`;
   }
+  if (!collapsed && steals) return `Home run picks at the plate or due up, steal picks on base. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
   if (!collapsed) return `Your picks at the plate or guaranteed to bat this inning, pitch by pitch. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
-  if (!nowCount && !soonCount) return "Tap to expand &mdash; none of your picks are due up right now.";
+  if (!nowCount && !soonCount && !onCount) return "Tap to expand &mdash; none of your picks are due up right now.";
   const bits = [];
   if (nowCount) bits.push(`<b>${nowCount}</b> at the plate`);
+  if (onCount) bits.push(`<b>${onCount}</b> on base`);
   if (soonCount) bits.push(`<b>${soonCount}</b> due up this inning`);
   return `Tap to expand &mdash; ${bits.join(", ")}.`;
 }
@@ -1898,15 +2183,26 @@ function renderLiveAtBats() {
   LAB.flashes.forEach((flash, norm) => { if (flash.until <= now) LAB.flashes.delete(norm); });
 
   const tiles = [];
-  LAB.flashes.forEach(flash => tiles.push({ rank: 0, order: flash.at, html: labResultTile(flash, now) }));
-  let nowCount = 0, soonCount = 0;
-  labEligiblePicks().forEach(pick => {
-    if (LAB.flashes.has(pick.norm)) return;   // his result is still on screen
+  let nowCount = 0, soonCount = 0, onCount = 0;
+  const picksNow = labEligiblePicks();
+  // A steal pick who reaches base goes straight to his on-base tile: the
+  // "Single" result would only sit in front of the thing worth watching.
+  picksNow.forEach(pick => { if (pick.sb && LAB.flashes.has(pick.norm) && !LAB.flashes.get(pick.norm).homer && onBaseContext(pick.player)) LAB.flashes.delete(pick.norm); });
+  LAB.flashes.forEach(flash => tiles.push({ rank: 0, order: flash.at, html: flash.steal || flash.left ? labStealResultTile(flash, now) : labResultTile(flash, now) }));
+  picksNow.forEach(pick => {
+    if (LAB.flashes.has(pick.norm) || LAB.flashes.has("sb:" + pick.norm)) return;   // his result is still on screen
+    const on = pick.sb ? onBaseContext(pick.player) : null;
+    if (on) {
+      onCount++;
+      // open base ahead first, then the hitters, then runners with nowhere to go
+      tiles.push({ rank: 1, order: on.nextOpen ? 0 : 2, html: labOnBaseTile(pick, on) });
+      return;
+    }
     const ctx = liveContextForPlayer(pick.player);
     if (!ctx || ctx.substitutedBy) return;
     if (ctx.isCurrentlyBatting) {
       nowCount++;
-      tiles.push({ rank: 1, order: 0, html: labNowTile(pick, ctx) });
+      tiles.push({ rank: 1, order: 1, html: labNowTile(pick, ctx) });
     } else if (ctx.guaranteedThisHalfInning) {
       soonCount++;
       // soonest first: the side batting now, then the side due up next half
@@ -1918,15 +2214,15 @@ function renderLiveAtBats() {
   grid.innerHTML = tiles.length
     ? tiles.map(t => t.html).join("")
     : `<p class="liveab-empty">${labFilterLabel()
-        ? `Nobody matching <b>${escapeHtml(labFilterLabel())}</b> is at the plate or due up. Clear the filter to see everyone.`
-        : "None of your picks are at the plate or due up this inning. Tiles appear here the moment one is."}</p>`;
-  countEl.textContent = nowCount || soonCount ? [nowCount ? `${nowCount} UP` : "", soonCount ? `${soonCount} DUE` : ""].filter(Boolean).join(" \u00b7 ") : "";
-  document.getElementById("liveab-sub").innerHTML = liveAbSubText(collapsed, nowCount, soonCount);
+        ? `Nobody matching <b>${escapeHtml(labFilterLabel())}</b> is at the plate${slateHasSteals() ? ", on base" : ""} or due up. Clear the filter to see everyone.`
+        : `None of your picks are at the plate${slateHasSteals() ? ", on base" : ""} or due up this inning. Tiles appear here the moment one is.`}</p>`;
+  countEl.textContent = nowCount || soonCount || onCount ? [nowCount ? `${nowCount} UP` : "", onCount ? `${onCount} ON BASE` : "", soonCount ? `${soonCount} DUE` : ""].filter(Boolean).join(" \u00b7 ") : "";
+  document.getElementById("liveab-sub").innerHTML = liveAbSubText(collapsed, nowCount, soonCount, onCount);
 
   let next = Infinity;
   LAB.flashes.forEach(flash => {
     const bombEnds = flash.at + LAB_BOMB_MS;
-    next = Math.min(next, flash.homer && now < bombEnds ? bombEnds : flash.until);
+    next = Math.min(next, (flash.homer || flash.burst) && now < bombEnds ? bombEnds : flash.until);
   });
   if (next !== Infinity) labTimer = setTimeout(renderLiveAtBats, Math.max(50, next - now + 20));
 }
@@ -1957,7 +2253,7 @@ function computeAll() {
   EVALUATED = [];
   TICKETS.windows.forEach((win) => {
     win.tickets.forEach((tk) => {
-      const states = tk.legs.map(leg => stateForPlayer(leg.player));
+      const states = tk.legs.map(stateForLeg);
       const evalRes = evaluateTicket(tk, states);
       EVALUATED.push({ win, tk, states, evalRes });
 
@@ -1979,7 +2275,7 @@ function computeAll() {
 
   EVALUATED_SINGLES = [];
   TICKETS.singles.forEach((s) => {
-    const state = stateForPlayer(s.player);
+    const state = stateForLeg(s);
     const outcome = singleOutcome(state);
     const iron = singleIsIron(state, outcome);
     EVALUATED_SINGLES.push({ s, state, outcome, iron });
@@ -2014,11 +2310,15 @@ function computeAll() {
       <div class="bettor-stats">
         <div class="bettor-stat hit"><div class="num">${r.hit}</div><div class="lbl">HIT</div></div>
         <div class="bettor-stat miss"><div class="num">${r.miss}</div><div class="lbl">MISS</div></div>
-        <div class="bettor-stat odds"><div class="num">${r.avg !== null ? "+" + Math.round(r.avg) : "\u2014"}</div><div class="lbl">AVG HIT</div></div>
-        <div class="bettor-stat odds"><div class="num">${r.max !== null ? "+" + r.max : "\u2014"}</div><div class="lbl">BEST HIT</div></div>
+        <div class="bettor-stat odds"><div class="num">${r.avg !== null ? fmtOdds(Math.round(r.avg)) : "\u2014"}</div><div class="lbl">AVG HIT</div></div>
+        <div class="bettor-stat odds"><div class="num">${r.max !== null ? fmtOdds(r.max) : "\u2014"}</div><div class="lbl">BEST HIT</div></div>
       </div>
     </div>`).join("");
   document.getElementById("bettor-list").innerHTML = bettorHtml || `<p style="color:var(--text-faint); font-size:12px;">No bettor data yet.</p>`;
+
+  const mixed = slateHasSteals();
+  document.getElementById("legend-hit").textContent = mixed ? "Home run / steal" : "Home run";
+  document.getElementById("legend-miss").textContent = mixed ? "Game final, missed" : "Game final, no HR";
 
   document.getElementById("dynamic-note").innerHTML =
     `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live MLB results."}`;
@@ -2062,9 +2362,9 @@ function renderContent() {
         const leg = tk.legs[i];
         const state = states[i];
         html += `<div class="leg state-${state}">
-          <div class="leg-left"><div class="leg-player">${leg.player}${isIronLeg(evalRes, state) ? ironMark() : ""}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen)}</div>
+          <div class="leg-left"><div class="leg-player">${leg.player}${marketTag(legMarket(leg))}${isIronLeg(evalRes, state) ? ironMark() : ""}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen, legMarket(leg))}</div>
           <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
-          ${badge(state, leg.player)}
+          ${badge(state, leg.player, legMarket(leg))}
         </div>`;
       });
       if (visibleLegIdx.length < tk.legs.length) {
@@ -2102,11 +2402,11 @@ function renderContent() {
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
     html += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live")}
+      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}${marketTag(legMarket(s))}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s))}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>
-      ${badge(state, s.player)}
+      ${badge(state, s.player, legMarket(s))}
     </div>`;
   });
   html += `</div></div>`;

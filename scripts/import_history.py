@@ -198,8 +198,8 @@ def pick_days(parlays, pick):
     days = {}
     for p in parlays:
         for leg in p["legs"]:
-            if leg.get("php"):
-                continue   # credited through a substitute's home run: MLB's log rightly says he didn't homer
+            if leg.get("php") or leg.get("market") == "sb":
+                continue   # a substitute's homer, or a steal bet: MLB's HOME RUN log has nothing to say about either
             if leg["pick"] == pick and leg["status"] in ("hit", "miss") and days.get(p["date"]) != "hit":
                 days[p["date"]] = leg["status"]
     return days
@@ -221,6 +221,8 @@ def agreement(sheet_days, log):
 def got_away(parlays, players, fetcher=fetch):
     slates = sorted({p["date"] for p in parlays})
     seasons = sorted({d[:4] for d in slates})
+    # "Got away" is about home runs: a day he was only picked to STEAL is a day nobody had his homer
+    parlays = [dict(p, legs=[leg for leg in p["legs"] if leg.get("market") != "sb"]) for p in parlays]
     counts = {}
     for p in parlays:
         for leg in p["legs"]:
@@ -293,6 +295,8 @@ def recorded_parlays(slates, players):
             leg["name"] = src["player"]
         if src.get("team"):
             leg["team"] = src["team"]
+        if src.get("market") == "sb":
+            leg["market"] = "sb"
         if src.get("php"):
             leg["php"] = src["php"]
         dists = [hr["distance"] for hr in src.get("homeRuns") or [] if hr.get("distance")]

@@ -678,7 +678,7 @@ function renderLog() {
     if (p.kind === "single") row.append(el("span", { class: "kind", text: "Single" }));
     for (const l of p.legs) {
       const leg = el("span", { class: "leg " + l.status + (b && l.bettor === b ? " mine" : ""), title: l.name || null });
-      leg.append(document.createTextNode((LEG_MARK[l.status] || "") + " " + l.pick + " "), el("span", { class: "who", text: l.bettor + (l.odds ? " " + fmtOdds(l.odds) : "") }));
+      leg.append(document.createTextNode((LEG_MARK[l.status] || "") + " " + l.pick + " "), el("span", { class: "who", text: (l.market === "sb" ? "SB · " : "") + l.bettor + (l.odds ? " " + fmtOdds(l.odds) : "") }));
       const extra = [l.php ? "PHP: " + l.php : null, l.status === "hit" && l.dist ? l.dist + " ft" : null].filter(Boolean).join(" · ");
       if (extra) leg.append(el("span", { class: "extra", text: " · " + extra }));
       row.append(leg);

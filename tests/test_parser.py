@@ -147,4 +147,67 @@ assert len(h_windows) == 2, len(h_windows)
 print("OK: third template (\"Ticket #N (...)\" cards under \"Part N:\" headers) "
       "parses 1 single + 3 cards (10 legs) across 2 sections")
 
+# --- 6. stolen base bets. No real steal card exists yet (2026-09-19), so the
+# parser accepts the marker wherever a card might plausibly put it: on the leg,
+# on the ticket header, or on a section header. Home run legs carry NO market
+# field, so a home-run-only card's tickets.json is unchanged by any of this.
+sb_text = """Part 1: Evening Window
+Ticket #1 (Memo - $5 Bet) [PP: $61.00]
+* (Kenny) Elly De La Cruz - CIN (-120) SB - 6:40 PM ET
+* (Joe) Kyle Schwarber - PHI (+240) - 4:10 PM ET
+
+Ticket #2 (Memo - $5 Bet) [PP: $40.00] - Stolen Bases
+* (Bernie) Jose Ramirez - CLE (+150) - 8:10 PM ET
+* (Noid) Bobby Witt - KC (+130) - 6:40 PM ET
+
+Part 2: Stolen Base Singles
+Ticket #3 (Kenny - $5 Bet) [PP: $12.50]
+* (Kenny) Chandler Simpson - TB (+150) - 4:10 PM ET
+
+Part 3: Bonus Bets
+Ticket #4 (Kenny - $5 Bet) [PP: $30.00]
+* (Kenny) Pete Alonso - BAL (+500) - 4:05 PM ET
+"""
+s_windows, s_singles, _ = pp.parse(sb_text, team_by_name, canon)
+mixed, all_sb = s_windows[0]["tickets"]
+# one ticket, two markets; minus money keeps its sign
+assert [(l["player"], l["odds"], l.get("market")) for l in mixed["legs"]] == [
+    ("Elly De La Cruz", "-120", "sb"), ("Kyle Schwarber", "+240", None)], mixed["legs"]
+# a marker on the ticket header covers every leg under it
+assert [l.get("market") for l in all_sb["legs"]] == ["sb", "sb"], all_sb["legs"]
+# a section header's marker lasts until the next header, and no longer
+assert [(x["player"], x.get("market")) for x in s_singles] == [("Chandler Simpson", "sb"), ("Pete Alonso", None)], s_singles
+# every earlier fixture is a home run card: not one leg or single may have grown a market
+for wins, sgl in ((g_windows, g_singles), (m_windows, m_singles), (t_windows, t_singles), (h_windows, h_singles)):
+    assert not any("market" in l for w in wins for c in w["tickets"] for l in c["legs"]) and not any("market" in x for x in sgl)
+plain = "* (Kenny) Pete Alonso - BAL (+500) - 4:05 PM ET"
+assert pp.take_market(plain) == (plain, False)
+print("OK: steal markers on a leg / ticket / section; mixed parlays; minus-money odds; home run cards unchanged")
+
+# --- 7. the first REAL card with a steal on it (2026-09-19). Tickets 1-16 are the
+# third template with "-" bullets and upper-case "PART N:" headers; "PART 6: LATE
+# ADDITIONS" adds a combined-odds bracket to the ticket header and spells the
+# market out on every leg, with a matchup instead of a team and no per-leg bettor.
+# Before this was handled, tickets 17-18 were dropped WITHOUT A WORD.
+prop_text = (REPO / "tests" / "fixtures" / "discord_prop_legs_with_steals.txt").read_text(encoding="utf-8")
+p_windows, p_singles, _ = pp.parse(prop_text, team_by_name, canon)
+assert sum(len(w["tickets"]) for w in p_windows) == 18 and sum(len(c["legs"]) for w in p_windows for c in w["tickets"]) == 44
+assert pp.parse.unread == [], pp.parse.unread
+late = p_windows[-1]
+assert late["title"] == "PART 6: LATE ADDITIONS" and [c["name"] for c in late["tickets"]] == ["Card 17", "Card 18"]
+t17 = late["tickets"][0]
+assert (t17["stake"], t17["payout"], t17["book"]) == (5.0, 151.25, "Bailey"), t17          # the [+2925] bracket is skipped over
+assert [(l["player"], l["team"], l["odds"], l.get("market"), l["who"], l["time"]) for l in t17["legs"]] == [
+    ("Josh Naylor", "SEA", "+450", "sb", "Bailey", "8:10 PM ET"),      # "Stolen Bases O0.5" -> a steal leg; team comes from the roster
+    ("Ben Rice", "NYY", "+450", None, "Bailey", "8:10 PM ET")], t17["legs"]   # "Home Runs O0.5" -> an ordinary home run leg
+# nothing in the 16 ordinary tickets grew a market
+assert not any("market" in l for w in p_windows[:-1] for c in w["tickets"] for l in c["legs"])
+# a bet line nobody understands is reported, never silently dropped
+pp.parse("Part 1: X" + chr(10) + "Ticket #1 (Memo - nine dollars) [PP: $10]" + chr(10) + "- (Joe) Pete Alonso - BAL (+360) - 4:05 PM ET", team_by_name, canon)
+assert len(pp.parse.unread) == 2, pp.parse.unread
+for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text):
+    pp.parse(fixture_text, team_by_name, canon)
+    assert pp.parse.unread == [], pp.parse.unread
+print("OK: real steal card parses all 18 tickets (prop-style legs, [+odds] header); unreadable bet lines are reported")
+
 print("\nALL PARSER TESTS PASSED")

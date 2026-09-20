@@ -848,6 +848,14 @@ on failure:
 - `tests/test_build_roster.py` — `scripts/build_roster.py`, fully offline: a
   fake fetcher standing in for the MLB API, checking suffixes and accents
   survive and a missing-abbreviation team or a name collision doesn't crash.
+- `tests/test_discord_bot.py` — `discord-bot/bot.py`'s confirm/discard/timeout
+  reaction flow and its GitHub Contents API push, plus `on_message`'s own
+  gating (other bots, wrong channel, an allow-list, non-`.txt` / unroutable /
+  empty attachments). Fully offline: a real (unconnected) `discord.Client` is
+  built so `client.dispatch("reaction_add", ...)` can deliver fake reactions
+  the same way discord.py's own gateway code would, and `requests.get`/`put`
+  are monkeypatched so nothing reaches GitHub. `route_for()` itself (file name
+  -> sport) is covered in `test_football_parser.py`, not repeated here.
 
 ```
 pip install -r tests/requirements.txt
@@ -856,6 +864,7 @@ python tests/test_parser.py && python tests/test_page.py && python tests/test_li
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py
+python tests/test_discord_bot.py
 python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 

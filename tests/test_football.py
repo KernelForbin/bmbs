@@ -172,6 +172,14 @@ def poll(page):
     page.evaluate("pollAndRender()")
 
 
+def expand_cards(page):
+    """Parlay Cards / Straight Bet Cards default to COLLAPSED (2026-09-20), and
+    Playwright's inner_text() only sees visible text. Every section below reads
+    the bet lists, so open both right after load."""
+    page.evaluate("CARDS_OPEN.parlays = CARDS_OPEN.singles = true;"
+                  " if (typeof TICKETS !== 'undefined' && TICKETS) renderContent();")
+
+
 def advance(page, seconds):
     FX["clock"] += timedelta(seconds=seconds)
     page.clock.set_fixed_time(FX["clock"])
@@ -223,6 +231,7 @@ with sync_playwright() as p:
     page.goto("http://bmbs.test/football/")
     page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
     page.evaluate("clearInterval(pollTimer)")
+    expand_cards(page)
     poll(page)
     check("A1 football page never calls MLB", not any("mlb.com" in u or "statsapi" in u for u in SEEN))
     check("A2 football page never reads the baseball tickets files",
@@ -250,11 +259,11 @@ with sync_playwright() as p:
     check("B1 everyone not started", set(st.values()) == {"not_started"}, str(st))
     check("B2 a Sunday-Monday card shows its span on the tab", page.inner_text("#tab-date-today") == "Sun, Sep 20 – Mon, Sep 21", page.inner_text("#tab-date-today"))
     check("B3 Live Drives: collapsed, and says nobody's playing",
-          page.evaluate("document.getElementById('drives-section').classList.contains('collapsed')") and "none of your picks are playing" in page.inner_text("#drives-sub"))
+          page.evaluate("document.getElementById('drives-section').classList.contains('collapsed')") and "offenses are on the field" in page.inner_text("#drives-sub"))
     check("B4 pre-game summaries aren't downloaded", count(r"summary\?event=") == 0)
     page.click(".drives-head")
 
-    # ---------- C. live: red zone, has the ball, on defense ----------
+    # ---------- C. live: red zone, on offense, nobody on defense ----------
     phi_lines = [statline("1", "Saquon Barkley", rushing=(3, 14, 0)), statline("2", "A.J. Brown", receiving=(1, 9, 0, 2))]
     FX["events"].update({"2001": event("2001", "in", 1, "8:41", (0, 0)), "2003": event("2003", "in", 1, "9:00")})
     FX["summaries"]["2001"] = summary("2001", "in", 1, "8:41", (0, 0), {"PHI": phi_lines},
@@ -266,16 +275,19 @@ with sync_playwright() as p:
           st["Saquon Barkley"] == "live" and st["Tony Pollard"] == "live" and st["Josh Allen"] == "not_started" and st["Puka Nacua"] == "not_started", str(st))
     t = tiles(page)
     kinds = [x["kind"] for x in t]
-    check("C2 red-zone offense first, then the picks waiting on their defense",
+    # 2026-09-20: a pick whose team is ON DEFENSE gets no tile at all now --
+    # baseball has never shown one for a player whose side isn't batting.
+    check("C2 red-zone offense only; picks waiting on their defense get no tile",
           {x["player"] for x in t if x["kind"] == "rz"} == {"Saquon Barkley", "A.J. Brown", "Inactive Guy", "Blocking Tight End"}
-          and {x["player"] for x in t if x["kind"] == "wait"} == {"Tony Pollard", "James Cook"}
+          and {x["player"] for x in t} == {"Saquon Barkley", "A.J. Brown", "Inactive Guy", "Blocking Tight End"}
           and kinds == sorted(kinds, key=["rz", "ball", "wait"].index), str([(x["player"], x["kind"], x["tag"]) for x in t]))
     barkley = next(x for x in t if x["player"] == "Saquon Barkley")
     check("C3 tile: down & distance, score/clock, his line so far, whose pick",
           all(s in barkley["text"] for s in ("RED ZONE", "2nd & 7 at TEN 12", "Q1 8:41", "3 car, 14 yds", "Kenny")), barkley["text"])
     check("C4 negative odds survive onto the tile", "-135" in barkley["text"])
     check("C5 the ticket row says it too", "IN THE RED ZONE" in ctx(page, "Saquon Barkley") and "1 rec, 9 yds (2 tgt)" in ctx(page, "A.J. Brown"), ctx(page, "A.J. Brown"))
-    check("C6 defense tiles are tagged", {x["tag"] for x in t if x["kind"] == "wait"} == {"ON DEFENSE"}, str({x["tag"] for x in t}))
+    check("C6 no ON DEFENSE / HALFTIME / BETWEEN DRIVES tiles survive", not [x for x in t if x["kind"] == "wait"]
+          and "ON DEFENSE" not in page.inner_text("#drives-grid"), str([(x["player"], x["tag"]) for x in t]))
     check("C7 header counts", page.inner_text("#drives-count") == "4 RED ZONE · 6 LIVE", page.inner_text("#drives-count"))
     check("C8 nothing announced yet", overlay(page) is None)
 
@@ -298,8 +310,15 @@ with sync_playwright() as p:
           barkley["ball"] and barkley["tag"] == "TOUCHDOWN" and t[0]["kind"] == "result", str(barkley))
     brown = next(x for x in t if x["player"] == "A.J. Brown")
     check("D5 his teammate's tile says the score wasn't his", brown["kind"] == "result" and brown["result"] == "TD — not him", str(brown))
-    check("D6 possession follows the LAST PLAY, not the stale 'current drive' team: TEN has it now",
-          {x["player"]: x["kind"] for x in t if x["player"] in ("Tony Pollard", "James Cook")} == {"Tony Pollard": "ball", "James Cook": "ball"}, str(t))
+    # Possession follows the LAST PLAY (TEN has it), but ESPN's `drives.current`
+    # still names PHI -- their drive object isn't open yet. That gap is exactly
+    # "taking the field soon": grey, not green, because TEN can't score on this
+    # play. Measured on real games 2026-09-20 at 65s / 82s / 179s wide.
+    ten = {x["player"]: (x["kind"], x["tag"]) for x in t if x["player"] in ("Tony Pollard", "James Cook")}
+    check("D6 possession flipped to TEN but their drive hasn't started -> TAKING THE FIELD SOON, not green",
+          ten == {"Tony Pollard": ("wait", "TAKING THE FIELD SOON"), "James Cook": ("wait", "TAKING THE FIELD SOON")}, str(ten))
+    check("D6b a pick whose team isn't playing at all still gets no tile",
+          not [x for x in t if x["player"] == "Josh Allen"], str([x["player"] for x in t]))
     check("D7 the ticket row describes the touchdown", "12-yd rush" in ctx(page, "Saquon Barkley") and "Q1 7:58" in ctx(page, "Saquon Barkley"), ctx(page, "Saquon Barkley"))
     page.click(".tdlog-head")
     rows = page.evaluate("[...document.querySelectorAll('#tdlog-list .hr-row')].map(r => [r.querySelector('.hr-batter').textContent, r.classList.contains('ours'), r.querySelector('.hr-dist').textContent, r.querySelector('.hr-ev').textContent])")
@@ -452,6 +471,7 @@ with sync_playwright() as p:
     page.reload()
     page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
     page.evaluate("clearInterval(pollTimer)")
+    expand_cards(page)
     poll(page)
     st = states(page)
     check("J1 every pick is already graded...", st == {"A.J. Brown": "miss", "Tony Pollard": "hit", "Saquon Barkley": "hit"}, str(st))
@@ -493,6 +513,7 @@ with sync_playwright() as p:
     page.goto("http://bmbs.test/football/")
     page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
     page.evaluate("clearInterval(pollTimer)")
+    expand_cards(page)
     poll(page)
 
     check("K1 the visitor really is on Pacific",
@@ -501,6 +522,90 @@ with sync_playwright() as p:
     check("K2 a Pacific visitor sees 1:30:00 PM ET, not their own 10:30:00 AM",
           line == "Live — last updated 1:30:00 PM ET", line)
     check("K3 no script errors", not errors, str(errors))
+    browser.close()
+
+    # ========== L: the LEGS chip row, the always-on status line, the header
+    # pills, and the collapsible bet sections (baseball's twins, 2026-09-20) ==========
+    # Rebuilt from scratch so the slate is fully graded and every leg state is
+    # represented: Sunday finished, Monday's card never kicked off.
+    SEEN.clear()
+    FX["clock"] = NOW
+    # Section J trimmed TICKETS down; rebuild a slate that carries every leg
+    # state at once -- a finished Sunday card and an untouched Monday one.
+    TICKETS["windows"][0]["tickets"] = [
+        card(1, [leg("Saquon Barkley", "PHI", "1", "Kenny", "-135"), leg("A.J. Brown", "PHI", "2", "Joe", "+120")]),
+        card(3, [leg("Puka Nacua", "LAR", "8", "Bailey", "-110"), leg("Kyren Williams", "LAR", "9", "Didge", "-150")]),
+    ]
+    TICKETS["singles"] = [single(0, "KENNY", "Saquon Barkley", "PHI", "1", "-135", 8.70),
+                          single(1, "JOE", "Inactive Guy", "PHI", "6", "+900", 50.0),
+                          single(2, "NOID", "Tony Pollard", "TEN", "3", "+250", 30.0)]
+    FX["events"] = {"2001": event("2001", "post", 4, "0:00", (21, 7)), "2002": event("2002", "post", 4, "0:00", (0, 0)),
+                    "2003": event("2003", "post", 4, "0:00", (0, 0)), "2004": event("2004", "pre", 1, "", (0, 0))}
+    td = scoring("p1", "PHI", "Rushing Touchdown", "Saquon Barkley 12 Yd Rush (Kick)", 1, "7:58", 7, 0)
+    FX["summaries"] = {
+        "2001": summary("2001", "post", 4, "0:00", (21, 7),
+                        {"PHI": [statline("1", "Saquon Barkley", rushing=(14, 96, 1)),
+                                 statline("2", "A.J. Brown", receiving=(4, 51, 0, 7))],
+                         "TEN": [statline("3", "Tony Pollard", rushing=(11, 38, 0))]}, [td]),
+        "2002": summary("2002", "post", 4, "0:00", (0, 0), {}),
+        "2003": summary("2003", "post", 4, "0:00", (0, 0), {}),
+    }
+    # "Inactive Guy" has no stat line and didn't dress -> void
+    FX["rosters"] = {"2001-" + TEAM_ID["PHI"]: {"entries": [{"playerId": "6", "didNotPlay": True}]}}
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 390, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.clock.set_fixed_time(NOW)
+    page.route("**/*", handler)
+    page.goto("http://bmbs.test/football/")
+    page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
+    page.evaluate("clearInterval(pollTimer)")
+    poll(page)
+
+    check("L1 both bet lists default to collapsed",
+          page.evaluate("""() => ["parlays", "singles"].every(k =>
+              document.getElementById(k + "-section").classList.contains("collapsed"))"""))
+    pills = page.evaluate("""() => ["parlays", "singles"].map(k =>
+        document.querySelector("#" + k + "-section .head-count").textContent)""")
+    check("L2 each header carries its own OPEN / HIT / MISSED pill", pills == ["1 OPEN · 1 MISSED", "1 OPEN · 1 HIT · 1 MISSED"], str(pills))
+    page.click("#parlays-section .cards-head")
+    check("L3 opening one is remembered and leaves the other closed",
+          page.evaluate("localStorage.getItem('bmbs.fb.cards.parlays')") == "1"
+          and page.evaluate("document.getElementById('singles-section').classList.contains('collapsed')"))
+    page.click("#singles-section .cards-head")
+    poll(page)
+    check("L4 an open section survives a re-render",
+          page.evaluate("""() => ["parlays", "singles"].every(k =>
+              !document.getElementById(k + "-section").classList.contains("collapsed"))"""))
+
+    legs = tuple(page.inner_text(f"#count-leg-{k}") for k in ("live", "hit", "miss", "na"))
+    check("L5 leg chips count every parlay leg and single", legs == ("2", "2", "2", "1"), str(legs))
+    check("L6 the Bettor Tracker header counts the slate's bettors",
+          page.inner_text("#bettor-count") == "5 BETTORS", page.inner_text("#bettor-count"))
+    check("L7 the Touchdown Log header carries ours / total / share",
+          page.inner_text("#tdlog-count") == "1 OURS · 1 TOTAL · 100%", page.inner_text("#tdlog-count"))
+
+    status = page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('#content .leg, #content .single-row')]
+        .map(r => [(r.querySelector('.leg-player, .single-player')).firstChild.textContent.trim(),
+                   (r.querySelector('.leg-status') || {}).textContent || ""]))""")
+    check("L8 a pick whose game never kicked off says so", "hasn't kicked off" in status["Puka Nacua"], str(status))
+    check("L9 an inactive pick says he's void", "Inactive" in status["Inactive Guy"], str(status))
+    check("L10 a hit needs no status line", status["Saquon Barkley"] == "", str(status))
+
+    page.click("#chip-leg-miss")
+    check("L11 the leg filter is set", page.evaluate("LEG_FILTER") == "miss")
+    card1 = page.evaluate("""() => { const t = [...document.querySelectorAll('#content .ticket')]
+        .find(x => x.querySelector('.ticket-name') && x.querySelector('.ticket-name').textContent === 'Card 1');
+        return t ? [...t.querySelectorAll('.leg-player')].map(e => e.firstChild.textContent.trim()) : null; }""")
+    check("L12 a missed-legs filter hides the non-missed leg of a mixed card",
+          card1 == ["A.J. Brown"] and "1 other leg(s) in this parlay hidden" in page.inner_text("#content"), str(card1))
+    page.click("#chip-leg-na")
+    names = page.evaluate("() => [...document.querySelectorAll('#content .single-player')].map(e => e.firstChild.textContent.trim())")
+    check("L13 switching to N/A shows only the void picks", names == ["Inactive Guy"], str(names))
+    page.click("#chip-leg-na")
+    check("L14 tapping the same chip clears it", page.evaluate("LEG_FILTER") is None)
+    check("L15 no script errors", not errors, str(errors))
     browser.close()
 
 print()

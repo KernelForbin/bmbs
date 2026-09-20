@@ -56,6 +56,7 @@
   .score-chip.miss .num { color:var(--red); }
   .score-chip.live-game .num { color:var(--amber); }
   .score-chip.pending .num { color:var(--text); }
+  .score-chip.na .num { color:var(--yellow); }
   .filter-status { display:none; align-items:center; justify-content:space-between; margin-top:8px; background:var(--green-dim); border:1px solid var(--green); border-radius:7px; padding:7px 10px; font-size:11.5px; color:var(--green); }
   .filter-status.active { display:flex; }
   .filter-status .clear-btn { cursor:pointer; text-decoration:underline; font-weight:600; }
@@ -81,6 +82,22 @@
   .bettor-stat.hit .num { color:var(--green); }
   .bettor-stat.miss .num { color:var(--red); }
   .bettor-stat.odds .num { color:var(--amber); }
+
+  .head-count { font-family:'Inter',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.03em; color:var(--text-dim); background:var(--bg); border:1px solid var(--panel-line); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  .head-count:empty { display:none; }
+
+  /* Parlay Cards / Straight Bet Cards -- the same collapsible shell as the
+     panels above them, so the whole page reads as one stack of sections. */
+  .cards-section { margin: 0 0 14px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 10px; }
+  .cards-section.collapsed { padding-bottom:14px; }
+  .cards-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; gap:8px; }
+  .cards-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .cards-chevron { color:var(--text-faint); font-size:12px; transition:transform .18s ease; flex:none; }
+  .cards-section.collapsed .cards-chevron { transform:rotate(-90deg); }
+  .cards-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 8px; }
+  .cards-section.collapsed .cards-body { display:none; }
+  .cards-body .window { margin-bottom:10px; }
+  .cards-body .window:last-child { margin-bottom:0; }
 
   .tdlog-section { margin: 0 0 14px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 10px; }
   .tdlog-section.collapsed { padding-bottom:14px; }
@@ -180,6 +197,10 @@
   .leg-action-tag { font-size:10px; font-weight:700; letter-spacing:.04em; margin-top:3px; padding:2px 7px; border-radius:5px; display:inline-block; }
   .leg-action-tag.now { background:var(--green-dim); color:var(--green); border:1px solid var(--green); }
   .leg-action-tag.soon { background:var(--amber); color:#1a1200; }
+  /* grey, deliberately: his offense has the ball coming but isn't on the field
+     yet, so it must not read like a live scoring chance */
+  .leg-action-tag.wait { background:transparent; color:var(--text-dim); border:1px dashed var(--panel-line); }
+  .leg-live-context.leg-status { color:var(--text-faint); }
   .gameday-link { display:inline-block; font-size:10px; color:var(--green); margin-top:3px; text-decoration:underline; }
   .leg-right { flex:none; text-align:right; }
   .leg-odds { font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:var(--amber); }
@@ -209,9 +230,6 @@
   .ticket-status.dead { color:var(--red); }
   .ticket-status.live { color:var(--text-dim); }
   .ticket-status.void { color:var(--yellow); }
-  .divider { text-align:center; color:var(--text-faint); font-size:12px; margin:24px 0; letter-spacing:.08em; }
-  .singles-title { font-family:'Oswald',sans-serif; font-size:17px; font-weight:700; margin:0 0 4px; }
-  .singles-sub { font-size:13px; color:var(--text-dim); margin:0 0 14px; }
   .single-row { display:flex; align-items:center; gap:10px; padding:10px 4px; border-top:1px solid var(--panel-line); }
   .single-row:first-of-type { border-top:none; }
   .single-left { flex:1; min-width:0; }
@@ -369,6 +387,18 @@
       <span class="clear-btn" onclick="toggleFilter(null)">Clear &times;</span>
     </div>
 
+    <p class="stat-row-label">LEGS &middot; tap to filter below</p>
+    <div class="scoreboard bets-row">
+      <div class="score-chip live-game clickable" id="chip-leg-live" onclick="toggleLegFilter('live')"><div class="num" id="count-leg-live">0</div><div class="lbl">LIVE</div></div>
+      <div class="score-chip hit clickable" id="chip-leg-hit" onclick="toggleLegFilter('hit')"><div class="num" id="count-leg-hit">0</div><div class="lbl">HIT</div></div>
+      <div class="score-chip miss clickable" id="chip-leg-miss" onclick="toggleLegFilter('miss')"><div class="num" id="count-leg-miss">0</div><div class="lbl">MISSED</div></div>
+      <div class="score-chip na clickable" id="chip-leg-na" onclick="toggleLegFilter('na')"><div class="num" id="count-leg-na">0</div><div class="lbl">N/A</div></div>
+    </div>
+    <div class="filter-status" id="leg-filter-status">
+      <span id="leg-filter-status-text"></span>
+      <span class="clear-btn" onclick="toggleLegFilter(null)">Clear &times;</span>
+    </div>
+
     </div>
   </header>
 
@@ -384,7 +414,7 @@
       <p class="drives-title">Live Drives <span class="drives-count" id="drives-count"></span></p>
       <span class="drives-chevron">&#9660;</span>
     </div>
-    <p class="drives-sub" id="drives-sub">Tap to expand &mdash; see who has the ball, and who's in the red zone.</p>
+    <p class="drives-sub" id="drives-sub">Tap to expand &mdash; see whose offense is on the field, and who's in the red zone.</p>
     <div class="drives-body">
       <div class="drives-grid" id="drives-grid"></div>
     </div>
@@ -392,7 +422,7 @@
 
   <div class="tdlog-section collapsed" id="tdlog-section">
     <div class="tdlog-head" onclick="toggleTdLog()">
-      <p class="tdlog-title">Touchdown Log</p>
+      <p class="tdlog-title">Touchdown Log <span class="head-count" id="tdlog-count"></span></p>
       <span class="tdlog-chevron">&#9660;</span>
     </div>
     <p class="tdlog-sub" id="tdlog-sub">Tap to expand &mdash; see every touchdown scored on this slate, or just your picks.</p>
@@ -407,7 +437,7 @@
 
   <div class="bettor-section collapsed" id="bettor-section">
     <div class="bettor-head" onclick="toggleBettorSection()">
-      <p class="bettor-title">Bettor Tracker</p>
+      <p class="bettor-title">Bettor Tracker <span class="head-count" id="bettor-count"></span></p>
       <span class="bettor-chevron">&#9660;</span>
     </div>
     <p class="bettor-sub" id="bettor-sub">Tap to expand &mdash; see hit/miss breakdown per person.</p>
@@ -446,6 +476,10 @@ let RESULTS = emptyResults();
 let pollTimer = null;
 let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'   (bet outcome)
 let BETTOR_FILTER = null;    // null | lowercased bettor key
+// Leg state, added 2026-09-20 -- baseball's twin, same four chips. Four, not
+// five: "not started" rides with LIVE so the row fits a phone, and the
+// always-on status line under each leg says which of the two it is.
+let LEG_FILTER = null;       // null | 'live' | 'hit' | 'miss' | 'na'
 let EVALUATED = [];          // [{ win, tk, states, evalRes }]  (parlay cards)
 let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
 
@@ -705,6 +739,14 @@ async function getGameSnapshot(game) {
     if (team) {
       drive = {
         id: (cur && cur.id) || "", team: team.abbr,
+        // Whose drive ESPN currently has open, which is NOT always who has the
+        // ball: a drive object only appears once its first play posts, so
+        // between a punt/turnover/score and the next snap the possession flag
+        // has already flipped while `drives.current` still names the team that
+        // just gave it up. That gap is the "taking the field soon" window --
+        // measured against live games 2026-09-20 at 65s, 82s and 179s, so it's
+        // several polls wide, not a flicker.
+        driveTeam: (cur && cur.team && cur.team.abbreviation) || "",
         downDistance: end.downDistanceText || sit.downDistanceText || "",
         shortDownDistance: end.shortDownDistanceText || sit.shortDownDistanceText || "",
         yardsToEndzone: toGo,
@@ -935,16 +977,23 @@ function liveContextForPlayer(playerName) {
   const line = lineForPick(playerName);
   const team = (line && line.team) || pick.team || "";
   const drive = game.drive;
-  const hasBall = !!(drive && team && drive.team === team);
+  const hasPossession = !!(drive && team && drive.team === team);
+  // "On offense" means his side is actually lined up: possession is theirs AND
+  // ESPN has their drive open. Possession without an open drive is the gap
+  // between the other team giving the ball up and this one snapping it.
+  // ESPN publishes no personnel data -- `play.participants` names only the
+  // players involved in a play (rusher, tackler, receiver), never the 11 on
+  // the field -- so "is HE on the field" is not knowable and isn't claimed.
+  const onOffense = hasPossession && (!drive.driveTeam || drive.driveTeam === team);
+  const takingFieldSoon = hasPossession && !onOffense;
   return {
     gamePk: game.gamePk, status: game.status, team,
     opponent: ["away", "home"].map(s => game.teams[s]).filter(t => t && t.abbr !== team).map(t => t.abbr)[0] || "",
     clockLabel: periodLabel(game),
     score: `${game.teams.away.abbr} ${game.teams.away.score}, ${game.teams.home.abbr} ${game.teams.home.score}`,
-    hasBall, redZone: hasBall && drive.redZone,
-    downDistance: hasBall ? drive.downDistance : "", yardsToEndzone: hasBall ? drive.yardsToEndzone : null,
-    driveDescription: hasBall ? drive.description : "", lastPlay: (drive && drive.lastPlay) || "",
-    opponentHasBall: !!(drive && team && drive.team !== team),
+    onOffense, takingFieldSoon, redZone: onOffense && drive.redZone,
+    downDistance: onOffense ? drive.downDistance : "", yardsToEndzone: onOffense ? drive.yardsToEndzone : null,
+    driveDescription: onOffense ? drive.description : "", lastPlay: (drive && drive.lastPlay) || "",
     line, statLine: statLineText(line), link: espnGameUrl(game.gamePk)
   };
 }
@@ -1081,24 +1130,52 @@ function tdWhenText(td) {
   return [q, td.clock].filter(Boolean).join(" ");
 }
 
+// The line that is ALWAYS under a pick, whatever state he's in. Before this a
+// leg whose game hadn't kicked off -- or whose player was inactive -- simply
+// showed nothing at all, which reads exactly like "we have no idea". Returns
+// "" only for a hit, where the touchdown line has already said it.
+function statusLineHtml(text) { return `<div class="leg-live-context leg-status">${text}</div>`; }
+
+function playerStatusLine(playerName, state) {
+  if (!RESULTS.ready) return statusLineHtml("Waiting on live results&hellip;");
+  if (state === "hit") return "";
+  if (state === "na") {
+    const pick = pickInfo(playerName);
+    return statusLineHtml(pick.id
+      ? "Inactive / didn't take the field &mdash; void / refunded."
+      : "Couldn't match this name to an NFL player &mdash; void / refunded.");
+  }
+  if (state === "miss") return statusLineHtml("Game final &mdash; no touchdown.");
+  const game = gameForPick(playerName);
+  if (!game) return statusLineHtml("No game found for his team this week.");
+  if (state === "not_started") {
+    return statusLineHtml(game.status === "preview" ? "Game hasn't kicked off yet." : "Waiting on the live feed.");
+  }
+  // live, but nothing worth a tag: his defense is on the field, or he hasn't touched it yet
+  return statusLineHtml(lineForPick(playerName) ? "In the game &mdash; no touchdown yet." : "Game on &mdash; hasn't touched the ball yet.");
+}
+
 // Small info line under a leg. `state` is this leg's own resolved state;
 // `betIsOpen` is whether the enclosing bet can still cash -- the RED ZONE /
-// HAS THE BALL tag only makes sense when both say "still alive".
+// ON OFFENSE tag only makes sense when both say "still alive".
 function liveContextHtml(playerName, state, betIsOpen) {
   const ctx = liveContextForPlayer(playerName);
-  if (!ctx) return "";
+  if (!ctx) return playerStatusLine(playerName, state);
   const link = `<a href="${ctx.link}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Track live on ESPN &#8599;</a>`;
   if (state === "hit") {
     const td = tdForPick(playerName);
     return td ? `<div class="leg-live-context td-credit">&#127944; ${escapeHtml(tdHowText(td))} &middot; ${escapeHtml(tdWhenText(td))}</div>` : "";
   }
   if (ctx.status === "final") {
-    return ctx.statLine ? `<div class="leg-live-context final-line">Final line: ${escapeHtml(ctx.statLine)}</div>` : "";
+    return ctx.statLine
+      ? `<div class="leg-live-context final-line">Final line: ${escapeHtml(ctx.statLine)}</div>`
+      : playerStatusLine(playerName, state);
   }
   let tag = "";
   if (state === "live" && betIsOpen) {
     if (ctx.redZone) tag = `<div class="leg-action-tag now rz">&#128308; IN THE RED ZONE</div>`;
-    else if (ctx.hasBall) tag = `<div class="leg-action-tag soon">&#127944; HAS THE BALL</div>`;
+    else if (ctx.onOffense) tag = `<div class="leg-action-tag now">&#127944; ON OFFENSE</div>`;
+    else if (ctx.takingFieldSoon) tag = `<div class="leg-action-tag wait">&#8987; TAKING THE FIELD SOON</div>`;
   }
   const bits = [ctx.clockLabel, ctx.score, ctx.statLine].filter(Boolean).map(escapeHtml);
   return `${tag}<div class="leg-live-context">&#127944; ${bits.join(" &middot; ")}</div>${link}`;
@@ -1459,6 +1536,13 @@ function renderTdLog() {
 
   const all = (RESULTS && RESULTS.touchdowns) || [];
   const picked = pickedScorers();
+  // Baseball's Home Run Log pill, ported: ours / total / share, reflecting the
+  // whole slate whichever filter happens to be selected.
+  const ourCount = all.filter(td => isOurTd(td, picked)).length;
+  const pct = all.length ? Math.round((ourCount / all.length) * 100) : 0;
+  const countEl = document.getElementById("tdlog-count");
+  if (countEl) countEl.textContent = all.length ? `${ourCount} OURS · ${all.length} TOTAL · ${pct}%` : "";
+
   const rows = TD_FILTER === "picks" ? all.filter(td => isOurTd(td, picked)) : all;
   if (rows.length === 0) {
     const msg = all.length === 0
@@ -1530,12 +1614,12 @@ function drvEligiblePicks() {
   EVALUATED.forEach(({ tk, states, evalRes }) => {
     if (!isOpenOutcome(evalRes.outcome) || !ticketMatchesFilter(evalRes)) return;
     tk.legs.forEach((leg, i) => {
-      if (states[i] === "live" && legPassesFilters(leg.who)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]));
+      if (states[i] === "live" && legPassesFilters(states[i], leg.who)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]));
     });
   });
   EVALUATED_SINGLES.forEach(({ s, state, outcome, iron }) => {
     if (state !== "live" || outcome !== "live") return;
-    if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(s.who)) return;
+    if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(state, s.who)) return;
     add(s.player, s.odds, s.who, iron);
   });
   return picks;
@@ -1610,16 +1694,18 @@ function drvBallTile(pick, ctx) {
   const where = ctx.downDistance || "Ball on offense";
   // "1st & Goal at TEN 4" already says how far; only spell it out when ESPN gave no down-and-distance
   const toGo = !ctx.downDistance && ctx.yardsToEndzone !== null && ctx.yardsToEndzone > 0 ? `${ctx.yardsToEndzone} to the end zone` : "";
-  return drvTileShell(ctx.redZone ? "now rz" : "now", ctx.redZone ? "RED ZONE" : "HAS THE BALL", pick, ctx.link, `
+  return drvTileShell(ctx.redZone ? "now rz" : "now", ctx.redZone ? "RED ZONE" : "ON OFFENSE", pick, ctx.link, `
     <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}</div>
     <div class="ab-countrow"><span class="ab-count drv-down">${escapeHtml(where)}</span></div>
     <div class="ab-line faint">${[toGo, drvFootLine(ctx, pick)].filter(Boolean).join(" &middot; ")}</div>`);
 }
 
-// his defense is on the field, or it's between drives / halftime
+// His side has the ball coming but hasn't snapped it yet. Grey and dashed on
+// purpose: he can't score on this play, so it must not look like the green
+// tiles. Picks whose team is ON DEFENSE get no tile at all now (2026-09-20) --
+// baseball has never shown a tile for a player whose side isn't batting.
 function drvWaitTile(pick, ctx) {
-  const tag = /half/i.test(ctx.clockLabel) ? "HALFTIME" : ctx.opponentHasBall ? "ON DEFENSE" : "BETWEEN DRIVES";
-  return drvTileShell("soon", tag, pick, ctx.link, `
+  return drvTileShell("soon", "TAKING THE FIELD SOON", pick, ctx.link, `
     <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}</div>
     <div class="ab-line faint">${drvFootLine(ctx, pick)}</div>`);
 }
@@ -1645,6 +1731,7 @@ function drvResultTile(flash, now) {
 function drvFilterLabel() {
   const bits = [];
   if (CURRENT_FILTER) bits.push({ open: "Open bets", irons: "Irons", hit: "Hit bets", dead: "Missed bets" }[CURRENT_FILTER] || CURRENT_FILTER);
+  if (LEG_FILTER) bits.push({ live: "Live legs", hit: "Hit legs", miss: "Missed legs", na: "N/A legs" }[LEG_FILTER] || LEG_FILTER);
   if (BETTOR_FILTER) {
     const el = document.querySelector("#bettor-list .bettor-row.active-filter .bettor-name");
     bits.push(`${el ? el.textContent : BETTOR_FILTER}'s picks`);
@@ -1653,12 +1740,12 @@ function drvFilterLabel() {
 }
 
 function drivesSubText(collapsed, rzCount, ballCount, liveCount) {
-  const counts = [rzCount ? `<b>${rzCount}</b> in the red zone` : "", ballCount ? `<b>${ballCount}</b> with the ball` : "",
+  const counts = [rzCount ? `<b>${rzCount}</b> in the red zone` : "", ballCount ? `<b>${ballCount}</b> on offense` : "",
                   liveCount ? `<b>${liveCount}</b> live` : ""].filter(Boolean).join(", ");
   const filtered = drvFilterLabel();
   if (filtered) return `${collapsed ? "Tap to expand &mdash; " : ""}Filtered to <b>${escapeHtml(filtered)}</b>: ${counts || "nobody live"}.`;
-  if (!collapsed) return `Every live pick, offenses on the field first: red zone, then anyone with the ball. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for ESPN.`;
-  return counts ? `Tap to expand &mdash; ${counts}.` : "Tap to expand &mdash; none of your picks are playing right now.";
+  if (!collapsed) return `Picks whose offense is on the field, red zone first &mdash; nobody appears while his team is on defense. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for ESPN.`;
+  return counts ? `Tap to expand &mdash; ${counts}.` : "Tap to expand &mdash; none of your picks' offenses are on the field right now.";
 }
 
 // Called every poll, on every filter/tab change, and by its own timer -- result
@@ -1682,23 +1769,24 @@ function renderLiveDrives() {
     const ctx = liveContextForPlayer(pick.player);
     if (!ctx || ctx.status !== "live") return;
     live++;
-    if (ctx.redZone) rz++; else if (ctx.hasBall) ball++;
+    if (ctx.redZone) rz++; else if (ctx.onOffense) ball++;
     if (DRV.flashes.has(pick.norm)) return;   // his result is still on screen
-    if (ctx.hasBall) {
+    if (ctx.onOffense) {
       // closest to the goal line first
       tiles.push({ rank: ctx.redZone ? 1 : 2, order: ctx.yardsToEndzone === null ? 99 : ctx.yardsToEndzone, html: drvBallTile(pick, ctx) });
-    } else {
+    } else if (ctx.takingFieldSoon) {
       tiles.push({ rank: 3, order: 0, html: drvWaitTile(pick, ctx) });
     }
+    // else: his defense is on the field (or it's a break) -- no tile.
   });
   tiles.sort((a, b) => a.rank - b.rank || a.order - b.order);
 
   grid.innerHTML = tiles.length
     ? tiles.map(t => t.html).join("")
     : `<p class="drives-empty">${drvFilterLabel()
-        ? `Nobody matching <b>${escapeHtml(drvFilterLabel())}</b> is playing right now. Clear the filter to see everyone.`
-        : "None of your picks are playing right now. Tiles appear here at kickoff."}</p>`;
-  countEl.textContent = [rz ? `${rz} RED ZONE` : "", ball ? `${ball} BALL` : "", live ? `${live} LIVE` : ""].filter(Boolean).join(" · ");
+        ? `Nobody matching <b>${escapeHtml(drvFilterLabel())}</b> has the ball right now. Clear the filter to see everyone.`
+        : "None of your picks' offenses are on the field right now. Tiles appear when one takes over."}</p>`;
+  countEl.textContent = [rz ? `${rz} RED ZONE` : "", ball ? `${ball} ON OFFENSE` : "", live ? `${live} LIVE` : ""].filter(Boolean).join(" · ");
   document.getElementById("drives-sub").innerHTML = drivesSubText(collapsed, rz, ball, live);
 
   let next = Infinity;
@@ -1724,6 +1812,10 @@ function computeAll() {
   let betOpen = 0, betHit = 0, betMiss = 0, betIron = 0;
   let totalPayoutHit = 0;
   const bettors = new Map();
+  // Every leg on the slate, parlay legs and singles alike, for the LEGS chip
+  // row. Slate-wide and deliberately unfiltered, like the Touchdown Log pill.
+  const legCounts = { live: 0, hit: 0, miss: 0, na: 0 };
+  const countLeg = state => { const b = legFilterBucket(state); if (b in legCounts) legCounts[b]++; };
 
   function touchBettor(rawWho) {
     const key = whoKey(rawWho).toLowerCase();
@@ -1746,6 +1838,7 @@ function computeAll() {
 
       tk.legs.forEach((leg, i) => {
         const state = states[i];
+        countLeg(state);
         const b = touchBettor(leg.who);
         if (b) {
           if (state === "hit") { b.hit++; const o = oddsToNumber(leg.odds); if (o !== null) b.hitOdds.push(o); }
@@ -1761,6 +1854,7 @@ function computeAll() {
     const outcome = singleOutcome(state);
     const iron = singleIsIron(state, outcome);
     EVALUATED_SINGLES.push({ s, state, outcome, iron });
+    countLeg(state);
     if (iron) betIron++;
 
     if (outcome === "dead") betMiss++;
@@ -1778,6 +1872,10 @@ function computeAll() {
   document.getElementById("count-parlay-iron").textContent = betIron;
   document.getElementById("count-parlay-hit").textContent = betHit;
   document.getElementById("count-parlay-miss").textContent = betMiss;
+  document.getElementById("count-leg-live").textContent = legCounts.live;
+  document.getElementById("count-leg-hit").textContent = legCounts.hit;
+  document.getElementById("count-leg-miss").textContent = legCounts.miss;
+  document.getElementById("count-leg-na").textContent = legCounts.na;
   document.getElementById("total-payout").textContent = fmtMoney(totalPayoutHit);
 
   const rows = Array.from(bettors.entries()).map(([key, stat]) => {
@@ -1797,21 +1895,63 @@ function computeAll() {
       </div>
     </div>`).join("");
   document.getElementById("bettor-list").innerHTML = bettorHtml || `<p style="color:var(--text-faint); font-size:12px;">No bettor data yet.</p>`;
+  const bettorCountEl = document.getElementById("bettor-count");
+  if (bettorCountEl) bettorCountEl.textContent = rows.length ? `${rows.length} ${rows.length === 1 ? "BETTOR" : "BETTORS"}` : "";
 
   document.getElementById("dynamic-note").innerHTML =
     `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live NFL results."}`;
 }
 
 // Paired with ticketMatchesFilter: that one decides whether a bet shows at
-// all, this one whether an individual leg does. Only the bettor filter is
-// leg-level -- there has never been a leg-state filter on this page.
-function legPassesFilters(rawWho) {
+// all, this one whether an individual leg does. Both leg-level filters apply.
+// Which LEGS chip a leg state belongs to -- `not_started` rides with `live`.
+function legFilterBucket(state) { return state === "not_started" ? "live" : state; }
+
+function legPassesFilters(state, rawWho) {
+  if (LEG_FILTER && legFilterBucket(state) !== LEG_FILTER) return false;
   if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return false;
   return true;
 }
 
+// The two bet lists are collapsible sections like the panels above them, and
+// both start CLOSED: the slate summary up top is what most people want at a
+// glance. Whichever a visitor opens is remembered per browser.
+const LS_CARDS = { parlays: "bmbs.fb.cards.parlays", singles: "bmbs.fb.cards.singles" };
+const CARDS_OPEN = { parlays: false, singles: false };
+
+function loadCardsOpen() {
+  Object.keys(CARDS_OPEN).forEach(k => { CARDS_OPEN[k] = lsGet(LS_CARDS[k]) === "1"; });
+}
+
+function toggleCardsSection(which) {
+  CARDS_OPEN[which] = !CARDS_OPEN[which];
+  lsSet(LS_CARDS[which], CARDS_OPEN[which]);
+  renderContent();
+}
+
+// "3 OPEN · 1 HIT · 2 MISSED" for one group of bets. Slate-wide, deliberately
+// NOT filtered -- like the Touchdown Log's pill, it describes the slate rather
+// than whatever slice is on screen.
+function cardsCountPill(outcomes) {
+  let open = 0, hit = 0, miss = 0;
+  outcomes.forEach(o => { if (o === "dead") miss++; else if (o === "hit") hit++; else open++; });
+  return [open ? `${open} OPEN` : "", hit ? `${hit} HIT` : "", miss ? `${miss} MISSED` : ""].filter(Boolean).join(" · ");
+}
+
+function cardsSectionHtml(which, title, countText, sub, body) {
+  const open = CARDS_OPEN[which];
+  return `<div class="cards-section${open ? "" : " collapsed"}" id="${which}-section">
+      <div class="cards-head" onclick="toggleCardsSection('${which}')">
+        <p class="cards-title">${title} <span class="head-count">${countText}</span></p>
+        <span class="cards-chevron">&#9660;</span>
+      </div>
+      <p class="cards-sub">${sub}</p>
+      <div class="cards-body">${body}</div>
+    </div>`;
+}
+
 // Renders #content (ticket windows + singles) from EVALUATED / EVALUATED_SINGLES,
-// respecting CURRENT_FILTER (bet outcome) and
+// respecting CURRENT_FILTER (bet outcome), LEG_FILTER (leg state) and
 // BETTOR_FILTER (person). Cheap enough to call on every filter click without re-polling.
 function renderContent() {
   const root = document.getElementById("content");
@@ -1823,7 +1963,7 @@ function renderContent() {
     const rendered = [];
     items.forEach(({ tk, states, evalRes }) => {
       const betIsOpen = isOpenOutcome(evalRes.outcome);
-      const passing = tk.legs.map((leg, i) => legPassesFilters(leg.who) ? i : -1).filter(i => i >= 0);
+      const passing = tk.legs.map((leg, i) => legPassesFilters(states[i], leg.who) ? i : -1).filter(i => i >= 0);
       if (passing.length === 0) return; // no legs survive leg/bettor filters -> hide this ticket
       // An Iron is about how close the whole card is, so under that filter
       // every leg renders -- including the ones already hit. The leg-level
@@ -1868,21 +2008,22 @@ function renderContent() {
     html += `</div>`;
   });
 
-  const anyFilterActive = CURRENT_FILTER || BETTOR_FILTER;
+  const anyFilterActive = CURRENT_FILTER || BETTOR_FILTER || LEG_FILTER;
   if (!anyRendered && anyFilterActive) {
     html += `<p class="empty-filter-note">No parlay cards match this filter right now.</p>`;
   }
 
+  let singlesHtml = `<div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
   const filteredSingles = EVALUATED_SINGLES.filter(e =>
-    ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.s.who)
+    ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.state, e.s.who)
   );
-  html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
-    <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
-  if (filteredSingles.length === 0 && anyFilterActive) {
-    html += `<p class="empty-filter-note" style="padding:12px 0;">No straight bets match this filter right now.</p>`;
+  if (filteredSingles.length === 0) {
+    singlesHtml += `<p class="empty-filter-note" style="padding:12px 0;">${anyFilterActive
+      ? "No straight bets match this filter right now."
+      : "No straight bets on this slate."}</p>`;
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
-    html += `<div class="single-row state-${state}">
+    singlesHtml += `<div class="single-row state-${state}">
       <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live")}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
@@ -1890,9 +2031,17 @@ function renderContent() {
       ${badge(state)}
     </div>`;
   });
-  html += `</div></div>`;
+  singlesHtml += `</div>`;
 
-  root.innerHTML = html;
+  const parlayCount = cardsCountPill(EVALUATED.map(e => e.evalRes.outcome));
+  const singleCount = cardsCountPill(EVALUATED_SINGLES.map(e => e.outcome));
+  root.innerHTML =
+    cardsSectionHtml("parlays", "Parlay Cards", parlayCount,
+      CARDS_OPEN.parlays ? "Every multi-leg card on this slate." : "Tap to expand &mdash; every multi-leg card on this slate.",
+      html) +
+    cardsSectionHtml("singles", "Straight Bet Cards", singleCount,
+      CARDS_OPEN.singles ? "One player prop per person, straight bet." : "Tap to expand &mdash; one player prop per person, straight bet.",
+      singlesHtml);
 }
 
 function updateFilterUI() {
@@ -1909,6 +2058,30 @@ function updateFilterUI() {
   document.getElementById(chipId).classList.add("active-filter");
   document.getElementById("filter-status-text").textContent = label;
   statusEl.classList.add("active");
+}
+
+const LEG_FILTER_LABELS = {
+  live: ["chip-leg-live", "Showing only LIVE legs — games on or still to come"],
+  hit: ["chip-leg-hit", "Showing only legs that HIT"],
+  miss: ["chip-leg-miss", "Showing only legs that MISSED"],
+  na: ["chip-leg-na", "Showing only N/A legs — didn't play, void"]
+};
+
+function updateLegFilterUI() {
+  Object.values(LEG_FILTER_LABELS).forEach(([id]) => document.getElementById(id).classList.remove("active-filter"));
+  const statusEl = document.getElementById("leg-filter-status");
+  if (!LEG_FILTER) { statusEl.classList.remove("active"); return; }
+  const [chipId, label] = LEG_FILTER_LABELS[LEG_FILTER];
+  document.getElementById(chipId).classList.add("active-filter");
+  document.getElementById("leg-filter-status-text").textContent = label;
+  statusEl.classList.add("active");
+}
+
+function toggleLegFilter(key) {
+  LEG_FILTER = (LEG_FILTER === key) ? null : key;
+  updateLegFilterUI();
+  renderContent();
+  renderLiveDrives();   // the panel scopes to every filter; forgetting this leaves it stale
 }
 
 function toggleFilter(key) {
@@ -1950,6 +2123,7 @@ function render() {
   renderContent();
   renderTdLog();
   updateFilterUI();
+  updateLegFilterUI();
   updateBettorFilterUI();
   renderLiveDrives();
 }
@@ -2069,7 +2243,7 @@ function applyActiveTab() {
 function activateTab(tab) {
   if (tab === ACTIVE_TAB) return;
   ACTIVE_TAB = tab;
-  CURRENT_FILTER = BETTOR_FILTER = null;
+  CURRENT_FILTER = BETTOR_FILTER = LEG_FILTER = null;
   TD_EXPANDED.clear(); // the other tab's touchdowns, not this one's
   applyActiveTab();
   render();
@@ -2138,6 +2312,7 @@ document.addEventListener("visibilitychange", () => {
 
 async function init() {
   initNotifPrefs();
+  loadCardsOpen();
   if (lsGet(LS_DRIVES) === "1") document.getElementById("drives-section").classList.remove("collapsed");
   await pollAndRender();
   schedulePolling();

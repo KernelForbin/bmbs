@@ -209,12 +209,36 @@
 
     <section class="card-item">
       <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.9"/></svg></span>
+        <h2>Always know where a pick stands</h2>
+      </div>
+      <ul>
+        <li>Every pick now says what's happening to him, in plain words, at every stage &mdash; not just once his game is live. <b>"Game hasn't started yet."</b> before first pitch, <b>"Game on &mdash; not in the lineup yet."</b> if he's on the roster but not playing, <b>"Game final &mdash; no home run."</b> once it's over.</li>
+        <li>A player who sat on the bench all game is now correctly marked <b>N/A &mdash; void / refunded</b> rather than counted as a miss. That's how the books treat it, and it's what the History page has always recorded; the live page now agrees with both.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="5" rx="1.6"/><rect x="3.5" y="14" width="17" height="5" rx="1.6"/></svg></span>
+        <h2>Parlay Cards &amp; Straight Bet Cards</h2>
+      </div>
+      <ul>
+        <li>The bets themselves now sit in two collapsible sections, the same way the panels above them do &mdash; <b>Parlay Cards</b> for the multi-leg cards, <b>Straight Bet Cards</b> for the one-player bets.</li>
+        <li>Both start closed, so the page opens on the summary instead of a wall of tickets. Each header carries its own tally &mdash; <b>3 OPEN &middot; 1 HIT &middot; 2 MISSED</b> &mdash; so you can read where each group stands without opening it.</li>
+        <li>Whichever one you open stays open on that device, and stays open while the page keeps refreshing.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
         <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5z"/></svg></span>
         <h2>Tap-to-filter scoreboard</h2>
       </div>
       <ul>
         <li>Quick counts of where your bets stand &mdash; Open, Irons, Hit, Missed.</li>
-        <li>Tap any number to filter the whole page down to just that group &mdash; the tickets and the Live Bet Tracker tiles alike. Tap it again to clear the filter.</li>
+        <li>Underneath, a second row counts the individual <b>legs</b> &mdash; Live, Hit, Missed, N/A &mdash; so you can see how the slate is really going, not just how many cards are still alive.</li>
+        <li>Tap any number to filter the whole page down to just that group &mdash; the tickets and the Live Bet Tracker tiles alike. A leg filter narrows what's shown <b>inside</b> a card too, and says how many legs it hid. Tap it again to clear the filter.</li>
       </ul>
     </section>
 
@@ -224,7 +248,7 @@
         <h2>Home Run Log</h2>
       </div>
       <ul>
-        <li>A tap-to-open log of every home run of the day, newest first &mdash; on both the Today and Yesterday tabs. Its header shows a running <b>3 OURS &middot; 12 TOTAL</b> count, so you can gauge the day's action without opening it.</li>
+        <li>A tap-to-open log of every home run of the day, newest first &mdash; on both the Today and Yesterday tabs. Its header shows a running <b>3 OURS &middot; 12 TOTAL &middot; 25%</b> count &mdash; how many of the day's home runs were yours &mdash; so you can gauge the action without opening it.</li>
         <li>Switch between <b>Our Picks</b> and <b>All Home Runs</b> (the whole league). Either way, anyone in the group's picks is highlighted so you can spot the ones that matter.</li>
         <li>Tap any home run for the full Statcast detail: exit velo, launch angle, distance, the pitch he hit and how hard it came in, where it was in the strike zone, plus ballpark, wind and temperature.</li>
       </ul>
@@ -236,7 +260,7 @@
         <h2>Bettor Tracker</h2>
       </div>
       <ul>
-        <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the slate. Now that steal bets can run at negative odds, a favorite like <b>-120</b> always shows its sign correctly, never garbled into something like "+-120".</li>
+        <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the slate. Its header counts how many people are in on the slate. Now that steal bets can run at negative odds, a favorite like <b>-120</b> always shows its sign correctly, never garbled into something like "+-120".</li>
         <li>Tap a name to filter the whole page to just that person's legs &mdash; including who shows up in the Live Bet Tracker.</li>
       </ul>
     </section>
@@ -340,7 +364,7 @@
       </div>
       <ul>
         <li>While a game's in progress, see the score, the clock, and his stat line so far right under the pick.</li>
-        <li><span class="tag">IN THE RED ZONE</span> and <span class="tag">HAS THE BALL</span> flag legs whose offense is on the field right now, closest to paying off.</li>
+        <li><span class="tag">IN THE RED ZONE</span> and <span class="tag">ON OFFENSE</span> flag legs whose offense is on the field right now, closest to paying off. A quieter <span class="tag">TAKING THE FIELD SOON</span> means his side has just won the ball back but hasn't snapped it yet &mdash; green is reserved for when he can actually score on the next play.</li>
         <li>Once his game is final, the live line is replaced with his final stat line.</li>
         <li>One tap jumps straight to the live play-by-play on ESPN.</li>
       </ul>
@@ -353,7 +377,8 @@
       </div>
       <ul>
         <li>Tap <b>Live Drives</b> to open a wall of tiles: every pick whose game is live, sorted by how close he is to paying off. Even closed, its header tells you how many are in the red zone or on the field.</li>
-        <li><span class="tag">RED ZONE</span> tiles come first, then <span class="tag">HAS THE BALL</span>, then everyone else waiting on their <span class="tag">DEFENSE</span> or <span class="tag">HALFTIME</span>. Each tile shows the score, the clock, down &amp; distance, and his stats so far.</li>
+        <li><span class="tag">RED ZONE</span> tiles come first, then <span class="tag">ON OFFENSE</span>, then the grey <span class="tag">TAKING THE FIELD SOON</span> ones. Each tile shows the score, the clock, down &amp; distance, and his stats so far.</li>
+        <li>A pick whose team is <b>on defense</b> gets no tile at all &mdash; he can't score, so he isn't taking up space. He comes back the moment his offense has the ball again.</li>
         <li>When a drive ends, the result holds the tile for a few seconds &mdash; <b>PUNT</b>, <b>FIELD GOAL</b>, or <b>TD &mdash; NOT HIM</b> if a teammate scored instead &mdash; then it drops off and everyone slides up.</li>
         <li>When your own pick scores, his tile turns into a 🏈 first, then shows the play &mdash; how many yards, and how it happened.</li>
         <li>A 🧇 marks an Iron, so you can see at a glance which drive could cash something. The scoreboard filters work here too: tap <b>IRONS</b> and only those players remain; tap a name in the Bettor Tracker and it's just that person's guys.</li>
@@ -390,12 +415,35 @@
 
     <section class="card-item">
       <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.9"/></svg></span>
+        <h2>Always know where a pick stands</h2>
+      </div>
+      <ul>
+        <li>Every pick now says what's happening to him, in plain words, at every stage &mdash; not just once his game is live. <b>"Game hasn't kicked off yet."</b> before the game, <b>"Game on &mdash; hasn't touched the ball yet."</b> while it's going, <b>"Game final &mdash; no touchdown."</b> once it's over.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="5" rx="1.6"/><rect x="3.5" y="14" width="17" height="5" rx="1.6"/></svg></span>
+        <h2>Parlay Cards &amp; Straight Bet Cards</h2>
+      </div>
+      <ul>
+        <li>The bets themselves now sit in two collapsible sections, the same way the panels above them do &mdash; <b>Parlay Cards</b> for the multi-leg cards, <b>Straight Bet Cards</b> for the one-player bets.</li>
+        <li>Both start closed, so the page opens on the summary instead of a wall of tickets. Each header carries its own tally &mdash; <b>3 OPEN &middot; 1 HIT &middot; 2 MISSED</b> &mdash; so you can read where each group stands without opening it.</li>
+        <li>Whichever one you open stays open on that device, and stays open while the page keeps refreshing.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
         <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5z"/></svg></span>
         <h2>Tap-to-filter scoreboard</h2>
       </div>
       <ul>
         <li>Quick counts of where your bets stand &mdash; Open, Irons, Hit, Missed.</li>
-        <li>Tap any number to filter the whole page down to just that group &mdash; the tickets and the Live Drives tiles alike. Tap it again to clear the filter.</li>
+        <li>Underneath, a second row counts the individual <b>legs</b> &mdash; Live, Hit, Missed, N/A &mdash; so you can see how the week is really going, not just how many cards are still alive.</li>
+        <li>Tap any number to filter the whole page down to just that group &mdash; the tickets and the Live Drives tiles alike. A leg filter narrows what's shown <b>inside</b> a card too, and says how many legs it hid. Tap it again to clear the filter.</li>
       </ul>
     </section>
 
@@ -405,7 +453,7 @@
         <h2>Touchdown Log</h2>
       </div>
       <ul>
-        <li>A tap-to-open log of every touchdown scored this week, newest first &mdash; on both the This Week and Last Week tabs.</li>
+        <li>A tap-to-open log of every touchdown scored this week, newest first &mdash; on both the This Week and Last Week tabs. Its header shows a running <b>3 OURS &middot; 41 TOTAL &middot; 7%</b> count &mdash; how many of the week's touchdowns were yours &mdash; so you can gauge it without opening it.</li>
         <li>Switch between <b>Our Picks</b> and <b>All Touchdowns</b> (every game). Either way, anyone in the group's picks is highlighted so you can spot the ones that matter.</li>
         <li>Tap any touchdown for the full play &mdash; how it happened, who threw it (if it was a pass), and the score it made &mdash; plus a link straight to that game on ESPN.</li>
       </ul>
@@ -417,7 +465,7 @@
         <h2>Bettor Tracker</h2>
       </div>
       <ul>
-        <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the week.</li>
+        <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the week. Its header counts how many people are in on the week.</li>
         <li>Tap a name to filter the whole page to just that person's legs &mdash; including who shows up in Live Drives.</li>
       </ul>
     </section>

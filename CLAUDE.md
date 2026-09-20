@@ -164,6 +164,16 @@ so every name read out of `data` must be listed, including intermediate ones.
 currently-live game and requires `getGameSnapshot()` to compute identical
 results; run it after touching that list. It pins both requests with
 `timecode=` so a live game moving mid-check can't look like a lost field.
+That pin is to the second, so a mid-at-bat game can still differ on one poll;
+a single-game `recentABs` diff that doesn't reproduce is that, not a lost
+field -- confirm by re-running before chasing it.
+
+**Don't put a double-quoted phrase in a `FEED_FIELDS` comment.** The test
+extracts the list by scraping quoted strings out of the array's source, so a
+comment like `// "did he actually bat?"` was picked up as a field NAME and
+spliced into the request URL (its space raised `InvalidURL`). The extractor
+now strips `//` comments first, but the array is still read as text, not
+parsed as JS.
 
 **Anything that prints a time must pass `timeZone` explicitly.** The whole
 site talks in ET, so a formatted time gets an "ET" label -- and
@@ -233,14 +243,51 @@ Two behaviours that are easy to break:
 A **dead** parlay is never an Iron even when one leg is numerically
 unresolved -- `outcome === "live"` excludes it, same as void.
 
-**The scoreboard is one row: BETS** (Open / Irons / Hit / Missed). There used
-to be a LEGS row under it (Hit / Missed / N/A / Live / Not Started, with a
-`LEG_FILTER`) and, above both, BATTING NOW / BATTING SOON. Both were removed
-on 2026-09-18 at the user's request -- Live At Bats replaced the batting
-chips, and the user judged the leg chips redundant with BETS. Don't add them
-back. The per-leg state colors on the tickets are unchanged; only the
-counters and their filter are gone. The remaining filters are
-`CURRENT_FILTER` (bets) and `BETTOR_FILTER`.
+**The scoreboard is TWO rows: BETS** (Open / Irons / Hit / Missed) **and LEGS**
+(Live / Hit / Missed / N/A), both sports. Read the history before changing
+either, because it has gone back and forth once already:
+- The original LEGS row was five chips (Hit / Missed / N/A / Live / Not
+  Started) and, above both rows, BATTING NOW / BATTING SOON. All of it was
+  removed on 2026-09-18 at the user's request -- Live At Bats had replaced
+  the batting chips, and the leg chips read as redundant with BETS. **Don't
+  bring BATTING NOW / BATTING SOON back**; that one still stands.
+- The LEGS row itself came back on 2026-09-20, asked for explicitly, and this
+  file's old "don't add them back" line went with it. It is now **four** chips,
+  not five: `not_started` is bucketed into LIVE by `legFilterBucket()` so the
+  row fits a 560px phone next to the 4-wide BETS row, and the always-on status
+  line under each leg (below) says which of the two a pick actually is.
+- `LEG_FILTER` hides non-matching LEGS *inside* a card, exactly like
+  `BETTOR_FILTER`, and notes how many it hid; a card with no surviving leg
+  drops out. Both leg-level filters go through `legPassesFilters(state, who)`.
+  The IRONS override still wins -- under that filter a parlay renders every
+  leg, hits included.
+
+The three filters are `CURRENT_FILTER` (bets), `LEG_FILTER` (leg state) and
+`BETTOR_FILTER` (person), and they stack. All three reset on a tab switch, and
+**every one of them must call `renderLiveAtBats()` / `renderLiveDrives()`** --
+forgetting that left the panel stale once already.
+
+**Every pick carries a status line, always** (`playerStatusLine()`, both
+sports, 2026-09-20). `liveContextHtml()` used to return "" whenever it had
+nothing rich to say -- before first pitch, for a player not in the lineup,
+for a void or missed leg -- which on screen is indistinguishable from the page
+having no idea. Now those branches fall through to one plain sentence
+("Game hasn't started yet.", "Game on -- not in the lineup yet.", "On the
+roster but never got in the game -- void / refunded.", "Game final -- no home
+run."). A hit is the one state that returns "": the green check already said it.
+
+**The bet lists are collapsible too** (`cardsSectionHtml()`, both sports):
+`#content` renders as **Parlay Cards** and **Straight Bet Cards**, each with
+the same shell as the panels above it, each carrying an unfiltered
+`3 OPEN · 1 HIT · 2 MISSED` pill, and **both default to collapsed**. The open
+state lives in `CARDS_OPEN` (persisted as `bmbs.cards.*` / `bmbs.fb.cards.*`)
+rather than a DOM class, because `renderContent()` rebuilds that HTML on every
+poll -- a class on the element would be wiped every 10 seconds. `#content`
+itself is kept as the outer id so existing selectors still resolve.
+**Test-helper consequence:** Playwright's `inner_text()` only returns VISIBLE
+text, so every test that reads the bet lists has to open them first --
+`expand_cards(page)` in both page test files does it, and only the section that
+checks the collapsed default skips it (`open_page(..., expand=False)`).
 
 **Test-helper trap:** `feed()` in `tests/test_page.py` numbers `battingOrder`
 per side, because the app reads the FIRST digit as the lineup slot. A flat
@@ -481,12 +528,17 @@ that's the point of the All mode. "Matters" = named in this tab's
 tickets.json, OR a substitute whose HR is currently crediting one of our
 legs under Pinch Hit Protection.
 
-**The collapsed header itself carries a live `N OURS &middot; M TOTAL` pill**
-(`#hrlog-count`, styled like Live At Bats' count pill) so the tally is
-visible without expanding the panel. It reflects both filters' totals
-regardless of which one (`HR_FILTER`) is currently selected, is recomputed
-every `renderHrLog()` call (poll, tab switch, new upload), and is empty --
-hidden by `.hrlog-count:empty` -- when the slate has zero home runs so far.
+**The collapsed header itself carries a live `N OURS &middot; M TOTAL &middot; P%`
+pill** (`#hrlog-count`, styled like Live At Bats' count pill) so the tally is
+visible without expanding the panel. `P` is plain `ours / total` rounded --
+what share of the day's home runs came off a bat we picked, NOT weighted by
+how many legs named him. It reflects both filters' totals regardless of which
+one (`HR_FILTER`) is currently selected, is recomputed every `renderHrLog()`
+call (poll, tab switch, new upload), and is empty -- hidden by
+`.hrlog-count:empty` -- when the slate has zero home runs so far. Football's
+Touchdown Log gained the identical pill (`#tdlog-count`) on 2026-09-20, and
+both Bettor Trackers gained an `N BETTORS` one in their headers; all four use
+the shared `.head-count` style.
 
 Rows are tap-to-expand rather than a wide table: 16 columns of Statcast
 detail cannot render on a 560px phone-first page, so the collapsed row
@@ -631,14 +683,43 @@ Every football odds regex takes `[+-]`, and the Bettor Tracker formats with
 `fmtOdds()` so an average never renders as "+-135".
 
 **Live Drives.** A football pick is "live" for three hours, so the panel sorts
-by whether his OFFENSE is on the field: RED ZONE (red tiles, closest to the
-goal line first), HAS THE BALL, then ON DEFENSE / HALFTIME. Possession comes
-from the LAST PLAY's end state -- after a score ESPN's "current drive" still
-names the team that just scored while the ball goes the other way. When a drive
-ends its result holds the tile ~9s ("Punt", "Field Goal", and "TD -- not him"
-when a teammate scored); the pick's own touchdown turns his tile into a
-football, then the play, ~14s. Same seeding / stale / off-tab guards as Live At
-Bats. Alerts and preferences use their own localStorage keys (`bmbs.fb.*`).
+by whether his OFFENSE is on the field. **Three tile states as of 2026-09-20,
+and green means "he can score on this play" -- nothing looser:**
+- **RED ZONE** (red), **ON OFFENSE** (green) -- his side has possession AND
+  ESPN has their drive open.
+- **TAKING THE FIELD SOON** (grey, dashed) -- possession is theirs but their
+  drive isn't open yet: the gap between the other team giving the ball up and
+  this one snapping it.
+- **Nothing at all** when his team is on defense. ON DEFENSE / HALFTIME /
+  BETWEEN DRIVES tiles were removed at the user's request -- baseball has
+  never shown a tile for a player whose side isn't batting, and a tile he
+  can't score from is noise. The LIVE count in the header still counts him.
+
+Possession comes from the LAST PLAY's end state (or the scoreboard's
+`situation.possession`), which is NOT the same thing as `drives.current.team`:
+a drive object only appears once its first play posts, so after a punt,
+turnover or score the possession flag flips while `drives.current` still names
+the team that just gave it up. `drive.driveTeam` carries that second value and
+the mismatch is what defines TAKING THE FIELD SOON. **Measured against live
+games on 2026-09-20: three clean windows at 65s, 82s and 179s** -- several
+polls wide, a real state rather than a flicker. (Windows that span halftime
+read longer and aren't clean measurements: during halftime `situation.possession`
+is absent entirely, so nobody gets a tile at all.)
+
+**ESPN publishes no personnel data, so "is HE on the field" is not knowable**
+and the page never claims it. A play's `participants` array names only the
+players involved in that play -- rusher, tackler, passer, receiver -- never the
+eleven lined up, so a tight end who hasn't been targeted is indistinguishable
+from one standing on the sideline. Checked directly against a live game
+(MIN @ CHI, 2026-09-20) before the states above were designed around it; don't
+re-derive this from the field name and assume otherwise.
+
+When a drive ends its result holds the tile ~9s ("Punt", "Field Goal", and
+"TD -- not him" when a teammate scored); the pick's own touchdown turns his
+tile into a football, then the play, ~14s. Same seeding / stale / off-tab
+guards as Live At Bats. Alerts and preferences use their own localStorage keys
+(`bmbs.fb.*`). The per-leg tag on the tickets uses the same three states, so
+the wording is "ON OFFENSE" everywhere -- "HAS THE BALL" is gone from both.
 
 Football's History page is `/football/history/` -- see "Results archive".
 `features/index.html` is kept in sync automatically now -- see its entry at
@@ -695,15 +776,31 @@ checked against the live site on the first real slate: all 50 legs of
 2026-09-18 and all 36 league home runs matched. A change to a page's grading
 rules has to be made in its recorder too.
 
-**One deliberate difference, baseball only:** MLB's boxscore lists the whole
-active roster, and `index.html` only asks "is he in the boxscore?", so a player
-who sat on the bench all game shows on the live page as a MISS. He didn't play;
-books void that. The recorder requires a plate appearance -- benched, or only a
-pinch runner / late defensive sub -> `na`. Found on the first recorded slate:
-Andres Gimenez and Bryce Eldridge (2026-09-18) were misses on the page, and the
-group's own sheet had Gimenez as DNP. **The live page still has this bug** as of
-2026-09-19 -- it was reported to the user rather than fixed, because
-`index.html`'s grading isn't touched without asking.
+**Benched players are void, and the two agree again as of 2026-09-20.** MLB's
+boxscore lists the whole active roster, so "is he in the boxscore?" says
+nothing about whether he got in. The recorder always required a PLATE
+APPEARANCE for a home run leg -- benched, or only a pinch runner / late
+defensive sub -> `na` -- while `index.html` graded that same player a MISS.
+Found on the first recorded slate: Andres Gimenez and Bryce Eldridge
+(2026-09-18) were misses on the page, and the group's own sheet had Gimenez as
+DNP. It was reported rather than fixed at the time, because `index.html`'s
+grading isn't touched without asking; the user was asked on 2026-09-20 and
+chose to fix it. The page is now a direct port of the recorder's rule:
+`getGameSnapshot()` builds a `played` set from `stats.batting.plateAppearances`
+(falling back to `battingOrder` / `allPositions` / any batting object), and
+`pollSlate()` only writes a name into `rosterStatus` when his game is still on
+OR he's in `played`. Two things to keep straight if you touch it:
+- **`inBox` is a separate map** holding everyone on a roster regardless, and
+  `stateForSteal()` reads THAT, not `rosterStatus` -- a steal bet asks "was he
+  on the field", never "did he bat" (a pinch runner can steal without batting).
+  Same split the recorder has always had.
+- The page settles a benched player as soon as **his own** game is final
+  (`inBox.get(norm) === "final"`), not when the whole slate is. The recorder
+  only ever runs on finished slates so it never needed that; without it a
+  benched player would read "not started" for hours while other games ran.
+This changes leg states, parlay outcomes and adjusted payouts on the live page,
+so it is a real grading change, not cosmetic. A change to a page's grading
+rules still has to be made in its recorder too, and vice versa.
 
 Things learned from the first merge, all handled in `import_history.py`:
 - **The sheet mis-dates slates.** It logged the 2026-09-18 slate under 9/17
@@ -914,7 +1011,18 @@ on failure:
   `tickets.json` but nothing asserted it actually reaches the screen until
   now -- a real parser warning renders verbatim, an empty note falls back to
   "against live MLB results.", and the waiting-for-picks state leaves it
-  blank rather than stale.
+  blank rather than stale. **Section R** covers everything added on
+  2026-09-20: both bet lists defaulting to collapsed with their own
+  OPEN/HIT/MISSED pill and surviving a re-render, the bench-player-is-N/A
+  grading fix (its fixture's `feed(..., bench=[...])` puts a man in the
+  boxscore with zero plate appearances), the always-on status line in each of
+  its states, the LEGS chip counts, and the leg filter hiding legs inside a
+  mixed card / dropping a card with none / clearing on a tab switch. Every one
+  of those was mutation-tested in a scratch copy before being trusted --
+  including the one that mattered: reverting the grading gate makes R4 fail.
+  One mutation taught something on its own -- flipping `CARDS_OPEN`'s
+  initialiser changes nothing, because `loadCardsOpen()` overwrites it at boot.
+  The real default is that function's `=== "1"`.
 
 - `tests/test_live_at_bats.py` — the Live At Bats panel: one mocked game walked
   forward poll by poll (live count, strikeout, home run/bomb, stale at-bat,
@@ -939,7 +1047,13 @@ on failure:
   and added at the same time for the same reason; it filters on Joe, who owns
   both a single and one leg of a mixed-bettor card. Section K is the twin of
   that file's section Q: its own browser on Pacific, checking the sync line
-  still reads ET.
+  still reads ET. **Section L** is the twin of that file's section R (chips,
+  pills, status lines, collapsible bet lists); it rebuilds `TICKETS` from
+  scratch first, because section J deliberately trims that global down and
+  anything appended after it would otherwise assert against a two-bet slate.
+  The Live Drives state changes live in C2/C6 (no ON DEFENSE tile survives)
+  and D6 (possession flipped but the drive isn't open -> TAKING THE FIELD
+  SOON, grey, not green) rather than in L.
 - `tests/test_football_parser.py` — football parser (both templates, negative
   odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
   roster builder, and the Discord bot's file-name routing. Fully offline.

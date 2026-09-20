@@ -60,6 +60,7 @@
   .score-chip.miss .num { color:var(--red); }
   .score-chip.live-game .num { color:var(--amber); }
   .score-chip.pending .num { color:var(--text); }
+  .score-chip.na .num { color:var(--yellow); }
   .filter-status { display:none; align-items:center; justify-content:space-between; margin-top:8px; background:var(--green-dim); border:1px solid var(--green); border-radius:7px; padding:7px 10px; font-size:11.5px; color:var(--green); }
   .filter-status.active { display:flex; }
   .filter-status .clear-btn { cursor:pointer; text-decoration:underline; font-weight:600; }
@@ -86,6 +87,20 @@
   .bettor-stat.miss .num { color:var(--red); }
   .bettor-stat.odds .num { color:var(--amber); }
 
+  /* Parlay Cards / Straight Bet Cards -- the same collapsible shell as the
+     panels above them, so the whole page reads as one stack of sections. */
+  .cards-section { margin: 0 0 14px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 10px; }
+  .cards-section.collapsed { padding-bottom:14px; }
+  .cards-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; gap:8px; }
+  .cards-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .cards-chevron { color:var(--text-faint); font-size:12px; transition:transform .18s ease; flex:none; }
+  .cards-section.collapsed .cards-chevron { transform:rotate(-90deg); }
+  .cards-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 8px; }
+  .cards-section.collapsed .cards-body { display:none; }
+  /* the cards already carry their own panel chrome; don't double it up inside */
+  .cards-body .window { margin-bottom:10px; }
+  .cards-body .window:last-child { margin-bottom:0; }
+
   .hrlog-section { margin: 0 0 14px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 10px; }
   .hrlog-section.collapsed { padding-bottom:14px; }
   .hrlog-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
@@ -105,6 +120,9 @@
   .liveab-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px; }
   .liveab-count { font-family:'Inter',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.03em; color:var(--green); background:var(--green-dim); border:1px solid var(--green); border-radius:999px; padding:1px 8px; }
   .liveab-count:empty { display:none; }
+  /* same pill as liveab-count, on the other collapsible headers */
+  .head-count { font-family:'Inter',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.03em; color:var(--text-dim); background:var(--bg); border:1px solid var(--panel-line); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  .head-count:empty { display:none; }
   .liveab-chevron { color:var(--text-faint); font-size:12px; transition:transform .18s ease; }
   .liveab-section.collapsed .liveab-chevron { transform:rotate(-90deg); }
   .liveab-sub { font-size:11.5px; color:var(--text-dim); margin:4px 0 0; }
@@ -233,6 +251,7 @@
   .leg-action-tag.now { background:var(--green-dim); color:var(--green); border:1px solid var(--green); }
   .leg-action-tag.soon { background:var(--amber); color:#1a1200; }
   .leg-action-tag.steal { background:var(--steal-dim); color:var(--steal); border:1px solid var(--steal); }
+  .leg-live-context.leg-status { color:var(--text-faint); }
   .leg-live-context.steal-credit { color:var(--green); }
   .mkt-tag { font-family:'Inter',sans-serif; font-size:9px; font-weight:700; letter-spacing:.07em; border-radius:4px; padding:1px 5px; vertical-align:2px; }
   .mkt-tag.sb { color:var(--steal); background:var(--steal-dim); border:1px solid var(--steal); }
@@ -270,9 +289,6 @@
   .ticket-status.dead { color:var(--red); }
   .ticket-status.live { color:var(--text-dim); }
   .ticket-status.void { color:var(--yellow); }
-  .divider { text-align:center; color:var(--text-faint); font-size:12px; margin:24px 0; letter-spacing:.08em; }
-  .singles-title { font-family:'Oswald',sans-serif; font-size:17px; font-weight:700; margin:0 0 4px; }
-  .singles-sub { font-size:13px; color:var(--text-dim); margin:0 0 14px; }
   .single-row { display:flex; align-items:center; gap:10px; padding:10px 4px; border-top:1px solid var(--panel-line); }
   .single-row:first-of-type { border-top:none; }
   .single-left { flex:1; min-width:0; }
@@ -424,6 +440,18 @@
       <span class="clear-btn" onclick="toggleFilter(null)">Clear &times;</span>
     </div>
 
+    <p class="stat-row-label">LEGS &middot; tap to filter below</p>
+    <div class="scoreboard bets-row">
+      <div class="score-chip live-game clickable" id="chip-leg-live" onclick="toggleLegFilter('live')"><div class="num" id="count-leg-live">0</div><div class="lbl">LIVE</div></div>
+      <div class="score-chip hit clickable" id="chip-leg-hit" onclick="toggleLegFilter('hit')"><div class="num" id="count-leg-hit">0</div><div class="lbl">HIT</div></div>
+      <div class="score-chip miss clickable" id="chip-leg-miss" onclick="toggleLegFilter('miss')"><div class="num" id="count-leg-miss">0</div><div class="lbl">MISSED</div></div>
+      <div class="score-chip na clickable" id="chip-leg-na" onclick="toggleLegFilter('na')"><div class="num" id="count-leg-na">0</div><div class="lbl">N/A</div></div>
+    </div>
+    <div class="filter-status" id="leg-filter-status">
+      <span id="leg-filter-status-text"></span>
+      <span class="clear-btn" onclick="toggleLegFilter(null)">Clear &times;</span>
+    </div>
+
     </div>
   </header>
 
@@ -462,7 +490,7 @@
 
   <div class="bettor-section collapsed" id="bettor-section">
     <div class="bettor-head" onclick="toggleBettorSection()">
-      <p class="bettor-title">Bettor Tracker</p>
+      <p class="bettor-title">Bettor Tracker <span class="head-count" id="bettor-count"></span></p>
       <span class="bettor-chevron">&#9660;</span>
     </div>
     <p class="bettor-sub" id="bettor-sub">Tap to expand &mdash; see hit/miss breakdown per person.</p>
@@ -497,6 +525,10 @@ let RESULTS = emptyResults();
 let pollTimer = null;
 let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'   (bet outcome)
 let BETTOR_FILTER = null;    // null | lowercased bettor key
+// Leg state, restored 2026-09-20 after being removed on 9/18 -- the user asked
+// for it back. Four chips, not five: "not started" is folded into LIVE, since
+// the always-on status line under each leg now says which of the two it is.
+let LEG_FILTER = null;       // null | 'live' | 'hit' | 'miss' | 'na'
 let EVALUATED = [];          // [{ win, tk, states, evalRes }]  (parlay cards)
 let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
 
@@ -516,7 +548,7 @@ const SLATE_POLLS = new Map();
 const FINAL_SNAPSHOTS = new Map();
 
 function emptyResults() {
-  return { hitNames: new Set(), sbNames: new Set(), appeared: new Set(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), homeRuns: [], gameInfo: new Map(), allGamesFinal: false, ready: false, noGames: false };
+  return { hitNames: new Set(), sbNames: new Set(), appeared: new Set(), inBox: new Map(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), homeRuns: [], gameInfo: new Map(), allGamesFinal: false, ready: false, noGames: false };
 }
 
 // League-average probability that a plate appearance ends in an out. Not
@@ -624,6 +656,9 @@ const FEED_FIELDS = [
   "pitchData", "startSpeed", "zone",
   "hitData", "launchSpeed", "launchAngle", "totalDistance", "trajectory",
   "boxscore", "players", "person", "battingOrder",
+  // did he actually bat -- a home run bet needs a plate appearance, so a
+  // bench player (or a pinch runner who never hit) is void, not a miss
+  "stats", "batting", "plateAppearances", "allPositions",
   "linescore", "currentInning", "inningState", "outs", "offense",
   // stolen bases: every play's runner events, and who is standing on which base
   "runners", "runner", "playIndex", "first", "second", "third",
@@ -794,6 +829,14 @@ async function getGameSnapshot(gamePk) {
   // held that batting-order slot today (starter + any substitutes), used
   // to detect if our tracked hitter has since been pinch-hit for.
   const slotHolders = { away: {}, home: {} };
+  // Who actually BATTED. MLB's boxscore lists a team's whole active roster, so
+  // "is he in the boxscore?" says nothing about whether he got in -- a player
+  // who rode the bench all game used to resolve to `miss` here while the books
+  // (and scripts/record_results.py, which has always done it this way) void
+  // him. A home run bet needs a plate appearance, so a pinch runner or a late
+  // defensive sub who never hit is void too. The fallbacks cover a feed that
+  // hasn't filled in plateAppearances yet.
+  const played = new Set();
   const boxTeams = (data.liveData && data.liveData.boxscore && data.liveData.boxscore.teams) || {};
   ["away", "home"].forEach(side => {
     const players = (boxTeams[side] && boxTeams[side].players) || {};
@@ -802,6 +845,12 @@ async function getGameSnapshot(gamePk) {
       if (!full) return;
       const norm = normalizeName(full);
       rosterNames.add(norm);
+      const batting = (p.stats && p.stats.batting) || null;
+      if (batting && typeof batting.plateAppearances === "number") {
+        if (batting.plateAppearances > 0) played.add(norm);
+      } else if (p.battingOrder || (p.allPositions && p.allPositions.length) || (batting && Object.keys(batting).length)) {
+        played.add(norm);
+      }
       if (p.battingOrder) {
         const orderStr = String(p.battingOrder);
         const slot = parseInt(orderStr[0], 10);
@@ -877,7 +926,7 @@ async function getGameSnapshot(gamePk) {
     nextUpSlot[side] = slot;
   });
 
-  return { status, hrNames, homeRuns, rosterNames, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk, currentAB, recentABs, sbNames, steals, bases };
+  return { status, hrNames, homeRuns, rosterNames, played, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk, currentAB, recentABs, sbNames, steals, bases };
 }
 
 // How many more outs a team's side needs to record before the (assumed
@@ -1047,7 +1096,7 @@ async function pollSlate(date) {
   const snapshots = await Promise.all(games.map(g => {
     if (FINAL_SNAPSHOTS.has(g.gamePk)) return FINAL_SNAPSHOTS.get(g.gamePk);
     // Nothing from a not-yet-started game's feed is used below, so skip the download.
-    if (g.preview) return { status: "preview", gamePk: g.gamePk, hrNames: new Set(), homeRuns: [], rosterNames: new Set(), orderSlot: new Map(), slotHolders: { away: {}, home: {} }, sbNames: new Set(), steals: [], bases: {} };
+    if (g.preview) return { status: "preview", gamePk: g.gamePk, hrNames: new Set(), homeRuns: [], rosterNames: new Set(), played: new Set(), orderSlot: new Map(), slotHolders: { away: {}, home: {} }, sbNames: new Set(), steals: [], bases: {} };
     return getGameSnapshot(g.gamePk).then(snap => {
       if (snap.status === "final") FINAL_SNAPSHOTS.set(g.gamePk, snap);
       return snap;
@@ -1057,6 +1106,10 @@ async function pollSlate(date) {
   const hitNames = new Set();
   const sbNames = new Set();      // normalized name -> has stolen a base today
   const appeared = new Set();     // normalized name -> actually got into a game (holds a batting-order spot)
+  const inBox = new Map();        // normalized name -> 'live' | 'final'   (was he on the roster at all)
+  // Same map, but a player only enters it once he's actually batted -- so a
+  // bench player in a finished game is absent and grades as N/A rather than a
+  // miss. Steal legs ask "was he there", not "did he bat", so they read inBox.
   const rosterStatus = new Map(); // normalized name -> 'live' | 'final'
   const rosterSide = new Map();   // normalized name -> {side, gamePk}
   const gameInfo = new Map();     // gamePk -> snapshot
@@ -1070,7 +1123,12 @@ async function pollSlate(date) {
     (snap.sbNames || []).forEach(n => sbNames.add(n));
     (snap.homeRuns || []).forEach(hr => homeRuns.push(hr));
     if (snap.status !== "preview") {
-      snap.rosterNames.forEach(n => rosterStatus.set(n, snap.status));
+      snap.rosterNames.forEach(n => {
+        inBox.set(n, snap.status);
+        // While the game is still on he could yet bat, so he stays gradeable;
+        // once it's final, never having batted means the bet is void.
+        if (snap.status !== "final" || (snap.played && snap.played.has(n))) rosterStatus.set(n, snap.status);
+      });
       snap.orderSlot.forEach((info, n) => {
         appeared.add(n);
         rosterSide.set(n, { side: info.side, gamePk: snap.gamePk });
@@ -1084,7 +1142,7 @@ async function pollSlate(date) {
   });
 
   homeRuns.sort((a, b) => String(b.time).localeCompare(String(a.time))); // newest first, across games
-  const results = { hitNames, sbNames, appeared, rosterStatus, rosterSide, substitutedOut, homeRuns, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
+  const results = { hitNames, sbNames, appeared, inBox, rosterStatus, rosterSide, substitutedOut, homeRuns, gameInfo, allGamesFinal: allFinal, ready: true, noGames: false };
   const anyFetchFailed = snapshots.some(s => !s);
   return { results, done: allScheduledFinal || pastSafetyValve(date), settled: allScheduledFinal && !anyFetchFailed };
 }
@@ -1110,6 +1168,10 @@ function stateForPlayer(playerName) {
   if (RESULTS.rosterStatus.has(norm)) {
     return RESULTS.rosterStatus.get(norm) === "final" ? "miss" : "live";
   }
+  // He was on a roster but never batted. If HIS game is already over that's
+  // settled -- void -- even while the rest of the slate is still being played;
+  // waiting for allGamesFinal would leave him reading "not started" for hours.
+  if (RESULTS.inBox && RESULTS.inBox.get(norm) === "final") return "na";
   return RESULTS.allGamesFinal ? "na" : "not_started";
 }
 
@@ -1135,8 +1197,11 @@ function stateForSteal(playerName) {
   if (!RESULTS.ready) return "not_started";
   if (RESULTS.sbNames && RESULTS.sbNames.has(norm)) return "hit";
   if (RESULTS.substitutedOut && RESULTS.substitutedOut.has(norm)) return "miss";
-  if (RESULTS.rosterStatus.has(norm)) {
-    if (RESULTS.rosterStatus.get(norm) !== "final") return "live";
+  // inBox, not rosterStatus: a steal bet only needs him to have been on the
+  // field, so the "did he bat" gate rosterStatus now applies is wrong here.
+  const box = RESULTS.inBox || RESULTS.rosterStatus;
+  if (box.has(norm)) {
+    if (box.get(norm) !== "final") return "live";
     return RESULTS.appeared && RESULTS.appeared.has(norm) ? "miss" : "na";
   }
   return RESULTS.allGamesFinal ? "na" : "not_started";
@@ -1300,6 +1365,31 @@ function badge(state, playerName, market) {
   return `<div class="mark-badge${phpHit ? " php-hit" : ""}" data-state="${state}">${inner}</div>`;
 }
 
+// The line that is ALWAYS under a pick, whatever state he's in. Before this a
+// leg whose game hadn't started -- or whose player was sitting on the bench --
+// simply showed nothing at all, which reads exactly like "we have no idea".
+// Every branch says plainly where he stands. Returns "" only for a hit, where
+// the green check has already said it.
+function statusLineHtml(text) { return `<div class="leg-live-context leg-status">${text}</div>`; }
+
+function playerStatusLine(playerName, state, market) {
+  const norm = normalizeName(playerName);
+  const what = market === "sb" ? "steal" : "home run";
+  if (!RESULTS.ready) return statusLineHtml("Waiting on live results&hellip;");
+  if (state === "hit") return "";
+  const boxStatus = RESULTS.inBox ? RESULTS.inBox.get(norm) : null;
+  if (state === "na") {
+    return statusLineHtml(boxStatus === "final"
+      ? "On the roster but never got in the game &mdash; void / refunded."
+      : "Didn't play &mdash; void / refunded.");
+  }
+  if (state === "miss") return statusLineHtml(`Game final &mdash; no ${what}.`);
+  if (state === "not_started") return statusLineHtml("Game hasn't started yet.");
+  // live: his game is on and he's still gradeable
+  if (RESULTS.rosterSide && RESULTS.rosterSide.has(norm)) return statusLineHtml("In the game &mdash; waiting on the live feed.");
+  return statusLineHtml("Game on &mdash; not in the lineup yet.");
+}
+
 // Small info line shown under a leg's meta when that leg's game is
 // currently live and we have enough lineup data to estimate. `state` is
 // this leg's own resolved state; `betIsOpen` is whether the enclosing
@@ -1332,7 +1422,7 @@ function liveContextHtml(playerName, state, betIsOpen, market) {
   // Already resolved via his own hit before being pulled (e.g. pinch-run
   // for right after homering) -- the checkmark says enough, nothing left
   // to estimate.
-  if (!ctx || ctx.substitutedBy) return "";
+  if (!ctx || ctx.substitutedBy) return playerStatusLine(playerName, state, market);
   const gamedayLine = ctx.gamedayLink
     ? `<a href="${ctx.gamedayLink}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Track Live on Gameday &#8599;</a>`
     : "";
@@ -1361,7 +1451,7 @@ function stealContextHtml(playerName, state, betIsOpen) {
   if (state === "miss" && RESULTS.substitutedOut && RESULTS.substitutedOut.has(norm)) {
     return `<div class="leg-live-context pinch-hit-void">Pulled from the game without a steal &mdash; he can't re-enter, so this leg is a miss.</div>`;
   }
-  if (state !== "live") return "";
+  if (state !== "live") return playerStatusLine(playerName, state, "sb");
   const on = onBaseContext(playerName);
   const link = gp => `<a href="${gamedayUrl(gp)}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Track Live on Gameday &#8599;</a>`;
   if (on) {
@@ -1369,7 +1459,7 @@ function stealContextHtml(playerName, state, betIsOpen) {
     return `${tag}<div class="leg-live-context">${on.inningLabel} &middot; ${on.nextOpen ? `${on.nextLabel} is open` : `runner ahead on ${on.nextLabel}`}</div>${link(on.gamePk)}`;
   }
   const ctx = liveContextForPlayer(playerName);
-  if (!ctx) return "";
+  if (!ctx) return playerStatusLine(playerName, state, "sb");
   const caught = stealsBy(norm).filter(x => x.caught).length;
   return `<div class="leg-live-context">&#9918; ${ctx.inningLabel} &middot; batting ${ordinal(ctx.slot)} &middot; needs to reach base${caught ? ` &middot; caught stealing ${caught === 1 ? "once" : caught + "x"}` : ""}</div>${link(ctx.gamePk)}`;
 }
@@ -1848,7 +1938,10 @@ function renderHrLog() {
   const relevant = relevantHrNames();
   const ourCount = all.filter(hr => relevant.has(normalizeName(hr.batter))).length;
   const countEl = document.getElementById("hrlog-count");
-  if (countEl) countEl.textContent = all.length ? `${ourCount} OURS · ${all.length} TOTAL` : "";
+  // Share of the day's home runs that came off a bat we picked. Plain
+  // ours/total -- no attempt to weight by how many legs named him.
+  const pct = all.length ? Math.round((ourCount / all.length) * 100) : 0;
+  if (countEl) countEl.textContent = all.length ? `${ourCount} OURS · ${all.length} TOTAL · ${pct}%` : "";
 
   const rows = HR_FILTER === "picks" ? all.filter(hr => relevant.has(normalizeName(hr.batter))) : all;
 
@@ -1944,12 +2037,12 @@ function labEligiblePicks() {
   EVALUATED.forEach(({ tk, states, evalRes }) => {
     if (!isOpenOutcome(evalRes.outcome) || !ticketMatchesFilter(evalRes)) return;
     tk.legs.forEach((leg, i) => {
-      if (states[i] === "live" && legPassesFilters(leg.who)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]), legMarket(leg));
+      if (states[i] === "live" && legPassesFilters(states[i], leg.who)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]), legMarket(leg));
     });
   });
   EVALUATED_SINGLES.forEach(({ s, state, outcome, iron }) => {
     if (state !== "live" || outcome !== "live") return;
-    if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(s.who)) return;
+    if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(state, s.who)) return;
     add(s.player, s.odds, s.who, iron, legMarket(s));
   });
   return picks;
@@ -2169,6 +2262,7 @@ function labStealResultTile(flash, now) {
 function labFilterLabel() {
   const bits = [];
   if (CURRENT_FILTER) bits.push({ open: "Open bets", irons: "Irons", hit: "Hit bets", dead: "Missed bets" }[CURRENT_FILTER] || CURRENT_FILTER);
+  if (LEG_FILTER) bits.push({ live: "Live legs", hit: "Hit legs", miss: "Missed legs", na: "N/A legs" }[LEG_FILTER] || LEG_FILTER);
   if (BETTOR_FILTER) {
     const el = document.querySelector("#bettor-list .bettor-row.active-filter .bettor-name");
     bits.push(`${el ? el.textContent : BETTOR_FILTER}'s picks`);
@@ -2278,6 +2372,11 @@ function computeAll() {
   let betOpen = 0, betHit = 0, betMiss = 0, betIron = 0;
   let totalPayoutHit = 0;
   const bettors = new Map();
+  // Every leg on the slate, parlay legs and singles alike, bucketed for the
+  // LEGS chip row. Counts are slate-wide and deliberately ignore the active
+  // filters, same as the Home Run Log's pill.
+  const legCounts = { live: 0, hit: 0, miss: 0, na: 0 };
+  const countLeg = state => { const b = legFilterBucket(state); if (b in legCounts) legCounts[b]++; };
 
   function touchBettor(rawWho) {
     const key = whoKey(rawWho).toLowerCase();
@@ -2300,6 +2399,7 @@ function computeAll() {
 
       tk.legs.forEach((leg, i) => {
         const state = states[i];
+        countLeg(state);
         const b = touchBettor(leg.who);
         if (b) {
           if (state === "hit") { b.hit++; const o = oddsToNumber(leg.odds); if (o !== null) b.hitOdds.push(o); }
@@ -2315,6 +2415,7 @@ function computeAll() {
     const outcome = singleOutcome(state);
     const iron = singleIsIron(state, outcome);
     EVALUATED_SINGLES.push({ s, state, outcome, iron });
+    countLeg(state);
     if (iron) betIron++;
 
     if (outcome === "dead") betMiss++;
@@ -2332,6 +2433,10 @@ function computeAll() {
   document.getElementById("count-parlay-iron").textContent = betIron;
   document.getElementById("count-parlay-hit").textContent = betHit;
   document.getElementById("count-parlay-miss").textContent = betMiss;
+  document.getElementById("count-leg-live").textContent = legCounts.live;
+  document.getElementById("count-leg-hit").textContent = legCounts.hit;
+  document.getElementById("count-leg-miss").textContent = legCounts.miss;
+  document.getElementById("count-leg-na").textContent = legCounts.na;
   document.getElementById("total-payout").textContent = fmtMoney(totalPayoutHit);
 
   const rows = Array.from(bettors.entries()).map(([key, stat]) => {
@@ -2351,6 +2456,8 @@ function computeAll() {
       </div>
     </div>`).join("");
   document.getElementById("bettor-list").innerHTML = bettorHtml || `<p style="color:var(--text-faint); font-size:12px;">No bettor data yet.</p>`;
+  const bettorCountEl = document.getElementById("bettor-count");
+  if (bettorCountEl) bettorCountEl.textContent = rows.length ? `${rows.length} ${rows.length === 1 ? "BETTOR" : "BETTORS"}` : "";
 
   const mixed = slateHasSteals();
   document.getElementById("legend-hit").textContent = mixed ? "Home run / steal" : "Home run";
@@ -2360,16 +2467,58 @@ function computeAll() {
     `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live MLB results."}`;
 }
 
+// Which LEGS chip a leg state belongs to. The chip row is four wide to fit a
+// phone, so `not_started` rides along with `live` -- both mean "still to come".
+function legFilterBucket(state) { return state === "not_started" ? "live" : state; }
+
 // Paired with ticketMatchesFilter: that one decides whether a bet shows at
-// all, this one whether an individual leg does. Only the bettor filter is
-// leg-level now -- the LEGS scoreboard row and its LEG_FILTER are gone.
-function legPassesFilters(rawWho) {
+// all, this one whether an individual leg does. Both leg-level filters apply.
+function legPassesFilters(state, rawWho) {
+  if (LEG_FILTER && legFilterBucket(state) !== LEG_FILTER) return false;
   if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return false;
   return true;
 }
 
+// The two bet lists are collapsible sections like the panels above them, and
+// both start CLOSED: the slate summary up top is what most people want at a
+// glance. Whichever a visitor opens is remembered per browser.
+const LS_CARDS = { parlays: "bmbs.cards.parlays", singles: "bmbs.cards.singles" };
+const CARDS_OPEN = { parlays: false, singles: false };
+
+function loadCardsOpen() {
+  Object.keys(CARDS_OPEN).forEach(k => { CARDS_OPEN[k] = lsGet(LS_CARDS[k]) === "1"; });
+}
+
+function toggleCardsSection(which) {
+  CARDS_OPEN[which] = !CARDS_OPEN[which];
+  lsSet(LS_CARDS[which], CARDS_OPEN[which]);
+  renderContent();
+}
+
+// "3 OPEN · 1 HIT · 2 MISSED" for one group of bets. Slate-wide, deliberately
+// NOT filtered -- like the Home Run Log's pill, it describes the slate rather
+// than whatever slice is on screen.
+function cardsCountPill(outcomes) {
+  let open = 0, hit = 0, miss = 0;
+  outcomes.forEach(o => { if (o === "dead") miss++; else if (o === "hit") hit++; else open++; });
+  const bits = [open ? `${open} OPEN` : "", hit ? `${hit} HIT` : "", miss ? `${miss} MISSED` : ""].filter(Boolean);
+  return bits.join(" · ");
+}
+
+function cardsSectionHtml(which, title, countText, sub, body) {
+  const open = CARDS_OPEN[which];
+  return `<div class="cards-section${open ? "" : " collapsed"}" id="${which}-section">
+      <div class="cards-head" onclick="toggleCardsSection('${which}')">
+        <p class="cards-title">${title} <span class="head-count">${countText}</span></p>
+        <span class="cards-chevron">&#9660;</span>
+      </div>
+      <p class="cards-sub">${sub}</p>
+      <div class="cards-body">${body}</div>
+    </div>`;
+}
+
 // Renders #content (ticket windows + singles) from EVALUATED / EVALUATED_SINGLES,
-// respecting CURRENT_FILTER (bet outcome) and
+// respecting CURRENT_FILTER (bet outcome), LEG_FILTER (leg state) and
 // BETTOR_FILTER (person). Cheap enough to call on every filter click without re-polling.
 function renderContent() {
   const root = document.getElementById("content");
@@ -2381,7 +2530,7 @@ function renderContent() {
     const rendered = [];
     items.forEach(({ tk, states, evalRes }) => {
       const betIsOpen = isOpenOutcome(evalRes.outcome);
-      const passing = tk.legs.map((leg, i) => legPassesFilters(leg.who) ? i : -1).filter(i => i >= 0);
+      const passing = tk.legs.map((leg, i) => legPassesFilters(states[i], leg.who) ? i : -1).filter(i => i >= 0);
       if (passing.length === 0) return; // no legs survive leg/bettor filters -> hide this ticket
       // An Iron is about how close the whole card is, so under that filter
       // every leg renders -- including the ones already hit. The leg-level
@@ -2426,21 +2575,22 @@ function renderContent() {
     html += `</div>`;
   });
 
-  const anyFilterActive = CURRENT_FILTER || BETTOR_FILTER;
+  const anyFilterActive = CURRENT_FILTER || BETTOR_FILTER || LEG_FILTER;
   if (!anyRendered && anyFilterActive) {
     html += `<p class="empty-filter-note">No parlay cards match this filter right now.</p>`;
   }
 
+  let singlesHtml = `<div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
   const filteredSingles = EVALUATED_SINGLES.filter(e =>
-    ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.s.who)
+    ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.state, e.s.who)
   );
-  html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
-    <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
-  if (filteredSingles.length === 0 && anyFilterActive) {
-    html += `<p class="empty-filter-note" style="padding:12px 0;">No straight bets match this filter right now.</p>`;
+  if (filteredSingles.length === 0) {
+    singlesHtml += `<p class="empty-filter-note" style="padding:12px 0;">${anyFilterActive
+      ? "No straight bets match this filter right now."
+      : "No straight bets on this slate."}</p>`;
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
-    html += `<div class="single-row state-${state}">
+    singlesHtml += `<div class="single-row state-${state}">
       <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}${marketTag(legMarket(s))}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s))}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
@@ -2448,9 +2598,17 @@ function renderContent() {
       ${badge(state, s.player, legMarket(s))}
     </div>`;
   });
-  html += `</div></div>`;
+  singlesHtml += `</div>`;
 
-  root.innerHTML = html;
+  const parlayCount = cardsCountPill(EVALUATED.map(e => e.evalRes.outcome));
+  const singleCount = cardsCountPill(EVALUATED_SINGLES.map(e => e.outcome));
+  root.innerHTML =
+    cardsSectionHtml("parlays", "Parlay Cards", parlayCount,
+      CARDS_OPEN.parlays ? "Every multi-leg card on this slate." : "Tap to expand &mdash; every multi-leg card on this slate.",
+      html) +
+    cardsSectionHtml("singles", "Straight Bet Cards", singleCount,
+      CARDS_OPEN.singles ? "One player prop per person, straight bet." : "Tap to expand &mdash; one player prop per person, straight bet.",
+      singlesHtml);
 }
 
 function updateFilterUI() {
@@ -2474,6 +2632,30 @@ function toggleFilter(key) {
   updateFilterUI();
   renderContent();
   renderLiveAtBats();
+}
+
+const LEG_FILTER_LABELS = {
+  live: ["chip-leg-live", "Showing only LIVE legs — games on or still to come"],
+  hit: ["chip-leg-hit", "Showing only legs that HIT"],
+  miss: ["chip-leg-miss", "Showing only legs that MISSED"],
+  na: ["chip-leg-na", "Showing only N/A legs — didn't play, void"]
+};
+
+function updateLegFilterUI() {
+  Object.values(LEG_FILTER_LABELS).forEach(([id]) => document.getElementById(id).classList.remove("active-filter"));
+  const statusEl = document.getElementById("leg-filter-status");
+  if (!LEG_FILTER) { statusEl.classList.remove("active"); return; }
+  const [chipId, label] = LEG_FILTER_LABELS[LEG_FILTER];
+  document.getElementById(chipId).classList.add("active-filter");
+  document.getElementById("leg-filter-status-text").textContent = label;
+  statusEl.classList.add("active");
+}
+
+function toggleLegFilter(key) {
+  LEG_FILTER = (LEG_FILTER === key) ? null : key;
+  updateLegFilterUI();
+  renderContent();
+  renderLiveAtBats();   // the panel scopes to every filter; forgetting this left it stale once
 }
 
 function updateBettorFilterUI() {
@@ -2508,6 +2690,7 @@ function render() {
   renderContent();
   renderHrLog();
   updateFilterUI();
+  updateLegFilterUI();
   updateBettorFilterUI();
   renderLiveAtBats();
 }
@@ -2622,7 +2805,7 @@ function applyActiveTab() {
 function activateTab(tab) {
   if (tab === ACTIVE_TAB) return;
   ACTIVE_TAB = tab;
-  CURRENT_FILTER = BETTOR_FILTER = null;
+  CURRENT_FILTER = BETTOR_FILTER = LEG_FILTER = null;
   HR_EXPANDED.clear(); // the other tab's home runs, not this one's
   applyActiveTab();
   render();
@@ -2691,6 +2874,7 @@ document.addEventListener("visibilitychange", () => {
 
 async function init() {
   initNotifPrefs();
+  loadCardsOpen();
   if (lsGet(LS_LIVEAB) === "1") document.getElementById("liveab-section").classList.remove("collapsed");
   await pollAndRender();
   schedulePolling();

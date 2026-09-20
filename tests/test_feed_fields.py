@@ -47,7 +47,11 @@ def feed_fields():
     m = re.search(r"const FEED_FIELDS = \[(.*?)\]\.join", src, re.S)
     if not m:
         sys.exit("FAIL: couldn't find FEED_FIELDS in index.html")
-    return ",".join(re.findall(r'"([^"]+)"', m.group(1)))
+    # Strip // comments FIRST: the list is commented, and a comment containing
+    # a quoted phrase would otherwise be scraped in as a field name and sent to
+    # MLB as part of the URL (it happened -- a space in it raised InvalidURL).
+    body = re.sub(r"//.*", "", m.group(1))
+    return ",".join(re.findall(r'"([^"]+)"', body))
 
 
 def pick_games():
@@ -75,6 +79,7 @@ NORMALIZE = """async (pk) => {
     hrNames: [...s.hrNames].sort(),
     homeRuns: s.homeRuns,
     rosterNames: [...s.rosterNames].sort(),
+    played: [...s.played].sort(),   // who actually batted: drives the bench -> N/A grading
     orderSlot: [...s.orderSlot.entries()].sort(),
     slotHolders: s.slotHolders,
     inning: s.inning, halfState: s.halfState, outs: s.outs,

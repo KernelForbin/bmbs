@@ -40,7 +40,7 @@ def tickets(date, singles, cards=()):
 def schedule(date, games):
     return {"dates": [{"date": date, "games": [{"gamePk": pk, "status": {"abstractGameState": st}} for pk, st in games]}]}
 
-def feed(abstract, roster, hrs=()):
+def feed(abstract, roster, hrs=(), bench=()):
     # battingOrder must stay collision-free: the app reads the FIRST digit as
     # the lineup slot, so a 10th player numbered "1000" would read as slot 1
     # and look like a substitute for the leadoff hitter -- which wrongly
@@ -49,7 +49,12 @@ def feed(abstract, roster, hrs=()):
     sides = {"away": {}, "home": {}}
     for i, n in enumerate(roster):
         side = "away" if i < 9 else "home"
-        sides[side][f"ID{i}"] = {"person": {"fullName": n}, "battingOrder": f"{(i % 9) + 1}00"}
+        sides[side][f"ID{i}"] = {"person": {"fullName": n}, "battingOrder": f"{(i % 9) + 1}00",
+                                 "stats": {"batting": {"plateAppearances": 3}}}
+    # Bench: in the boxscore (MLB lists a team's whole active roster) but with
+    # no batting-order slot and zero plate appearances -- he never got in.
+    for j, n in enumerate(bench):
+        sides["away"][f"BENCH{j}"] = {"person": {"fullName": n}, "stats": {"batting": {"plateAppearances": 0}}}
     return {"gameData": {"status": {"abstractGameState": abstract}},
             "liveData": {"plays": {"allPlays": [{"result": {"eventType": "home_run"}, "about": {"isTopInning": True},
                                                  "matchup": {"batter": {"fullName": n}}} for n in hrs]},
@@ -254,6 +259,14 @@ def count(pattern):
 def poll(page):
     page.evaluate("pollAndRender()")
 
+def expand_cards(page):
+    """Parlay Cards / Straight Bet Cards default to COLLAPSED (2026-09-20), and
+    Playwright's inner_text() only sees visible text. Every section below reads
+    the bet lists, so open both right after load. Section R is the one place
+    that checks the collapsed default itself, before calling this."""
+    page.evaluate("CARDS_OPEN.parlays = CARDS_OPEN.singles = true;"
+                  " if (typeof TICKETS !== 'undefined' && TICKETS) renderContent();")
+
 def visible(page, el_id):
     return page.evaluate(f"getComputedStyle(document.getElementById('{el_id}')).display") != "none"
 
@@ -273,7 +286,7 @@ def ET(y, mo, d, h, mi):
     # September: ET is UTC-4
     return datetime(y, mo, d, h, mi, tzinfo=timezone.utc) + timedelta(hours=4)
 
-def open_page(p, at, init_scripts=(), timezone_id=None):
+def open_page(p, at, init_scripts=(), timezone_id=None, expand=True):
     browser = p.chromium.launch()
     opts = {"viewport": {"width": 480, "height": 1000}}
     if timezone_id:
@@ -294,6 +307,8 @@ def open_page(p, at, init_scripts=(), timezone_id=None):
     page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
     page.evaluate("clearInterval(pollTimer)")  # drive polls by hand; no background races
     poll(page)
+    if expand:
+        expand_cards(page)
     return browser, page, errors
 
 
@@ -320,8 +335,13 @@ with sync_playwright() as p:
     assert leg_states(page) == {"Player Hr": "hit", "Player Live": "live"}, leg_states(page)
     bets = tuple(text(page, f"count-parlay-{k}") for k in ("open", "hit", "miss"))
     assert bets == ("3", "1", "1"), bets   # open: the card + 2 singles; hit / missed: one single each
-    assert page.evaluate("!document.getElementById('leg-chip-hit') && !/LEGS/.test(document.getElementById('slate-stats').textContent)"), \
-        "the LEGS filter row was removed -- BETS covers it"
+    # The LEGS row was removed on 2026-09-18 and put back on 2026-09-20 at the
+    # user's request, four chips wide with not_started folded into LIVE.
+    legs = tuple(text(page, f"count-leg-{k}") for k in ("live", "hit", "miss", "na"))
+    # 4 singles + a 2-leg card: live = Live single + Absent single + Live leg;
+    # hit = Hr single + Hr leg; miss = the Miss single. Nobody is void here.
+    assert legs == ("3", "2", "1", "0"), legs
+    assert "LEGS" in text(page, "slate-stats")
     assert count(r"schedule\?.*date=2026-09-18") == 0, "must not query the wall-clock date"
     assert "LIVE FROM MLB" in text(page, "eyebrow-text")
     assert not visible(page, "queued-note"), "nothing is queued behind the live slate here"
@@ -591,8 +611,8 @@ with sync_playwright() as p:
 
     # I2b: the header pill counts ours vs league-wide, independent of the
     # filter currently selected (Our Picks is active here, yet it reads 3 total).
-    assert text(page, "hrlog-count") == "1 OURS · 3 TOTAL", text(page, "hrlog-count")
-    print("I2b OK: header pill shows 'N OURS · M TOTAL' regardless of the active filter")
+    assert text(page, "hrlog-count") == "1 OURS · 3 TOTAL · 33%", text(page, "hrlog-count")
+    print("I2b OK: header pill shows 'N OURS · M TOTAL · P%' regardless of the active filter")
 
     # I3: All Home Runs -- every HR league-wide, newest first, picks still highlighted.
     page.click("#hrlog-btn-all")
@@ -640,7 +660,7 @@ with sync_playwright() as p:
 
     # I8: the pill recomputes with the new slate -- 0 of our (new) picks have
     # gone deep, but the league-wide total is untouched by the ticket swap.
-    assert text(page, "hrlog-count") == "0 OURS · 3 TOTAL", text(page, "hrlog-count")
+    assert text(page, "hrlog-count") == "0 OURS · 3 TOTAL · 0%", text(page, "hrlog-count")
     print("I8 OK: header pill recomputes 'ours' on a new upload without changing the league total")
 
     assert not errors, errors
@@ -1196,6 +1216,90 @@ with sync_playwright() as p:
     assert line == "Live — last updated 9:00:00 PM ET", line
     assert "6:00:00" not in line, f"that's the visitor's local clock wearing an ET label: {line}"
     print("Q1 OK: a Pacific visitor sees 9:00:00 PM ET, not their own 6:00:00 PM")
+    assert not errors, errors
+    browser.close()
+
+    # ========== R: the LEGS chip row, the always-on status line, the bench
+    # grading fix, and the collapsible bet sections (all added 2026-09-20) ==========
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19",
+                            [("Kenny", "Hit Guy"), ("Memo", "Bench Guy"), ("Memo", "Later Guy")],
+                            [card(["Hit Guy", "Miss Guy"], "Card 1 &middot; Mixed")])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(3001, "Final"), (3002, "Preview")])}
+    # 3001 is over: Hit Guy homered, Miss Guy batted and didn't, Bench Guy never got in.
+    FX["feeds"] = {3001: feed("Final", ["Hit Guy", "Miss Guy"], hrs=["Hit Guy"], bench=["Bench Guy"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 23, 0), expand=False)
+
+    # --- R1/R2: both bet lists start collapsed, each with its own count pill ---
+    collapsed = page.evaluate("""() => ["parlays", "singles"].map(k =>
+        document.getElementById(k + "-section").classList.contains("collapsed"))""")
+    assert collapsed == [True, True], collapsed
+    assert page.inner_text("#content").count("Tap to expand") == 2, page.inner_text("#content")
+    print("R1 OK: Parlay Cards and Straight Bet Cards both default to collapsed")
+
+    pills = page.evaluate("""() => ["parlays", "singles"].map(k =>
+        document.querySelector("#" + k + "-section .head-count").textContent)""")
+    # the card is dead (Miss Guy); singles are one hit, one void, one still to come
+    assert pills == ["1 MISSED", "2 OPEN · 1 HIT"], pills
+    print("R2 OK: each header carries its own OPEN / HIT / MISSED pill")
+
+    page.click("#parlays-section .cards-head")
+    assert page.evaluate("!document.getElementById('parlays-section').classList.contains('collapsed')")
+    assert page.evaluate("localStorage.getItem('bmbs.cards.parlays')") == "1", "opening it must be remembered"
+    assert page.evaluate("document.getElementById('singles-section').classList.contains('collapsed')"), \
+        "the two sections open independently"
+    page.click("#singles-section .cards-head")
+    poll(page)   # a poll re-renders #content; the open state has to survive it
+    assert page.evaluate("""() => ["parlays", "singles"].every(k =>
+        !document.getElementById(k + "-section").classList.contains("collapsed"))"""), "a poll closed a section"
+    print("R3 OK: each opens independently, is remembered, and survives a re-render")
+
+    # --- R4: the bench player is VOID, not a miss (ported from record_results.py) ---
+    st = single_states(page)
+    assert st == {"Hit Guy": "hit", "Bench Guy": "na", "Later Guy": "not_started"}, st
+    print("R4 OK: a player who sat on the bench all game is N/A, not a miss")
+
+    # --- R5: the always-on status line ---
+    ctx = page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('#content .single-row')]
+        .map(r => [r.querySelector('.single-player').firstChild.textContent.trim(),
+                   (r.querySelector('.leg-status') || {}).textContent || ""]))""")
+    assert "never got in the game" in ctx["Bench Guy"], ctx
+    assert "hasn't started" in ctx["Later Guy"], ctx
+    assert ctx["Hit Guy"] == "", f"a hit needs no status line -- the check already says it: {ctx}"
+    miss_status = page.evaluate("""() => [...document.querySelectorAll('#content .leg')]
+        .find(l => l.querySelector('.leg-player').firstChild.textContent.trim() === 'Miss Guy')
+        .querySelector('.leg-status').textContent""")
+    assert "no home run" in miss_status, miss_status
+    print("R5 OK: every pick carries a plain-language status line, whatever state it's in")
+
+    # --- R6: the LEGS chips ---
+    legs = tuple(text(page, f"count-leg-{k}") for k in ("live", "hit", "miss", "na"))
+    assert legs == ("1", "2", "1", "1"), legs   # live: Later Guy; hit: Hit Guy twice; miss: Miss Guy; na: Bench Guy
+    assert text(page, "bettor-count") == "2 BETTORS", text(page, "bettor-count")
+    print("R6 OK: leg chips count every leg and single; the Bettor Tracker header counts people")
+
+    page.click("#chip-leg-hit")
+    assert page.evaluate("LEG_FILTER") == "hit"
+    assert single_names(page) == ["Hit Guy"], single_names(page)
+    assert legs_of(page, "Card 1 · Mixed") == ["Hit Guy"], legs_of(page, "Card 1 · Mixed")
+    assert "1 other leg(s) in this parlay hidden by the current filter." in page.inner_text("#content"), \
+        "the card must say a leg is hidden rather than silently shrinking"
+    print("R7 OK: a leg-state filter hides non-matching LEGS inside a card, and says so")
+
+    page.click("#chip-leg-na")
+    assert single_names(page) == ["Bench Guy"], single_names(page)
+    assert ticket_names(page) == [], "no leg of that card is void, so the whole card drops out"
+    page.click("#chip-leg-na")
+    assert page.evaluate("LEG_FILTER") is None
+    assert len(single_names(page)) == 3 and len(legs_of(page, "Card 1 · Mixed")) == 2
+    print("R8 OK: a card with no matching leg drops out entirely; tapping again clears it")
+
+    page.click("#chip-leg-miss")
+    page.click("#tab-btn-yesterday")
+    page.wait_for_timeout(50)
+    assert page.evaluate("LEG_FILTER") is None, "switching tabs must not carry a leg filter across"
+    print("R9 OK: switching tabs clears the leg filter")
     assert not errors, errors
     browser.close()
 

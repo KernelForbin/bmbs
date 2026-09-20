@@ -1,6 +1,42 @@
-PLACEHOLDER -- no football card has been uploaded yet.
+### Touchdown Parlays Summary
 
-Upload a .txt whose file name starts with "football" in the Discord intake
-channel (or paste a touchdown card over this text and commit). That triggers
-.github/workflows/parse-football-picks.yml, which builds
-data/football/tickets.json for https://bmbs.bet/football/.
+Ticket 1 (5-Leg Parlay)
+Bettor: Memo | Bet: $8.50 | Potential Payout: $95.66
+- (Kenny) Derrick Henry (-260) 1:00 PM
+- (Bernie) Christian McCaffrey (-250) 4:25 PM
+- (Kenny) Kenneth Walker (-225) 4:25 PM
+- (Bernie) Bijan Robinson (-180) 1:00 PM
+- (Kenny) D'Andre Swift (-150) 1:00 PM
+
+Ticket 2 (4-Leg Parlay)
+Bettor: Memo | Bet: $8.50 | Potential Payout: $139.40
+- (Memo) Saquon Barkley (-105) 1:00 PM
+- (Bernie) Ashton Jeanty (-105) Check Listings
+- (Bernie) Bucky Irving (+100) 1:00 PM
+- (Noid) Chase Brown (+120) 1:00 PM
+
+Ticket 3 (3-Leg Parlay)
+Bettor: Memo | Bet: $8.50 | Potential Payout: $159.89
+- (Joe) Jaxon Smith-Njigba (+135) 4:25 PM
+- (Kenny) Malik Nabers (+150) Mon 8:15 PM
+- (Bernie) Justin Jefferson (+170) 1:00 PM
+
+Ticket 4 (2-Leg Parlay)
+Bettor: Memo | Bet: $8.50 | Potential Payout: $72.68
+- (Noid) Travis Etienne (+185) 4:05 PM
+- (Memo) Terry McLaurin (+195) 4:25 PM
+
+Ticket 5 (2-Leg Parlay)
+Bettor: Kenny | Bet: $8.50 | Potential Payout: $104.80
+- (Joe) Garrett Wilson (+200) 1:00 PM
+- (Noid) Trey McBride (+200) 4:25 PM
+
+Ticket 6 (2-Leg Parlay)
+Bettor: Memo | Bet: $8.50 | Potential Payout: $89.59
+- (Joe) Chris Olave (+210) 1:00 PM
+- (Joe) Chris Godwin (+210) 1:00 PM
+
+Ticket 7 (2-Leg Parlay)
+Bettor: Memo | Bet: $9.00 | Potential Payout: $113.22
+- (Noid) Golden (+240) 1:00 PM
+- (Memo) Kaelon Black (+260) 1:00 PM

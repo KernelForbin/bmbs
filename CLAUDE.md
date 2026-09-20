@@ -178,7 +178,7 @@ parsed as JS.
 **Anything that prints a time must pass `timeZone` explicitly.** The whole
 site talks in ET, so a formatted time gets an "ET" label -- and
 `toLocaleTimeString` with no `timeZone` silently formats the VISITOR's own
-clock instead. `updateSyncLine()`'s "Live -- last updated ... ET" did exactly
+clock instead. `updateSyncLine()`'s "last updated ... ET" line did exactly
 that until 2026-09-20: a viewer out west read their own wall clock under an ET
 label, three hours off. Both sports had it (fixed in both). `nowET()` was
 always correct -- it passes `timeZone: "America/New_York"` to
@@ -236,9 +236,14 @@ Two behaviours that are easy to break:
   shows under Open and under no filter at all -- not just under Irons.
 - **The Irons filter renders the FULL parlay**, every leg including the ones
   already hit, because the point is seeing how close the card is. The
-  bettor filter's hide-non-matching-legs behaviour deliberately does not
-  apply; `renderContent()` still uses it to decide whether a ticket
-  appears, then overrides `visibleLegIdx` to all legs.
+  bettor/leg filters' hide-non-matching-legs behaviour deliberately does not
+  apply; `renderContent()` still uses them to decide whether a ticket
+  appears, then overrides `visibleLegIdx` to all legs. **The expansion is
+  decided PER TICKET** (`BET_FILTERS.has("irons") && evalRes.iron`), not by
+  "the irons filter is on": since the chips multi-select, Open + Irons renders
+  plain open cards too, and those must still hide their non-matching legs.
+  What the expansion does NOT override is whether a card appears at all -- an
+  Iron with no leg surviving the leg/bettor filters is hidden like any other.
 
 A **dead** parlay is never an Iron even when one leg is numerically
 unresolved -- `outcome === "live"` excludes it, same as void.
@@ -256,16 +261,54 @@ either, because it has gone back and forth once already:
   not five: `not_started` is bucketed into LIVE by `legFilterBucket()` so the
   row fits a 560px phone next to the 4-wide BETS row, and the always-on status
   line under each leg (below) says which of the two a pick actually is.
-- `LEG_FILTER` hides non-matching LEGS *inside* a card, exactly like
-  `BETTOR_FILTER`, and notes how many it hid; a card with no surviving leg
+- The leg chips hide non-matching LEGS *inside* a card, exactly like the
+  bettor filter, and note how many they hid; a card with no surviving leg
   drops out. Both leg-level filters go through `legPassesFilters(state, who)`.
-  The IRONS override still wins -- under that filter a parlay renders every
-  leg, hits included.
 
-The three filters are `CURRENT_FILTER` (bets), `LEG_FILTER` (leg state) and
-`BETTOR_FILTER` (person), and they stack. All three reset on a tab switch, and
-**every one of them must call `renderLiveAtBats()` / `renderLiveDrives()`** --
+**All three filters are MULTI-SELECT** (2026-09-20, both sports). They are
+Sets, not single values: `BET_FILTERS`, `LEG_FILTERS`, `BETTOR_FILTERS`.
+- **OR within a group, AND across groups.** Bets: Open + Hit shows both kinds
+  of bet; Bets:Open + Legs:Missed + Bettor:Kenny means "Kenny's missed legs on
+  bets that are still open". An empty set means "no filter from this group",
+  never "nothing matches" -- check `.size` before testing membership.
+- **Clicking a chip toggles only that chip.** Nothing else is cleared. Before
+  this, picking a second chip silently replaced the first.
+- `FILTER_GROUPS` is the single table the chips, the summary bar and
+  `clearAllFilters()` all read, so they can't drift apart. Adding a fourth
+  group means adding a row there, not four parallel code paths.
+- **One consolidated summary bar** (`#filter-summary`) replaced the three
+  per-group status strips. It lists every active filter as its own removable
+  chip plus a Clear all button, and it is **`position: sticky`** -- which is
+  why it lives OUTSIDE `<header>`: sticky is confined to its containing block,
+  so inside the header it would stop following the moment the header scrolled
+  away. That matters because the bettor filter is set from a panel far down
+  the page.
+- **Summary chips and Bettor Tracker rows carry `data-group`/`data-key` and are
+  handled by ONE delegated listener each** (`initFilterHandlers()`), not an
+  inline `onclick`. A bettor key is a name off the card, and a name with an
+  apostrophe spliced into `onclick="f('x')"` breaks the handler -- the
+  attribute decodes `&#39;` back to a quote before JS ever parses it. The
+  containers are safe to delegate on because only their `innerHTML` is
+  rebuilt each poll, never the containers themselves.
+
+All three reset on a tab switch, and **every filter change must fan out through
+`applyFilters()`**, which calls `renderLiveAtBats()` / `renderLiveDrives()` --
 forgetting that left the panel stale once already.
+
+**Page layout, reshuffled 2026-09-20** (both sports, user's call):
+- `<h1>` now names the sport -- "BMBS Tracker &mdash; Baseball" / "&mdash; Football"
+  -- and comes FIRST, with the LIVE FROM MLB / LIVE FROM ESPN eyebrow under it
+  and the last-updated line directly under that. The sync line lost its
+  "Live &mdash; " prefix (the eyebrow already says the slate is live).
+- The colour key moved out of the header to the bottom of the page, above the
+  footer, under a "COLOR KEY" label. `#legend-hit` / `#legend-miss` are still
+  rewritten by `computeAll()` for steal slates -- the ids moved with it.
+- **The "Auto-tracked against live MLB/NFL results." boilerplate is gone**, as
+  redundant with the eyebrow. `#dynamic-note` itself MUST STAY: it is the only
+  place an unread bet line surfaces (`BETLIKE_RE` -> `tickets.json`'s `note`),
+  and dropping that would put the site back to silently posting 16 of 18
+  tickets. It now renders "Heads up &mdash; &lt;note&gt;" when there is a
+  warning and is empty otherwise, and `test_page.py`'s section O pins both.
 
 **Every pick carries a status line, always** (`playerStatusLine()`, both
 sports, 2026-09-20). `liveContextHtml()` used to return "" whenever it had
@@ -1023,6 +1066,16 @@ on failure:
   One mutation taught something on its own -- flipping `CARDS_OPEN`'s
   initialiser changes nothing, because `loadCardsOpen()` overwrites it at boot.
   The real default is that function's `=== "1"`.
+  **Section S** covers the multi-select filters: two chips in one group both
+  staying on, groups AND-ing together, the summary bar appearing and naming
+  every active filter, one chip removing only its own value, Clear all, and
+  the per-ticket Irons expansion. **Section T** pins the header order, the
+  sport in the `<h1>`, and the colour key sitting above the footer. Mutation
+  testing paid for itself twice here: the first draft of S6 removed a filter
+  from a group holding ONE value, so "delete this key" and "clear this whole
+  group" were indistinguishable and a real bug walked past it; and S3 checked
+  the summary's chips without checking the bar ever became visible. Both were
+  found by deliberately breaking the code, not by reading it.
 
 - `tests/test_live_at_bats.py` — the Live At Bats panel: one mocked game walked
   forward poll by poll (live count, strikeout, home run/bomb, stale at-bat,
@@ -1053,7 +1106,9 @@ on failure:
   anything appended after it would otherwise assert against a two-bet slate.
   The Live Drives state changes live in C2/C6 (no ON DEFENSE tile survives)
   and D6 (possession flipped but the drive isn't open -> TAKING THE FIELD
-  SOON, grey, not green) rather than in L.
+  SOON, grey, not green) rather than in L. **Section M** is baseball's section
+  S (multi-select + the summary bar) and **section N** is its section T (the
+  header reshuffle, the sport in the title, the colour key above the footer).
 - `tests/test_football_parser.py` — football parser (both templates, negative
   odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
   roster builder, and the Discord bot's file-name routing. Fully offline.

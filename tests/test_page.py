@@ -259,6 +259,24 @@ def count(pattern):
 def poll(page):
     page.evaluate("pollAndRender()")
 
+def leg_filters(page):
+    return sorted(page.evaluate("() => [...LEG_FILTERS]"))
+
+
+def bet_filters(page):
+    return sorted(page.evaluate("() => [...BET_FILTERS]"))
+
+
+def bettor_filters(page):
+    return sorted(page.evaluate("() => [...BETTOR_FILTERS]"))
+
+
+def summary_chips(page):
+    """The active-filter chips in the consolidated summary bar, in order."""
+    return page.evaluate("""() => [...document.querySelectorAll('#filter-summary-chips .fs-chip')]
+        .map(c => c.textContent.replace(/\\s+/g, ' ').replace(/\\s*\\u00d7\\s*$/, '').trim())""")
+
+
 def expand_cards(page):
     """Parlay Cards / Straight Bet Cards default to COLLAPSED (2026-09-20), and
     Playwright's inner_text() only sees visible text. Every section below reads
@@ -887,7 +905,9 @@ with sync_playwright() as p:
     page.click("#chip-iron")
     assert ticket_names(page) == ["IRON"], ticket_names(page)
     assert single_names(page) == ["S Open"], single_names(page)
-    assert "IRONS" in text(page, "filter-status-text"), text(page, "filter-status-text")
+    # The three per-group status bars became one consolidated summary on
+    # 2026-09-20, listing every active filter as its own removable chip.
+    assert summary_chips(page) == ["Bets: Irons"], summary_chips(page)
     print("K4 OK: Irons filter shows Iron parlays and open singles together")
 
     # K5: the FULL parlay renders -- already-hit legs included, not hidden.
@@ -1114,13 +1134,17 @@ with sync_playwright() as p:
     FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(1801, "Live")])}
     FX["feeds"] = {1801: feed("Live", ["Player Live"])}
     browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0))
-    assert text(page, "dynamic-note") == "Auto-tracked — ⚠ 1 line couldn't be read — first one: “Ticket #2”", text(page, "dynamic-note")
-    print("O1 OK: a real parser warning in tickets.json's note renders verbatim in the Auto-tracked banner")
+    assert text(page, "dynamic-note") == "Heads up — ⚠ 1 line couldn't be read — first one: “Ticket #2”", text(page, "dynamic-note")
+    print("O1 OK: a real parser warning in tickets.json's note renders verbatim in the banner")
 
+    # The old "Auto-tracked against live MLB results." fallback was removed on
+    # 2026-09-20 as redundant with the LIVE FROM MLB eyebrow. The banner must
+    # now be EMPTY when there is no warning -- but it must still exist, because
+    # it is the only place an unread bet line surfaces.
     FX["tickets"]["note"] = ""
     poll(page)
-    assert text(page, "dynamic-note") == "Auto-tracked against live MLB results.", text(page, "dynamic-note")
-    print("O2 OK: an empty note falls back to the plain 'against live MLB results.' line")
+    assert text(page, "dynamic-note") == "", text(page, "dynamic-note")
+    print("O2 OK: no warning -> the banner is empty, not filled with boilerplate")
     assert not errors, errors
     browser.close()
 
@@ -1135,7 +1159,7 @@ with sync_playwright() as p:
     browser.close()
 
     # ========== P: the bettor filter ==========
-    # legPassesFilters() only does anything while BETTOR_FILTER is set, and
+    # legPassesFilters() only does anything while a bettor is selected, and
     # nothing here ever set it -- the Bettor Tracker rows were only ever read,
     # never clicked. So the whole filtering path (including the per-leg hiding
     # inside a mixed-bettor parlay) went unverified.
@@ -1162,11 +1186,11 @@ with sync_playwright() as p:
     unfiltered_singles, unfiltered_legs = single_states(page), leg_states(page)
     assert set(unfiltered_singles) == {"Kenny Single", "Memo Single"}, unfiltered_singles
     assert len(unfiltered_legs) == 4, unfiltered_legs
-    assert page.evaluate("BETTOR_FILTER") is None
+    assert bettor_filters(page) == [], bettor_filters(page)
     print("P1 OK: no bettor filter -> every single and every leg renders")
 
     click_bettor("Memo")
-    assert page.evaluate("BETTOR_FILTER") == "memo", page.evaluate("BETTOR_FILTER")
+    assert bettor_filters(page) == ["memo"], bettor_filters(page)
     assert page.evaluate("document.querySelectorAll('#bettor-list .bettor-row.active-filter').length") == 1
     print("P2 OK: clicking a Bettor Tracker row sets the filter and marks that row active")
 
@@ -1183,15 +1207,15 @@ with sync_playwright() as p:
     print("P5 OK: ...and the mixed card says so rather than silently shrinking")
 
     click_bettor("Memo")
-    assert page.evaluate("BETTOR_FILTER") is None
+    assert bettor_filters(page) == []
     assert single_states(page) == unfiltered_singles and leg_states(page) == unfiltered_legs
     print("P6 OK: tapping the same row again clears the filter and restores every leg")
 
     click_bettor("Kenny")
-    assert page.evaluate("BETTOR_FILTER") == "kenny"
+    assert bettor_filters(page) == ["kenny"]
     page.click("#tab-btn-yesterday")
     page.wait_for_timeout(50)
-    assert page.evaluate("BETTOR_FILTER") is None, "switching tabs must not carry a bettor filter across"
+    assert bettor_filters(page) == [], "switching tabs must not carry a bettor filter across"
     assert set(single_states(page)) == {"Old Guy"}, single_states(page)
     print("P7 OK: switching tabs clears the filter instead of carrying it to the other slate")
     assert not errors, errors
@@ -1213,7 +1237,7 @@ with sync_playwright() as p:
 
     line = text(page, "sync-line")
     assert page.evaluate("Intl.DateTimeFormat().resolvedOptions().timeZone") == "America/Los_Angeles"
-    assert line == "Live — last updated 9:00:00 PM ET", line
+    assert line == "Last updated 9:00:00 PM ET", line   # "Live — " prefix dropped 2026-09-20
     assert "6:00:00" not in line, f"that's the visitor's local clock wearing an ET label: {line}"
     print("Q1 OK: a Pacific visitor sees 9:00:00 PM ET, not their own 6:00:00 PM")
     assert not errors, errors
@@ -1280,26 +1304,137 @@ with sync_playwright() as p:
     print("R6 OK: leg chips count every leg and single; the Bettor Tracker header counts people")
 
     page.click("#chip-leg-hit")
-    assert page.evaluate("LEG_FILTER") == "hit"
+    assert leg_filters(page) == ["hit"]
     assert single_names(page) == ["Hit Guy"], single_names(page)
     assert legs_of(page, "Card 1 · Mixed") == ["Hit Guy"], legs_of(page, "Card 1 · Mixed")
     assert "1 other leg(s) in this parlay hidden by the current filter." in page.inner_text("#content"), \
         "the card must say a leg is hidden rather than silently shrinking"
     print("R7 OK: a leg-state filter hides non-matching LEGS inside a card, and says so")
 
+    page.click("#chip-leg-hit")        # clear HIT first: chips no longer replace each other
     page.click("#chip-leg-na")
     assert single_names(page) == ["Bench Guy"], single_names(page)
     assert ticket_names(page) == [], "no leg of that card is void, so the whole card drops out"
     page.click("#chip-leg-na")
-    assert page.evaluate("LEG_FILTER") is None
+    assert leg_filters(page) == []
     assert len(single_names(page)) == 3 and len(legs_of(page, "Card 1 · Mixed")) == 2
     print("R8 OK: a card with no matching leg drops out entirely; tapping again clears it")
 
     page.click("#chip-leg-miss")
     page.click("#tab-btn-yesterday")
     page.wait_for_timeout(50)
-    assert page.evaluate("LEG_FILTER") is None, "switching tabs must not carry a leg filter across"
+    assert leg_filters(page) == [], "switching tabs must not carry a leg filter across"
     print("R9 OK: switching tabs clears the leg filter")
+    assert not errors, errors
+    browser.close()
+
+    # ========== S: filters multi-select, and the summary bar lists them all ==========
+    # Every filter used to be single-value: clicking a second chip silently
+    # replaced the first. All three groups are Sets now -- OR within a group,
+    # AND across groups -- so this section is about combinations, which no
+    # earlier section could express.
+    SEEN.clear()
+    hit_card = card(["S Hit A", "S Hit B"], "Card HIT")          # both legs hit -> bet hit
+    dead_card = card(["S Hit A", "S Miss"], "Card DEAD")         # one leg missed -> bet dead
+    dead_card["legs"][1]["who"] = "Memo"
+    dead_card["legs"][1]["meta"] = "XXX &middot; Memo"
+    open_card = card(["S Hit A", "S Live"], "Card OPEN")         # one hit, one live -> open + iron
+    FX["tickets"] = tickets("2026-09-19", [("Memo", "S Live")], cards=[hit_card, dead_card, open_card])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(4001, "Final"), (4002, "Live")])}
+    FX["feeds"] = {4001: feed("Final", ["S Hit A", "S Hit B", "S Miss"], hrs=["S Hit A", "S Hit B"]),
+                   4002: feed("Live", ["S Live"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 23, 0))
+
+    assert summary_chips(page) == [], summary_chips(page)
+    assert not page.evaluate("document.getElementById('filter-summary').classList.contains('active')"), \
+        "the summary bar must stay hidden until something is actually filtered"
+    print("S1 OK: no filters -> the summary bar is hidden and empty")
+
+    # --- BETS multi-select: Hit + Missed, which no single-value filter could show ---
+    page.click("#chip-hit")
+    page.click("#chip-dead")
+    assert bet_filters(page) == ["dead", "hit"], bet_filters(page)
+    assert sorted(ticket_names(page)) == ["Card DEAD", "Card HIT"], ticket_names(page)
+    assert page.evaluate("document.querySelectorAll('#slate-stats .score-chip.active-filter').length") == 2
+    print("S2 OK: Bets Hit + Missed shows both groups; clicking one did not clear the other")
+
+    assert summary_chips(page) == ["Bets: Hit", "Bets: Missed"], summary_chips(page)
+    assert page.evaluate("document.getElementById('filter-summary').classList.contains('active')"), \
+        "the bar holds chips but never became visible"
+    print("S3 OK: ...and both appear as their own chips in a now-visible summary bar")
+
+    # --- LEGS multi-select stacks ON TOP of the bets filter (AND across groups) ---
+    page.click("#chip-leg-hit")
+    page.click("#chip-leg-miss")
+    assert leg_filters(page) == ["hit", "miss"], leg_filters(page)
+    assert sorted(ticket_names(page)) == ["Card DEAD", "Card HIT"], ticket_names(page)
+    assert legs_of(page, "Card DEAD") == ["S Hit A", "S Miss"], legs_of(page, "Card DEAD")
+    print("S4 OK: Legs Hit + Missed keeps both legs of the mixed card, and stacks with the bets filter")
+
+    # --- a third group on top, and the summary lists all of them ---
+    page.evaluate("toggleBettorFilter('memo')")
+    assert summary_chips(page) == ["Bets: Hit", "Bets: Missed", "Legs: Hit", "Legs: Missed", "Bettor: Memo"], summary_chips(page)
+    assert ticket_names(page) == ["Card DEAD"], ticket_names(page)
+    assert legs_of(page, "Card DEAD") == ["S Miss"], legs_of(page, "Card DEAD")
+    print("S5 OK: all three groups stack, and the summary names every one of them")
+
+    # --- removing one chip leaves the rest alone, INCLUDING the rest of its own
+    # group. Bets holds two values here on purpose: with only one selected,
+    # "delete this key" and "clear this whole group" look identical, which is
+    # exactly the bug a scratch mutation slipped past an earlier version of this. ---
+    page.evaluate("""() => [...document.querySelectorAll('#filter-summary-chips .fs-chip')]
+        .find(c => c.dataset.group === 'bet' && c.dataset.key === 'hit').click()""")
+    assert bet_filters(page) == ["dead"], bet_filters(page)
+    assert leg_filters(page) == ["hit", "miss"] and bettor_filters(page) == ["memo"], \
+        "removing one chip must not disturb the other groups"
+    page.evaluate("""() => [...document.querySelectorAll('#filter-summary-chips .fs-chip')]
+        .find(c => c.dataset.group === 'bettor').click()""")
+    assert bettor_filters(page) == [] and bet_filters(page) == ["dead"], bet_filters(page)
+    print("S6 OK: a summary chip removes exactly its own value, not its whole group")
+
+    # --- Clear all ---
+    page.click("#filter-clear-all")
+    assert (bet_filters(page), leg_filters(page), bettor_filters(page)) == ([], [], [])
+    assert summary_chips(page) == [] and len(ticket_names(page)) == 3
+    assert page.evaluate("document.querySelectorAll('#slate-stats .score-chip.active-filter').length") == 0
+    print("S7 OK: Clear all empties every group and un-highlights every chip")
+
+    # --- IRONS still expands a card's legs, but only for cards that ARE irons ---
+    # Card OPEN is an Iron (one leg hit, one still live); Card DEAD is not.
+    # With Legs:Hit on, both cards have exactly one hit leg, so the contrast is
+    # purely the Iron expansion: the Iron shows its live leg too, the dead card
+    # hides its missed one. That generalisation is new -- when the bets chip
+    # could only hold one value, every rendered card was an Iron.
+    page.click("#chip-iron")
+    page.click("#chip-dead")
+    page.click("#chip-leg-hit")
+    assert sorted(ticket_names(page)) == ["Card DEAD", "Card OPEN"], ticket_names(page)
+    assert legs_of(page, "Card OPEN") == ["S Hit A", "S Live"], \
+        "an Iron renders every leg, so the leg filter must not hide any of them"
+    assert legs_of(page, "Card DEAD") == ["S Hit A"], \
+        "Card DEAD is not an Iron, so the leg filter still hides its missed leg"
+    print("S8 OK: IRONS expands only the cards that really are Irons; others obey the leg filter")
+
+    # The one thing the expansion does NOT override: whether the card appears
+    # at all. A card with no surviving leg is hidden even when it's an Iron --
+    # the same rule the bettor filter has always had (see CLAUDE.md, "Irons").
+    page.click("#chip-leg-hit")
+    page.click("#chip-leg-miss")
+    assert ticket_names(page) == ["Card DEAD"], ticket_names(page)
+    print("S9 OK: an Iron with no leg matching the leg filter is still hidden entirely")
+
+    # --- T: the header / colour-key reshuffle (football's section N) ---
+    order = page.evaluate("""() => [...document.querySelectorAll('header > *')]
+        .map(e => e.id || e.className || e.tagName.toLowerCase()).slice(0, 3)""")
+    assert order == ["h1", "eyebrow", "sync-line"], order
+    assert page.inner_text("h1") == "BMBS Tracker — Baseball", page.inner_text("h1")
+    assert page.inner_text("#sync-line").startswith("Last updated"), page.inner_text("#sync-line")
+    assert page.evaluate("() => !document.querySelector('header .legend')"), "the colour key must leave the header"
+    assert page.evaluate("""() => { const l = document.querySelector('.legend'), f = document.getElementById('footer-line');
+        return !!l && !!f && (l.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0; }"""), \
+        "the colour key must sit above the footer, not after it"
+    print("T1 OK: title -> LIVE FROM MLB -> last-updated, and the colour key sits above the footer")
     assert not errors, errors
     browser.close()
 

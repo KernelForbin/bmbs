@@ -61,9 +61,17 @@
   .score-chip.live-game .num { color:var(--amber); }
   .score-chip.pending .num { color:var(--text); }
   .score-chip.na .num { color:var(--yellow); }
-  .filter-status { display:none; align-items:center; justify-content:space-between; margin-top:8px; background:var(--green-dim); border:1px solid var(--green); border-radius:7px; padding:7px 10px; font-size:11.5px; color:var(--green); }
-  .filter-status.active { display:flex; }
-  .filter-status .clear-btn { cursor:pointer; text-decoration:underline; font-weight:600; }
+  /* One bar listing every active filter, each chip removable. Sticky so it
+     stays reachable from the Bettor Tracker and the cards far below, which is
+     where several of these filters actually get set. */
+  .filter-summary { display:none; position:sticky; top:0; z-index:20; align-items:center; flex-wrap:wrap; gap:7px; margin:0 0 14px; background:var(--panel); border:1px solid var(--green); border-radius:9px; padding:8px 10px; box-shadow:0 2px 10px rgba(0,0,0,.45); }
+  .filter-summary.active { display:flex; }
+  .fs-title { font-family:'Oswald',sans-serif; font-size:10px; font-weight:700; letter-spacing:.12em; color:var(--green); flex:none; }
+  .fs-chips { display:flex; flex-wrap:wrap; gap:5px; flex:1; min-width:0; }
+  .fs-chip { display:inline-flex; align-items:center; gap:6px; background:var(--green-dim); border:1px solid var(--green); color:var(--green); border-radius:999px; padding:2px 8px; font-family:'Inter',sans-serif; font-size:10.5px; font-weight:600; cursor:pointer; }
+  .fs-chip .x { font-size:12px; line-height:1; opacity:.75; }
+  .fs-chip:active { transform:scale(0.96); }
+  .fs-clear { flex:none; background:transparent; border:none; color:var(--text-dim); font-family:'Inter',sans-serif; font-size:11px; font-weight:600; text-decoration:underline; cursor:pointer; padding:2px; }
 
   .bettor-section { margin: 0 0 28px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 6px; }
   .bettor-section.collapsed { padding-bottom:14px; }
@@ -397,18 +405,14 @@
   </div>
   <div class="queued-note" id="queued-note"></div>
   <header>
+    <h1>BMBS Tracker &mdash; Baseball</h1>
     <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM MLB</span></p>
-    <h1>BMBS Tracker</h1>
-    <p class="note" id="dynamic-note"></p>
-    <div class="legend">
-      <span><span class="sw pending"></span>Not started</span>
-      <span><span class="sw live-game"></span>In progress</span>
-      <span><span class="sw hit"></span><span id="legend-hit">Home run</span></span>
-      <span><span class="sw php-hit"></span>Pinch Hit Protection</span>
-      <span><span class="sw miss"></span><span id="legend-miss">Game final, no HR</span></span>
-      <span><span class="sw na"></span>Didn't play</span>
-    </div>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
+    <!-- Only a parser warning lands here now. The old "Auto-tracked against
+         live MLB results." copy was removed as redundant with the eyebrow
+         above, but this element must stay: it is how the group finds out a
+         bet line on the card was not understood (see BETLIKE_RE). -->
+    <p class="note" id="dynamic-note"></p>
 
     <div class="notif-row" id="notif-row">
       <label class="notif-toggle" id="notif-overlay-label">
@@ -435,11 +439,6 @@
       <div class="score-chip hit clickable" id="chip-hit" onclick="toggleFilter('hit')"><div class="num" id="count-parlay-hit">0</div><div class="lbl">HIT</div></div>
       <div class="score-chip miss clickable" id="chip-dead" onclick="toggleFilter('dead')"><div class="num" id="count-parlay-miss">0</div><div class="lbl">MISSED</div></div>
     </div>
-    <div class="filter-status" id="filter-status">
-      <span id="filter-status-text"></span>
-      <span class="clear-btn" onclick="toggleFilter(null)">Clear &times;</span>
-    </div>
-
     <p class="stat-row-label">LEGS &middot; tap to filter below</p>
     <div class="scoreboard bets-row">
       <div class="score-chip live-game clickable" id="chip-leg-live" onclick="toggleLegFilter('live')"><div class="num" id="count-leg-live">0</div><div class="lbl">LIVE</div></div>
@@ -447,13 +446,17 @@
       <div class="score-chip miss clickable" id="chip-leg-miss" onclick="toggleLegFilter('miss')"><div class="num" id="count-leg-miss">0</div><div class="lbl">MISSED</div></div>
       <div class="score-chip na clickable" id="chip-leg-na" onclick="toggleLegFilter('na')"><div class="num" id="count-leg-na">0</div><div class="lbl">N/A</div></div>
     </div>
-    <div class="filter-status" id="leg-filter-status">
-      <span id="leg-filter-status-text"></span>
-      <span class="clear-btn" onclick="toggleLegFilter(null)">Clear &times;</span>
-    </div>
-
     </div>
   </header>
+
+  <!-- Every active filter, in one place, each removable. Outside <header> on
+       purpose: sticky is confined to its containing block, so inside the
+       header it would stop following as soon as the header scrolled away. -->
+  <div class="filter-summary" id="filter-summary">
+    <span class="fs-title">FILTERS</span>
+    <span class="fs-chips" id="filter-summary-chips"></span>
+    <button type="button" class="fs-clear" id="filter-clear-all" onclick="clearAllFilters()">Clear all</button>
+  </div>
 
   <div id="err-box"></div>
 
@@ -495,13 +498,19 @@
     </div>
     <p class="bettor-sub" id="bettor-sub">Tap to expand &mdash; see hit/miss breakdown per person.</p>
     <div class="bettor-body" id="bettor-list"></div>
-    <div class="filter-status" id="bettor-filter-status">
-      <span id="bettor-filter-status-text"></span>
-      <span class="clear-btn" onclick="toggleBettorFilter(null)">Clear &times;</span>
-    </div>
   </div>
 
   <div id="content"></div>
+
+  <p class="stat-row-label" id="legend-label">COLOR KEY</p>
+    <div class="legend">
+      <span><span class="sw pending"></span>Not started</span>
+      <span><span class="sw live-game"></span>In progress</span>
+      <span><span class="sw hit"></span><span id="legend-hit">Home run</span></span>
+      <span><span class="sw php-hit"></span>Pinch Hit Protection</span>
+      <span><span class="sw miss"></span><span id="legend-miss">Game final, no HR</span></span>
+      <span><span class="sw na"></span>Didn't play</span>
+    </div>
 
   <footer id="footer-line">all times ET &middot; results pulled directly from the MLB Stats API &middot; <a href="/history/" style="color:inherit;">history</a> &middot; <a href="/features/" style="color:inherit;">what this site can do</a></footer>
 </div>
@@ -523,12 +532,19 @@ const API_BASE = "https://statsapi.mlb.com/api";
 let TICKETS = null;
 let RESULTS = emptyResults();
 let pollTimer = null;
-let CURRENT_FILTER = null;   // null | 'open' | 'hit' | 'dead'   (bet outcome)
-let BETTOR_FILTER = null;    // null | lowercased bettor key
+// All three filters are MULTI-SELECT (2026-09-20). Within one group the
+// selections are OR'd -- Bets: Open + Hit shows both -- and the groups are
+// AND'ed together, so Bets:Open + Legs:Missed + Bettor:Kenny means "Kenny's
+// missed legs on bets that are still open". An empty set means "no filter
+// from this group", NOT "nothing matches". Clicking a chip only ever toggles
+// that one chip; nothing else is cleared.
+const BET_FILTERS = new Set();     // 'open' | 'irons' | 'hit' | 'dead'   (bet outcome)
 // Leg state, restored 2026-09-20 after being removed on 9/18 -- the user asked
 // for it back. Four chips, not five: "not started" is folded into LIVE, since
 // the always-on status line under each leg now says which of the two it is.
-let LEG_FILTER = null;       // null | 'live' | 'hit' | 'miss' | 'na'
+const LEG_FILTERS = new Set();     // 'live' | 'hit' | 'miss' | 'na'
+const BETTOR_FILTERS = new Set();  // lowercased bettor keys
+const BETTOR_NAMES = new Map();    // key -> display name, for the summary chips
 let EVALUATED = [];          // [{ win, tk, states, evalRes }]  (parlay cards)
 let EVALUATED_SINGLES = [];  // [{ s, state, outcome }]         (straight bets)
 
@@ -1305,14 +1321,22 @@ function evaluateTicket(tk, states) {
 
 function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void"; }
 
-function ticketMatchesFilter(evalRes) {
-  if (!CURRENT_FILTER) return true;
-  if (CURRENT_FILTER === "open") return isOpenOutcome(evalRes.outcome);
-  if (CURRENT_FILTER === "irons") return evalRes.iron === true;
-  if (CURRENT_FILTER === "hit") return evalRes.outcome === "hit";
-  if (CURRENT_FILTER === "dead") return evalRes.outcome === "dead";
-  return true;
+function betFilterMatches(key, evalRes) {
+  if (key === "open") return isOpenOutcome(evalRes.outcome);
+  if (key === "irons") return evalRes.iron === true;
+  if (key === "hit") return evalRes.outcome === "hit";
+  if (key === "dead") return evalRes.outcome === "dead";
+  return false;
 }
+
+// OR within the group: any selected chip matching is enough.
+function ticketMatchesFilter(evalRes) {
+  if (!BET_FILTERS.size) return true;
+  for (const key of BET_FILTERS) if (betFilterMatches(key, evalRes)) return true;
+  return false;
+}
+
+function anyFilterActive() { return !!(BET_FILTERS.size || LEG_FILTERS.size || BETTOR_FILTERS.size); }
 
 // A single bet's outcome, in the same vocabulary as a parlay's: 'hit' | 'dead' | 'live'.
 // A single whose player never played (state 'na') hasn't technically missed, so it
@@ -2259,14 +2283,15 @@ function labStealResultTile(flash, now) {
     <div class="ab-line faint">${escapeHtml([steal.pitcher ? `off ${labShortName(steal.pitcher)}` : "", who].filter(Boolean).join(" \u00b7 "))}</div>${burst}`);
 }
 
+// "Open bets or Irons + Kenny" -- what the panel says it's scoped to. Reads
+// the same Sets the ticket list does, so the two can't disagree.
 function labFilterLabel() {
   const bits = [];
-  if (CURRENT_FILTER) bits.push({ open: "Open bets", irons: "Irons", hit: "Hit bets", dead: "Missed bets" }[CURRENT_FILTER] || CURRENT_FILTER);
-  if (LEG_FILTER) bits.push({ live: "Live legs", hit: "Hit legs", miss: "Missed legs", na: "N/A legs" }[LEG_FILTER] || LEG_FILTER);
-  if (BETTOR_FILTER) {
-    const el = document.querySelector("#bettor-list .bettor-row.active-filter .bettor-name");
-    bits.push(`${el ? el.textContent : BETTOR_FILTER}'s picks`);
-  }
+  Object.entries(FILTER_GROUPS).forEach(([group, g]) => {
+    if (!g.set.size) return;
+    const names = [...g.set].map(k => filterDisplayName(group, k));
+    bits.push(`${g.label}: ${names.join(" or ")}`);
+  });
   return bits.join(" + ");
 }
 
@@ -2444,9 +2469,10 @@ function computeAll() {
     const max = stat.hitOdds.length ? Math.max(...stat.hitOdds) : null;
     return { key, name: stat.display, hit: stat.hit, miss: stat.miss, avg, max };
   }).sort((a, b) => b.hit - a.hit || a.name.localeCompare(b.name));
+  rows.forEach(r => BETTOR_NAMES.set(r.key, r.name));
 
   const bettorHtml = rows.map(r => `
-    <div class="bettor-row${BETTOR_FILTER === r.key ? " active-filter" : ""}" onclick="toggleBettorFilter('${r.key}')">
+    <div class="bettor-row${BETTOR_FILTERS.has(r.key) ? " active-filter" : ""}" data-key="${escapeHtml(r.key)}">
       <div class="bettor-name">${r.name}</div>
       <div class="bettor-stats">
         <div class="bettor-stat hit"><div class="num">${r.hit}</div><div class="lbl">HIT</div></div>
@@ -2463,8 +2489,11 @@ function computeAll() {
   document.getElementById("legend-hit").textContent = mixed ? "Home run / steal" : "Home run";
   document.getElementById("legend-miss").textContent = mixed ? "Game final, missed" : "Game final, no HR";
 
-  document.getElementById("dynamic-note").innerHTML =
-    `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live MLB results."}`;
+  // Parser warnings only. The old "Auto-tracked against live MLB results."
+  // copy was dropped as redundant with the LIVE FROM MLB eyebrow, but a real
+  // note still has to reach the screen -- it is the only signal that a bet
+  // line on the card wasn't understood.
+  document.getElementById("dynamic-note").innerHTML = TICKETS.note ? `<b>Heads up</b> &mdash; ${TICKETS.note}` : "";
 }
 
 // Which LEGS chip a leg state belongs to. The chip row is four wide to fit a
@@ -2474,8 +2503,8 @@ function legFilterBucket(state) { return state === "not_started" ? "live" : stat
 // Paired with ticketMatchesFilter: that one decides whether a bet shows at
 // all, this one whether an individual leg does. Both leg-level filters apply.
 function legPassesFilters(state, rawWho) {
-  if (LEG_FILTER && legFilterBucket(state) !== LEG_FILTER) return false;
-  if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return false;
+  if (LEG_FILTERS.size && !LEG_FILTERS.has(legFilterBucket(state))) return false;
+  if (BETTOR_FILTERS.size && !BETTOR_FILTERS.has(whoKey(rawWho).toLowerCase())) return false;
   return true;
 }
 
@@ -2518,8 +2547,8 @@ function cardsSectionHtml(which, title, countText, sub, body) {
 }
 
 // Renders #content (ticket windows + singles) from EVALUATED / EVALUATED_SINGLES,
-// respecting CURRENT_FILTER (bet outcome), LEG_FILTER (leg state) and
-// BETTOR_FILTER (person). Cheap enough to call on every filter click without re-polling.
+// respecting BET_FILTERS (bet outcome), LEG_FILTERS (leg state) and
+// BETTOR_FILTERS (person). Cheap enough to call on every filter click without re-polling.
 function renderContent() {
   const root = document.getElementById("content");
   let html = "";
@@ -2532,10 +2561,12 @@ function renderContent() {
       const betIsOpen = isOpenOutcome(evalRes.outcome);
       const passing = tk.legs.map((leg, i) => legPassesFilters(states[i], leg.who) ? i : -1).filter(i => i >= 0);
       if (passing.length === 0) return; // no legs survive leg/bettor filters -> hide this ticket
-      // An Iron is about how close the whole card is, so under that filter
-      // every leg renders -- including the ones already hit. The leg-level
-      // filters' hiding behaviour deliberately doesn't apply here.
-      const visibleLegIdx = CURRENT_FILTER === "irons" ? tk.legs.map((_, i) => i) : passing;
+      // An Iron is about how close the whole card is, so with IRONS selected
+      // every leg of an iron renders -- including the ones already hit. The
+      // leg-level filters' hiding behaviour deliberately doesn't apply there.
+      // Checked per ticket now that the chips multi-select: with Open + Irons
+      // on, a plain open card still hides its non-matching legs.
+      const visibleLegIdx = (BET_FILTERS.has("irons") && evalRes.iron) ? tk.legs.map((_, i) => i) : passing;
       rendered.push({ tk, states, evalRes, visibleLegIdx, betIsOpen });
     });
     if (rendered.length === 0) return;
@@ -2575,8 +2606,8 @@ function renderContent() {
     html += `</div>`;
   });
 
-  const anyFilterActive = CURRENT_FILTER || BETTOR_FILTER || LEG_FILTER;
-  if (!anyRendered && anyFilterActive) {
+  const filtered = anyFilterActive();
+  if (!anyRendered && filtered) {
     html += `<p class="empty-filter-note">No parlay cards match this filter right now.</p>`;
   }
 
@@ -2585,8 +2616,8 @@ function renderContent() {
     ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.state, e.s.who)
   );
   if (filteredSingles.length === 0) {
-    singlesHtml += `<p class="empty-filter-note" style="padding:12px 0;">${anyFilterActive
-      ? "No straight bets match this filter right now."
+    singlesHtml += `<p class="empty-filter-note" style="padding:12px 0;">${filtered
+      ? "No straight bets match these filters right now."
       : "No straight bets on this slate."}</p>`;
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
@@ -2611,68 +2642,113 @@ function renderContent() {
       singlesHtml);
 }
 
-function updateFilterUI() {
-  ["chip-open", "chip-iron", "chip-hit", "chip-dead"].forEach(id => document.getElementById(id).classList.remove("active-filter"));
-  const statusEl = document.getElementById("filter-status");
-  if (!CURRENT_FILTER) { statusEl.classList.remove("active"); return; }
-  const map = {
-    open: ["chip-open", "Showing only OPEN bets"],
-    irons: ["chip-iron", "Showing only IRONS — one leg from cashing"],
-    hit: ["chip-hit", "Showing only HIT bets"],
-    dead: ["chip-dead", "Showing only MISSED bets"]
-  };
-  const [chipId, label] = map[CURRENT_FILTER];
-  document.getElementById(chipId).classList.add("active-filter");
-  document.getElementById("filter-status-text").textContent = label;
-  statusEl.classList.add("active");
+// One table describing all three filter groups, so the chips, the summary bar
+// and the clear-all button can't drift apart. `set` is the live Set; `label`
+// is what the summary chip says before the colon.
+const FILTER_GROUPS = {
+  bet: {
+    set: BET_FILTERS, label: "Bets",
+    chips: { open: "chip-open", irons: "chip-iron", hit: "chip-hit", dead: "chip-dead" },
+    names: { open: "Open", irons: "Irons", hit: "Hit", dead: "Missed" }
+  },
+  leg: {
+    set: LEG_FILTERS, label: "Legs",
+    chips: { live: "chip-leg-live", hit: "chip-leg-hit", miss: "chip-leg-miss", na: "chip-leg-na" },
+    names: { live: "Live", hit: "Hit", miss: "Missed", na: "N/A" }
+  },
+  // No fixed chip ids: the Bettor Tracker's rows are rebuilt from the slate.
+  bettor: { set: BETTOR_FILTERS, label: "Bettor", chips: null, names: null }
+};
+
+function filterDisplayName(group, key) {
+  if (group === "bettor") return BETTOR_NAMES.get(key) || key;
+  return FILTER_GROUPS[group].names[key] || key;
 }
 
-function toggleFilter(key) {
-  CURRENT_FILTER = (CURRENT_FILTER === key) ? null : key;
+// Repaints every chip and every Bettor Tracker row from the Sets. Cheap, and
+// it means no click handler has to remember which classes to touch.
+function updateFilterUI() {
+  ["bet", "leg"].forEach(group => {
+    const g = FILTER_GROUPS[group];
+    Object.entries(g.chips).forEach(([key, id]) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle("active-filter", g.set.has(key));
+    });
+  });
+  document.querySelectorAll("#bettor-list .bettor-row").forEach(row => {
+    row.classList.toggle("active-filter", BETTOR_FILTERS.has(row.dataset.key));
+  });
+  renderFilterSummary();
+}
+
+function renderFilterSummary() {
+  const bar = document.getElementById("filter-summary");
+  if (!bar) return;
+  const chips = [];
+  Object.entries(FILTER_GROUPS).forEach(([group, g]) => {
+    g.set.forEach(key => {
+      // data-*, not an inline onclick: a bettor key is a name off the card, and
+      // a name with an apostrophe spliced into an onclick="...('x')" breaks the
+      // handler (the attribute decodes &#39; back to a quote before JS parses).
+      chips.push(`<button type="button" class="fs-chip" data-group="${escapeHtml(group)}" data-key="${escapeHtml(String(key))}"
+        title="Remove this filter">${g.label}: ${escapeHtml(filterDisplayName(group, key))}<span class="x">&times;</span></button>`);
+    });
+  });
+  document.getElementById("filter-summary-chips").innerHTML = chips.join("");
+  bar.classList.toggle("active", chips.length > 0);
+}
+
+// The single place a filter change fans out from. renderLiveAtBats() is not
+// optional: the panel is scoped by every filter, and leaving it out left it
+// showing stale tiles once already.
+function applyFilters() {
   updateFilterUI();
   renderContent();
   renderLiveAtBats();
 }
 
-const LEG_FILTER_LABELS = {
-  live: ["chip-leg-live", "Showing only LIVE legs — games on or still to come"],
-  hit: ["chip-leg-hit", "Showing only legs that HIT"],
-  miss: ["chip-leg-miss", "Showing only legs that MISSED"],
-  na: ["chip-leg-na", "Showing only N/A legs — didn't play, void"]
-};
+function toggleInSet(set, key) {
+  if (set.has(key)) set.delete(key); else set.add(key);
+}
 
-function updateLegFilterUI() {
-  Object.values(LEG_FILTER_LABELS).forEach(([id]) => document.getElementById(id).classList.remove("active-filter"));
-  const statusEl = document.getElementById("leg-filter-status");
-  if (!LEG_FILTER) { statusEl.classList.remove("active"); return; }
-  const [chipId, label] = LEG_FILTER_LABELS[LEG_FILTER];
-  document.getElementById(chipId).classList.add("active-filter");
-  document.getElementById("leg-filter-status-text").textContent = label;
-  statusEl.classList.add("active");
+// Delegated once, on containers whose innerHTML is rebuilt every poll -- the
+// listeners survive because the containers themselves never are.
+function initFilterHandlers() {
+  document.getElementById("filter-summary-chips").addEventListener("click", e => {
+    const chip = e.target.closest(".fs-chip");
+    if (chip) removeFilter(chip.dataset.group, chip.dataset.key);
+  });
+  document.getElementById("bettor-list").addEventListener("click", e => {
+    const row = e.target.closest(".bettor-row");
+    if (row) toggleBettorFilter(row.dataset.key);
+  });
+}
+
+function toggleFilter(key) {
+  if (key === null) BET_FILTERS.clear(); else toggleInSet(BET_FILTERS, key);
+  applyFilters();
 }
 
 function toggleLegFilter(key) {
-  LEG_FILTER = (LEG_FILTER === key) ? null : key;
-  updateLegFilterUI();
-  renderContent();
-  renderLiveAtBats();   // the panel scopes to every filter; forgetting this left it stale once
-}
-
-function updateBettorFilterUI() {
-  const statusEl = document.getElementById("bettor-filter-status");
-  if (!BETTOR_FILTER) { statusEl.classList.remove("active"); return; }
-  const nameEl = document.querySelector(`#bettor-list .bettor-row.active-filter .bettor-name`);
-  const displayName = nameEl ? nameEl.textContent : BETTOR_FILTER;
-  document.getElementById("bettor-filter-status-text").textContent = `Showing only ${displayName}'s legs`;
-  statusEl.classList.add("active");
+  if (key === null) LEG_FILTERS.clear(); else toggleInSet(LEG_FILTERS, key);
+  applyFilters();
 }
 
 function toggleBettorFilter(key) {
-  BETTOR_FILTER = (BETTOR_FILTER === key) ? null : key;
-  computeAll();   // rebuild bettor rows so the clicked one gets active-filter styling
-  updateBettorFilterUI();
-  renderContent();
-  renderLiveAtBats();
+  if (key === null) BETTOR_FILTERS.clear(); else toggleInSet(BETTOR_FILTERS, key);
+  applyFilters();
+}
+
+function removeFilter(group, key) {
+  const g = FILTER_GROUPS[group];
+  if (!g) return;
+  g.set.delete(key);
+  applyFilters();
+}
+
+function clearAllFilters() {
+  Object.values(FILTER_GROUPS).forEach(g => g.set.clear());
+  applyFilters();
 }
 
 function toggleBettorSection() {
@@ -2690,8 +2766,6 @@ function render() {
   renderContent();
   renderHrLog();
   updateFilterUI();
-  updateLegFilterUI();
-  updateBettorFilterUI();
   renderLiveAtBats();
 }
 
@@ -2805,7 +2879,7 @@ function applyActiveTab() {
 function activateTab(tab) {
   if (tab === ACTIVE_TAB) return;
   ACTIVE_TAB = tab;
-  CURRENT_FILTER = BETTOR_FILTER = LEG_FILTER = null;
+  Object.values(FILTER_GROUPS).forEach(g => g.set.clear());
   HR_EXPANDED.clear(); // the other tab's home runs, not this one's
   applyActiveTab();
   render();
@@ -2824,7 +2898,7 @@ function updateSyncLine() {
   const now = new Date();
   // timeZone is required here: without it this formats the VISITOR's own clock
   // and still labels it "ET", so anyone outside Eastern saw the wrong time.
-  el.textContent = `Live \u2014 last updated ${now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" })} ET`;
+  el.textContent = `Last updated ${now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" })} ET`;
 }
 
 async function pollAndRender() {
@@ -2874,6 +2948,7 @@ document.addEventListener("visibilitychange", () => {
 
 async function init() {
   initNotifPrefs();
+  initFilterHandlers();
   loadCardsOpen();
   if (lsGet(LS_LIVEAB) === "1") document.getElementById("liveab-section").classList.remove("collapsed");
   await pollAndRender();

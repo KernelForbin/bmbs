@@ -333,7 +333,7 @@ with sync_playwright() as p:
     page.click("#chip-open")
     page.click("#chip-hit")
     check("I8 HIT bets: nobody on a cashed bet is still batting for it -> empty, and it says why",
-          names() == [] and "Hit bets" in page.inner_text("#liveab-grid") and "Clear the filter" in page.inner_text("#liveab-grid"), page.inner_text("#liveab-grid"))
+          names() == [] and "Bets: Hit" in page.inner_text("#liveab-grid") and "Clear the filter" in page.inner_text("#liveab-grid"), page.inner_text("#liveab-grid"))
     page.click("#chip-hit")
     check("I9 all filters off again", names() == everyone and "Filtered" not in page.inner_text("#liveab-sub"), page.inner_text("#liveab-sub"))
 

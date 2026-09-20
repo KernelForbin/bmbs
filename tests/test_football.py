@@ -172,6 +172,20 @@ def poll(page):
     page.evaluate("pollAndRender()")
 
 
+def leg_filters(page):
+    return sorted(page.evaluate("() => [...LEG_FILTERS]"))
+
+
+def bettor_filters(page):
+    return sorted(page.evaluate("() => [...BETTOR_FILTERS]"))
+
+
+def summary_chips(page):
+    """The active-filter chips in the consolidated summary bar, in order."""
+    return page.evaluate("""() => [...document.querySelectorAll('#filter-summary-chips .fs-chip')]
+        .map(c => c.textContent.replace(/\s+/g, ' ').replace(/\s*\u00d7\s*$/, '').trim())""")
+
+
 def expand_cards(page):
     """Parlay Cards / Straight Bet Cards default to COLLAPSED (2026-09-20), and
     Playwright's inner_text() only sees visible text. Every section below reads
@@ -402,7 +416,7 @@ with sync_playwright() as p:
     check("H7 Bettor Tracker signs negative odds properly (never '+-135')", "-135" in kenny and "+-" not in kenny, kenny)
 
     # ---------- H (cont). the bettor filter ----------
-    # legPassesFilters() only does anything while BETTOR_FILTER is set, and
+    # legPassesFilters() only does anything while a bettor is selected, and
     # nothing here ever set it -- the Bettor Tracker rows were only ever read,
     # never clicked, so the filtering path went unverified. Placed here because
     # it needs the full slate, before section I finalizes the week.
@@ -414,13 +428,13 @@ with sync_playwright() as p:
         page.wait_for_timeout(50)
 
     unfiltered = states(page)
-    check("H8 the bettor filter starts clear", page.evaluate("BETTOR_FILTER") is None)
+    check("H8 the bettor filter starts clear", bettor_filters(page) == [])
 
     click_bettor("Joe")
     check("H9 clicking a Bettor Tracker row sets the filter and marks that row active",
-          page.evaluate("BETTOR_FILTER") == "joe"
+          bettor_filters(page) == ["joe"]
           and page.evaluate("document.querySelectorAll('#bettor-list .bettor-row.active-filter').length") == 1,
-          str(page.evaluate("BETTOR_FILTER")))
+          str(bettor_filters(page)))
     check("H10 only that bettor's picks render -- his single, and his leg of a mixed card",
           states(page) == {"A.J. Brown": "miss", "Inactive Guy": "na"}, str(states(page)))
     check("H11 a parlay with none of his legs drops out entirely",
@@ -430,13 +444,13 @@ with sync_playwright() as p:
 
     click_bettor("Joe")
     check("H13 tapping the same row again clears the filter and restores every pick",
-          page.evaluate("BETTOR_FILTER") is None and states(page) == unfiltered, str(states(page)))
+          bettor_filters(page) == [] and states(page) == unfiltered, str(states(page)))
 
     click_bettor("Joe")
     page.click("#tab-btn-yesterday")
     page.wait_for_timeout(50)
     check("H14 switching tabs clears the filter instead of carrying it across",
-          page.evaluate("BETTOR_FILTER") is None)
+          bettor_filters(page) == [])
     page.click("#tab-btn-today")
     page.wait_for_timeout(50)
 
@@ -520,7 +534,7 @@ with sync_playwright() as p:
           page.evaluate("Intl.DateTimeFormat().resolvedOptions().timeZone") == "America/Los_Angeles")
     line = page.inner_text("#sync-line")
     check("K2 a Pacific visitor sees 1:30:00 PM ET, not their own 10:30:00 AM",
-          line == "Live — last updated 1:30:00 PM ET", line)
+          line == "Last updated 1:30:00 PM ET", line)   # "Live — " prefix dropped 2026-09-20
     check("K3 no script errors", not errors, str(errors))
     browser.close()
 
@@ -594,18 +608,78 @@ with sync_playwright() as p:
     check("L10 a hit needs no status line", status["Saquon Barkley"] == "", str(status))
 
     page.click("#chip-leg-miss")
-    check("L11 the leg filter is set", page.evaluate("LEG_FILTER") == "miss")
+    check("L11 the leg filter is set", leg_filters(page) == ["miss"])
     card1 = page.evaluate("""() => { const t = [...document.querySelectorAll('#content .ticket')]
         .find(x => x.querySelector('.ticket-name') && x.querySelector('.ticket-name').textContent === 'Card 1');
         return t ? [...t.querySelectorAll('.leg-player')].map(e => e.firstChild.textContent.trim()) : null; }""")
     check("L12 a missed-legs filter hides the non-missed leg of a mixed card",
           card1 == ["A.J. Brown"] and "1 other leg(s) in this parlay hidden" in page.inner_text("#content"), str(card1))
+    page.click("#chip-leg-miss")      # clear MISSED first: chips no longer replace each other
     page.click("#chip-leg-na")
     names = page.evaluate("() => [...document.querySelectorAll('#content .single-player')].map(e => e.firstChild.textContent.trim())")
     check("L13 switching to N/A shows only the void picks", names == ["Inactive Guy"], str(names))
     page.click("#chip-leg-na")
-    check("L14 tapping the same chip clears it", page.evaluate("LEG_FILTER") is None)
+    check("L14 tapping the same chip clears it", leg_filters(page) == [])
     check("L15 no script errors", not errors, str(errors))
+
+    # ---------- M. multi-select filters, and the summary bar ----------
+    # Baseball's section S. Every filter used to be single-value, so clicking a
+    # second chip silently replaced the first; all three are Sets now (OR
+    # within a group, AND across groups). The slate here is L's: Saquon hit,
+    # A.J. Brown and Tony Pollard missed, Inactive Guy void, Monday untouched.
+    check("M1 no filters -> the summary bar is hidden and empty",
+          summary_chips(page) == [] and not page.evaluate(
+              "document.getElementById('filter-summary').classList.contains('active')"), str(summary_chips(page)))
+
+    page.click("#chip-leg-hit")
+    page.click("#chip-leg-miss")
+    check("M2 clicking a second leg chip adds to the first instead of replacing it",
+          leg_filters(page) == ["hit", "miss"], str(leg_filters(page)))
+    card1 = page.evaluate("""() => { const t = [...document.querySelectorAll('#content .ticket')]
+        .find(x => x.querySelector('.ticket-name') && x.querySelector('.ticket-name').textContent === 'Card 1');
+        return t ? [...t.querySelectorAll('.leg-player')].map(e => e.firstChild.textContent.trim()) : null; }""")
+    check("M3 Legs Hit + Missed keeps both legs of the mixed card",
+          card1 == ["Saquon Barkley", "A.J. Brown"], str(card1))
+    check("M4 both appear as their own chips in the summary",
+          summary_chips(page) == ["Legs: Hit", "Legs: Missed"], str(summary_chips(page)))
+
+    page.evaluate("toggleBettorFilter('kenny')")
+    check("M5 a third group stacks and is named in the summary",
+          summary_chips(page) == ["Legs: Hit", "Legs: Missed", "Bettor: Kenny"], str(summary_chips(page)))
+    card1 = page.evaluate("""() => { const t = [...document.querySelectorAll('#content .ticket')]
+        .find(x => x.querySelector('.ticket-name') && x.querySelector('.ticket-name').textContent === 'Card 1');
+        return t ? [...t.querySelectorAll('.leg-player')].map(e => e.firstChild.textContent.trim()) : null; }""")
+    check("M6 ...and the groups AND together: Kenny's hit-or-missed legs only", card1 == ["Saquon Barkley"], str(card1))
+
+    # A LEG chip, not the bettor one: the leg group holds two values here, so
+    # this can tell "delete this key" apart from "clear this whole group".
+    page.evaluate("""() => [...document.querySelectorAll('#filter-summary-chips .fs-chip')]
+        .find(c => c.dataset.group === 'leg' && c.dataset.key === 'hit').click()""")
+    check("M7 a summary chip removes exactly its own value, not its whole group",
+          leg_filters(page) == ["miss"] and bettor_filters(page) == ["kenny"], str(leg_filters(page)))
+    check("M7b the bar is visible while it holds chips",
+          page.evaluate("document.getElementById('filter-summary').classList.contains('active')"))
+
+    page.click("#filter-clear-all")
+    check("M8 Clear all empties every group and un-highlights every chip",
+          leg_filters(page) == [] and bettor_filters(page) == [] and summary_chips(page) == []
+          and page.evaluate("document.querySelectorAll('#slate-stats .score-chip.active-filter').length") == 0)
+
+    # ---------- N. the header/footer reshuffle ----------
+    order = page.evaluate("""() => [...document.querySelectorAll('header > *')]
+        .map(e => e.id || e.className || e.tagName.toLowerCase()).slice(0, 4)""")
+    check("N1 title first, then the LIVE FROM ESPN eyebrow, then the sync line",
+          order[:3] == ["h1", "eyebrow", "sync-line"], str(order))
+    check("N2 the title names the sport", page.inner_text("h1") == "BMBS Tracker — Football", page.inner_text("h1"))
+    check("N3 the sync line dropped its 'Live —' prefix",
+          page.inner_text("#sync-line").startswith("Last updated"), page.inner_text("#sync-line"))
+    check("N4 the Auto-tracked boilerplate is gone (no parser warning on this slate)",
+          page.inner_text("#dynamic-note").strip() == "", page.inner_text("#dynamic-note"))
+    check("N5 the colour key moved out of the header, above the footer",
+          page.evaluate("() => !document.querySelector('header .legend')")
+          and page.evaluate("""() => { const l = document.querySelector('.legend'), f = document.getElementById('footer-line');
+              return !!l && !!f && (l.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0; }"""))
+    check("N6 no script errors", not errors, str(errors))
     browser.close()
 
 print()

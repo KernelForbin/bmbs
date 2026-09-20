@@ -892,6 +892,34 @@ on failure:
   Verified against real corruption (a missing leg field, an unsigned odds
   string, a bogus leg status, a roster map with a key removed) in a scratch
   copy before trusting it -- it caught all four.
+- `tests/test_site_links.py` — walks every internal `href` across all six
+  HTML pages and checks it resolves to a real file. Every other test only
+  asserts its own page's own footer link works; this is the only one that
+  checks the WHOLE link graph. The resolver mirrors GitHub Pages' actual
+  behaviour (a bare extensionless path tries a same-named sibling FILE.html
+  *before* `<name>/index.html` -- the exact trap `features.html`'s redirect
+  stub exists for), and that resolver is itself checked against the
+  documented gotcha before being trusted to check anything else.
+- `tests/test_features_page.py` — `features/index.html`'s toggle, URL sync,
+  deep-linking, and isolation (it must never call MLB/ESPN or read the
+  tickets/history files). Content is deliberately NOT checked, since that's
+  supposed to keep changing -- only that the mechanics under it can't quietly
+  break while the copy keeps getting edited. Added once the page became
+  auto-maintained rather than static; skipped before that for the opposite
+  reason.
+- `tests/test_workflow_yaml.py` — the three `.github/workflows/*.yml` files,
+  read with targeted regexes rather than a YAML parser (no dependency this
+  project doesn't otherwise need; none of the three is complex enough to
+  require one). Checks every `python scripts/X.py` line names a real script,
+  every trigger path matches what that script is actually told to parse, and
+  -- the one that matters most -- **that no workflow commits a file outside
+  its documented lane**: `parse-picks.yml` may only ever touch baseball's own
+  tickets files, `parse-football-picks.yml` only football's, and
+  `import-history.yml` (the daily archive job) must never touch either
+  sport's live tickets file at all (CLAUDE.md gotcha 5, now enforced instead
+  of just written down). Verified against a scratch copy with a fake
+  `git add data/tickets.json` slipped into the archive job's commit step --
+  caught it.
 
 ```
 pip install -r tests/requirements.txt
@@ -901,6 +929,7 @@ python tests/test_history_import.py && python tests/test_history.py && python te
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py
 python tests/test_discord_bot.py && python tests/test_at_bat_math.py && python tests/test_live_data_schema.py
+python tests/test_site_links.py && python tests/test_features_page.py && python tests/test_workflow_yaml.py
 python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 

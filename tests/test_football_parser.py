@@ -67,6 +67,14 @@ unknown_w, unknown_s = fp.parse("🎯 Longshot Straight Bets\nKenny: Totally Mad
 check("an unknown name is kept as typed with no id -- never guessed onto someone else",
       unknown_s[0]["player"] == "Totally Madeup Person" and unknown_s[0]["athleteId"] == "" and unknown_s[0]["team"] == "")
 
+# resolve_player()'s fuzzy branch itself, direct -- every fixture above either
+# hits the exact-match path or the suffix-stripped exact match ("James Cook" ->
+# "James Cook III" normalizes to the same key, it's never a difflib fuzzy hit).
+# A genuine typo close enough to pass the 0.82 cutoff was never exercised.
+fuzzy = fp.resolve_player("Saquon Barkly", ROSTER)
+check("resolve_player's fuzzy branch (difflib, cutoff 0.82) catches a real typo",
+      fuzzy == ("Saquon Barkley", "PHI", "1"), fuzzy)
+
 # ---------- 3. slate dating comes from the NFL schedule ----------
 SCHEDULE = {   # a Thursday game already played, Sunday, Monday, next Thursday
     "20260917": [("DET", "BUF", "post")],

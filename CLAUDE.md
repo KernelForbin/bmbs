@@ -824,6 +824,14 @@ on failure:
 - `tests/test_parser.py` — both picks formats (`tests/fixtures/gemini_picks.txt`
   vs `test_picks.txt`) parse identically, the slate-date heuristic, and
   the archive-on-date-change guard (against a temp dir, never `data/`).
+  Also covers two things nothing else touched: `main()`'s unread-bet-line
+  safety net end to end (a bet-like line nothing understands must surface as
+  a stderr `WARNING` AND a `tickets.json` `note`, and the slate must still
+  post rather than exit 1 — the actual fix for the real incident where a
+  card "successfully" parsed 16 of 18 tickets and said nothing), and
+  `resolve_player()`'s three branches directly (exact match, a fuzzy typo via
+  `difflib` at the 0.82 cutoff, and the give-up fallback that must keep the
+  name as typed with a BLANK team rather than guess).
 - `tests/test_page.py` — Playwright (Python) headless Chromium, serving
   `index.html` through one `page.route("**/*")` handler with in-memory
   fixtures (tickets files, MLB schedule, live feeds) and a pinned clock.
@@ -852,6 +860,10 @@ on failure:
 - `tests/test_football_parser.py` — football parser (both templates, negative
   odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
   roster builder, and the Discord bot's file-name routing. Fully offline.
+  Also checks `resolve_player()`'s fuzzy-match branch directly (a real typo,
+  not a suffix that normalizes away) — every fixture card either matches
+  exactly or hits the give-up fallback (already covered), so the actual
+  `difflib` path was otherwise never exercised on its own.
 - `tests/test_record_results.py` — the baseball recorder against a fake MLB
   (own HR, PHP credit, benched -> void, void-leg re-pricing, refunds, the
   not-yet-final / backstop / already-recorded / corrected-picks cases) and the
@@ -899,7 +911,17 @@ on failure:
   behaviour (a bare extensionless path tries a same-named sibling FILE.html
   *before* `<name>/index.html` -- the exact trap `features.html`'s redirect
   stub exists for), and that resolver is itself checked against the
-  documented gotcha before being trusted to check anything else.
+  documented gotcha before being trusted to check anything else. It only
+  checks that the stub file EXISTS where the resolver expects it -- the
+  stub's own actual redirect behaviour is `test_redirect_stub.py`, below.
+- `tests/test_redirect_stub.py` — Playwright against `features.html` itself:
+  the `<meta refresh>` fallback targets exactly `/features/` (a bare
+  `/features` would just reload the stub forever), and -- the part nothing
+  else checked -- the script-driven `location.replace()` that actually fires
+  in a real browser preserves the visitor's query string AND hash (so a
+  bookmarked `/features?sport=football` lands back on the football tab
+  instead of resetting to baseball). Verified against a scratch copy with
+  the search/hash preservation removed -- it caught it.
 - `tests/test_features_page.py` — `features/index.html`'s toggle, URL sync,
   deep-linking, and isolation (it must never call MLB/ESPN or read the
   tickets/history files). Content is deliberately NOT checked, since that's
@@ -929,7 +951,7 @@ python tests/test_history_import.py && python tests/test_history.py && python te
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py
 python tests/test_discord_bot.py && python tests/test_at_bat_math.py && python tests/test_live_data_schema.py
-python tests/test_site_links.py && python tests/test_features_page.py && python tests/test_workflow_yaml.py
+python tests/test_site_links.py && python tests/test_features_page.py && python tests/test_workflow_yaml.py && python tests/test_redirect_stub.py
 python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 

@@ -5,6 +5,8 @@ fixtures and writes only to a temp dir -- never touches data/.
     pip install -r tests/requirements.txt
     python tests/test_parser.py
 """
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -209,5 +211,65 @@ for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text):
     pp.parse(fixture_text, team_by_name, canon)
     assert pp.parse.unread == [], pp.parse.unread
 print("OK: real steal card parses all 18 tickets (prop-style legs, [+odds] header); unreadable bet lines are reported")
+
+# --- 8. main()'s unread-line safety net, end to end. Section 7 only checks that
+# parse() POPULATES pp.parse.unread -- nothing exercised the layer above it in
+# main() that turns that into a stderr WARNING and a tickets.json `note`, which
+# is the actual fix for the real incident (a card "successfully" parsed 16 of
+# 18 tickets and said nothing). Against a temp dir, never data/.
+with tempfile.TemporaryDirectory() as td:
+    td = Path(td)
+    pp.TICKETS_PATH = td / "tickets.json"
+    pp.PREVIOUS_PATH = td / "tickets-previous.json"
+    incoming = td / "incoming.txt"
+    old_argv = sys.argv
+
+    mixed_text = (
+        "Part 1: Evening Window\n"
+        "Ticket #1 (Memo - $5 Bet) [PP: $61.00]\n"
+        "* (Kenny) Aaron Judge - NYY (+240) - 6:40 PM ET\n"
+        "* (Joe) Kyle Schwarber - PHI (+240) - 4:10 PM ET\n"
+        "\n"
+        "Ticket #2 (Memo - nine dollars) [PP: $10]\n"
+        "* (Joe) Pete Alonso - BAL (+360) - 4:05 PM ET\n"
+    )
+    incoming.write_text(mixed_text, encoding="utf-8")
+    sys.argv = ["parse_picks.py", "--file", str(incoming)]
+    stderr = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(stderr):
+            pp.main()
+    finally:
+        sys.argv = old_argv
+    out = json.loads(pp.TICKETS_PATH.read_text(encoding="utf-8"))
+    assert "1 line" in out["note"] and "NOT being tracked" in out["note"] and "Ticket #2" in out["note"], out["note"]
+    assert "WARNING: couldn't read: Ticket #2" in stderr.getvalue(), stderr.getvalue()
+    print("OK: an unreadable bet-like line surfaces as a stderr WARNING and a tickets.json note (slate still posts)")
+
+    # a fully-understood upload must leave the note empty, not a stale one
+    incoming.write_text(gemini_text, encoding="utf-8")
+    sys.argv = ["parse_picks.py", "--file", str(incoming)]
+    try:
+        with contextlib.redirect_stderr(io.StringIO()):
+            pp.main()
+    finally:
+        sys.argv = old_argv
+    out2 = json.loads(pp.TICKETS_PATH.read_text(encoding="utf-8"))
+    assert out2["note"] == "", out2["note"]
+    print("OK: a fully-understood upload leaves the note empty")
+
+# --- 9. resolve_player()'s three branches, directly. Every fixture above only
+# exercises the exact-match path (real cards typed real names correctly); the
+# fuzzy-match path (difflib, cutoff 0.82) and the give-up fallback were never
+# actually asserted on their own -- a change to the cutoff or the matching
+# logic could start mismatching players, or blanking a team that should have
+# resolved, with nothing to catch it.
+assert pp.resolve_player("Aaron Judge", team_by_name, canon) == ("Aaron Judge", "NYY")
+assert pp.resolve_player("Aaron Judg", team_by_name, canon) == ("Aaron Judge", "NYY"), \
+    "a one-letter typo should still fuzzy-match the real player"
+typed_as, team = pp.resolve_player("Zzzqqqxxx Nobody", team_by_name, canon)
+assert typed_as == "Zzzqqqxxx Nobody" and team == "", \
+    "an unresolvable name must fall back to the name as typed with a BLANK team, never a guess"
+print("OK: resolve_player exact match, fuzzy-typo match, and the give-up fallback (blank team, name as typed)")
 
 print("\nALL PARSER TESTS PASSED")

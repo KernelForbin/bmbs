@@ -248,6 +248,19 @@ Deliberately keyed on the player's own home run (`results.hitNames`), NOT on
 leg state: a leg credited through Pinch Hit Protection wasn't a bomb by the
 player the notification would name.
 
+**No alert for a home run that can't change anything** (2026-09-20, both
+sports). `betsStillOpenFor()` checks, at the moment he goes deep, whether at
+least one of his bets is still alive: any single he's on (a single can't be
+dead while its own leg is the hit that just happened), or a parlay whose
+`evaluateTicket()` outcome isn't `"dead"`. If every bet naming him is a parlay
+already killed by some OTHER leg's earlier miss, `checkForBombs()` still marks
+him seen (a dead parlay stays dead forever, so this is decided once and never
+worth re-checking) but never calls `fireBomb()` -- no overlay, no push. This is
+a firing decision only; the leg itself still resolves to `hit` on the page
+exactly as before, and `betsCashedBy()`'s own dead-parlay handling (it simply
+finds nothing to cash) is unchanged. Football's twin is `betsStillOpenFor()` in
+`football/index.html`, same logic minus the market dimension.
+
 **A bomb that cashes a bet is the same alert, upgraded** -- never a second
 one. `betsCashedBy()` asks which of today's bets naming that player are now
 fully hit (every single on him, plus any parlay his homer completed), and if

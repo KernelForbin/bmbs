@@ -1381,6 +1381,29 @@ function fireBomb(playerName, cash) {
   }
 }
 
+// Whether PLAYER's touchdown affects anything of ours. False only when every
+// one of his tickets is a PARLAY that's already dead from some OTHER leg
+// missing -- his score doesn't change that, so alerting on it is pure noise.
+// A single can never be "dead" while its own leg is the one that just scored
+// (singleOutcome only calls that "dead" on a miss), so any single always
+// counts and short-circuits the (more expensive) parlay check.
+function betsStillOpenFor(slate, playerName) {
+  const norm = normalizeName(playerName);
+  const mine = l => normalizeName(l.player) === norm;
+  const saved = RESULTS;
+  RESULTS = slate.results;
+  try {
+    if ((slate.tickets.singles || []).some(mine)) return true;
+    return (slate.tickets.windows || []).some(w => (w.tickets || []).some(tk => {
+      const legs = tk.legs || [];
+      if (!legs.some(mine)) return false;
+      return evaluateTicket(tk, legs.map(l => stateForPlayer(l.player))).outcome !== "dead";
+    }));
+  } finally {
+    RESULTS = saved;
+  }
+}
+
 // Every player named in a slate, deduped by normalized name so a player in
 // several legs is only ever one notification.
 function pickedNamesOf(tickets) {
@@ -1410,7 +1433,9 @@ function checkForBombs() {
   pickedNamesOf(slate.tickets).forEach((display, norm) => {
     if (!hitNames.has(norm) || BOMB_STATE.notified.has(norm)) return;
     BOMB_STATE.notified.add(norm);
-    fresh.push(display);
+    // Once dead, a parlay stays dead forever, so this can only ever be
+    // decided once per player -- no need to re-check him on a later poll.
+    if (betsStillOpenFor(slate, display)) fresh.push(display);
   });
 
   if (!BOMB_STATE.seeded) {

@@ -39,7 +39,7 @@ def iso(dt):
 
 
 AWAY = [f"Away {n}" for n in range(1, 10)]
-HOME = ["Speedy Steal", "Both Ways", "Pulled Runner", "Steal Only Homers", "Slugger Hr"] + [f"Home {n}" for n in range(6, 10)]
+HOME = ["Speedy Steal", "Both Ways", "Pulled Runner", "Steal Only Homers", "Slugger Hr", "Home 6", "Only Dead Bet", "Home 8", "Home 9"]
 
 
 def play(idx, batter, top=False, event=None, etype=None, out=False, end=None, runners=(), hit=None):
@@ -115,6 +115,10 @@ TICKETS = {"date": DATE, "note": "", "windows": [{"title": "Mixed Parlays", "tic
     card(3, [leg("Both Ways", "Bailey", "+450"), leg("Home 8", "Noid", "+600")]),                           # same player, HOME RUN leg
     card(4, [leg("Pulled Runner", "Kevin", "+200", "sb"), leg("Steal Only Homers", "Didge", "+175", "sb")]),
     card(5, [leg("Final Stole", "Joe", "+140", "sb"), leg("Final NoSteal", "Memo", "+160", "sb")]),
+    # Final NoSteal already missed (his game is Final, no steal) before this
+    # card is ever polled, so it's dead from the first poll on. Only Dead Bet
+    # has no other bet naming him -- his steal should never fire an alert.
+    card(6, [leg("Final NoSteal", "Bob", "+160", "sb"), leg("Only Dead Bet", "Bob", "+180", "sb")]),
 ]}], "singles": [single(0, "KENNY", "Speedy Steal", "-120", "sb", payout=9.17),
                  single(1, "NOID", "Bench Thief", "+300", "sb"),
                  # his parlay (Card 4) dies when Pulled Runner is pulled; this single keeps him trackable
@@ -319,6 +323,19 @@ with sync_playwright() as p:
     page.evaluate("document.getElementById('hrlog-section').classList.remove('collapsed'); setHrFilter('picks')")
     ours = page.evaluate("[...document.querySelectorAll('#hrlog-list .hr-batter')].map(e => e.textContent)")
     check("F2 ...and it isn't one of 'our' home runs in the Home Run Log (Slugger Hr's is)", ours == ["Slugger Hr"], str(ours))
+
+    # ---------- F3. a steal on an already-dead parlay: no alert on either channel ----------
+    check("F3 setup: Card 6 is dead from the start (Final NoSteal already missed)",
+          any(r["player"] == "Only Dead Bet" for r in leg_rows(page)))
+    before_notes = len(page.evaluate("window.__notes"))
+    FX["clock"] += timedelta(seconds=10)
+    page.clock.set_fixed_time(FX["clock"])
+    FX["feed"] = game(plays_f + [play(54, "Whoever", runners=[runner("Only Dead Bet", "stolen_base_2b")])], outs=2, batter="Slugger Hr")
+    poll(page)
+    rows = leg_rows(page)
+    check("F3 the leg itself still resolves to a hit", row(rows, "Only Dead Bet", True)["state"] == "hit")
+    check("F3 ...but a hit on an already-dead parlay (his only bet) fires NO alert, overlay or push",
+          overlay(page) is None and len(page.evaluate("window.__notes")) == before_notes)
 
     # ---------- G. pulled from the game: no Pinch Hit Protection for steals ----------
     sub = {"IDSub": {"person": {"fullName": "Fresh Legs"}, "battingOrder": "301"}}

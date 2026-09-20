@@ -695,6 +695,39 @@ with sync_playwright() as p:
     assert not errors, errors
     browser.close()
 
+    # J4b: a player whose ONLY bet is a parlay that's already dead from another
+    # leg's miss -> no alert at all, on either channel, even though his own
+    # swing is still tracked as a hit on the page. Two games: Miss Mate's is
+    # already Final with no HR (his leg missed, killing the card); Lone Dead
+    # Guy's is Live, and he's the one who homers this poll.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [], [card(["Miss Mate", "Lone Dead Guy"])])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(910, "Final"), (911, "Live")])}
+    FX["feeds"] = {910: feed("Final", ["Miss Mate"]), 911: feed("Live", ["Lone Dead Guy"], hrs=[])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("granted"), prefs_stub(overlay=True, push=True)])
+    assert page.evaluate("document.querySelector('.ticket.is-dead') !== null"), "the card should already show as dead"
+    FX["feeds"][911] = feed("Live", ["Lone Dead Guy"], hrs=["Lone Dead Guy"])
+    poll(page)
+    assert bomb_text(page) is None, "a dead parlay's only hit must not fire the overlay"
+    assert notifs(page) == [], "...or the push notification"
+    assert leg_states(page)["Lone Dead Guy"] == "hit", "the leg itself still tracks the hit -- only the alert is suppressed"
+    print("J4b OK: a home run on an already-dead parlay (and nothing else) fires no alert on either channel")
+
+    # J4c: give him a second bet that's still alive (a single) -- now he DOES
+    # matter, so the alert fires normally despite the dead card.
+    FX["tickets"] = tickets("2026-09-19", [("Bernie", "Lone Dead Guy")], [card(["Miss Mate", "Lone Dead Guy"])])
+    FX["feeds"][911] = feed("Live", ["Lone Dead Guy"], hrs=[])
+    browser.close()
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), [notif_stub("granted"), prefs_stub(overlay=True, push=True)])
+    FX["feeds"][911] = feed("Live", ["Lone Dead Guy"], hrs=["Lone Dead Guy"])
+    poll(page)
+    assert bomb_text(page) == "Lone Dead Guy BOMB!", "a live single on the same player still matters, dead card or not"
+    assert len(notifs(page)) == 1
+    print("J4c OK: ...but a still-open single on him fires the alert as normal")
+    assert not errors, errors
+    browser.close()
+
     # J5: overlay only -- no OS notification.
     SEEN.clear()
     bomb_fixtures([])

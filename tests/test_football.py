@@ -132,6 +132,9 @@ TICKETS = {"sport": "football", "date": SUN, "endDate": MON, "note": "", "window
     card(1, [leg("A.J. Brown", "PHI", "2", "Joe", "+120"), leg("Tony Pollard", "TEN", "", "Miggs", "+150")]),        # Pollard: no id -> by name
     card(2, [leg("James Cook", "TEN", "4", "Kevin", "+100"), leg("Josh Allen", "BUF", "5", "Bernie", "+140")]),      # BUF isn't playing
     card(3, [leg("Puka Nacua", "LAR", "8", "Bailey", "-110"), leg("Kyren Williams", "LAR", "9", "Didge", "-150")]),  # Monday night
+    # neither leg has any other bet -- once JAX Bust misses, this card is dead,
+    # and JAX Late Score's own touchdown (even in that same poll) must not alert
+    card(4, [leg("JAX Bust", "JAX", "80", "Bob", "+300"), leg("JAX Late Score", "JAX", "81", "Bob", "+250")]),
 ]}], "singles": [
     single(0, "KENNY", "Saquon Barkley", "PHI", "1", "-135", 8.70),
     single(1, "JOE", "Inactive Guy", "PHI", "6", "+900", 50.0),
@@ -357,7 +360,11 @@ with sync_playwright() as p:
     for g, sc in (("2001", (7, 14)), ("2002", (7, 0)), ("2003", (0, 0))):
         FX["events"][g] = event(g, "post", 4, "0:00", sc)
     FX["summaries"]["2001"] = summary("2001", "post", 4, "0:00", (7, 14), {"PHI": phi_lines, "TEN": ten_lines}, [td1, td3, td4])
-    FX["summaries"]["2002"] = summary("2002", "post", 4, "0:00", (7, 0), {"JAX": jax_lines}, [td2])
+    # JAX Bust misses and JAX Late Score scores in the very same poll that
+    # finalizes their game -- Card 4 dies and gets its one live hit at once.
+    td5 = scoring("p5", "JAX", "Rushing Touchdown", "JAX Late Score 2 Yd Rush (Kick)", 4, "0:00", 7, 0)
+    jax_final_lines = jax_lines + [statline("80", "JAX Bust", rushing=(2, 5, 0)), statline("81", "JAX Late Score", rushing=(3, 8, 1))]
+    FX["summaries"]["2002"] = summary("2002", "post", 4, "0:00", (7, 0), {"JAX": jax_final_lines}, [td2, td5])
     FX["summaries"]["2003"] = summary("2003", "post", 4, "0:00", (0, 0), {})
     FX["rosters"]["2001-21"] = {"entries": [{"playerId": 6, "didNotPlay": True}, {"playerId": 7, "didNotPlay": False}, {"playerId": 2, "didNotPlay": False}]}
     poll(page)
@@ -366,6 +373,8 @@ with sync_playwright() as p:
     check("H2 inactive (roster says didNotPlay) -> void, not a loss", st["Inactive Guy"] == "na", str(st))
     check("H3 dressed and played but never touched the ball -> a real miss", st["Blocking Tight End"] == "miss", str(st))
     check("H4 the roster is only asked about the team that needs it", count(r"competitors/21/roster") == 1 and count(r"competitors/10/roster") == 0)
+    check("H4b a leg on an already-dead card can still resolve to a hit...", st["JAX Late Score"] == "hit", str(st))
+    check("H4b ...but his own bet is dead too (JAX Bust missed), so no alert fires for it", overlay(page) is None)
     check("H5 final stat line on the ticket", "Final line: 1 rec, 9 yds (2 tgt)" in ctx(page, "A.J. Brown"), ctx(page, "A.J. Brown"))
     check("H6 Sunday's over but Monday night isn't: the slate stays on Today",
           page.is_visible("#content") and not page.is_visible("#waiting-panel") and st["Puka Nacua"] == "not_started")

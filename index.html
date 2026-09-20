@@ -1639,6 +1639,29 @@ function fireSteal(playerName, base, cash) {
   }
 }
 
+// Whether PLAYER's hit (in this market) affects anything of ours. False only
+// when every one of his tickets is a PARLAY that's already dead from some
+// OTHER leg missing -- his hit doesn't change that, so alerting on it is pure
+// noise. A single can never be "dead" while its own leg is the one that just
+// hit (singleOutcome only calls that "dead" on a miss), so any single always
+// counts and short-circuits the (more expensive) parlay check.
+function betsStillOpenFor(slate, playerName, market) {
+  const norm = normalizeName(playerName);
+  const mine = l => normalizeName(l.player) === norm && legMarket(l) === market;
+  const saved = RESULTS;
+  RESULTS = slate.results;
+  try {
+    if ((slate.tickets.singles || []).some(mine)) return true;
+    return (slate.tickets.windows || []).some(w => (w.tickets || []).some(tk => {
+      const legs = tk.legs || [];
+      if (!legs.some(mine)) return false;
+      return evaluateTicket(tk, legs.map(stateForLeg)).outcome !== "dead";
+    }));
+  } finally {
+    RESULTS = saved;
+  }
+}
+
 // Every player named in a slate FOR ONE MARKET, deduped by normalized name so a
 // player in several legs is only ever one notification. The market matters: a
 // home run by someone we only have to STEAL isn't our bomb, and vice versa.
@@ -1670,7 +1693,9 @@ function checkForBombs() {
   pickedNamesOf(slate.tickets, "hr").forEach((display, norm) => {
     if (!hitNames.has(norm) || BOMB_STATE.notified.has(norm)) return;
     BOMB_STATE.notified.add(norm);
-    fresh.push(display);
+    // Once dead, a parlay stays dead forever, so this can only ever be
+    // decided once per player -- no need to re-check him on a later poll.
+    if (betsStillOpenFor(slate, display, "hr")) fresh.push(display);
   });
 
   // Steal picks: announced on the first stolen base, which is the one that
@@ -1680,6 +1705,7 @@ function checkForBombs() {
   pickedNamesOf(slate.tickets, "sb").forEach((display, norm) => {
     if (!sbNames.has(norm) || BOMB_STATE.notified.has("sb:" + norm)) return;
     BOMB_STATE.notified.add("sb:" + norm);
+    if (!betsStillOpenFor(slate, display, "sb")) return;
     let base = "a base";
     slate.results.gameInfo.forEach(game => (game.steals || []).forEach(st => {
       if (base === "a base" && !st.caught && normalizeName(st.runner) === norm) base = st.base;

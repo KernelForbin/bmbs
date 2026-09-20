@@ -389,6 +389,10 @@
         <input type="checkbox" id="notif-push" onchange="setPushNotif(this.checked)">
         <span>Push Notification</span>
       </label>
+      <label class="notif-toggle" id="notif-sound-label">
+        <input type="checkbox" id="notif-sound" onchange="setSoundNotif(this.checked)">
+        <span>Sound</span>
+      </label>
     </div>
     <p class="notif-note" id="notif-note"></p>
 
@@ -1303,7 +1307,9 @@ function setNotifNote(msg) {
 function syncNotifUI() {
   const o = document.getElementById("notif-overlay");
   const p = document.getElementById("notif-push");
+  const snd = document.getElementById("notif-sound");
   if (o) o.checked = OVERLAY_ON;
+  if (snd) snd.checked = SOUND_ON;
   if (p) {
     p.checked = PUSH_ON;
     if (!supportsNotification()) {
@@ -1368,12 +1374,150 @@ async function setPushNotif(on) {
 function initNotifPrefs() {
   const o = lsGet(LS_OVERLAY);
   const p = lsGet(LS_PUSH);
+  const snd = lsGet(LS_SOUND);
   if (o !== null) OVERLAY_ON = o === "1";
   if (p !== null) PUSH_ON = p === "1";
+  // Restored, but the audio context is NOT started here: one created without a
+  // user gesture is born suspended. The first alert resumes it, by which point
+  // the visitor has interacted with the page.
+  if (snd !== null) SOUND_ON = snd === "1";
   // A saved "on" is worthless if support or permission went away since.
   if (PUSH_ON && (!supportsNotification() || window.Notification.permission !== "granted")) {
     PUSH_ON = false;
     lsSet(LS_PUSH, false);
+  }
+  syncNotifUI();
+}
+
+// ---------------- alert sounds ----------------
+// Synthesised with the Web Audio API, not shipped as audio files: these pages
+// are single self-contained files with no assets, so generating a sound costs
+// nothing to host and nothing to download. Picked from a 17-option library.
+//
+// The trims below are NOT guesses. Each sound was rendered offline and its
+// peak measured; raw they ranged about 10x in loudness, which made the quiet
+// one easy to miss entirely. These bring them to a common level. If you change
+// an envelope, re-measure -- don't eyeball it.
+const LS_SOUND = "bmbs.fb.notif.sound";
+let SOUND_ON = false;         // default off: a page that makes noise unasked is worse than one that doesn't
+let AC = null;
+const SOUND_VOL = 0.45;
+const SOUND_TRIM = { kick: 0.72, cash: 1.08 };
+
+// Browsers refuse to start audio until the page has been interacted with, so
+// this is only reached from the toggle's own change event, or from a later
+// alert -- by which point that toggle has already been clicked.
+function audioCtx() {
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  try {
+    if (!AC) AC = new Ctor();
+    if (AC.state === "suspended") AC.resume();
+    return AC;
+  } catch (e) { return null; }
+}
+
+function sndNoise(ac, dur) {
+  const n = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, n, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  return src;
+}
+
+function sndEnv(ac, node, out, peak, attack, decay, t0) {
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t0 + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + decay);
+  node.connect(g);
+  g.connect(out);
+}
+
+function sndTone(ac, out, t0, opts) {
+  const o = ac.createOscillator();
+  o.type = opts.type || "sine";
+  o.frequency.setValueAtTime(opts.from, t0);
+  if (opts.to) o.frequency.exponentialRampToValueAtTime(opts.to, t0 + (opts.sweep || opts.decay));
+  const attack = opts.attack === undefined ? 0.005 : opts.attack;
+  sndEnv(ac, o, out, opts.peak, attack, opts.decay, t0);
+  o.start(t0); o.stop(t0 + attack + opts.decay + 0.05);
+}
+
+function sndBurst(ac, out, t0, opts) {
+  const attack = opts.attack === undefined ? 0.005 : opts.attack;
+  const dur = opts.dur || (attack + opts.decay);
+  const n = sndNoise(ac, dur);
+  const f = ac.createBiquadFilter();
+  f.type = opts.filter || "lowpass";
+  f.Q.value = opts.Q || 1;
+  f.frequency.setValueAtTime(opts.from, t0);
+  if (opts.to) f.frequency.exponentialRampToValueAtTime(opts.to, t0 + opts.decay);
+  n.connect(f);
+  sndEnv(ac, f, out, opts.peak, attack, opts.decay, t0);
+  n.start(t0); n.stop(t0 + dur + 0.02);
+}
+
+// 0.15s -- a leather crack over a short low thud
+function sndKick(ac, out, t, v) {
+  sndBurst(ac, out, t, { filter: "highpass", from: 1200, peak: 0.65 * v, attack: 0.003, decay: 0.1, dur: 0.12 });
+  sndTone(ac, out, t, { type: "triangle", from: 190, to: 70, peak: 0.75 * v, attack: 0.005, decay: 0.22 });
+  return 0.3;
+}
+
+// 0.37s -- a drawer click, then two bright bell notes
+function sndCash(ac, out, t, v) {
+  sndBurst(ac, out, t, { filter: "highpass", from: 2500, peak: 0.42 * v, attack: 0.002, decay: 0.045, dur: 0.05 });
+  [[1046.5, 0.02], [1568.0, 0.11]].forEach(function (pair) {
+    const f = pair[0], off = pair[1];
+    sndTone(ac, out, t + off, { type: "triangle", from: f, peak: 0.75 * v, attack: 0.004, decay: 0.36 });
+    sndTone(ac, out, t + off, { type: "sine", from: f * 2.01, peak: 0.24 * v, attack: 0.004, decay: 0.36 });
+  });
+  return 0.55;
+}
+
+const SOUNDS = { kick: sndKick, cash: sndCash };
+
+// `kind` is 'kick' | 'cash'. When the play also CASHED something,
+// the event sound plays first and the register comes in just before it
+// finishes, so the two read as one alert rather than two -- the audio
+// equivalent of the overlay turning gold instead of firing twice.
+function playAlertSound(kind, cashed) {
+  if (!SOUND_ON) return;
+  const ac = audioCtx();
+  if (!ac) return;
+  try {
+    const t0 = ac.currentTime + 0.02;
+    const lead = SOUNDS[kind] || SOUNDS.kick;
+    const trim = ac.createGain();
+    trim.gain.value = SOUND_TRIM[kind] || 1;
+    trim.connect(ac.destination);
+    const len = lead(ac, trim, t0, SOUND_VOL);
+    if (cashed) {
+      const cashTrim = ac.createGain();
+      cashTrim.gain.value = SOUND_TRIM.cash;
+      cashTrim.connect(ac.destination);
+      sndCash(ac, cashTrim, t0 + len * 0.72, SOUND_VOL);
+    }
+  } catch (e) { /* a dead audio context must never break polling */ }
+}
+
+// Only ever called from the checkbox's change event, which is what lets the
+// audio context start at all -- the same constraint the push toggle has.
+function setSoundNotif(on) {
+  SOUND_ON = !!on;
+  lsSet(LS_SOUND, SOUND_ON);
+  if (SOUND_ON) {
+    const ac = audioCtx();
+    if (!ac) {
+      SOUND_ON = false;
+      lsSet(LS_SOUND, false);
+      setNotifNote("This browser won't let the page play sound.");
+    } else {
+      playAlertSound("kick", false);   // confirm it works, and set the volume expectation
+    }
   }
   syncNotifUI();
 }
@@ -1488,6 +1632,7 @@ function showNextBomb() {
 }
 
 function fireBomb(playerName, cash) {
+  playAlertSound("kick", !!cash);
   if (PUSH_ON && supportsNotification() && window.Notification.permission === "granted") {
     try {
       new window.Notification(`${playerName} TOUCHDOWN! \u{1F3C8}${cash ? "\u{1F4B0}" : ""}`, {

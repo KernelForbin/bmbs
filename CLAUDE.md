@@ -434,6 +434,43 @@ exactly as before, and `betsCashedBy()`'s own dead-parlay handling (it simply
 finds nothing to cash) is unchanged. Football's twin is `betsStillOpenFor()` in
 `football/index.html`, same logic minus the market dimension.
 
+**Sound is a THIRD channel, added 2026-09-20** (`bmbs.notif.sound` /
+`bmbs.fb.notif.sound`), alongside Overlay and Push and independent of both:
+turning the overlay off does not silence it, and it deliberately fires whether
+or not the tab is visible -- hearing it while looking at something else is the
+entire point. It **defaults OFF**, like push: a page that makes noise unasked
+is worse than one that doesn't.
+
+- **The sounds are SYNTHESISED with the Web Audio API, not audio files.** These
+  pages are single self-contained files with no assets and no build step, so
+  four .mp3s would be a change in kind; generating them costs nothing to host
+  and nothing to download. Baseball has `sndBomb` (home run) and `sndSwipe`
+  (stolen base); football has `sndKick` (touchdown); both have `sndCash`.
+- **A play that also CASHES a bet plays the event sound with the register
+  layered in just before it ends**, one alert rather than two -- the audio
+  equivalent of the overlay turning gold instead of firing twice. Chosen by
+  the user from an A/B; the sequence is ~0.83s, the plain bomb ~0.36s.
+- **`SOUND_TRIM` is measured, not guessed.** Each sound was rendered through an
+  `OfflineAudioContext` and its peak read off. Raw they spanned about 10x --
+  the swipe peaked at 0.11 against the bomb's 0.43 and was easy to miss
+  entirely. If you change an envelope, re-measure; don't eyeball it.
+- **Never open an `AudioContext` without a user gesture.** One created at load
+  is born suspended and silent, and the page has no second chance to start it.
+  `initNotifPrefs()` therefore restores the PREFERENCE but does not touch
+  audio; the context is created in `setSoundNotif()`, straight off the
+  checkbox's own change event -- the same constraint the push toggle has for
+  its permission prompt. Switching it on plays one bomb as confirmation, which
+  both proves audio works and sets the volume expectation.
+- Sound obeys every guard the overlay already has, because it hangs off the
+  same `fireBomb()` / `fireSteal()`: live slate only, seeded so opening the
+  page mid-game is silent, and nothing for a home run that can't change a bet.
+
+Chosen from a 17-sound library the user auditioned (arcade / clean / stadium
+variants of each event); the library page lived in the scratchpad, not the repo.
+`test_page.py` section W and `test_football.py` section Q cover the wiring by
+spying on `playAlertSound`, and the two things that actually bite are pinned
+directly: the default being off, and no `AudioContext` existing at load.
+
 **A bomb that cashes a bet is the same alert, upgraded** -- never a second
 one. `betsCashedBy()` asks which of today's bets naming that player are now
 fully hit (every single on him, plus any parlay his homer completed), and if

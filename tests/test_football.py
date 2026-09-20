@@ -796,6 +796,72 @@ with sync_playwright() as p:
     check("P6 no script errors", not errors, str(errors))
     browser.close()
 
+    # ---------- Q. alert sounds ----------
+    # Baseball's section W. The sounds can't be heard here, so what's checked
+    # is the wiring -- and above all that no AudioContext is opened without a
+    # user gesture, since one created that way is born suspended and silent.
+    SEEN.clear()
+    FX["clock"] = NOW
+    TICKETS["windows"][0]["tickets"] = [
+        card(1, [leg("Saquon Barkley", "PHI", "1", "Kenny", "-135"), leg("A.J. Brown", "PHI", "2", "Joe", "+120")]),
+    ]
+    TICKETS["singles"] = [single(0, "KENNY", "Saquon Barkley", "PHI", "1", "-135", 8.70)]
+    FX["events"] = {"2001": event("2001", "in", 1, "9:00", (0, 0)), "2002": event("2002", "pre", 1, "", (0, 0)),
+                    "2003": event("2003", "pre", 1, "", (0, 0)), "2004": event("2004", "pre", 1, "", (0, 0))}
+    FX["rosters"] = {}
+    phi0 = [statline("1", "Saquon Barkley", rushing=(3, 12, 0)), statline("2", "A.J. Brown", receiving=(1, 8, 0, 2))]
+    FX["summaries"]["2001"] = summary("2001", "in", 1, "9:00", (0, 0), {"PHI": phi0},
+                                      current=drive("q1", "PHI", ball("PHI", 40, "1st & 10 at PHI 40")))
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 390, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.add_init_script("try { localStorage.setItem('bmbs.fb.notif.sound', '1'); } catch (e) {}")
+    page.clock.set_fixed_time(NOW)
+    page.route("**/*", handler)
+    page.goto("http://bmbs.test/football/")
+    page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
+    page.evaluate("clearInterval(pollTimer)")
+    poll(page)
+
+    check("Q1 a saved sound preference is restored without starting audio at load",
+          page.evaluate("SOUND_ON") is True and page.evaluate("AC === null"))
+
+    page.evaluate("""() => { window.__sounds = [];
+        window.playAlertSound = function (kind, cashed) { window.__sounds.push([kind, !!cashed, SOUND_ON]); }; }""")
+    td = scoring("q2", "PHI", "Rushing Touchdown", "Saquon Barkley 5 Yd Rush (Kick)", 1, "7:10", 7, 0)
+    phi1 = [statline("1", "Saquon Barkley", rushing=(4, 17, 1)), statline("2", "A.J. Brown", receiving=(1, 8, 0, 2))]
+    FX["events"]["2001"] = event("2001", "in", 1, "7:10", (7, 0))
+    FX["summaries"]["2001"] = summary("2001", "in", 1, "7:10", (7, 0), {"PHI": phi1}, [td],
+                                      current=drive("q2", "PHI", ball("PHI", 20, "1st & 10 at PHI 20")))
+    poll(page)
+    snd = page.evaluate("() => window.__sounds")
+    # his single cashes on his own touchdown, so it's the kick plus the register
+    check("Q2 a touchdown plays the kick, and asks for the cash sequence when it cashes",
+          snd == [["kick", True, True]], str(snd))
+    check("Q3 football never reaches for baseball's sounds",
+          page.evaluate("() => typeof sndBomb === 'undefined' && typeof sndSwipe === 'undefined'"))
+    check("Q4 no script errors", not errors, str(errors))
+    browser.close()
+
+    # And with the preference off, the real playAlertSound must bail out before
+    # it ever touches an AudioContext.
+    SEEN.clear()
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 390, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.clock.set_fixed_time(NOW)
+    page.route("**/*", handler)
+    page.goto("http://bmbs.test/football/")
+    page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
+    page.evaluate("clearInterval(pollTimer)")
+    poll(page)
+    check("Q5 sound defaults to off, and nothing opens an AudioContext",
+          page.evaluate("SOUND_ON") is False and page.evaluate("AC === null"))
+    check("Q6 no script errors", not errors, str(errors))
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

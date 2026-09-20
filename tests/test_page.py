@@ -181,13 +181,33 @@ def notif_stub(mode):
     """ % json.dumps(mode)
 
 
-def prefs_stub(overlay=None, push=None):
+def prefs_stub(overlay=None, push=None, sound=None):
     sets = []
     if overlay is not None:
         sets.append(f"localStorage.setItem('bmbs.notif.overlay', {'1' if overlay else '0'!r});")
     if push is not None:
         sets.append(f"localStorage.setItem('bmbs.notif.push', {'1' if push else '0'!r});")
+    if sound is not None:
+        sets.append(f"localStorage.setItem('bmbs.notif.sound', {'1' if sound else '0'!r});")
     return "try { %s } catch (e) {}" % " ".join(sets)
+
+
+def install_sound_spy(page):
+    """Record playAlertSound() calls instead of making noise. A top-level
+    function declaration in a classic script IS a property of window, so
+    reassigning it changes what fireBomb() resolves to. Installed after load
+    (the boot poll is the seeding one and is silent by design), and it keeps
+    the real SOUND_ON check so 'would this have been audible' is still tested."""
+    page.evaluate("""() => {
+        window.__sounds = [];
+        window.playAlertSound = function (kind, cashed) {
+            window.__sounds.push([kind, !!cashed, SOUND_ON]);
+        };
+    }""")
+
+
+def sounds(page):
+    return page.evaluate("() => window.__sounds || []")
 
 
 def bomb_text(page):
@@ -1621,6 +1641,88 @@ with sync_playwright() as p:
         "Expand all must go through toggleLiveAb(), which is what persists the preference"
     assert page.evaluate("localStorage.getItem('bmbs.cards.parlays')") == "1"
     print("V8 OK: ...and it does it through each panel's own toggle, so side effects still run")
+    assert not errors, errors
+    browser.close()
+
+    # ========== W: alert sounds ==========
+    # The sounds themselves can't be heard here, so what's checked is the
+    # wiring: who fires, with what, under which toggle, and -- the one that
+    # actually bites -- that no AudioContext is created without a user gesture.
+    SEEN.clear()
+    roster = ["W Iron", "W Setup", "W Plain", "W Other", "W Single", "W Steal"]
+    steal_single = single(1, "Joe", "W Steal")
+    steal_single["market"] = "sb"
+    tk = tickets("2026-09-19", [("Kenny", "W Single")],
+                 [card(["W Setup", "W Iron"], "Card W"),         # W Setup already hit -> W Iron is the Iron
+                  card(["W Plain", "W Other"], "Card W2")])      # neither has hit -> a HR here cashes nothing
+    tk["singles"].append(steal_single)
+    FX["tickets"] = tk
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(7001, "Live")])}
+    FX["feeds"] = {7001: feed("Live", roster, hrs=["W Setup"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0),
+                                      [notif_stub("granted"), prefs_stub(overlay=True, push=False, sound=True)])
+
+    assert page.evaluate("SOUND_ON") is True, "a saved preference should be restored"
+    assert page.evaluate("AC === null"), \
+        "restoring the preference must NOT open an AudioContext -- one made without a user gesture is born suspended"
+    print("W1 OK: a saved sound preference is restored without starting audio at load")
+
+    install_sound_spy(page)
+    FX["feeds"][7001] = feed("Live", roster, hrs=["W Setup", "W Plain"])
+    poll(page)
+    assert sounds(page) == [["bomb", False, True]], sounds(page)
+    print("W2 OK: a home run that cashes nothing plays the bomb alone")
+
+    # W Single's single cashes on his own homer -> bomb THEN the register
+    page.evaluate("() => { window.__sounds = []; }")
+    FX["feeds"][7001] = feed("Live", roster, hrs=["W Setup", "W Plain", "W Single"])
+    poll(page)
+    assert sounds(page) == [["bomb", True, True]], sounds(page)
+    print("W3 OK: a home run that cashes a bet asks for the cash sequence, not a second alert")
+
+    # the steal market gets its own sound
+    page.evaluate("() => { window.__sounds = []; }")
+    FX["feeds"][7001] = feed("Live", roster, hrs=["W Setup", "W Plain", "W Single"])
+    FX["feeds"][7001]["liveData"]["plays"]["allPlays"].append({
+        "about": {"isTopInning": True, "atBatIndex": 5},
+        "matchup": {"batter": {"fullName": "Some Batter"}},
+        "runners": [{"movement": {"end": "2B"}, "details": {"event": "Stolen Base 2B",
+                     "eventType": "stolen_base_2b", "runner": {"fullName": "W Steal"}}, "playIndex": 0}]})
+    poll(page)
+    assert [x[0] for x in sounds(page)] == ["swipe"], sounds(page)
+    print("W4 OK: a stolen base plays the swipe, not the bomb")
+
+    # Sound is its own channel: it must not depend on the overlay being on.
+    page.evaluate("() => { window.__sounds = []; setOverlayNotif(false); }")
+    FX["feeds"][7001] = feed("Live", roster, hrs=["W Setup", "W Plain", "W Single", "W Iron"])
+    poll(page)
+    assert [x[0] for x in sounds(page)] == ["bomb"], sounds(page)
+    assert bomb_text(page) is None, "the overlay is off, so nothing should be on screen"
+    print("W5 OK: sound fires with the overlay switched off -- they're independent channels")
+    assert not errors, errors
+    browser.close()
+
+    # With the preference off, the real playAlertSound must return before it
+    # ever touches an AudioContext -- otherwise a visitor who never opted in
+    # still gets one created behind their back.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "W Plain")])
+    FX["feeds"] = {7001: feed("Live", ["W Plain"])}
+    # Deliberately NO saved sound preference here, which makes this the test
+    # that pins the built-in DEFAULT. An earlier version saved "off" explicitly
+    # -- so flipping the default to on went completely unnoticed, as a scratch
+    # mutation proved.
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0),
+                                      [notif_stub("granted"), prefs_stub(overlay=True, push=False)])
+    assert page.evaluate("localStorage.getItem('bmbs.notif.sound')") is None, "nothing should be saved yet"
+    assert page.evaluate("SOUND_ON") is False, "sound must default to OFF -- unasked-for noise is worse than none"
+    assert page.evaluate("() => !document.getElementById('notif-sound').checked")
+    FX["feeds"][7001] = feed("Live", ["W Plain"], hrs=["W Plain"])
+    poll(page)
+    assert bomb_text(page) == "W Plain BOMB!", bomb_text(page)      # the alert really did fire
+    assert page.evaluate("AC === null"), "sound is off, so no AudioContext should exist"
+    print("W6 OK: sound defaults to off; the alert still fires and no AudioContext is created")
     assert not errors, errors
     browser.close()
 

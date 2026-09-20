@@ -112,12 +112,16 @@ When a real upload parses successfully, the workflow posts one plain
 "picks are live" message to the group's Discord channel via an incoming
 webhook (Channel Settings → Integrations → Webhooks in Discord). Set that
 webhook's URL as the `DISCORD_STATUS_WEBHOOK` repo secret (Settings →
-Secrets and variables → Actions) — both sports share the one secret. **A
-parse failure does not currently post anything to Discord** — that half
-(auto-investigate-and-fix on failure) was designed but never wired up; see
-CLAUDE.md's "Discord status automation" section for why and what's needed
-to finish it. Until then, a failed upload still only shows up on the
-Actions tab, exactly as before.
+Secrets and variables → Actions) — both sports share the one secret.
+
+When an upload FAILS to parse, `.github/workflows/auto-fix-parse-failure.yml`
+posts one "investigating" message, tries a single bounded fix (one Claude
+API call, not an autonomous agent — see CLAUDE.md's "Discord status
+automation" section for the full design and why it's built that way), and
+edits that same message to its final state: fixed and live, or couldn't
+resolve it automatically. Needs an `ANTHROPIC_API_KEY` repo secret to run
+at all — without it, every failure immediately reports as unresolved
+rather than hanging.
 
 ### Updating the roster
 `data/roster.json` doesn't update itself — it's a snapshot. Refresh it any

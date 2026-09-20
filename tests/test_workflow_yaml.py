@@ -33,10 +33,13 @@ def check(name, cond, detail=""):
         failures.append(name)
 
 
-def commit_step_text(text):
-    """The 'Commit and push if changed' step's run block, isolated so paths
-    from OTHER steps (e.g. a --file argument) can't be mistaken for a git add."""
-    m = re.search(r'name:\s*"?Commit and push if changed"?\s*\n.*?run:\s*\|(.*?)(?=\n\s*- name:|\Z)', text, re.S)
+def commit_step_text(text, step_name="Commit and push if changed"):
+    """The named commit step's run block, isolated so paths from OTHER steps
+    (e.g. a --file argument) can't be mistaken for a git add. Every workflow
+    here names its commit step this way except auto-fix-parse-failure.yml
+    ("Commit and push the automatic fix" -- it can't reuse the exact name
+    since its gate is different, see that file's own checks below)."""
+    m = re.search(rf'name:\s*"?{re.escape(step_name)}"?\s*\n.*?run:\s*\|(.*?)(?=\n\s*- name:|\Z)', text, re.S)
     return m.group(1) if m else ""
 
 
@@ -166,6 +169,77 @@ check("D3 import-history.yml NEVER commits a live tickets file -- results/histor
 check("D4 import-history.yml's commits stay within its documented set (history.json, results/, football's twins)",
       committed["import-history.yml"] <= {"data/history.json", "data/results", "data/football/results", "data/football/history.json"},
       committed["import-history.yml"])
+
+# ---------------- E. auto-fix-parse-failure.yml: the highest-stakes file ----------------
+# Kept OUT of the generic files/texts loop above on purpose -- its commit
+# step has a different name (its gate is different: only on a RESOLVED fix,
+# never unconditionally), it has no push-triggered `paths:` (it's
+# workflow_run/workflow_dispatch, not a picks upload), and its file targets
+# are indirected through env vars rather than literal paths, so the shared
+# committed_paths()/trigger_paths() checks above don't apply to it the same
+# way. Checked here on its own terms instead.
+
+AUTOFIX = WORKFLOWS / "auto-fix-parse-failure.yml"
+check("E1: auto-fix-parse-failure.yml exists", AUTOFIX.exists())
+if not AUTOFIX.exists():
+    print("auto-fix-parse-failure.yml missing -- stopping here")
+    sys.exit(1)
+af_text = AUTOFIX.read_text(encoding="utf-8")
+
+check("E2 grants contents:write", re.search(r'permissions:\s*\n\s*contents:\s*write', af_text) is not None)
+check("E3 has a workflow_dispatch escape hatch for a manual re-run",
+      "workflow_dispatch:" in af_text)
+check("E4 declares a concurrency group (can't race the parse workflow it follows)",
+      re.search(r'^concurrency:\s*\n\s*group:', af_text, re.M) is not None)
+check("E5 fires off BOTH parse workflows completing, and only reacts to a FAILURE "
+      "(a successful parse already notifies Discord on its own, see section B)",
+      re.search(r'workflows:\s*\[\s*"Parse New Picks"\s*,\s*"Parse New Football Picks"\s*\]', af_text) is not None
+      and "conclusion == 'failure'" in af_text)
+# The workflow_run trigger names above are STRING literals -- if either real
+# workflow's own `name:` ever changes, this trigger silently stops firing
+# with no error anywhere. Cross-check them against the actual files.
+check("E6 the two workflow names it listens for match the real workflows' OWN `name:` fields "
+      "(a rename of either would silently break this trigger)",
+      re.match(r'^name:\s*Parse New Picks\s*$', texts["parse-picks.yml"].splitlines()[0]) is not None
+      and re.match(r'^name:\s*Parse New Football Picks\s*$', texts["parse-football-picks.yml"].splitlines()[0]) is not None)
+
+af_run_block = commit_step_text(af_text, "Commit and push the automatic fix")
+check("E7 the commit step only runs when a fix was actually resolved -- never unconditionally",
+      re.search(r"Commit and push the automatic fix\s*\n\s*id:\s*commit\s*\n\s*if:\s*steps\.fix\.outputs\.resolved == 'yes'",
+                af_text) is not None)
+check("E8 that commit step retries the push the same way every other workflow here does",
+      "git pull --rebase" in af_run_block and "for attempt in" in af_run_block, "no retry loop found")
+check("E9 a failed push after retries exits non-zero rather than silently swallowing it",
+      re.search(r'exit 1', af_run_block.split("Failed to push")[-1][:80]) is not None
+      if "Failed to push" in af_run_block else False)
+
+# The sport-routing step is where this workflow's OWN "gotcha 5" lives: get
+# the branch backwards and an auto-fix could commit football's tickets file
+# under a baseball fix, or vice versa. Verified directly against the two
+# branches' own output values, not just trusted by reading the if/else.
+sport_step = re.search(r'name:\s*Determine which sport failed.*?(?=\n\s*- name:|\Z)', af_text, re.S)
+check("E10 the sport-routing step exists at all", sport_step is not None)
+if sport_step:
+    block = sport_step.group(0)
+    football_branch = re.search(r"football.*?\n((?:\s+echo.*\n)+)", block)
+    baseball_branch = re.search(r"else\s*\n((?:\s+echo.*\n)+)", block)
+    check("E11 the FOOTBALL branch only ever points at football's own files",
+          football_branch is not None and all(
+              "football" in line or "sport=football" in line
+              for line in football_branch.group(1).splitlines() if "echo" in line),
+          football_branch.group(1) if football_branch else None)
+    check("E12 the BASEBALL (else) branch never points at a football/ path",
+          baseball_branch is not None and not any(
+              "football" in line for line in baseball_branch.group(1).splitlines()),
+          baseball_branch.group(1) if baseball_branch else None)
+
+check("E13 the final Discord message checks BOTH the fix being resolved AND the commit "
+      "actually succeeding -- a fix that couldn't be pushed must never be reported as live",
+      re.search(r'RESOLVED"\s*=\s*"yes"\s*\]\s*&&\s*\[\s*"\$COMMIT_OUTCOME"\s*=\s*"success"', af_text) is not None)
+afp_source = (SCRIPTS / "auto_fix_parser.py").read_text(encoding="utf-8")
+check("E14 auto_fix_parser.py itself never invokes git -- only the workflow's own bash step "
+      "does (keeps the highest-risk decision logic separate from the actual push mechanism)",
+      not re.search(r'["\']git["\']', afp_source), "a literal 'git' argument was found in the script")
 
 print()
 if failures:

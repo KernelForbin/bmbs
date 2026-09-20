@@ -1035,6 +1035,20 @@ on failure:
   subcommands, and -- the one that matters most -- that the webhook URL
   itself never reaches a log line or error message even when the request
   fails or the secret is missing.
+- `tests/test_auto_fix_parser.py` — `scripts/auto_fix_parser.py`, the script
+  behind the auto-fix-on-failure workflow (see "Discord status automation"
+  above). Fully offline: a fake fetcher stands in for the Claude API call,
+  and "did the full suite pass" / "does the upload parse now" are
+  monkeypatched rather than actually re-run. The thing this file cares
+  about most: every failure path (a malformed model response, the suite
+  failing after the patch, the suite passing but the specific upload still
+  not parsing, the API call itself raising) leaves the parser file
+  byte-for-byte back at its ORIGINAL content, and only the one path where
+  every gate passes leaves the patch in place -- checked directly by
+  reading the file back after each scenario, not just trusting the return
+  value. Also covers the retry-with-feedback loop (attempt 2 receives
+  attempt 1's exact failure detail) and that a missing `ANTHROPIC_API_KEY`
+  short-circuits cleanly instead of crashing the job.
 
 ```
 pip install -r tests/requirements.txt
@@ -1044,7 +1058,8 @@ python tests/test_history_import.py && python tests/test_history.py && python te
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py
 python tests/test_discord_bot.py && python tests/test_at_bat_math.py && python tests/test_live_data_schema.py
-python tests/test_site_links.py && python tests/test_features_page.py && python tests/test_workflow_yaml.py && python tests/test_redirect_stub.py && python tests/test_notify_discord.py
+python tests/test_site_links.py && python tests/test_features_page.py && python tests/test_workflow_yaml.py && python tests/test_redirect_stub.py
+python tests/test_notify_discord.py && python tests/test_auto_fix_parser.py
 python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 
@@ -1063,35 +1078,89 @@ and posts it), `post` (posts fresh text, prints the message id), `edit`
 prints, or lets an HTTP error surface the webhook URL itself -- `tests/test_notify_discord.py`
 checks that specifically, fully offline (a fake fetcher, never a real request).
 
-**Currently wired up: the success path only.** `parse-picks.yml` and
-`parse-football-picks.yml`'s commit step now sets a `committed` output
-(`yes` only on a genuine new slate, never a no-op rerun), and a step gated
-on `committed == 'yes'` calls `notify_discord.py success` right after --
-one plain "✅ live on bmbs.bet" message, no AI involved, nothing to
-investigate. This part is deterministic and safe by construction.
+**The success path.** `parse-picks.yml` and `parse-football-picks.yml`'s
+commit step sets a `committed` output (`yes` only on a genuine new slate,
+never a no-op rerun), and a step gated on `committed == 'yes'` calls
+`notify_discord.py success` right after -- one plain "✅ live on bmbs.bet"
+message, no AI involved, nothing to investigate. Deterministic and safe by
+construction.
 
-**Not built: automatic investigation and fix-and-push on a parse FAILURE.**
-The intended design (2026-09-20, requested so the four template-drift
-incidents that day wouldn't need a human to notice and ask) was: a
-`workflow_run` failure event fires an unattended agent that posts one
-"investigating" Discord message, diagnoses the new card template, patches
-the parser, runs the full suite, and -- **only if every test passes** --
-commits, pushes to `main`, re-dispatches the workflow, and edits that same
-message to its final state; if it can't resolve the failure with
-confidence, it edits the message to say so instead of guessing.
+**The failure path: `.github/workflows/auto-fix-parse-failure.yml`.**
+First attempt (2026-09-20) was to fire an unattended Claude Code AGENT off
+a `workflow_run` failure event (`RemoteTrigger`, `action: "create"`) --
+refused outright by the platform's own auto-mode safety classifier
+("Reason: \[Create Unsafe Agents\]"), which is the platform declining to
+let an agent spin up another agent with unattended production push access.
+Not a bug to route around.
 
-**This was never wired up.** Attempting to create the trigger (`RemoteTrigger`,
-`action: "create"`) was refused outright by the platform's own auto-mode
-safety classifier: *"Permission for this action was denied... Reason:
-\[Create Unsafe Agents\]."* That is the platform declining to let an agent
-create another agent that would run completely unattended with production
-push access -- not a bug to route around. If this capability becomes
-available (a settings change on the user's end, or a future platform
-change), the design above is what to build; until then, a parse failure on
-either workflow surfaces the same way it always has -- an Actions tab
-failure and `WARNING: parsed nothing` in the log, with **no Discord
-message at all** on that path yet. Don't assume the auto-fix loop exists
-just because this section describes it.
+**What's actually built instead is narrower and bounded on purpose: ONE
+plain Claude API call per attempt, not an agent** -- no tool use, no
+open-ended agency, just a request/response that a plain script (`scripts/auto_fix_parser.py`)
+decides whether to trust:
+
+1. Fires on either parse workflow's `workflow_run` `completed` event with
+   `conclusion == 'failure'` (also has a `workflow_dispatch` escape hatch,
+   sport picked from a dropdown, for a manual re-run).
+2. Posts one Discord message ("investigating") and keeps its id.
+3. Sends the failing parser's complete source + the raw failing upload to
+   the Claude API (`ANTHROPIC_API_KEY`, a GitHub Actions secret), with a
+   system prompt that spells out the hard-won lessons from the four real
+   template-drift incidents fixed by hand the same day -- most importantly
+   the `PARLAY_HEADER_RE`-collision trap that bit BOTH sports' parsers
+   independently (a new header containing a literal "N-Leg Parlay"
+   substring gets misread as a brand-new section unless explicitly
+   excluded). Asks for the complete new file back in a fixed
+   `<<<SUMMARY>>>`/`<<<FILE>>>`/`<<<END>>>` envelope -- a malformed response
+   is treated as a failed attempt, never guessed at.
+4. Writes the proposed file, then runs the FULL 19-file offline test suite.
+   **Only if every test still passes** does it re-run the parser against
+   the actual failing upload to confirm the ORIGINAL problem is actually
+   fixed (this run also writes the real `tickets.json` -- no special-cased
+   second code path for that). Any failure at either gate reverts the
+   parser file to its exact original content and retries once with the
+   failure detail fed back to the model; two failed attempts and it gives
+   up rather than guess a third time.
+5. On success: leaves the patched parser, the real `tickets.json`, and an
+   auto-archived copy of the raw upload (`tests/fixtures/auto_detected_<sport>_<timestamp>.txt`,
+   for a human to later turn into a permanent regression test) sitting
+   **uncommitted** in the working tree. `auto_fix_parser.py` never runs
+   `git` itself -- a separate, plain bash step (the same git-push-with-retry
+   pattern every other workflow here already uses) does the actual commit
+   and push, so the highest-risk decision logic can't also invent a novel
+   way to corrupt the commit history.
+6. Edits the original Discord message to its final state: fixed and live,
+   found-a-fix-but-couldn't-push-it (checked separately -- `resolved: yes`
+   is NOT enough on its own to claim success; the commit step's own outcome
+   is checked too), or couldn't-resolve-it-automatically.
+
+**Security note, since two different untrusted inputs flow through this
+pipeline:** the raw Discord upload (a friend's paste) and the model's own
+response (which read that upload) are both treated as untrusted text.
+Neither is ever spliced directly into a shell command via GitHub Actions'
+`${{ }}` templating -- that substitution happens BEFORE the shell parses
+the script, so a value containing shell metacharacters could otherwise
+alter what the script does. Every such value goes through `env:` + a
+quoted shell variable instead (safe, because by the time the shell expands
+`"$VAR"` the command has already been parsed).
+
+**`tests/test_auto_fix_parser.py`** is the important test file here: fully
+offline (a fake fetcher stands in for the Claude API; "did the suite pass"
+and "did the fix work" are monkeypatched), and specifically proves the
+revert-on-any-failure guarantee -- a malformed response, a suite failure,
+and "the suite passed but the specific upload still doesn't parse" each
+leave the parser file byte-for-byte unchanged, and only the one path where
+BOTH gates pass leaves the patch in place. `tests/test_workflow_yaml.py`
+section E separately checks the workflow YAML itself: the two workflow
+names it listens for are cross-checked against the real workflows' own
+`name:` fields (a rename of either would otherwise silently break the
+trigger), and the sport-routing step's football/baseball branches are
+checked directly so a swapped branch can't commit the wrong sport's files.
+
+**Needs `ANTHROPIC_API_KEY` (a GitHub Actions secret) to actually run.**
+Without it, `auto_fix_parser.py` short-circuits to `resolved=no` on the
+first line -- a parse failure still gets the "investigating" Discord
+message, then immediately the "couldn't resolve automatically" edit,
+rather than silently hanging or crashing the job.
 
 ## Deploy process
 

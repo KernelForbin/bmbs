@@ -1,0 +1,146 @@
+name: Auto-fix a Picks Parse Failure
+
+# Fires when either parse workflow fails. Investigates with ONE bounded
+# Claude API call (scripts/auto_fix_parser.py) -- not an autonomous agent,
+# see CLAUDE.md's "Discord status automation" section for why that
+# distinction matters here. Commits the fix ONLY if the full test suite
+# still passes AND the specific failing upload now parses; otherwise it
+# edits the Discord status message to say so and touches nothing.
+#
+# Security note: steps.fix.outputs.summary is text a MODEL wrote after
+# reading a friend's raw Discord upload -- neither is a trusted input.
+# Every use of it below goes through `env:` + a quoted shell variable,
+# never spliced directly into a run: script via ${{ }} -- that would be a
+# classic GitHub Actions script-injection hole (the substitution happens
+# before the shell ever sees it, so shell metacharacters in the value
+# could alter what the script does). Same for the Discord message text.
+
+on:
+  workflow_run:
+    workflows: ["Parse New Picks", "Parse New Football Picks"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      sport:
+        description: "Which sport to (re-)attempt (manual runs only)"
+        required: true
+        type: choice
+        options: [baseball, football]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ (github.event.workflow_run.name == 'Parse New Football Picks' || github.event.inputs.sport == 'football') && 'parse-football-picks' || 'parse-picks' }}
+  cancel-in-progress: false
+
+jobs:
+  auto-fix:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Determine which sport failed
+        id: sport
+        env:
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          DISPATCH_SPORT: ${{ github.event.inputs.sport }}
+        run: |
+          if [ "$WORKFLOW_NAME" = "Parse New Football Picks" ] || [ "$DISPATCH_SPORT" = "football" ]; then
+            echo "sport=football" >> "$GITHUB_OUTPUT"
+            echo "incoming=data/football/incoming_picks.txt" >> "$GITHUB_OUTPUT"
+            echo "parser=scripts/parse_football_picks.py" >> "$GITHUB_OUTPUT"
+            echo "tickets=data/football/tickets.json" >> "$GITHUB_OUTPUT"
+            echo "previous=data/football/tickets-previous.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "sport=baseball" >> "$GITHUB_OUTPUT"
+            echo "incoming=data/incoming_picks.txt" >> "$GITHUB_OUTPUT"
+            echo "parser=scripts/parse_picks.py" >> "$GITHUB_OUTPUT"
+            echo "tickets=data/tickets.json" >> "$GITHUB_OUTPUT"
+            echo "previous=data/tickets-previous.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post "investigating" status to Discord
+        id: notify
+        env:
+          DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
+          SPORT: ${{ steps.sport.outputs.sport }}
+        run: |
+          MSG_ID=$(python scripts/notify_discord.py post --text "⚠️ ${SPORT} picks upload had a parsing error -- investigating automatically now.")
+          echo "message_id=$MSG_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Install test dependencies
+        run: |
+          pip install -r tests/requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Attempt an automatic fix
+        id: fix
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SPORT: ${{ steps.sport.outputs.sport }}
+          INCOMING: ${{ steps.sport.outputs.incoming }}
+          PARSER: ${{ steps.sport.outputs.parser }}
+        run: python scripts/auto_fix_parser.py
+
+      - name: Commit and push the automatic fix
+        id: commit
+        if: steps.fix.outputs.resolved == 'yes'
+        env:
+          PARSER: ${{ steps.sport.outputs.parser }}
+          TICKETS: ${{ steps.sport.outputs.tickets }}
+          PREVIOUS: ${{ steps.sport.outputs.previous }}
+          SUMMARY: ${{ steps.fix.outputs.summary }}
+        run: |
+          git config user.name "hr-checklist-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add "$PARSER" "$TICKETS" "tests/fixtures/"
+          [ -f "$PREVIOUS" ] && git add "$PREVIOUS"
+          git commit -m "Auto-fix: $SUMMARY"
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt), rebasing and retrying..."
+            git pull --rebase origin main
+            sleep 3
+          done
+          echo "Failed to push after retries." >&2
+          exit 1
+
+      - name: Edit the Discord status with the outcome
+        if: always()
+        env:
+          DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
+          MESSAGE_ID: ${{ steps.notify.outputs.message_id }}
+          SPORT: ${{ steps.sport.outputs.sport }}
+          RESOLVED: ${{ steps.fix.outputs.resolved }}
+          # steps.commit.outcome is 'skipped' (not 'success') whenever the
+          # commit step's own `if:` was false, i.e. resolved != 'yes' -- so
+          # checking BOTH here is what stops a fix that was found but then
+          # failed to actually push (a git conflict outlasting the retries,
+          # say) from being reported as "live" when it never landed.
+          COMMIT_OUTCOME: ${{ steps.commit.outcome }}
+        run: |
+          if [ "$RESOLVED" = "yes" ] && [ "$COMMIT_OUTCOME" = "success" ]; then
+            TEXT="✅ Fixed automatically -- ${SPORT} picks are live on bmbs.bet."
+          elif [ "$RESOLVED" = "yes" ]; then
+            TEXT="⚠️ Found a fix for the ${SPORT} upload but couldn't push it -- needs a look. Check the Actions tab."
+          else
+            TEXT="❌ Couldn't parse this ${SPORT} upload automatically -- needs a look. Check the Actions tab for details."
+          fi
+          if [ -n "$MESSAGE_ID" ]; then
+            python scripts/notify_discord.py edit --id "$MESSAGE_ID" --text "$TEXT"
+          else
+            python scripts/notify_discord.py post --text "$TEXT"
+          fi

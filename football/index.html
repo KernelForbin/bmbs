@@ -1464,7 +1464,6 @@ function sndBurst(ac, out, t0, opts) {
 function sndKick(ac, out, t, v) {
   sndBurst(ac, out, t, { filter: "highpass", from: 1200, peak: 0.65 * v, attack: 0.003, decay: 0.1, dur: 0.12 });
   sndTone(ac, out, t, { type: "triangle", from: 190, to: 70, peak: 0.75 * v, attack: 0.005, decay: 0.22 });
-  return 0.3;
 }
 
 // 0.37s -- a drawer click, then two bright bell notes
@@ -1475,32 +1474,26 @@ function sndCash(ac, out, t, v) {
     sndTone(ac, out, t + off, { type: "triangle", from: f, peak: 0.75 * v, attack: 0.004, decay: 0.36 });
     sndTone(ac, out, t + off, { type: "sine", from: f * 2.01, peak: 0.24 * v, attack: 0.004, decay: 0.36 });
   });
-  return 0.55;
 }
 
 const SOUNDS = { kick: sndKick, cash: sndCash };
 
-// `kind` is 'kick' | 'cash'. When the play also CASHED something,
-// the event sound plays first and the register comes in just before it
-// finishes, so the two read as one alert rather than two -- the audio
-// equivalent of the overlay turning gold instead of firing twice.
+// `kind` is 'kick' | 'cash'. When the play also CASHED something, the register
+// REPLACES the event sound -- one noise, never two back to back. That mirrors
+// the overlay exactly: a cash doesn't add a second card, it upgrades the one
+// card to gold. Firing both would make a cash the only alert that interrupts
+// twice, which is backwards -- it's the one you least want to sit through.
 function playAlertSound(kind, cashed) {
   if (!SOUND_ON) return;
   const ac = audioCtx();
   if (!ac) return;
   try {
-    const t0 = ac.currentTime + 0.02;
-    const lead = SOUNDS[kind] || SOUNDS.kick;
+    const use = cashed ? "cash" : kind;
+    const fn = SOUNDS[use] || SOUNDS.kick;
     const trim = ac.createGain();
-    trim.gain.value = SOUND_TRIM[kind] || 1;
+    trim.gain.value = SOUND_TRIM[use] || 1;
     trim.connect(ac.destination);
-    const len = lead(ac, trim, t0, SOUND_VOL);
-    if (cashed) {
-      const cashTrim = ac.createGain();
-      cashTrim.gain.value = SOUND_TRIM.cash;
-      cashTrim.connect(ac.destination);
-      sndCash(ac, cashTrim, t0 + len * 0.72, SOUND_VOL);
-    }
+    fn(ac, trim, ac.currentTime + 0.02, SOUND_VOL);
   } catch (e) { /* a dead audio context must never break polling */ }
 }
 

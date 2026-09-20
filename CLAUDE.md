@@ -446,10 +446,12 @@ is worse than one that doesn't.
   four .mp3s would be a change in kind; generating them costs nothing to host
   and nothing to download. Baseball has `sndBomb` (home run) and `sndSwipe`
   (stolen base); football has `sndKick` (touchdown); both have `sndCash`.
-- **A play that also CASHES a bet plays the event sound with the register
-  layered in just before it ends**, one alert rather than two -- the audio
-  equivalent of the overlay turning gold instead of firing twice. Chosen by
-  the user from an A/B; the sequence is ~0.83s, the plain bomb ~0.36s.
+- **A play that also CASHES a bet plays the register INSTEAD of the event
+  sound** -- one noise, never two back to back. This mirrors the overlay
+  exactly: a cash doesn't add a second card, it upgrades the one card to gold.
+  Playing both would make a cash the only alert that interrupts twice, which
+  is backwards -- it's the one you least want to sit through. An earlier build
+  did layer them (~0.83s); the user corrected it. Don't re-add the sequence.
 - **`SOUND_TRIM` is measured, not guessed.** Each sound was rendered through an
   `OfflineAudioContext` and its peak read off. Raw they spanned about 10x --
   the swipe peaked at 0.11 against the bomb's 0.43 and was easy to miss
@@ -468,8 +470,12 @@ is worse than one that doesn't.
 Chosen from a 17-sound library the user auditioned (arcade / clean / stadium
 variants of each event); the library page lived in the scratchpad, not the repo.
 `test_page.py` section W and `test_football.py` section Q cover the wiring by
-spying on `playAlertSound`, and the two things that actually bite are pinned
+spying on `playAlertSound`, and the things that actually bite are pinned
 directly: the default being off, and no `AudioContext` existing at load.
+**W7 / Q6 go a level deeper on purpose** -- they stub the entries of `SOUNDS`
+and call the real `playAlertSound`, because the spy above only records the
+ARGUMENTS it was called with and so cannot see which sound actually plays.
+That is exactly the gap that let the back-to-back version look correct.
 
 **A bomb that cashes a bet is the same alert, upgraded** -- never a second
 one. `betsCashedBy()` asks which of today's bets naming that player are now

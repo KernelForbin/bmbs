@@ -837,7 +837,7 @@ with sync_playwright() as p:
     poll(page)
     snd = page.evaluate("() => window.__sounds")
     # his single cashes on his own touchdown, so it's the kick plus the register
-    check("Q2 a touchdown plays the kick, and asks for the cash sequence when it cashes",
+    check("Q2 a touchdown reaches playAlertSound, flagged as having cashed",
           snd == [["kick", True, True]], str(snd))
     check("Q3 football never reaches for baseball's sounds",
           page.evaluate("() => typeof sndBomb === 'undefined' && typeof sndSwipe === 'undefined'"))
@@ -859,7 +859,23 @@ with sync_playwright() as p:
     poll(page)
     check("Q5 sound defaults to off, and nothing opens an AudioContext",
           page.evaluate("SOUND_ON") is False and page.evaluate("AC === null"))
-    check("Q6 no script errors", not errors, str(errors))
+
+    # Deeper than the Q2 spy, which only records the arguments: a cash must
+    # REPLACE the touchdown sound, not follow it, the same way the overlay
+    # upgrades its single card to gold instead of showing a second one.
+    played = page.evaluate("""() => {
+        const calls = [];
+        ["kick", "cash"].forEach(k => { SOUNDS[k] = () => calls.push(k); });
+        SOUND_ON = true;
+        const grab = () => { const c = calls.slice(); calls.length = 0; return c; };
+        const out = {};
+        playAlertSound("kick", false); out.kick = grab();
+        playAlertSound("kick", true);  out.kickCashed = grab();
+        return out;
+    }""")
+    check("Q6 a cash plays the register INSTEAD of the touchdown sound, never both",
+          played == {"kick": ["kick"], "kickCashed": ["cash"]}, str(played))
+    check("Q7 no script errors", not errors, str(errors))
     browser.close()
 
 print()

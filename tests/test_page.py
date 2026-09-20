@@ -1679,7 +1679,7 @@ with sync_playwright() as p:
     FX["feeds"][7001] = feed("Live", roster, hrs=["W Setup", "W Plain", "W Single"])
     poll(page)
     assert sounds(page) == [["bomb", True, True]], sounds(page)
-    print("W3 OK: a home run that cashes a bet asks for the cash sequence, not a second alert")
+    print("W3 OK: a home run that cashes a bet reaches playAlertSound flagged as cashed")
 
     # the steal market gets its own sound
     page.evaluate("() => { window.__sounds = []; }")
@@ -1723,6 +1723,28 @@ with sync_playwright() as p:
     assert bomb_text(page) == "W Plain BOMB!", bomb_text(page)      # the alert really did fire
     assert page.evaluate("AC === null"), "sound is off, so no AudioContext should exist"
     print("W6 OK: sound defaults to off; the alert still fires and no AudioContext is created")
+
+    # W7 goes a level deeper than the spy above, which only records the
+    # ARGUMENTS playAlertSound was called with. What matters here is which
+    # sound it actually reaches for: a cash must REPLACE the event sound, not
+    # follow it. Two noises back to back would make a cash the one alert that
+    # interrupts twice, and the overlay doesn't do that either -- it upgrades
+    # its single card to gold rather than showing a second one.
+    played = page.evaluate("""() => {
+        const calls = [];
+        ["bomb", "swipe", "cash"].forEach(k => { SOUNDS[k] = () => calls.push(k); });
+        SOUND_ON = true;
+        const grab = () => { const c = calls.slice(); calls.length = 0; return c; };
+        const out = {};
+        playAlertSound("bomb", false);  out.bomb = grab();
+        playAlertSound("bomb", true);   out.bombCashed = grab();
+        playAlertSound("swipe", false); out.swipe = grab();
+        playAlertSound("swipe", true);  out.swipeCashed = grab();
+        return out;
+    }""")
+    assert played == {"bomb": ["bomb"], "bombCashed": ["cash"],
+                      "swipe": ["swipe"], "swipeCashed": ["cash"]}, played
+    print("W7 OK: a cash plays the register INSTEAD of the event sound, never both")
     assert not errors, errors
     browser.close()
 

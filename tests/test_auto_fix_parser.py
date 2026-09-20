@@ -13,6 +13,7 @@ path, including a malformed model response or a raised exception.
 
     python tests/test_auto_fix_parser.py
 """
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -33,6 +34,33 @@ def check(name, cond, detail=""):
 ENVELOPE = "<<<SUMMARY>>>\nAdded the new emoji-ticket template.\n<<<FILE>>>\nNEW FILE CONTENTS\n<<<END>>>\n"
 
 
+# ---------------- Z. call_claude's request body -- two live incidents, locked in ----------------
+# Verified against the real API on 2026-09-20 before this was ever trusted:
+# `temperature` (even 0) gets claude-sonnet-5 a hard HTTP 400, and leaving
+# `thinking` at its default burned the ENTIRE token budget on an internal
+# thinking block and returned empty (stop_reason: max_tokens, 0 text) --
+# raising max_tokens alone did NOT fix it, only disabling thinking did.
+# Nothing here hits the network; it just inspects the request call_claude
+# builds via the injectable fetcher.
+_captured = {}
+
+
+def _capturing_fetcher(url, headers, body):
+    _captured["body"] = json.loads(body)
+    return json.dumps({"content": [{"text": "irrelevant for this check"}]}).encode("utf-8")
+
+
+afp.call_claude("a prompt", "fake-key", fetcher=_capturing_fetcher)
+check("Z1 no 'temperature' field at all -- claude-sonnet-5 rejects the request outright if it's present",
+      "temperature" not in _captured["body"], _captured["body"])
+check("Z2 'thinking' is explicitly disabled -- left at default, it silently ate the whole "
+      "token budget and returned empty instead of the file",
+      _captured["body"].get("thinking") == {"type": "disabled"}, _captured["body"].get("thinking"))
+check("Z3 max_tokens is generous enough for a full parser file plus a summary "
+      "(the real parser file alone needed ~9000 tokens once thinking stopped competing for budget)",
+      _captured["body"].get("max_tokens", 0) >= 16000, _captured["body"].get("max_tokens"))
+
+
 # ---------------- A. extract_file_and_summary -- never guesses on a bad shape ----------------
 
 check("A1 a well-formed envelope extracts both parts",
@@ -43,10 +71,25 @@ check("A3 missing <<<SUMMARY>>> entirely -> (None, None)",
       afp.extract_file_and_summary("some prose the model wrote instead") == (None, None))
 check("A4 an empty file section -> (None, None), not an empty-string file",
       afp.extract_file_and_summary("<<<SUMMARY>>>\nx\n<<<FILE>>>\n\n<<<END>>>") == (None, None))
-check("A5 markdown fences around the model's own answer don't confuse it "
-      "(the fences just become part of the summary/file text verbatim)",
+check("A5 no fences present -> the file content is taken verbatim, untouched",
       afp.extract_file_and_summary("<<<SUMMARY>>>\nfixed it\n<<<FILE>>>\nprint(1)\n<<<END>>>")
       == ("fixed it", "print(1)"))
+# A6-A7: confirmed live 2026-09-20 -- despite the system prompt saying "no
+# markdown fences", the model wrapped the file section in one anyway on a
+# real call, and the fence markers got written as literal lines 1 and N of
+# the .py file -- an instant SyntaxError that wasted a whole attempt on a
+# purely cosmetic slip. A real ```` ``` ```` fence (with a language tag,
+# since that's what actually happened) must be stripped, not left in.
+check("A6 a language-tagged code fence around the file section is stripped",
+      afp.extract_file_and_summary("<<<SUMMARY>>>\nfixed it\n<<<FILE>>>\n```python\nprint(1)\n```\n<<<END>>>")
+      == ("fixed it", "print(1)"))
+check("A7 a bare fence (no language tag) is stripped too",
+      afp.extract_file_and_summary("<<<SUMMARY>>>\nfixed it\n<<<FILE>>>\n```\nprint(1)\n```\n<<<END>>>")
+      == ("fixed it", "print(1)"))
+check("A8 only a MATCHING leading+trailing fence is stripped -- a bare triple-backtick "
+      "occurring naturally inside real file content (e.g. in a docstring) is left alone",
+      afp.extract_file_and_summary("<<<SUMMARY>>>\nx\n<<<FILE>>>\ncode\n```\nmore code\n<<<END>>>")
+      == ("x", "code\n```\nmore code"))
 
 
 # ---------------- B. build_prompt -- both texts present, feedback only when given ----------------

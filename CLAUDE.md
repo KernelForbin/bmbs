@@ -1162,6 +1162,31 @@ first line -- a parse failure still gets the "investigating" Discord
 message, then immediately the "couldn't resolve automatically" edit,
 rather than silently hanging or crashing the job.
 
+**Verified end to end against the real API on 2026-09-20, once the key was
+set** -- not just offline-mocked: a synthetic new template the real parser
+genuinely can't handle (`>> WAGER A (2 legs)` / `Stake: $6 | To Win: $210.00
+| Placed by: Kenny` / numbered legs), run through the real `attempt_fix()`
+against scratch copies only, real Claude call, real 19-file suite, real
+`verify_fix`. Two real bugs surfaced this way that offline mocking could
+never have caught, both fixed and covered by `tests/test_auto_fix_parser.py`
+section Z / A6-A8 before being trusted:
+- `temperature` (any value) is a hard HTTP 400 for `claude-sonnet-5`. Removed.
+- `thinking` left at its default silently consumed the ENTIRE token budget
+  on internal reasoning and returned zero text (`stop_reason: max_tokens`);
+  raising `max_tokens` from 8192 to 32000 did NOT fix it (25914 of it went
+  to thinking, the file still got cut off mid-write). Explicitly disabling
+  thinking (`"thinking": {"type": "disabled"}`) fixed it in one try.
+- (Found in the same run, not a request-shape bug:) the model wrapped the
+  file section in a markdown fence on one real call despite the system
+  prompt explicitly saying not to -- inconsistent, not every call. A
+  ```` ``` ```` -fenced .py file is an instant `SyntaxError`, which
+  `verify_fix` correctly caught and reverted, but wasted the attempt.
+  `extract_file_and_summary()` now strips a matching leading+trailing fence
+  defensively rather than trusting the instruction alone to hold.
+
+With both fixed, the full pipeline resolved the synthetic failure in ~150s:
+real API call, real suite, real re-parse, correct ticket/leg counts.
+
 ## Deploy process
 
 No build step. Edit `index.html` (or `scripts/*.py`) directly in the repo,

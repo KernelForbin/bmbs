@@ -23,6 +23,7 @@ used in the commit message and the Discord status edit).
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -131,9 +132,29 @@ def write(path, text):
 
 def call_claude(prompt, api_key, fetcher=None):
     """One Messages API call. `fetcher(url, headers, body_bytes) -> response
-    bytes` is injectable for tests; real use hits the network via urllib."""
+    bytes` is injectable for tests; real use hits the network via urllib.
+
+    No `temperature` field, and `thinking` explicitly disabled -- both
+    confirmed live against the real API before this was ever trusted in the
+    workflow, and both would have made every single invocation fail
+    silently (resolved=no, forever) if shipped as first written:
+      - `temperature` at any value, including 0, is rejected outright by
+        claude-sonnet-5 (HTTP 400 "temperature is deprecated for this
+        model"). A parameter that silently changed from "an option" to "a
+        hard error" between model generations is exactly the kind of thing
+        this script can't afford to get wrong unverified.
+      - With `thinking` left at its default, the model spent its ENTIRE
+        token budget on an internal thinking block and returned empty
+        (`stop_reason: max_tokens`, 8192/8192 thinking tokens, zero text) --
+        raising max_tokens alone didn't fix it (32000 tokens: 25914 went to
+        thinking, the file got cut off mid-write, no <<<END>>>). Disabling
+        thinking outright fixed it in one try: `stop_reason: end_turn`,
+        0 thinking tokens, a complete well-formed response. This task
+        doesn't need exploratory reasoning -- the hard rules above already
+        spell out exactly what to check."""
     body = json.dumps({
-        "model": MODEL, "max_tokens": 8192, "temperature": 0,
+        "model": MODEL, "max_tokens": 20000,
+        "thinking": {"type": "disabled"},
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": prompt}],
     }).encode("utf-8")
@@ -167,6 +188,15 @@ def extract_file_and_summary(response_text):
         return None, None
     summary = summary.strip()
     file_content = file_content.strip("\n")
+    # Confirmed live, 2026-09-20: despite the system prompt saying "no
+    # markdown fences", the model sometimes wraps the file section in one
+    # anyway -- inconsistently, not every call. Writing "```python" as line 1
+    # of a .py file is an instant SyntaxError, wasting an attempt on a purely
+    # cosmetic slip verify_fix would otherwise have to reject. Strip one
+    # leading/trailing fence if present rather than trusting the instruction
+    # alone to have worked.
+    file_content = re.sub(r"^```[A-Za-z]*\n", "", file_content)
+    file_content = re.sub(r"\n```\s*$", "", file_content)
     if not summary or not file_content:
         return None, None
     return summary, file_content

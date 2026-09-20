@@ -839,7 +839,15 @@ async function getGameSnapshot(gamePk) {
     return null;
   }
 
-  const currentlyBattingSide = offense ? (halfState === "Top" ? "away" : "home") : null;
+  // Which side is batting -- or, during the break between halves, due up next.
+  // "End" means the BOTTOM half just finished, so the away team leads off the
+  // next inning; only "Middle"/"Bottom" put the home side up. This used to read
+  // `halfState === "Top" ? "away" : "home"`, which lumped "End" in with home and
+  // flagged the wrong team as being at the plate for the whole between-innings
+  // break. remainingOutsForSide() below has always drawn the line correctly.
+  // Measured against live games 2026-09-19: "End" is a real state, lasts a
+  // median 71s (~7 polls), and `offense` is populated throughout it.
+  const currentlyBattingSide = offense ? ((halfState === "Top" || halfState === "End") ? "away" : "home") : null;
   const nextUpSlot = {};
   ["away", "home"].forEach(side => {
     let slot = null;
@@ -950,13 +958,28 @@ function battingContextFor(playerName, side, gamePk) {
   const r = remainingOutsForSide(game.inning, game.halfState, game.outs, side);
   const { probAtLeastOne, expected } = atBatEstimate(d, r, LEAGUE_OUT_RATE);
 
-  const isCurrentlyBatting = (side === game.currentlyBattingSide) && d === 0;
+  // Between halves ("Middle": top just ended, home up next; "End": bottom
+  // just ended, away up next) nobody is actually at the plate -- it's a
+  // break -- and `outs` still reads 3 from the half that just finished,
+  // verified against live games: 3 in all 10 "Middle" AND all 10 "End"
+  // windows sampled. Both flags below need to know this:
+  const betweenHalves = game.halfState === "Middle" || game.halfState === "End";
+  // isCurrentlyBatting used to fire for the literal next batter (d === 0)
+  // during a break, tagging him "AT THE PLATE NOW" -- a ghost tile, same
+  // class as the one nextUpSlot's own comment already guards against, just
+  // one poll early. During a break nobody qualifies; guaranteedThisHalfInning
+  // below is what should carry him instead.
+  const isCurrentlyBatting = (side === game.currentlyBattingSide) && d === 0 && !betweenHalves;
   // Deterministic check (no probability needed): at minimum, 3-minus-outs
   // more plate appearances WILL happen before this half-inning can end,
   // even in the worst case where every one of them is an out. If the
   // tracked hitter is within that guaranteed window, they will bat this
-  // half-inning no matter what happens ahead of them.
-  const effectiveOuts = (side === game.currentlyBattingSide) ? (game.outs || 0) : 0;
+  // half-inning no matter what happens ahead of them. Charging the stale
+  // outs against the side about to bat would say nobody leading off the
+  // next half is guaranteed an at-bat, losing tags they correctly showed a
+  // moment before -- remainingOutsForSide() already gives the upcoming side
+  // a full 3 outs for the same reason.
+  const effectiveOuts = (side === game.currentlyBattingSide && !betweenHalves) ? (game.outs || 0) : 0;
   const guaranteedThisHalfInning = (d + 1) <= (3 - effectiveOuts);
 
   return {

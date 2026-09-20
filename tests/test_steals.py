@@ -359,7 +359,17 @@ with sync_playwright() as p:
     check("H2 inning ends with him still out there -> a brief STRANDED tile instead of just vanishing",
           any(x["player"] == "Steal Only Homers" and x["tag"] == "STRANDED" for x in t), str(t))
     advance(page, 10)
-    check("H3 ...then gone", all(x["player"] != "Steal Only Homers" for x in tiles(page)))
+    # He's a HOME batter, so once the STRANDED tile expires he reappears as
+    # ON DECK (due up soon) rather than vanishing -- being a stolen-base-only
+    # pick doesn't exempt him from ordinary due-up context; he still has to
+    # get on base again before he can steal. This used to read "then gone"
+    # because of a since-fixed bug: `outs` still reads 3 from the top half
+    # that just ended, and charging that stale count against the HOME side
+    # about to bat wrongly zeroed out everyone's guaranteed-at-bat window
+    # during "Middle" (the same stale-outs bug already fixed for "End").
+    check("H3 the STRANDED tile expires, then he correctly reappears as ON DECK -- "
+          "not suppressed by the Middle stale-outs bug",
+          any(x["player"] == "Steal Only Homers" and x["tag"] == "ON DECK" for x in tiles(page)), str(tiles(page)))
 
     # ---------- I. filters, tabs, hygiene ----------
     page.evaluate("toggleFilter('hit')")

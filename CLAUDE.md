@@ -417,7 +417,7 @@ because a hitter who just homered is `hit` now and no longer "eligible" but
 was a poll ago. At-bats that ended >3 min ago (tab was asleep) and at-bats
 that finish while the Yesterday tab is showing are marked seen, not announced.
 
-Two things learned from running against real live games, not mocks:
+Three things learned from running against real live games, not mocks:
 - **`about.isComplete` is the only trustworthy "finished" signal.** The feed
   writes mid-at-bat actions into `result.event` while the hitter is still up
   -- a real "Batter Timeout" on an 0-1 count got announced as an at-bat's
@@ -425,6 +425,33 @@ Two things learned from running against real live games, not mocks:
 - **Only whitelisted event types are announced** (`LAB_PA_RESULTS`). A "play"
   can also end on a runner event (inning-ending caught stealing: same hitter
   leads off next inning). Unknown types cost a missed tile, never a wrong one.
+- **`inningState` has FOUR values and "End" is not "Bottom".** `Top` and
+  `Bottom` are halves in progress; `Middle` (top over, home up next) and `End`
+  (bottom over, AWAY up next, new inning) are the breaks between them.
+  `currentlyBattingSide` read `halfState === "Top" ? "away" : "home"`, which
+  put the home team at the plate all through `End` -- the wrong team entirely.
+  Logged over an hour of live games on 2026-09-19 before fixing: 10 `End`
+  windows, `offense` populated in 10 of 10 (so the branch always evaluates),
+  median 71s -- about 7 consecutive polls, not a flicker. `Middle` is just as
+  real (10 windows, median 91s), so neither state is dead.
+  **`outs` reads 3 during both breaks** (all 20 windows), belonging to the half
+  that just ended -- so the side about to lead off must not be charged it, the
+  same allowance `remainingOutsForSide()` already makes. First applied to `End`
+  only (fixing `Middle` too broke `test_steals.py`'s H3, which was itself
+  asserting the bug -- a HOME steal pick vanishing after his STRANDED tile
+  expired, rather than correctly showing ON DECK). Fixed properly once H3 was
+  updated to expect the correct tile instead.
+  **A second, related ghost-tag bug surfaced while fixing `Middle`:**
+  `isCurrentlyBatting` (the flag behind "AT THE PLATE NOW") checked only
+  `side === currentlyBattingSide && d === 0`, with no `betweenHalves` check of
+  its own -- so the LITERAL next batter (not just someone a few slots out) was
+  still tagged "at the plate" during a break, when nobody actually is. Same
+  root cause, same fix shape: force it false during `Middle`/`End`, letting
+  `guaranteedThisHalfInning` carry him instead. Covered end to end by
+  `test_live_at_bats.py` J1-J7 (`End`) and K1-K5 (`Middle`), each checking the
+  literal next batter (the ghost-tag case) separately from someone a few slots
+  further out (the stale-outs case) so the two bugs can't hide behind each
+  other.
 
 It is pitch-by-pitch *as of the last poll*, not a live stream: several pitches
 can land at once, and a short at-bat can start and finish between polls (the

@@ -337,6 +337,113 @@ with sync_playwright() as p:
     page.click("#chip-hit")
     check("I9 all filters off again", names() == everyone and "Filtered" not in page.inner_text("#liveab-sub"), page.inner_text("#liveab-sub"))
 
+    # ---------- J. the break between innings: "End" means the AWAY team is up ----------
+    # inningState has four values and only "Top" puts the away side up MID-half,
+    # but "End" (the bottom half just finished) means away leads off the next
+    # inning. currentlyBattingSide used to treat anything that wasn't "Top" as
+    # home, so for the whole break it flagged a HOME hitter as being at the plate
+    # while the away team was the side actually due up.
+    #
+    # Measured against live MLB games on 2026-09-19 before writing this: "End" is
+    # real and reachable, `offense` is populated in 10 of 10 windows sampled (so
+    # the branch is always taken, never short-circuited to null), and it lasts a
+    # median 71s -- about 7 consecutive polls, not a flicker between them.
+    #
+    # Last away batter is slot 8, so away's next up is slot 9 and "Next Half"
+    # (slot 1) is 1 away. Last home batter is "Up Now" (slot 2), so home's next
+    # up is slot 3 -- "On Deck", who is exactly who used to be mislabelled.
+    FX["feed"] = game(BASE + [play(42, "Away 8", True, event="Flyout", etype="field_out", out=True, end=OLD),
+                              play(43, "Up Now", False, event="Groundout", etype="field_out", out=True, end=OLD)],
+                      "End", 3, "Up Now")
+    poll(page)
+
+    def tag_for(player):
+        """The leg's action tag, emoji stripped -- a failing check has to be
+        printable on a cp1252 console, which a raw 🔥/⏳ in the detail is not."""
+        raw = page.evaluate("""(p) => {
+            const leg = [...document.querySelectorAll('#content .leg, #content .single-row')]
+                .find(r => r.querySelector('.leg-player, .single-player').firstChild.textContent.trim() === p);
+            const t = leg && leg.querySelector('.leg-action-tag');
+            return t ? t.textContent.trim() : null;
+        }""", player)
+        return None if raw is None else raw.encode("ascii", "ignore").decode("ascii").strip()
+
+    check("J1 a HOME hitter due up is NOT 'at the plate' during the break after the bottom half",
+          tag_for("On Deck") != "AT THE PLATE NOW", tag_for("On Deck"))
+    check("J2 nobody on the home side is flagged at the plate at all",
+          page.evaluate("""[...document.querySelectorAll('#content .leg-action-tag.now')]
+              .map(t => t.closest('.leg, .single-row'))
+              .map(row => row.querySelector('.leg-player, .single-player').firstChild.textContent.trim())""") == [],
+          str(page.evaluate("""[...document.querySelectorAll('#content .leg-action-tag.now')]
+              .map(t => t.closest('.leg, .single-row'))
+              .map(row => row.querySelector('.leg-player, .single-player').firstChild.textContent.trim())""")))
+    # The other half of the fix: `outs` still reads 3 from the half that just
+    # ended, so charging it against the side about to bat wiped out their
+    # guaranteed-at-bat tags. Next Half is 1 away with a full 3 outs coming.
+    check("J3 the AWAY side about to lead off is judged on a fresh 3 outs, not the stale 3",
+          tag_for("Next Half") == "GUARANTEED TO BAT THIS INNING", tag_for("Next Half"))
+    check("J4 no ghost 'Stepping in' tile for the wrong team",
+          "On Deck" not in page.inner_text("#liveab-grid") or "AT BAT" not in page.inner_text("#liveab-grid"),
+          page.inner_text("#liveab-grid"))
+    check("J5 no script errors", not errors, str(errors))
+
+    # A second, separate ghost-tag bug found while testing this one:
+    # isCurrentlyBatting fires on d===0 with no betweenHalves check, so the
+    # LITERAL next batter (not just someone a few slots out, like Next Half
+    # above) is still wrongly "AT THE PLATE NOW" during the break --
+    # guaranteedThisHalfInning should carry him instead. Reshapes the fixture
+    # so away's last batter is slot 9 instead of slot 8 (home's stays "Up
+    # Now", unchanged from above): that makes Next Half (slot 1) the literal
+    # next-up batter (0 away, not J3's 1 away) instead of J3's already-tested
+    # case. Run last, after J4/J5, since it changes what J4 assumed.
+    FX["feed"] = game(BASE + [play(45, "Away 9", True, event="Flyout", etype="field_out", out=True, end=OLD),
+                              play(43, "Up Now", False, event="Groundout", etype="field_out", out=True, end=OLD)],
+                      "End", 3, "Away 9")
+    poll(page)
+    check("J6 nobody is 'at the plate' during a break, not even the literal next batter",
+          tag_for("Next Half") == "GUARANTEED TO BAT THIS INNING", tag_for("Next Half"))
+    check("J7 no script errors", not errors, str(errors))
+    browser.close()
+
+    # ---------- K. the OTHER break: "Middle" means the HOME team is up ----------
+    # currentlyBattingSide's mapping was already correct for "Middle" (top just
+    # ended, home up next) -- only two things needed the same fix "End" got:
+    # the stale 3 outs, and the ghost "AT THE PLATE NOW" tag for the literal
+    # next batter. Deliberately NOT done alongside "End" the first time (it
+    # broke test_steals.py's H3, which was itself asserting the bug -- see
+    # that file's H3 comment) so it's done properly here instead of skipped.
+    #
+    # Last away batter is slot 8 (Away 8), so away's next up is slot 9 -- not
+    # checked here, this section is about the HOME side coming up. Home's last
+    # recorded batter is "Lead Off" (slot 1, from BASE), so home's next up is
+    # slot 2 -- "Up Now" (0 away) -- and slot 3 "On Deck" is 1 away.
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 390, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.clock.set_fixed_time(NOW)
+    page.route("**/*", handler)
+    FX["feed"] = game(BASE + [play(44, "Away 8", True, event="Flyout", etype="field_out", out=True, end=OLD)],
+                      "Middle", 3, "Away 8")
+    page.goto("http://bmbs.test/index.html")
+    boot(page)
+    poll(page)
+    check("K1 the literal next HOME batter is NOT 'at the plate' during the break after the top half",
+          tag_for("Up Now") == "GUARANTEED TO BAT THIS INNING", tag_for("Up Now"))
+    check("K2 nobody is flagged at the plate at all during the break",
+          page.evaluate("""[...document.querySelectorAll('#content .leg-action-tag.now')]
+              .map(t => t.closest('.leg, .single-row'))
+              .map(row => row.querySelector('.leg-player, .single-player').firstChild.textContent.trim())""") == [],
+          str(page.evaluate("""[...document.querySelectorAll('#content .leg-action-tag.now')]
+              .map(t => t.closest('.leg, .single-row'))
+              .map(row => row.querySelector('.leg-player, .single-player').firstChild.textContent.trim())""")))
+    check("K3 the HOME side about to bat is judged on a fresh 3 outs, not the stale 3",
+          tag_for("On Deck") == "GUARANTEED TO BAT THIS INNING", tag_for("On Deck"))
+    check("K4 no ghost 'Stepping in' tile for the wrong team",
+          "Up Now" not in page.inner_text("#liveab-grid") or "AT BAT" not in page.inner_text("#liveab-grid"),
+          page.inner_text("#liveab-grid"))
+    check("K5 no script errors", not errors, str(errors))
+
     check("H3 no sideways scroll on a phone", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
     check("H4 no script errors", not errors, str(errors))
     browser.close()

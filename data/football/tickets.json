@@ -1,0 +1,285 @@
+{
+  "sport": "football",
+  "date": "2026-09-20",
+  "endDate": "2026-09-21",
+  "weekEnds": "2026-09-22",
+  "note": "",
+  "windows": [
+    {
+      "title": "Touchdown Parlays Summary",
+      "tickets": [
+        {
+          "name": "Card 1",
+          "sub": "5-Leg",
+          "foot": "<b>$8.50</b> bet by Memo &middot; Potential payout <b>$95.66</b>",
+          "stake": 8.5,
+          "book": "Memo",
+          "payout": 95.66,
+          "legs": [
+            {
+              "id": "p0-c0-l0",
+              "player": "Derrick Henry",
+              "team": "BAL",
+              "athleteId": "3043078",
+              "who": "Kenny",
+              "meta": "BAL &middot; Kenny",
+              "odds": "-260",
+              "time": "1:00 PM"
+            },
+            {
+              "id": "p0-c0-l1",
+              "player": "Christian McCaffrey",
+              "team": "SF",
+              "athleteId": "3117251",
+              "who": "Bernie",
+              "meta": "SF &middot; Bernie",
+              "odds": "-250",
+              "time": "4:25 PM"
+            },
+            {
+              "id": "p0-c0-l2",
+              "player": "Kenneth Walker III",
+              "team": "KC",
+              "athleteId": "4567048",
+              "who": "Kenny",
+              "meta": "KC &middot; Kenny",
+              "odds": "-225",
+              "time": "4:25 PM"
+            },
+            {
+              "id": "p0-c0-l3",
+              "player": "Bijan Robinson",
+              "team": "ATL",
+              "athleteId": "4430807",
+              "who": "Bernie",
+              "meta": "ATL &middot; Bernie",
+              "odds": "-180",
+              "time": "1:00 PM"
+            },
+            {
+              "id": "p0-c0-l4",
+              "player": "D'Andre Swift",
+              "team": "CHI",
+              "athleteId": "4259545",
+              "who": "Kenny",
+              "meta": "CHI &middot; Kenny",
+              "odds": "-150",
+              "time": "1:00 PM"
+            }
+          ]
+        },
+        {
+          "name": "Card 2",
+          "sub": "4-Leg",
+          "foot": "<b>$8.50</b> bet by Memo &middot; Potential payout <b>$139.40</b>",
+          "stake": 8.5,
+          "book": "Memo",
+          "payout": 139.4,
+          "legs": [
+            {
+              "id": "p0-c1-l0",
+              "player": "Saquon Barkley",
+              "team": "PHI",
+              "athleteId": "3929630",
+              "who": "Memo",
+              "meta": "PHI &middot; Memo",
+              "odds": "-105",
+              "time": "1:00 PM"
+            },
+            {
+              "id": "p0-c1-l1",
+              "player": "Ashton Jeanty",
+              "team": "LV",
+              "athleteId": "4890973",
+              "who": "Bernie",
+              "meta": "LV &middot; Bernie",
+              "odds": "-105",
+              "time": "Check Listings"
+            },
+            {
+              "id": "p0-c1-l2",
+              "player": "Bucky Irving",
+              "team": "TB",
+              "athleteId": "4596448",
+              "who": "Bernie",
+              "meta": "TB &middot; Bernie",
+              "odds": "+100",
+              "time": "1:00 PM"
+            },
+            {
+              "id": "p0-c1-l3",
+              "player": "Chase Brown",
+              "team": "CIN",
+              "athleteId": "4362238",
+              "who": "Noid",
+              "meta": "CIN &middot; Noid",
+              "odds": "+120",
+              "time": "1:00 PM"
+            }
+          ]
+        },
+        {
+          "name": "Card 3",
+          "sub": "3-Leg",
+          "foot": "<b>$8.50</b> bet by Memo &middot; Potential payout <b>$159.89</b>",
+          "stake": 8.5,
+          "book": "Memo",
+          "payout": 159.89,
+          "legs": [
+            {
+              "id": "p0-c2-l0",
+              "player": "Jaxon Smith-Njigba",
+              "team": "SEA",
+              "athleteId": "4430878",
+              "who": "Joe",
+              "meta": "SEA &middot; Joe",
+              "odds": "+135",
+              "time": "4:25 PM"
+            },
+            {
+              "id": "p0-c2-l1",
+              "player": "Malik Nabers",
+              "team": "NYG",
+              "athleteId": "4595348",
+              "who": "Kenny",
+              "meta": "NYG &middot; Kenny",
+              "odds": "+150",
+              "time": "Mon 8:15 PM"
+            },
+            {
+              "id": "p0-c2-l2",
+              "player": "Justin Jefferson",
+              "team": "MIN",
+              "athleteId": "4262921",
+              "who": "Bernie",
+              "meta": "MIN &middot; Bernie",
+              "odds": "+170",
+              "time": "1:00 PM"
+            }
+          ]
+        },
+        {
+          "name": "Card 4",
+          "sub": "2-Leg",
+          "foot": "<b>$8.50</b> bet by Memo &middot; Potential payout <b>$72.68</b>",
+          "stake": 8.5,
+          "book": "Memo",
+          "payout": 72.68,
+          "legs": [
+            {
+              "id": "p0-c3-l0",
+              "player": "Travis Etienne Jr.",
+              "team": "NO",
+              "athleteId": "4239996",
+              "who": "Noid",
+              "meta": "NO &middot; Noid",
+              "odds": "+185",
+              "time": "4:05 PM"
+            },
+            {
+              "id": "p0-c3-l1",
+              "player": "Terry McLaurin",
+              "team": "WSH",
+              "athleteId": "3121422",
+              "who": "Memo",
+              "meta": "WSH &middot; Memo",
+              "odds": "+195",
+              "time": "4:25 PM"
+            }
+          ]
+        },
+        {
+          "name": "Card 5",
+          "sub": "2-Leg",
+          "foot": "<b>$8.50</b> bet by Kenny &middot; Potential payout <b>$104.80</b>",
+          "stake": 8.5,
+          "book": "Kenny",
+          "payout": 104.8,
+          "legs": [
+            {
+              "id": "p0-c4-l0",
+              "player": "Garrett Wilson",
+              "team": "NYJ",
+              "athleteId": "4569618",
+              "who": "Joe",
+              "meta": "NYJ &middot; Joe",
+              "odds": "+200",
+              "time": "1:00 PM"
+            },
+            {
+              "id": "p0-c4-l1",
+              "player": "Trey McBride",
+              "team": "ARI",
+              "athleteId": "4361307",
+              "who": "Noid",
+              "meta": "ARI &middot; Noid",
+              "odds": "+200",
+              "time": "4:25 PM"
+            }
+          ]
+        },
+        {
+          "name": "Card 6",
+          "sub": "2-Leg",
+          "foot": "<b>$8.50</b> bet by Memo &middot; Potential payout <b>$89.59</b>",
+          "stake": 8.5,
+          "book": "Memo",
+          "payout": 89.59,
+          "legs": [
+            {
+              "id": "p0-c5-l0",
+              "player": "Chris Olave",
+              "team": "NO",
+              "athleteId": "4361370",
+              "who": "Joe",
+              "meta": "NO &middot; Joe",
+              "odds": "+210",
+              "time": "1:00 PM"
+            },
+            {
+              "id": "p0-c5-l1",
+              "player": "Chris Godwin Jr.",
+              "team": "TB",
+              "athleteId": "3116165",
+              "who": "Joe",
+              "meta": "TB &middot; Joe",
+              "odds": "+210",
+              "time": "1:00 PM"
+            }
+          ]
+        },
+        {
+          "name": "Card 7",
+          "sub": "2-Leg",
+          "foot": "<b>$9.00</b> bet by Memo &middot; Potential payout <b>$113.22</b>",
+          "stake": 9.0,
+          "book": "Memo",
+          "payout": 113.22,
+          "legs": [
+            {
+              "id": "p0-c6-l0",
+              "player": "Golden",
+              "team": "",
+              "athleteId": "",
+              "who": "Noid",
+              "meta": "Noid",
+              "odds": "+240",
+              "time": "1:00 PM"
+            },
+            {
+              "id": "p0-c6-l1",
+              "player": "Kaelon Black",
+              "team": "SF",
+              "athleteId": "4696044",
+              "who": "Memo",
+              "meta": "SF &middot; Memo",
+              "odds": "+260",
+              "time": "1:00 PM"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "singles": []
+}

@@ -227,9 +227,20 @@ waffle next to the player who still has to go deep.
   away, and it gets no waffle and no count. Note this means a fresh slate
   before first pitch shows a waffle on *every* single; that's intended.
 
-The IRONS chip (amber, between OPEN and HIT) counts parlays and singles in
-one total. Irons are a *subset* of Open, not a separate bucket, so an Iron
-is counted in both chips.
+**Irons has its own slim bar under the BETS row** (`.irons-bar`, id
+`chip-iron`), not a chip in it, as of 2026-09-20. It was the second of five
+chips; that made the row a state-per-column list with one entry that isn't a
+state -- an Iron is a *subset* of Open, counted in both -- and it stopped the
+BETS and LEGS rows lining up. The bar is amber with the waffle, a colour now
+reserved for it (OPEN/LIVE are white and N/A is yellow), and it is visibly
+smaller than the chips so it reads as a qualifier rather than a fifth bucket.
+It is still an ordinary member of `FILTER_GROUPS.bet`, so it multi-selects and
+appears in the summary like anything else.
+
+**The waffle is a numeric entity in the markup and is easy to get wrong:**
+`&#129479;` is U+1F9C7 🧇. `&#129415;` is U+1F987 🦇, a bat -- which is what
+shipped for about ten minutes. `test_page.py` V2 pins the codepoint and
+cross-checks it against `ironMark()`'s.
 
 Two behaviours that are easy to break:
 - **The waffle is driven by Iron state, never by the active filter**, so it
@@ -248,8 +259,17 @@ Two behaviours that are easy to break:
 A **dead** parlay is never an Iron even when one leg is numerically
 unresolved -- `outcome === "live"` excludes it, same as void.
 
-**The scoreboard is TWO rows: BETS** (Open / Irons / Hit / Missed) **and LEGS**
-(Live / Hit / Missed / N/A), both sports. Read the history before changing
+**The scoreboard is TWO rows of FOUR, deliberately aligned: BETS**
+(Open / Hit / Missed / N/A) **and LEGS** (Live / Hit / Missed / N/A), both
+sports. Same four columns, same four colours -- white, green, red, yellow --
+so a glance down a column compares like with like. Keep them that way: the
+whole point of moving Irons out (above) was that a five-chip BETS row could
+not line up with a four-chip LEGS row. Both rows are mutually exclusive, which
+is why **a void bet is N/A rather than Open**: every leg was N/A, so the bet is
+refunded, not one swing from anything. `singleOutcome()` returns `"void"` for
+a DNP player's single for the same reason. `isOpenOutcome()` still counts void
+as open everywhere else (payouts, `betIsOpen`, Live Bet Tracker eligibility) --
+"can this still be graded" is a different question from "which column is it". Read the history before changing
 either, because it has gone back and forth once already:
 - The original LEGS row was five chips (Hit / Missed / N/A / Live / Not
   Started) and, above both rows, BATTING NOW / BATTING SOON. All of it was
@@ -300,8 +320,11 @@ forgetting that left the panel stale once already.
   -- and comes FIRST, with the LIVE FROM MLB / LIVE FROM ESPN eyebrow under it
   and the last-updated line directly under that. The sync line lost its
   "Live &mdash; " prefix (the eyebrow already says the slate is live).
-- The colour key moved out of the header to the bottom of the page, above the
-  footer, under a "COLOR KEY" label. `#legend-hit` / `#legend-miss` are still
+- The colour key moved out of the header to the bottom of the page, under a
+  "COLOR KEY" label, BELOW the horizontal rule and above the fine print. That
+  rule used to be the footer's own `border-top`; it now belongs to `.colorkey`
+  and the footer has none, which is what puts the key on the fine-print side
+  of the line rather than the slate's. `#legend-hit` / `#legend-miss` are still
   rewritten by `computeAll()` for steal slates -- the ids moved with it.
 - **The "Auto-tracked against live MLB/NFL results." boilerplate is gone**, as
   redundant with the eyebrow. `#dynamic-note` itself MUST STAY: it is the only
@@ -309,6 +332,38 @@ forgetting that left the panel stale once already.
   and dropping that would put the site back to silently posting 16 of 18
   tickets. It now renders "Heads up &mdash; &lt;note&gt;" when there is a
   warning and is empty otherwise, and `test_page.py`'s section O pins both.
+
+**WARMUP IS NOT LIVE, and `abstractGameState` will tell you it is.** MLB's own
+authoritative table (`/api/v1/gameStatus`) lists Warmup as
+`abstractGameState: "Live"`, `detailedState: "Warmup"`, `codedGameState: "P"`.
+Trusting `abstract` meant the page downloaded a warmup game's feed, read the
+lineup card that is already posted, and tagged the leadoff hitter "AT THE PLATE
+NOW" before a pitch had been thrown. **`codedGameState === "P"` is the gate** --
+pre-game whatever `abstract` claims -- and it is applied in BOTH places on
+purpose: `getScheduleForDate()` (so the feed isn't fetched at all) and
+`getGameSnapshot()` (so a feed fetched anyway can't be misread). They can
+disagree for a poll or two around first pitch; `test_page.py` U5 covers that.
+
+**A delay is named, not hidden.** The schedule request carries `hydrate=team`
+-- about 600 extra bytes on a request already made every poll -- purely so the
+payload has team ABBREVIATIONS. They're needed because a game that hasn't
+started has no boxscore, so `leg.team` is the only way to find which game a
+pick is waiting on (`RESULTS.teamState`, keyed by abbreviation).
+`scheduleStateText()` turns `detailedState` into a sentence: "Game delayed --
+rain." / "Warming up -- first pitch shortly." / "Game suspended." The reason is
+usually inside the state itself ("Delayed Start: Rain") but MLB also uses a
+plain "Delayed Start" with a separate `reason` field, so both are read. There
+are two delay families and both are covered: `Delayed Start*` (abstract
+Preview, never began) and `Delayed*` (abstract Live, began then stopped).
+
+**Expand all / Collapse all** (`#panel-controls`, above the live panel on both
+pages) drives every pill-collapsed section: Live Bet Tracker / Live Drives, the
+HR or TD Log, Bettor Tracker, Parlay Cards, Straight Bet Cards. `COLLAPSIBLES`
+is the list and **each entry calls that panel's OWN toggle**, never its class
+directly, so the side effects -- sub-text, localStorage, re-render -- can't be
+forgotten. Adding a new collapsible panel means adding a row there; that's the
+whole contract, and `test_page.py` V6-V8 checks both the fan-out and that the
+preferences still get persisted.
 
 **Every pick carries a status line, always** (`playerStatusLine()`, both
 sports, 2026-09-20). `liveContextHtml()` used to return "" whenever it had
@@ -580,8 +635,11 @@ one (`HR_FILTER`) is currently selected, is recomputed every `renderHrLog()`
 call (poll, tab switch, new upload), and is empty -- hidden by
 `.hrlog-count:empty` -- when the slate has zero home runs so far. Football's
 Touchdown Log gained the identical pill (`#tdlog-count`) on 2026-09-20, and
-both Bettor Trackers gained an `N BETTORS` one in their headers; all four use
-the shared `.head-count` style.
+both Bettor Trackers gained an `N BETTORS` one in their headers. **All of
+them use the shared muted `.head-count` style** -- the Home Run Log's own green
+`.hrlog-count` was dropped on 2026-09-20 so every panel header reads the same;
+only the Live Bet Tracker's `.liveab-count` stays green, because it's the one
+that means "something is happening right now".
 
 Rows are tap-to-expand rather than a wide table: 16 columns of Statcast
 detail cannot render on a 560px phone-first page, so the collapsed row
@@ -733,10 +791,27 @@ and green means "he can score on this play" -- nothing looser:**
 - **TAKING THE FIELD SOON** (grey, dashed) -- possession is theirs but their
   drive isn't open yet: the gap between the other team giving the ball up and
   this one snapping it.
-- **Nothing at all** when his team is on defense. ON DEFENSE / HALFTIME /
-  BETWEEN DRIVES tiles were removed at the user's request -- baseball has
-  never shown a tile for a player whose side isn't batting, and a tile he
-  can't score from is noise. The LIVE count in the header still counts him.
+- **Nothing at all** when his team is on defense, OR when his own drive has
+  just ENDED. ON DEFENSE / HALFTIME / BETWEEN DRIVES tiles were removed at the
+  user's request -- baseball has never shown a tile for a player whose side
+  isn't batting, and a tile he can't score from is noise. The LIVE count in the
+  header still counts him.
+
+**The finished-drive case is a bug that was reported live and is easy to
+reintroduce.** ESPN stamps `displayResult` on `drives.current` the moment a
+drive ends, but keeps naming that team in `situation.possession` until the
+kickoff is returned. So "possession is mine and my drive is open" stayed TRUE
+for a team that had just kicked a field goal, and their pick sat there green
+reading "Ball on offense" through the whole kickoff. `drive.driveOver` is the
+third condition, and all three are needed:
+  * possession alone is stale right after a score;
+  * an open drive alone is stale right after a punt or turnover;
+  * a finished drive still named as current is the kickoff window.
+The scoring team is dropped entirely rather than shown as TAKING THE FIELD
+SOON -- they're kicking off, not taking the field -- which is what the
+`!myDriveOpen` term in `takingFieldSoon` rules out. Verified on live games
+2026-09-20: SEA scored a touchdown with `situation.possession` still SEA, and
+LAC threw an interception with `drives.current` still LAC.
 
 Possession comes from the LAST PLAY's end state (or the scoreboard's
 `situation.possession`), which is NOT the same thing as `drives.current.team`:
@@ -1076,6 +1151,15 @@ on failure:
   group" were indistinguishable and a real bug walked past it; and S3 checked
   the summary's chips without checking the bar ever became visible. Both were
   found by deliberately breaking the code, not by reading it.
+  **Section U** is Warmup and delays: neither a warmup nor a delayed-start
+  game may have its feed fetched, nobody is "at the plate" before first pitch,
+  and each delay reason is named per team. U5 is the one that covers the
+  snapshot-level gate, by making the schedule and the feed disagree -- without
+  it that guard was untested, which a mutation proved.
+  **Section V** is the two aligned chip rows (same classes, therefore same
+  colours), Irons out of the grid and carrying the right waffle, void bets
+  counted as N/A rather than Open, and Expand all / Collapse all including
+  that it routes through each panel's own toggle.
 
 - `tests/test_live_at_bats.py` — the Live At Bats panel: one mocked game walked
   forward poll by poll (live count, strikeout, home run/bomb, stale at-bat,
@@ -1109,6 +1193,9 @@ on failure:
   SOON, grey, not green) rather than in L. **Section M** is baseball's section
   S (multi-select + the summary bar) and **section N** is its section T (the
   header reshuffle, the sport in the title, the colour key above the footer).
+  **Section O** is the finished-drive bug: it walks one game from mid-drive to
+  field goal to touchdown to the receiving team's first snap to a punt, and
+  pins who is green at each step. **Section P** is baseball's section V.
 - `tests/test_football_parser.py` — football parser (both templates, negative
   odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
   roster builder, and the Discord bot's file-name routing. Fully offline.

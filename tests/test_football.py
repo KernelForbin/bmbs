@@ -682,6 +682,120 @@ with sync_playwright() as p:
     check("N6 no script errors", not errors, str(errors))
     browser.close()
 
+    # ---------- O. a finished drive must drop its tiles immediately ----------
+    # The reported bug: a team kicks a field goal, the tile correctly flashes
+    # the drive result, and then goes BACK to a green "Ball on offense" tile
+    # that sticks until the kickoff is returned. Cause: ESPN keeps naming the
+    # scoring team in situation.possession while drives.current -- already
+    # stamped with a displayResult -- still names them too, so "possession and
+    # my drive is open" was true for a team that had just kicked away.
+    # Verified against live games 2026-09-20: SEA scored a touchdown with
+    # situation.possession still SEA; LAC threw an interception with
+    # drives.current still LAC.
+    SEEN.clear()
+    FX["clock"] = NOW
+    TICKETS["windows"][0]["tickets"] = [
+        card(1, [leg("Saquon Barkley", "PHI", "1", "Kenny", "-135"), leg("Tony Pollard", "TEN", "3", "Miggs", "+150")]),
+    ]
+    TICKETS["singles"] = []
+    FX["events"] = {"2001": event("2001", "in", 2, "5:00", (10, 0)), "2002": event("2002", "pre", 1, "", (0, 0)),
+                    "2003": event("2003", "pre", 1, "", (0, 0)), "2004": event("2004", "pre", 1, "", (0, 0))}
+    FX["rosters"] = {}
+    phi = [statline("1", "Saquon Barkley", rushing=(8, 40, 0))]
+    ten = [statline("3", "Tony Pollard", rushing=(6, 22, 0))]
+
+    def set_drive(**kw):
+        FX["summaries"]["2001"] = summary("2001", "in", 2, "5:00", (10, 0), {"PHI": phi, "TEN": ten}, **kw)
+
+    # PHI is genuinely mid-drive: possession PHI, PHI's drive open, no result.
+    set_drive(current=drive("d1", "PHI", ball("PHI", 40, "2nd & 5 at PHI 40")))
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 390, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.clock.set_fixed_time(NOW)
+    page.route("**/*", handler)
+    page.goto("http://bmbs.test/football/")
+    page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
+    page.evaluate("clearInterval(pollTimer)")
+    expand_cards(page)
+    poll(page)
+    page.click(".drives-head")
+    t = {x["player"]: (x["kind"], x["tag"]) for x in tiles(page)}
+    check("O1 mid-drive: his tile is green ON OFFENSE", t.get("Saquon Barkley") == ("ball", "ON OFFENSE"), str(t))
+
+    # PHI kicks a field goal. ESPN stamps the drive with a result but keeps
+    # naming PHI in possession until the kickoff is returned.
+    set_drive(current=drive("d1", "PHI", ball("PHI", 22, ""), result="Field Goal", is_score=True))
+    poll(page)
+    t = {x["player"]: (x["kind"], x["tag"]) for x in tiles(page)}
+    check("O2 after their FIELD GOAL, no green tile survives -- he cannot score on a kickoff",
+          "Saquon Barkley" not in t or t["Saquon Barkley"][0] == "result", str(t))
+    check("O2b and the ticket row drops its ON OFFENSE tag too",
+          "ON OFFENSE" not in ctx(page, "Saquon Barkley"), ctx(page, "Saquon Barkley"))
+
+    # Same shape for a touchdown, which is how it was seen live.
+    set_drive(current=drive("d1", "PHI", ball("PHI", 0, ""), result="Touchdown", is_score=True))
+    poll(page)
+    t = {x["player"]: (x["kind"], x["tag"]) for x in tiles(page)}
+    check("O3 after their TOUCHDOWN drive, still no green tile",
+          "Saquon Barkley" not in t or t["Saquon Barkley"][0] == "result", str(t))
+
+    # Kickoff returned: TEN's drive opens for real, so TEN goes green and PHI
+    # stays off the board.
+    set_drive(current=drive("d2", "TEN", ball("TEN", 75, "1st & 10 at TEN 25")))
+    poll(page)
+    t = {x["player"]: (x["kind"], x["tag"]) for x in tiles(page)}
+    check("O4 once the receiving team's drive opens, THEY are green and he is not",
+          t.get("Tony Pollard") == ("ball", "ON OFFENSE") and "Saquon Barkley" not in t, str(t))
+
+    # And the punt shape still gives the grey pre-snap state rather than nothing:
+    # possession has flipped to PHI but TEN's drive is still the open one.
+    set_drive(current=drive("d2", "TEN", ball("PHI", 80, "1st & 10 at PHI 20"), result="Punt"))
+    poll(page)
+    t = {x["player"]: (x["kind"], x["tag"]) for x in tiles(page)}
+    check("O5 punt: the receiving team is TAKING THE FIELD SOON, the punting team has no tile",
+          t.get("Saquon Barkley") == ("wait", "TAKING THE FIELD SOON") and "Tony Pollard" not in t, str(t))
+    check("O6 no script errors", not errors, str(errors))
+
+    # ---------- P. chip rows line up, Irons moved out, Expand/Collapse all ----------
+    # Baseball's section V. The two rows are the same four mutually-exclusive
+    # states in the same order so their colours line up column for column;
+    # Irons is a SUBSET of Open, so it can't be one of them and now has its own
+    # bar. A bet only reaches N/A when every leg is void.
+    rows = page.evaluate("""() => ["chip-open,chip-hit,chip-dead,chip-void", "chip-leg-live,chip-leg-hit,chip-leg-miss,chip-leg-na"]
+        .map(ids => ids.split(",").map(id => {
+            const el = document.getElementById(id);
+            return [...el.classList].find(c => ["pending", "hit", "miss", "na"].includes(c));
+        }))""")
+    check("P1 BETS and LEGS are the same four states in the same order, sharing colours",
+          rows == [["pending", "hit", "miss", "na"], ["pending", "hit", "miss", "na"]], str(rows))
+    check("P2 Irons moved out of the chip grid into its own bar",
+          page.evaluate("() => document.querySelectorAll('#slate-stats .bets-row')[0].children.length") == 4
+          and page.evaluate("() => !document.getElementById('chip-iron').classList.contains('score-chip')")
+          and page.evaluate("() => document.getElementById('chip-iron').classList.contains('irons-bar')"))
+
+    def panel_states():
+        return page.evaluate("""() => ({
+            drives: !document.getElementById("drives-section").classList.contains("collapsed"),
+            tdlog: !document.getElementById("tdlog-section").classList.contains("collapsed"),
+            bettor: !document.getElementById("bettor-section").classList.contains("collapsed"),
+            parlays: CARDS_OPEN.parlays, singles: CARDS_OPEN.singles })""")
+
+    def collapse_all():
+        page.evaluate("""() => [...document.querySelectorAll('#panel-controls .panel-link')]
+            .find(b => b.textContent.includes('Collapse')).click()""")
+
+    collapse_all()
+    check("P3 Collapse all closes every panel", not any(panel_states().values()), str(panel_states()))
+    page.click("#panel-controls .panel-link")
+    check("P4 Expand all opens every panel at once", all(panel_states().values()), str(panel_states()))
+    check("P5 ...through each panel's own toggle, so the Live Drives preference is still persisted",
+          page.evaluate("localStorage.getItem('bmbs.fb.drives.open')") == "1"
+          and page.evaluate("localStorage.getItem('bmbs.fb.cards.parlays')") == "1")
+    check("P6 no script errors", not errors, str(errors))
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

@@ -38,9 +38,27 @@ def tickets(date, singles, cards=()):
             "singles": [single(i, w, p) for i, (w, p) in enumerate(singles)]}
 
 def schedule(date, games):
-    return {"dates": [{"date": date, "games": [{"gamePk": pk, "status": {"abstractGameState": st}} for pk, st in games]}]}
+    """`games` entries are (gamePk, abstractGameState) or, when a test cares
+    about the detail MLB hangs off that, (gamePk, abstract, detailedState,
+    codedGameState, [awayAbbr, homeAbbr]). The page reads `hydrate=team` for
+    those abbreviations -- they're the only way to tie a pick to a game that
+    has no boxscore yet."""
+    out = []
+    for g in games:
+        pk, abstract = g[0], g[1]
+        detailed = g[2] if len(g) > 2 else ("Final" if abstract == "Final" else
+                                            "In Progress" if abstract == "Live" else "Scheduled")
+        coded = g[3] if len(g) > 3 else ("F" if abstract == "Final" else
+                                         "I" if abstract == "Live" else "S")
+        teams = g[4] if len(g) > 4 else ["AWY", "HME"]
+        out.append({"gamePk": pk,
+                    "status": {"abstractGameState": abstract, "detailedState": detailed,
+                               "codedGameState": coded, "reason": g[5] if len(g) > 5 else ""},
+                    "teams": {"away": {"team": {"abbreviation": teams[0]}},
+                              "home": {"team": {"abbreviation": teams[1]}}}})
+    return {"dates": [{"date": date, "games": out}]}
 
-def feed(abstract, roster, hrs=(), bench=()):
+def feed(abstract, roster, hrs=(), bench=(), coded=None):
     # battingOrder must stay collision-free: the app reads the FIRST digit as
     # the lineup slot, so a 10th player numbered "1000" would read as slot 1
     # and look like a substitute for the leadoff hitter -- which wrongly
@@ -55,7 +73,10 @@ def feed(abstract, roster, hrs=(), bench=()):
     # no batting-order slot and zero plate appearances -- he never got in.
     for j, n in enumerate(bench):
         sides["away"][f"BENCH{j}"] = {"person": {"fullName": n}, "stats": {"batting": {"plateAppearances": 0}}}
-    return {"gameData": {"status": {"abstractGameState": abstract}},
+    status = {"abstractGameState": abstract}
+    if coded:
+        status["codedGameState"] = coded
+    return {"gameData": {"status": status},
             "liveData": {"plays": {"allPlays": [{"result": {"eventType": "home_run"}, "about": {"isTopInning": True},
                                                  "matchup": {"batter": {"fullName": n}}} for n in hrs]},
                          "boxscore": {"teams": {"away": {"players": sides["away"]}, "home": {"players": sides["home"]}}},
@@ -1435,6 +1456,171 @@ with sync_playwright() as p:
         return !!l && !!f && (l.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0; }"""), \
         "the colour key must sit above the footer, not after it"
     print("T1 OK: title -> LIVE FROM MLB -> last-updated, and the colour key sits above the footer")
+    assert not errors, errors
+    browser.close()
+
+    # ========== U: Warmup is not "live", and a delay says so ==========
+    # MLB's own /v1/gameStatus table reports WARMUP as abstractGameState
+    # "Live" with codedGameState "P". Taking `abstract` at face value made the
+    # page download the feed, read the posted lineup, and tag the leadoff
+    # hitter "AT THE PLATE NOW" before a pitch had been thrown.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Warm Guy"), ("Memo", "Rain Guy")])
+    FX["tickets"]["singles"][0]["team"] = "WRM"
+    FX["tickets"]["singles"][1]["team"] = "RNY"
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [
+        (5001, "Live", "Warmup", "P", ["WRM", "OPP"]),                       # lineups posted, no pitch thrown
+        (5002, "Preview", "Delayed Start: Rain", "P", ["RNY", "OPP2"]),      # never started
+    ])}
+    # If the page asks for either feed at all that's already a bug; serve one
+    # that WOULD produce an at-the-plate tag, so the test fails loudly if it does.
+    FX["feeds"] = {5001: feed("Live", ["Warm Guy"]), 5002: feed("Live", ["Rain Guy"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 18, 45))
+
+    assert count(r"/game/5001/feed") == 0, "a warmup game's feed must not be downloaded"
+    assert count(r"/game/5002/feed") == 0, "a delayed-start game's feed must not be downloaded"
+    print("U1 OK: neither a warmup nor a delayed-start game is treated as live")
+
+    st = single_states(page)
+    assert st == {"Warm Guy": "not_started", "Rain Guy": "not_started"}, st
+    assert page.evaluate("() => document.querySelectorAll('#content .leg-action-tag').length") == 0, \
+        "nobody is at the plate before first pitch"
+    print("U2 OK: ...so both picks stay NOT STARTED with no 'AT THE PLATE NOW' tag")
+
+    ctx = page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('#content .single-row')]
+        .map(r => [r.querySelector('.single-player').firstChild.textContent.trim(),
+                   (r.querySelector('.leg-status') || {}).textContent || ""]))""")
+    assert "Warming up" in ctx["Warm Guy"], ctx
+    assert ctx["Rain Guy"] == "Game delayed — rain.", ctx
+    print("U3 OK: warmup and a rain delay each say so, by team, instead of 'hasn't started yet'")
+
+    # The plain "Delayed Start" spelling puts the cause in a separate field.
+    FX["schedules"]["2026-09-19"] = schedule("2026-09-19", [
+        (5001, "Live", "Warmup", "P", ["WRM", "OPP"]),
+        (5002, "Preview", "Delayed Start", "P", ["RNY", "OPP2"], "Wet Grounds"),
+    ])
+    poll(page)
+    ctx = page.evaluate("""() => [...document.querySelectorAll('#content .single-row')]
+        .filter(r => r.textContent.includes('Rain Guy')).map(r => r.querySelector('.leg-status').textContent)[0]""")
+    assert ctx == "Game delayed — wet grounds.", ctx
+    print("U4 OK: the separate `reason` field is used when the state doesn't carry it")
+    assert not errors, errors
+    browser.close()
+
+    # The schedule is what normally stops a warmup game's feed being fetched,
+    # so getGameSnapshot()'s own coded-state gate would otherwise never run.
+    # It is not redundant: the two endpoints can disagree for a poll or two
+    # around first pitch, and if the SCHEDULE flips to In Progress first, the
+    # feed is downloaded and its (still Warmup) status is all that's left to
+    # stop the posted lineup being read as live.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Warm Guy")])
+    FX["tickets"]["singles"][0]["team"] = "WRM"
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(5003, "Live", "In Progress", "I", ["WRM", "OPP"])])}
+    FX["feeds"] = {5003: feed("Live", ["Warm Guy"], coded="P")}   # feed still says pre-game
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 18, 45))
+    assert count(r"/game/5003/feed") >= 1, "this case only means anything if the feed IS fetched"
+    assert single_states(page) == {"Warm Guy": "not_started"}, single_states(page)
+    assert page.evaluate("() => document.querySelectorAll('#content .leg-action-tag').length") == 0, \
+        "the feed still says pre-game, so nobody is at the plate"
+    print("U5 OK: a fetched feed that still says pre-game is not treated as live either")
+    assert not errors, errors
+    browser.close()
+
+    # ========== V: the chip rows line up, Irons moved out, Expand/Collapse all ==========
+    SEEN.clear()
+    void_card = card(["V NA1", "V NA2"], "Card VOID")     # every leg N/A -> the bet is void
+    hit_card = card(["V Hit"], "Card HIT")
+    dead_card = card(["V Miss"], "Card DEAD")
+    open_card = card(["V Live"], "Card OPEN")
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "V NA1"), ("Memo", "V Live")],
+                            cards=[void_card, hit_card, dead_card, open_card])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(6001, "Final"), (6002, "Live")])}
+    FX["feeds"] = {6001: feed("Final", ["V Hit", "V Miss"], hrs=["V Hit"], bench=["V NA1", "V NA2"]),
+                   6002: feed("Live", ["V Live"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 23, 0))
+
+    # --- the two rows are the same four states in the same order, so the
+    # colours line up column for column. Same class == same colour. ---
+    rows = page.evaluate("""() => ["chip-open,chip-hit,chip-dead,chip-void", "chip-leg-live,chip-leg-hit,chip-leg-miss,chip-leg-na"]
+        .map(ids => ids.split(",").map(id => {
+            const el = document.getElementById(id);
+            return [...el.classList].find(c => ["pending", "hit", "miss", "na"].includes(c));
+        }))""")
+    assert rows == [["pending", "hit", "miss", "na"], ["pending", "hit", "miss", "na"]], rows
+    print("V1 OK: BETS and LEGS are the same four states in the same order, sharing colours")
+
+    assert page.evaluate("() => document.querySelectorAll('#slate-stats .bets-row')[0].children.length") == 4
+    assert page.evaluate("() => !document.getElementById('chip-iron').classList.contains('score-chip')"), \
+        "Irons is a subset of Open, not a fifth state -- it must not sit in the mutually-exclusive row"
+    assert page.evaluate("() => document.getElementById('chip-iron').classList.contains('irons-bar')")
+    # The waffle is the Iron's established marker, and it must be the SAME
+    # glyph ironMark() puts on a leg. Written as a numeric entity in the
+    # markup, which is easy to get wrong: &#129415; is 🦇, a bat.
+    waffle = page.evaluate("""() => [...document.querySelector('#chip-iron .irons-lbl')
+        .textContent.trim()][0].codePointAt(0).toString(16)""")
+    leg_waffle = page.evaluate("""() => { const m = document.querySelector('.iron-mark');
+        return m ? [...m.textContent.trim()][0].codePointAt(0).toString(16) : null; }""")
+    assert waffle == "1f9c7", f"the Irons bar should carry a waffle, got U+{waffle.upper()}"
+    assert leg_waffle == waffle, (waffle, leg_waffle)
+    print("V2 OK: Irons moved out of the chip grid into its own bar, with the leg waffle")
+
+    # --- a void BET is counted as N/A, not folded into Open ---
+    bets = tuple(text(page, f"count-parlay-{k}") for k in ("open", "hit", "miss", "void"))
+    assert bets == ("2", "1", "1", "2"), bets   # open: OPEN card + live single; void: VOID card + the DNP single
+    assert text(page, "count-parlay-iron") == "2", text(page, "count-parlay-iron")
+    print("V3 OK: an all-N/A card and a single on a player who didn't play both count as N/A bets")
+
+    page.click("#chip-void")
+    assert ticket_names(page) == ["Card VOID"], ticket_names(page)
+    assert single_names(page) == ["V NA1"], single_names(page)
+    assert summary_chips(page) == ["Bets: N/A"], summary_chips(page)
+    page.click("#chip-void")
+    print("V4 OK: filtering Bets N/A shows exactly the refunded bets")
+
+    page.click("#chip-open")
+    assert sorted(ticket_names(page)) == ["Card OPEN"], ticket_names(page)
+    assert "Card VOID" not in ticket_names(page), "a refunded bet is not an open bet any more"
+    page.click("#chip-open")
+    print("V5 OK: ...and OPEN no longer sweeps them up")
+
+    # --- Expand all / Collapse all drives every pill-collapsed panel ---
+    def panel_states():
+        return page.evaluate("""() => ({
+            liveab: !document.getElementById("liveab-section").classList.contains("collapsed"),
+            hrlog: !document.getElementById("hrlog-section").classList.contains("collapsed"),
+            bettor: !document.getElementById("bettor-section").classList.contains("collapsed"),
+            parlays: CARDS_OPEN.parlays, singles: CARDS_OPEN.singles })""")
+
+    def collapse_all():
+        page.evaluate("""() => [...document.querySelectorAll('#panel-controls .panel-link')]
+            .find(b => b.textContent.includes('Collapse')).click()""")
+
+    # open_page() opened the two card sections so the assertions above could
+    # read them, so this starts MIXED -- which is the more interesting case:
+    # Collapse all has to close the open ones and leave the closed ones alone.
+    assert panel_states() == {"liveab": False, "hrlog": False, "bettor": False,
+                              "parlays": True, "singles": True}, panel_states()
+    collapse_all()
+    assert not any(panel_states().values()), panel_states()
+    print("V6 OK: Collapse all closes the open panels and leaves the closed ones alone")
+
+    page.click("#panel-controls .panel-link")          # Expand all
+    assert all(panel_states().values()), panel_states()
+    print("V7 OK: Expand all opens every collapsible panel at once")
+    collapse_all()
+
+    # It must drive them through their OWN toggles, so the side effects happen:
+    # the Live Bet Tracker's open/closed state is persisted, and the sub-text
+    # of each panel is the collapsed wording.
+    page.click("#panel-controls .panel-link")
+    assert page.evaluate("localStorage.getItem('bmbs.liveab.open')") == "1", \
+        "Expand all must go through toggleLiveAb(), which is what persists the preference"
+    assert page.evaluate("localStorage.getItem('bmbs.cards.parlays')") == "1"
+    print("V8 OK: ...and it does it through each panel's own toggle, so side effects still run")
     assert not errors, errors
     browser.close()
 

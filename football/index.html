@@ -57,6 +57,15 @@
   .score-chip.live-game .num { color:var(--amber); }
   .score-chip.pending .num { color:var(--text); }
   .score-chip.na .num { color:var(--yellow); }
+  /* Irons: a subset of Open, not a fifth state, so it gets its own slim bar
+     below the four chips instead of a column in them. Amber is reserved for
+     it now that LIVE/OPEN are white and N/A is yellow. */
+  .irons-bar { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; padding:6px 10px; background:var(--panel); border:1px solid var(--panel-line); border-radius:7px; cursor:pointer; user-select:none; transition:border-color .15s ease, background .15s ease; }
+  .irons-bar:active { transform:scale(0.99); }
+  .irons-bar.active-filter { border-color:var(--amber); background:rgba(232,184,88,0.10); }
+  .irons-lbl { font-family:'Oswald',sans-serif; font-size:11px; font-weight:600; letter-spacing:.09em; color:var(--amber); display:flex; align-items:baseline; gap:8px; }
+  .irons-sub { font-family:'Inter',sans-serif; font-size:10px; font-weight:500; letter-spacing:0; color:var(--text-faint); }
+  .irons-num { font-family:'Oswald',sans-serif; font-size:16px; font-weight:700; color:var(--amber); }
   /* One bar listing every active filter, each chip removable. Sticky so it
      stays reachable from the Bettor Tracker and the cards far below, which is
      where several of these filters actually get set. */
@@ -90,6 +99,12 @@
   .bettor-stat.hit .num { color:var(--green); }
   .bettor-stat.miss .num { color:var(--red); }
   .bettor-stat.odds .num { color:var(--amber); }
+
+  /* Expand all / Collapse all, for every pill-collapsed panel at once. */
+  .panel-controls { display:flex; align-items:center; gap:8px; margin:0 2px 8px; }
+  .panel-link { background:transparent; border:none; padding:0; font-family:'Inter',sans-serif; font-size:11px; font-weight:600; color:var(--text-dim); text-decoration:underline; cursor:pointer; }
+  .panel-link:hover { color:var(--text); }
+  .panel-sep { color:var(--text-faint); font-size:11px; }
 
   .head-count { font-family:'Inter',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.03em; color:var(--text-dim); background:var(--bg); border:1px solid var(--panel-line); border-radius:999px; padding:1px 8px; white-space:nowrap; }
   .head-count:empty { display:none; }
@@ -251,7 +266,11 @@
   .single-row.state-na .single-meta { color:var(--text-faint); }
   .single-void-tag { font-size:10px; color:var(--yellow); margin-top:2px; }
   .empty-filter-note { color:var(--text-faint); font-size:13px; text-align:center; padding:24px 0; }
-  footer { margin-top:18px; padding-top:14px; border-top:1px solid var(--panel-line); font-size:11px; color:var(--text-faint); text-align:center; }
+  /* The rule that used to sit on the footer now sits above the colour key, so
+     the key reads as part of the fine print rather than part of the slate. */
+  .colorkey { margin-top:18px; padding-top:14px; border-top:1px solid var(--panel-line); }
+  .colorkey .stat-row-label { margin-top:0; }
+  footer { margin-top:14px; font-size:11px; color:var(--text-faint); text-align:center; }
   .err { background:var(--red-dim); border:1px solid var(--red); color:var(--text); border-radius:8px; padding:12px 14px; font-size:13px; margin-bottom:16px; }
 
   .tabs { display:flex; gap:6px; margin-bottom:18px; border-bottom:1px solid var(--panel-line); }
@@ -382,13 +401,22 @@
     <p class="stat-row-label">BETS &middot; tap to filter below</p>
     <div class="scoreboard bets-row">
       <div class="score-chip pending clickable" id="chip-open" onclick="toggleFilter('open')"><div class="num" id="count-parlay-open">0</div><div class="lbl">OPEN</div></div>
-      <div class="score-chip live-game clickable" id="chip-iron" onclick="toggleFilter('irons')"><div class="num" id="count-parlay-iron">0</div><div class="lbl">IRONS</div></div>
       <div class="score-chip hit clickable" id="chip-hit" onclick="toggleFilter('hit')"><div class="num" id="count-parlay-hit">0</div><div class="lbl">HIT</div></div>
       <div class="score-chip miss clickable" id="chip-dead" onclick="toggleFilter('dead')"><div class="num" id="count-parlay-miss">0</div><div class="lbl">MISSED</div></div>
+      <div class="score-chip na clickable" id="chip-void" onclick="toggleFilter('void')"><div class="num" id="count-parlay-void">0</div><div class="lbl">N/A</div></div>
+    </div>
+    <!-- Irons is NOT a fifth bucket -- it's a subset of Open, so it can't sit
+         in a row of mutually-exclusive chips without breaking the column
+         alignment with LEGS. Its own slim bar, amber (the waffle's colour, now
+         used for nothing else on the page), keeps it obviously different in
+         kind rather than competing with the four states. -->
+    <div class="irons-bar" id="chip-iron" onclick="toggleFilter('irons')">
+      <span class="irons-lbl">&#129479; IRONS<span class="irons-sub">one swing from cashing</span></span>
+      <span class="irons-num" id="count-parlay-iron">0</span>
     </div>
     <p class="stat-row-label">LEGS &middot; tap to filter below</p>
     <div class="scoreboard bets-row">
-      <div class="score-chip live-game clickable" id="chip-leg-live" onclick="toggleLegFilter('live')"><div class="num" id="count-leg-live">0</div><div class="lbl">LIVE</div></div>
+      <div class="score-chip pending clickable" id="chip-leg-live" onclick="toggleLegFilter('live')"><div class="num" id="count-leg-live">0</div><div class="lbl">LIVE</div></div>
       <div class="score-chip hit clickable" id="chip-leg-hit" onclick="toggleLegFilter('hit')"><div class="num" id="count-leg-hit">0</div><div class="lbl">HIT</div></div>
       <div class="score-chip miss clickable" id="chip-leg-miss" onclick="toggleLegFilter('miss')"><div class="num" id="count-leg-miss">0</div><div class="lbl">MISSED</div></div>
       <div class="score-chip na clickable" id="chip-leg-na" onclick="toggleLegFilter('na')"><div class="num" id="count-leg-na">0</div><div class="lbl">N/A</div></div>
@@ -410,6 +438,12 @@
   <div class="waiting" id="waiting-panel" style="display:none">
     <h2 id="waiting-title">Waiting for this week's picks</h2>
     <p id="waiting-text"></p>
+  </div>
+
+  <div class="panel-controls" id="panel-controls">
+    <button type="button" class="panel-link" onclick="setAllPanels(true)">Expand all</button>
+    <span class="panel-sep">&middot;</span>
+    <button type="button" class="panel-link" onclick="setAllPanels(false)">Collapse all</button>
   </div>
 
   <div class="drives-section collapsed" id="drives-section">
@@ -449,6 +483,7 @@
 
   <div id="content"></div>
 
+  <div class="colorkey" id="colorkey">
   <p class="stat-row-label" id="legend-label">COLOR KEY</p>
     <div class="legend">
       <span><span class="sw pending"></span>Not started</span>
@@ -457,6 +492,8 @@
       <span><span class="sw miss"></span>Game final, no TD</span>
       <span><span class="sw na"></span>Didn't play</span>
     </div>
+
+  </div>
 
   <footer id="footer-line">all times ET &middot; anytime-touchdown tracking, live from ESPN's NFL data &middot; <a href="/football/history/" style="color:inherit;">history</a> &middot; <a href="/features/?sport=football" style="color:inherit;">what this site can do</a> &middot; <a href="/" style="color:inherit;">baseball tracker</a></footer>
 </div>
@@ -760,6 +797,15 @@ async function getGameSnapshot(game) {
         // measured against live games 2026-09-20 at 65s, 82s and 179s, so it's
         // several polls wide, not a flicker.
         driveTeam: (cur && cur.team && cur.team.abbreviation) || "",
+        // Whether that open drive is already FINISHED. ESPN stamps
+        // displayResult on drives.current the moment the drive ends, and after
+        // a score the possession flag keeps naming the team that just scored
+        // until the kickoff is returned -- so without this a team that just
+        // kicked a field goal or scored a touchdown kept a green "ON OFFENSE"
+        // tile through the whole kickoff. Verified on live games 2026-09-20:
+        // SEA scored a TD with situation.possession still SEA, and LAC threw
+        // an interception with drives.current still LAC.
+        driveOver: !!(cur && (cur.displayResult || cur.result)),
         downDistance: end.downDistanceText || sit.downDistanceText || "",
         shortDownDistance: end.shortDownDistanceText || sit.shortDownDistanceText || "",
         yardsToEndzone: toGo,
@@ -991,14 +1037,23 @@ function liveContextForPlayer(playerName) {
   const team = (line && line.team) || pick.team || "";
   const drive = game.drive;
   const hasPossession = !!(drive && team && drive.team === team);
-  // "On offense" means his side is actually lined up: possession is theirs AND
-  // ESPN has their drive open. Possession without an open drive is the gap
-  // between the other team giving the ball up and this one snapping it.
+  // His side's own drive is the one ESPN currently has open.
+  const myDriveOpen = hasPossession && !!drive.driveTeam && drive.driveTeam === team;
+  // "On offense" means his side is actually lined up and the drive is still
+  // going: possession is theirs, ESPN has THEIR drive open, and that drive
+  // hasn't ended. All three matter --
+  //   * possession alone is stale right after a score;
+  //   * an open drive alone is stale right after a punt/turnover;
+  //   * a finished drive still named as current is the kickoff window.
   // ESPN publishes no personnel data -- `play.participants` names only the
   // players involved in a play (rusher, tackler, receiver), never the 11 on
   // the field -- so "is HE on the field" is not knowable and isn't claimed.
-  const onOffense = hasPossession && (!drive.driveTeam || drive.driveTeam === team);
-  const takingFieldSoon = hasPossession && !onOffense;
+  const onOffense = hasPossession && (!drive.driveTeam || myDriveOpen) && !drive.driveOver;
+  // Possession is ours but our drive hasn't opened yet: the gap between the
+  // other team giving the ball up and our first snap. Deliberately NOT the
+  // case where our own drive just ended -- we're kicking off, not taking the
+  // field -- which is what `!myDriveOpen` rules out.
+  const takingFieldSoon = hasPossession && !onOffense && !myDriveOpen;
   return {
     gamePk: game.gamePk, status: game.status, team,
     opponent: ["away", "home"].map(s => game.teams[s]).filter(t => t && t.abbr !== team).map(t => t.abbr)[0] || "",
@@ -1065,8 +1120,15 @@ function evaluateTicket(tk, states) {
 
 function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void"; }
 
+// The four bets chips are mutually exclusive, so they line up column-for-column
+// with the four legs chips. `open` means genuinely live: a VOID bet (every leg
+// N/A) is refunded, not one swing from anything, and now has its own N/A chip.
+// isOpenOutcome() still counts void as open for everything else -- payouts, the
+// Live Bet Tracker, `betIsOpen` -- because that's about "can this still be
+// graded", a different question from which column it belongs in.
 function betFilterMatches(key, evalRes) {
-  if (key === "open") return isOpenOutcome(evalRes.outcome);
+  if (key === "open") return evalRes.outcome === "live";
+  if (key === "void") return evalRes.outcome === "void";
   if (key === "irons") return evalRes.iron === true;
   if (key === "hit") return evalRes.outcome === "hit";
   if (key === "dead") return evalRes.outcome === "dead";
@@ -1088,6 +1150,10 @@ function anyFilterActive() { return !!(BET_FILTERS.size || LEG_FILTERS.size || B
 function singleOutcome(state) {
   if (state === "hit") return "hit";
   if (state === "miss") return "dead";
+  // He never played -> refunded, the single-bet twin of an all-N/A parlay's
+  // "void". It used to return "live" here, which put it in the OPEN count with
+  // bets that can still cash; now that N/A is its own chip it belongs there.
+  if (state === "na") return "void";
   return "live";
 }
 
@@ -1830,7 +1896,7 @@ function toggleDrives() {
 function computeAll() {
   if (!TICKETS) return;
 
-  let betOpen = 0, betHit = 0, betMiss = 0, betIron = 0;
+  let betOpen = 0, betHit = 0, betMiss = 0, betVoid = 0, betIron = 0;
   let totalPayoutHit = 0;
   const bettors = new Map();
   // Every leg on the slate, parlay legs and singles alike, for the LEGS chip
@@ -1854,7 +1920,8 @@ function computeAll() {
 
       if (evalRes.outcome === "dead") betMiss++;
       else if (evalRes.outcome === "hit") { betHit++; totalPayoutHit += evalRes.adjustedPayout; }
-      else if (isOpenOutcome(evalRes.outcome)) betOpen++;
+      else if (evalRes.outcome === "void") betVoid++;
+      else betOpen++;
       if (evalRes.iron) betIron++; // Irons are a subset of Open, counted in both
 
       tk.legs.forEach((leg, i) => {
@@ -1880,6 +1947,7 @@ function computeAll() {
 
     if (outcome === "dead") betMiss++;
     else if (outcome === "hit") { betHit++; totalPayoutHit += (s.payout || 0); }
+    else if (outcome === "void") betVoid++;
     else betOpen++;
 
     const b = touchBettor(s.who);
@@ -1893,6 +1961,7 @@ function computeAll() {
   document.getElementById("count-parlay-iron").textContent = betIron;
   document.getElementById("count-parlay-hit").textContent = betHit;
   document.getElementById("count-parlay-miss").textContent = betMiss;
+  document.getElementById("count-parlay-void").textContent = betVoid;
   document.getElementById("count-leg-live").textContent = legCounts.live;
   document.getElementById("count-leg-hit").textContent = legCounts.hit;
   document.getElementById("count-leg-miss").textContent = legCounts.miss;
@@ -1943,6 +2012,22 @@ const CARDS_OPEN = { parlays: false, singles: false };
 
 function loadCardsOpen() {
   Object.keys(CARDS_OPEN).forEach(k => { CARDS_OPEN[k] = lsGet(LS_CARDS[k]) === "1"; });
+}
+
+// Every pill-collapsed panel on the page, in the order they appear. Each entry
+// reuses that panel's OWN toggle rather than poking its class directly, so the
+// side effects (sub-text, localStorage, re-render) can't be forgotten here.
+// ADD NEW COLLAPSIBLE PANELS TO THIS LIST -- that's the whole contract.
+const COLLAPSIBLES = [
+  { isOpen: () => !document.getElementById("drives-section").classList.contains("collapsed"), toggle: () => toggleDrives() },
+  { isOpen: () => !document.getElementById("tdlog-section").classList.contains("collapsed"), toggle: () => toggleTdLog() },
+  { isOpen: () => !document.getElementById("bettor-section").classList.contains("collapsed"), toggle: () => toggleBettorSection() },
+  { isOpen: () => CARDS_OPEN.parlays, toggle: () => toggleCardsSection("parlays") },
+  { isOpen: () => CARDS_OPEN.singles, toggle: () => toggleCardsSection("singles") },
+];
+
+function setAllPanels(open) {
+  COLLAPSIBLES.forEach(panel => { if (panel.isOpen() !== open) panel.toggle(); });
 }
 
 function toggleCardsSection(which) {
@@ -2073,8 +2158,8 @@ function renderContent() {
 const FILTER_GROUPS = {
   bet: {
     set: BET_FILTERS, label: "Bets",
-    chips: { open: "chip-open", irons: "chip-iron", hit: "chip-hit", dead: "chip-dead" },
-    names: { open: "Open", irons: "Irons", hit: "Hit", dead: "Missed" }
+    chips: { open: "chip-open", irons: "chip-iron", hit: "chip-hit", dead: "chip-dead", void: "chip-void" },
+    names: { open: "Open", irons: "Irons", hit: "Hit", dead: "Missed", void: "N/A" }
   },
   leg: {
     set: LEG_FILTERS, label: "Legs",
@@ -2273,7 +2358,7 @@ function applyActiveTab() {
   }
 
   const showSlate = !!slate;
-  ["slate-stats", "bettor-section", "tdlog-section", "content"].forEach(id => { document.getElementById(id).style.display = showSlate ? "" : "none"; });
+  ["slate-stats", "bettor-section", "tdlog-section", "content", "panel-controls"].forEach(id => { document.getElementById(id).style.display = showSlate ? "" : "none"; });
   document.getElementById("tdlog-sub").innerHTML = tdLogSubText();
   // Nobody has the ball in an archived slate.
   document.getElementById("drives-section").style.display = (showSlate && ACTIVE_TAB === "today") ? "" : "none";

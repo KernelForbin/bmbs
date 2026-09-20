@@ -112,12 +112,22 @@ for name, text in texts.items():
 check("B1 every 'python scripts/X.py' line in any workflow names a real script", not script_problems, "; ".join(script_problems))
 
 parse_scripts = {name: scripts_invoked(text) for name, text in texts.items()}
-check("B2 parse-picks.yml parses exactly one script, against exactly the file it's triggered by",
-      parse_scripts["parse-picks.yml"] == [("scripts/parse_picks.py", "data/incoming_picks.txt")],
+check("B2 parse-picks.yml parses exactly one script, against exactly the file it's triggered by, "
+      "then notifies Discord (no --file -- it takes --tickets/--sport instead)",
+      parse_scripts["parse-picks.yml"] == [("scripts/parse_picks.py", "data/incoming_picks.txt"),
+                                            ("scripts/notify_discord.py", "")],
       parse_scripts["parse-picks.yml"])
-check("B3 parse-football-picks.yml parses exactly its football script, against exactly its football trigger",
-      parse_scripts["parse-football-picks.yml"] == [("scripts/parse_football_picks.py", "data/football/incoming_picks.txt")],
+check("B3 parse-football-picks.yml parses exactly its football script, against exactly its football "
+      "trigger, then notifies Discord the same way",
+      parse_scripts["parse-football-picks.yml"] == [("scripts/parse_football_picks.py", "data/football/incoming_picks.txt"),
+                                                      ("scripts/notify_discord.py", "")],
       parse_scripts["parse-football-picks.yml"])
+check("B2b the notify step is properly gated on a real commit (never fires on a no-op rerun)",
+      re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
+                 r"--tickets data/tickets\.json --sport baseball", texts["parse-picks.yml"], re.S) is not None)
+check("B3b same gate on the football side, against the football tickets file",
+      re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
+                 r"--tickets data/football/tickets\.json --sport football", texts["parse-football-picks.yml"], re.S) is not None)
 check("B4 import-history.yml runs all three of its scripts (baseball record, baseball history, football record), no --file arg needed",
       [s for s, _ in parse_scripts["import-history.yml"]] ==
       ["scripts/record_results.py", "scripts/import_history.py", "scripts/record_football_results.py"],

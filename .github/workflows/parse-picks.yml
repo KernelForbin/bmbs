@@ -30,6 +30,7 @@ jobs:
         run: python scripts/parse_picks.py --file data/incoming_picks.txt
 
       - name: Commit and push if changed
+        id: commit
         run: |
           git config user.name "hr-checklist-bot"
           git config user.email "actions@users.noreply.github.com"
@@ -37,12 +38,14 @@ jobs:
           [ -f data/tickets-previous.json ] && git add data/tickets-previous.json
           if git diff --cached --quiet; then
             echo "No changes to commit."
+            echo "committed=no" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git commit -m "Parse new picks -> tickets.json $(date -u +'%Y-%m-%d %H:%M UTC')"
           for attempt in 1 2 3 4 5; do
             if git push; then
               echo "Pushed on attempt $attempt."
+              echo "committed=yes" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             echo "Push rejected (attempt $attempt), rebasing and retrying..."
@@ -51,3 +54,15 @@ jobs:
           done
           echo "Failed to push after retries." >&2
           exit 1
+
+      # Only on a genuine new slate (never a no-op rerun) -- one plain status
+      # message, no AI involved. A parse FAILURE is handled entirely by the
+      # separate automated routine triggered off this workflow's own failure
+      # (see CLAUDE.md's "Discord status automation" section): it opens with
+      # its own "investigating" message and edits that same message to its
+      # final state, so a failure never doubles up with anything posted here.
+      - name: Notify Discord that today's slate is live
+        if: steps.commit.outputs.committed == 'yes'
+        env:
+          DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
+        run: python scripts/notify_discord.py success --tickets data/tickets.json --sport baseball

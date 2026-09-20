@@ -1024,7 +1024,17 @@ on failure:
   sport's live tickets file at all (CLAUDE.md gotcha 5, now enforced instead
   of just written down). Verified against a scratch copy with a fake
   `git add data/tickets.json` slipped into the archive job's commit step --
-  caught it.
+  caught it. Also checks both parsers' commit steps notify Discord ONLY when
+  `committed == 'yes'` -- see "Discord status automation" above.
+- `tests/test_notify_discord.py` — `scripts/notify_discord.py`, fully
+  offline: a fake fetcher standing in for the HTTP call, so nothing ever
+  reaches Discord. Checks the message text for both sports (singular vs.
+  plural, a date range vs. a single date), the exact request shape `post`/
+  `edit` send (POST with `?wait=true` so Discord returns an id to edit
+  later; PATCH to `/messages/<id>`), the CLI wiring for all three
+  subcommands, and -- the one that matters most -- that the webhook URL
+  itself never reaches a log line or error message even when the request
+  fails or the secret is missing.
 
 ```
 pip install -r tests/requirements.txt
@@ -1034,13 +1044,54 @@ python tests/test_history_import.py && python tests/test_history.py && python te
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py
 python tests/test_discord_bot.py && python tests/test_at_bat_math.py && python tests/test_live_data_schema.py
-python tests/test_site_links.py && python tests/test_features_page.py && python tests/test_workflow_yaml.py && python tests/test_redirect_stub.py
+python tests/test_site_links.py && python tests/test_features_page.py && python tests/test_workflow_yaml.py && python tests/test_redirect_stub.py && python tests/test_notify_discord.py
 python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 
 Windows note: `venv` fails on very long paths and Windows Python has no tz
 database (`tzdata` is in the requirements for that reason). Keep using
 this pattern for any nontrivial change rather than shipping unverified.
+
+## Discord status automation
+
+**`scripts/notify_discord.py`** posts (or edits) a status message in the
+group's Discord intake channel via an incoming webhook (`DISCORD_STATUS_WEBHOOK`,
+a GitHub Actions secret -- both sports share one webhook, one channel).
+Three subcommands: `success` (summarizes a freshly-written `tickets.json`
+and posts it), `post` (posts fresh text, prints the message id), `edit`
+(PATCHes a message this webhook posted earlier, by id). It never logs,
+prints, or lets an HTTP error surface the webhook URL itself -- `tests/test_notify_discord.py`
+checks that specifically, fully offline (a fake fetcher, never a real request).
+
+**Currently wired up: the success path only.** `parse-picks.yml` and
+`parse-football-picks.yml`'s commit step now sets a `committed` output
+(`yes` only on a genuine new slate, never a no-op rerun), and a step gated
+on `committed == 'yes'` calls `notify_discord.py success` right after --
+one plain "✅ live on bmbs.bet" message, no AI involved, nothing to
+investigate. This part is deterministic and safe by construction.
+
+**Not built: automatic investigation and fix-and-push on a parse FAILURE.**
+The intended design (2026-09-20, requested so the four template-drift
+incidents that day wouldn't need a human to notice and ask) was: a
+`workflow_run` failure event fires an unattended agent that posts one
+"investigating" Discord message, diagnoses the new card template, patches
+the parser, runs the full suite, and -- **only if every test passes** --
+commits, pushes to `main`, re-dispatches the workflow, and edits that same
+message to its final state; if it can't resolve the failure with
+confidence, it edits the message to say so instead of guessing.
+
+**This was never wired up.** Attempting to create the trigger (`RemoteTrigger`,
+`action: "create"`) was refused outright by the platform's own auto-mode
+safety classifier: *"Permission for this action was denied... Reason:
+\[Create Unsafe Agents\]."* That is the platform declining to let an agent
+create another agent that would run completely unattended with production
+push access -- not a bug to route around. If this capability becomes
+available (a settings change on the user's end, or a future platform
+change), the design above is what to build; until then, a parse failure on
+either workflow surfaces the same way it always has -- an Actions tab
+failure and `WARNING: parsed nothing` in the log, with **no Discord
+message at all** on that path yet. Don't assume the auto-fix loop exists
+just because this section describes it.
 
 ## Deploy process
 

@@ -107,6 +107,18 @@ text from that failed run's upload, and paste it to Claude to add support
 for the new shape (a fifth template is just another regex pair, same as
 the last three).
 
+### Discord status messages
+When a real upload parses successfully, the workflow posts one plain
+"picks are live" message to the group's Discord channel via an incoming
+webhook (Channel Settings → Integrations → Webhooks in Discord). Set that
+webhook's URL as the `DISCORD_STATUS_WEBHOOK` repo secret (Settings →
+Secrets and variables → Actions) — both sports share the one secret. **A
+parse failure does not currently post anything to Discord** — that half
+(auto-investigate-and-fix on failure) was designed but never wired up; see
+CLAUDE.md's "Discord status automation" section for why and what's needed
+to finish it. Until then, a failed upload still only shows up on the
+Actions tab, exactly as before.
+
 ### Updating the roster
 `data/roster.json` doesn't update itself — it's a snapshot. Refresh it any
 time with:

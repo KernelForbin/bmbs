@@ -762,6 +762,12 @@ after a dash during parsing — don't reintroduce this).
    `record_*_results.py` scripts write them). Code changes should only
    ever touch `index.html`, `football/index.html`, `history/`, `features/`, `scripts/`,
    `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
+   `tests/test_live_data_schema.py` is a deliberate, narrow exception: it
+   **reads** whatever is currently committed under `data/` to check it against
+   the schemas above (nothing else does -- every other test uses a fixture or
+   a fake fetcher). It never writes. Don't read that as license to touch
+   `data/` from any other test or script; this file is the one exception, on
+   purpose, and stays read-only.
 
 2. **Date handling is genuinely tricky here — games run past midnight.**
    The today/yesterday tabs, `date` field, and `tickets-previous.json`
@@ -856,6 +862,28 @@ on failure:
   the same way discord.py's own gateway code would, and `requests.get`/`put`
   are monkeypatched so nothing reaches GitHub. `route_for()` itself (file name
   -> sport) is covered in `test_football_parser.py`, not repeated here.
+- `tests/test_at_bat_math.py` — direct checks on `negBinomPmf()` /
+  `atBatEstimate()` / `remainingOutsForSide()`, the negative-binomial model
+  behind "~2.1 AB left". Every other test only confirms SOME number renders
+  inside a mocked slate; this one cross-checks the actual values against an
+  independently-written Python reference (`math.comb`, not a port of the JS's
+  iterative loop) across a grid of realistic (batting distance, outs left,
+  league out rate) combinations, plus hand-verified edge cases (`r<=0`, the
+  `d=0` guaranteed-PA shortcut, the geometric-distribution identity at `r=1`,
+  monotonicity as the out rate changes) and every branch of
+  `remainingOutsForSide` (Top/Middle/Bottom/End, both sides, last inning).
+- `tests/test_live_data_schema.py` — **the one test that reads the real,
+  currently-committed files under `data/`** (read-only; never writes) instead
+  of a fixture or a fake fetcher, so it's the only thing that would catch a
+  bad manual edit, a parser bug that exits 0 but writes a malformed field, or
+  drift between what this file documents and what's actually live. Checks
+  `tickets.json` / `tickets-previous.json` (both sports; absence is a normal,
+  skipped state), `roster.json` (both sports; must always exist, and every
+  per-player map must share the same key set), `history.json` (both sports),
+  and whatever's on hand under `data/results/` / `data/football/results/`.
+  Verified against real corruption (a missing leg field, an unsigned odds
+  string, a bogus leg status, a roster map with a key removed) in a scratch
+  copy before trusting it -- it caught all four.
 
 ```
 pip install -r tests/requirements.txt
@@ -864,7 +892,7 @@ python tests/test_parser.py && python tests/test_page.py && python tests/test_li
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py
-python tests/test_discord_bot.py
+python tests/test_discord_bot.py && python tests/test_at_bat_math.py && python tests/test_live_data_schema.py
 python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
 ```
 

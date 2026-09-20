@@ -167,9 +167,11 @@ TICKET_HASH_LEG_RE = re.compile(
 
 
 # ---- bet markets: home runs (the default) and stolen bases ----
-# A leg is a home run bet unless the card says otherwise. No steal card has been
-# posted yet (as of 2026-09-19), so this is deliberately tolerant about WHERE
-# the card says it, not a guess at one exact shape:
+# A leg is a home run bet unless the card says otherwise. This matcher predates
+# the first real steal card (2026-09-19, which turned out to spell the market
+# out prop-style -- see TICKET_PROP_LEG_RE above) and is deliberately tolerant
+# about WHERE the card says it rather than a guess at one exact shape, so it
+# still covers a card that marks steals any of these other ways:
 #   * on the leg's own line      "* (Kenny) Elly De La Cruz - CIN (+150) SB - 6:40 PM ET"
 #   * on the ticket's header     "Ticket #4 (Memo - $5 Bet) [PP: $40.00] - Stolen Bases"
 #   * on a section header        "Part 3: Stolen Base Parlays"  (until the next header)

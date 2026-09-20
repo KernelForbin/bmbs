@@ -62,7 +62,8 @@ That's it. Committing this file automatically triggers
 `.github/workflows/parse-picks.yml`, which:
 - Runs `scripts/parse_picks.py` on what you pasted
 - Normalizes every player name and team against `data/roster.json`
-  (built from your uploaded MLB roster CSV — closest match wins)
+  (built from the MLB Stats API by `scripts/build_roster.py` — exact match
+  first, then closest match)
 - Regenerates `data/tickets.json` in the exact shape `index.html` expects,
   stamped with the MLB game date the slate is for
 - Archives the previous slate to `data/tickets-previous.json` if that date
@@ -156,7 +157,7 @@ Polling is keyed on the slate's own date rather than the wall clock, so a
 the "Today's Picks" tab to "Yesterday's Picks" once every game on its date
 is final; Today then waits for the next upload.
 
-Per leg, three states:
+Per leg, five states:
 - **Hit (green check):** the player's name has appeared in a home-run play
   in today's play-by-play, in any game — shown the instant it happens,
   regardless of whether that game has finished.
@@ -166,8 +167,9 @@ Per leg, three states:
   today, and every game scheduled today is Final — meaning they didn't
   play anywhere. Shown as "Did not play"; the ticket treats it as void
   for that leg rather than a loss.
-- Anything not yet meeting one of the above stays in the neutral
-  "in progress" state.
+- **Live:** his game is in progress and he hasn't gone deep yet.
+- **Not started:** nothing has resolved for him yet — no game of his has
+  begun, or the first poll hasn't landed.
 
 10 seconds is as fast as this can usefully go: the API caches responses
 for 10s (`Cache-Control: max-age=10`), tells clients to wait 10s

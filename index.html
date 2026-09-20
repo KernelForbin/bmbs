@@ -58,9 +58,8 @@
   .score-chip .lbl { font-size:9.5px; color:var(--text-faint); letter-spacing:.03em; margin-top:2px; }
   .score-chip.hit .num { color:var(--green); }
   .score-chip.miss .num { color:var(--red); }
-  .score-chip.na .num { color:var(--yellow); }
   .score-chip.live-game .num { color:var(--amber); }
-  .score-chip.pending .num, .score-chip.neutral .num { color:var(--text); }
+  .score-chip.pending .num { color:var(--text); }
   .filter-status { display:none; align-items:center; justify-content:space-between; margin-top:8px; background:var(--green-dim); border:1px solid var(--green); border-radius:7px; padding:7px 10px; font-size:11.5px; color:var(--green); }
   .filter-status.active { display:flex; }
   .filter-status .clear-btn { cursor:pointer; text-decoration:underline; font-weight:600; }
@@ -1067,7 +1066,7 @@ async function pollSlate(date) {
   return { results, done: allScheduledFinal || pastSafetyValve(date), settled: allScheduledFinal && !anyFetchFailed };
 }
 
-// six possible states: hit, miss, na, live (game started, no HR yet), not_started
+// five possible states: hit, miss, na, live (game started, no HR yet), not_started
 function stateForPlayer(playerName) {
   const norm = normalizeName(playerName);
   if (!RESULTS.ready) return "not_started";
@@ -1361,18 +1360,6 @@ function stealsBy(norm) {
 
 function marketTag(market) {
   return market === "sb" ? ` <span class="mkt-tag sb" title="Stolen base bet">STEAL</span>` : "";
-}
-
-// 'now' | 'soon' | null. Same eligibility rule as the tag above: leg must
-// still be unresolved, and its bet must still be able to hit. (Once fed a
-// pair of scoreboard filter chips; the Live At Bats panel replaced those.)
-function battingActionState(playerName, state, betIsOpen) {
-  if (state !== "live" || !betIsOpen) return null;
-  const ctx = liveContextForPlayer(playerName);
-  if (!ctx || ctx.substitutedBy) return null;
-  if (ctx.isCurrentlyBatting) return "now";
-  if (ctx.guaranteedThisHalfInning) return "soon";
-  return null;
 }
 
 function ordinal(n) {
@@ -1934,12 +1921,12 @@ function labEligiblePicks() {
   EVALUATED.forEach(({ tk, states, evalRes }) => {
     if (!isOpenOutcome(evalRes.outcome) || !ticketMatchesFilter(evalRes)) return;
     tk.legs.forEach((leg, i) => {
-      if (states[i] === "live" && legPassesFilters(states[i], leg.who, leg.player, true)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]), legMarket(leg));
+      if (states[i] === "live" && legPassesFilters(leg.who)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]), legMarket(leg));
     });
   });
   EVALUATED_SINGLES.forEach(({ s, state, outcome, iron }) => {
     if (state !== "live" || outcome !== "live") return;
-    if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(state, s.who, s.player, true)) return;
+    if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(s.who)) return;
     add(s.player, s.odds, s.who, iron, legMarket(s));
   });
   return picks;
@@ -2350,7 +2337,10 @@ function computeAll() {
     `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live MLB results."}`;
 }
 
-function legPassesFilters(state, rawWho, playerName, betIsOpen) {
+// Paired with ticketMatchesFilter: that one decides whether a bet shows at
+// all, this one whether an individual leg does. Only the bettor filter is
+// leg-level now -- the LEGS scoreboard row and its LEG_FILTER are gone.
+function legPassesFilters(rawWho) {
   if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return false;
   return true;
 }
@@ -2368,7 +2358,7 @@ function renderContent() {
     const rendered = [];
     items.forEach(({ tk, states, evalRes }) => {
       const betIsOpen = isOpenOutcome(evalRes.outcome);
-      const passing = tk.legs.map((leg, i) => legPassesFilters(states[i], leg.who, leg.player, betIsOpen) ? i : -1).filter(i => i >= 0);
+      const passing = tk.legs.map((leg, i) => legPassesFilters(leg.who) ? i : -1).filter(i => i >= 0);
       if (passing.length === 0) return; // no legs survive leg/bettor filters -> hide this ticket
       // An Iron is about how close the whole card is, so under that filter
       // every leg renders -- including the ones already hit. The leg-level
@@ -2419,7 +2409,7 @@ function renderContent() {
   }
 
   const filteredSingles = EVALUATED_SINGLES.filter(e =>
-    ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.state, e.s.who, e.s.player, e.outcome === "live")
+    ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.s.who)
   );
   html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
     <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
@@ -2626,7 +2616,9 @@ function updateSyncLine() {
     return;
   }
   const now = new Date();
-  el.textContent = `Live \u2014 last updated ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })} ET`;
+  // timeZone is required here: without it this formats the VISITOR's own clock
+  // and still labels it "ET", so anyone outside Eastern saw the wrong time.
+  el.textContent = `Live \u2014 last updated ${now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" })} ET`;
 }
 
 async function pollAndRender() {

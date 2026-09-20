@@ -382,6 +382,45 @@ with sync_playwright() as p:
     kenny = page.evaluate("[...document.querySelectorAll('#bettor-list .bettor-row')].find(r => r.textContent.includes('Kenny')).textContent.replace(/\\s+/g, ' ')")
     check("H7 Bettor Tracker signs negative odds properly (never '+-135')", "-135" in kenny and "+-" not in kenny, kenny)
 
+    # ---------- H (cont). the bettor filter ----------
+    # legPassesFilters() only does anything while BETTOR_FILTER is set, and
+    # nothing here ever set it -- the Bettor Tracker rows were only ever read,
+    # never clicked, so the filtering path went unverified. Placed here because
+    # it needs the full slate, before section I finalizes the week.
+    # Joe is the useful case: he owns single 1 AND one leg of Card 1, whose
+    # other leg is Miggs' -- so it exercises per-leg hiding inside a parlay.
+    def click_bettor(name):
+        page.evaluate("""(n) => [...document.querySelectorAll('#bettor-list .bettor-row')]
+            .find(r => r.textContent.includes(n)).click()""", name)
+        page.wait_for_timeout(50)
+
+    unfiltered = states(page)
+    check("H8 the bettor filter starts clear", page.evaluate("BETTOR_FILTER") is None)
+
+    click_bettor("Joe")
+    check("H9 clicking a Bettor Tracker row sets the filter and marks that row active",
+          page.evaluate("BETTOR_FILTER") == "joe"
+          and page.evaluate("document.querySelectorAll('#bettor-list .bettor-row.active-filter').length") == 1,
+          str(page.evaluate("BETTOR_FILTER")))
+    check("H10 only that bettor's picks render -- his single, and his leg of a mixed card",
+          states(page) == {"A.J. Brown": "miss", "Inactive Guy": "na"}, str(states(page)))
+    check("H11 a parlay with none of his legs drops out entirely",
+          "Card 2" not in page.inner_text("#content") and "Card 4" not in page.inner_text("#content"))
+    check("H12 the mixed card says a leg is hidden rather than silently shrinking",
+          "1 other leg(s) in this parlay hidden by the current filter." in page.inner_text("#content"))
+
+    click_bettor("Joe")
+    check("H13 tapping the same row again clears the filter and restores every pick",
+          page.evaluate("BETTOR_FILTER") is None and states(page) == unfiltered, str(states(page)))
+
+    click_bettor("Joe")
+    page.click("#tab-btn-yesterday")
+    page.wait_for_timeout(50)
+    check("H14 switching tabs clears the filter instead of carrying it across",
+          page.evaluate("BETTOR_FILTER") is None)
+    page.click("#tab-btn-today")
+    page.wait_for_timeout(50)
+
     # ---------- I. Monday night ends it ----------
     FX["clock"] = datetime(2026, 9, 22, 3, 30, tzinfo=timezone.utc)   # 11:30 PM ET Monday
     page.clock.set_fixed_time(FX["clock"])
@@ -434,6 +473,34 @@ with sync_playwright() as p:
     page.click("#tab-btn-yesterday")
     check("J6 ...where it's fully graded", states(page) == {"A.J. Brown": "miss", "Tony Pollard": "hit", "Saquon Barkley": "hit"}, str(states(page)))
     check("J7 no script errors", not errors, str(errors))
+    browser.close()
+
+    # ---------- K. the live sync line is ET for everyone, not the visitor's clock ----------
+    # updateSyncLine() formats with toLocaleTimeString and then appends " ET", so
+    # it MUST pass timeZone explicitly or it prints the visitor's own wall clock
+    # under an ET label. Invisible when the test machine is already Eastern, so
+    # this opens its own browser pinned to Pacific. Baseball's twin is section Q
+    # of tests/test_page.py -- fixed in both pages at once, per the usual rule.
+    FX["clock"] = NOW                      # Sunday 1:30 PM ET == 10:30 AM PT
+    FX["events"] = dict(PRE)
+    SEEN.clear()
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 390, "height": 1000}, timezone_id="America/Los_Angeles")
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.clock.set_fixed_time(NOW)
+    page.route("**/*", handler)
+    page.goto("http://bmbs.test/football/")
+    page.wait_for_function("typeof pollTimer !== 'undefined' && pollTimer !== null")
+    page.evaluate("clearInterval(pollTimer)")
+    poll(page)
+
+    check("K1 the visitor really is on Pacific",
+          page.evaluate("Intl.DateTimeFormat().resolvedOptions().timeZone") == "America/Los_Angeles")
+    line = page.inner_text("#sync-line")
+    check("K2 a Pacific visitor sees 1:30:00 PM ET, not their own 10:30:00 AM",
+          line == "Live — last updated 1:30:00 PM ET", line)
+    check("K3 no script errors", not errors, str(errors))
     browser.close()
 
 print()

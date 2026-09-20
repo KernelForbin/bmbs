@@ -307,7 +307,7 @@ function bettorStats(name) {
   for (const p of DATA.parlays) if (isHeartbreaker(p) && p.legs.find(l => l.status === "miss").bettor === name) killed++;
   return { name, legs: legs.length, hits, rate: legs.length ? hits / legs.length : 0,
            avgHitOdds: hitOddsN ? hitOddsSum / hitOddsN : null, best, priced,
-           units: priced ? units : null, roi: priced ? units / priced : null, drought, killed };
+           units: priced ? units : null, drought, killed };
 }
 
 // ---------- generic sortable table ----------

@@ -156,6 +156,17 @@ currently-live game and requires `getGameSnapshot()` to compute identical
 results; run it after touching that list. It pins both requests with
 `timecode=` so a live game moving mid-check can't look like a lost field.
 
+**Anything that prints a time must pass `timeZone` explicitly.** The whole
+site talks in ET, so a formatted time gets an "ET" label -- and
+`toLocaleTimeString` with no `timeZone` silently formats the VISITOR's own
+clock instead. `updateSyncLine()`'s "Live -- last updated ... ET" did exactly
+that until 2026-09-20: a viewer out west read their own wall clock under an ET
+label, three hours off. Both sports had it (fixed in both). `nowET()` was
+always correct -- it passes `timeZone: "America/New_York"` to
+`Intl.DateTimeFormat` -- so copy that, and note the bug is invisible on an
+Eastern machine, which is why it survived so long. `test_page.py`'s section Q
+and `test_football.py`'s section K pin a browser to Pacific to catch it.
+
 **Polls are non-overlapping** (`pollOnce()`): a full slate can take longer than
 10s on a slow connection, and `setInterval` doesn't wait, so two polls could
 finish out of order and write a stale slate over a fresher one. A tick landing
@@ -853,7 +864,16 @@ on failure:
   `index.html` through one `page.route("**/*")` handler with in-memory
   fixtures (tickets files, MLB schedule, live feeds) and a pinned clock.
   Covers the past-midnight slate, the all-Final rollover, a new upload
-  landing, the 6am backstop, and filter regressions. Also covers the
+  landing, the 6am backstop, and filter regressions -- including the bettor
+  filter end to end (section P): clicking a Bettor Tracker row, singles and
+  whole parlays dropping out, only the matching leg surviving inside a
+  MIXED-bettor parlay (with the "N other leg(s) hidden" note), tapping the
+  row again to clear, and a tab switch resetting it. That path was
+  unverified until 2026-09-20 -- the rows had only ever been read, never
+  clicked, so `legPassesFilters()` was never exercised with a filter set.
+  Section Q opens a browser pinned to `America/Los_Angeles` and asserts the
+  live sync line still reads ET (see the sync-line note below); it is the
+  only test that sets a non-default timezone. Also covers the
   `#dynamic-note` banner (section O): every fixture sets a `note` on
   `tickets.json` but nothing asserted it actually reaches the screen until
   now -- a real parser warning renders verbatim, an empty note falls back to
@@ -878,7 +898,12 @@ on failure:
 - `tests/test_football.py` — the football page: one mocked Sunday+Monday slate
   walked poll by poll (red zone, touchdown + cash alert, "TD -- not him", punt,
   the two Josh Allens, id-vs-name matching, inactive -> void, multi-day
-  rollover, background-game cadence) plus the two-way isolation block.
+  rollover, background-game cadence) plus the two-way isolation block. The
+  bettor filter is covered at H8-H14, the twin of `test_page.py`'s section P
+  and added at the same time for the same reason; it filters on Joe, who owns
+  both a single and one leg of a mixed-bettor card. Section K is the twin of
+  that file's section Q: its own browser on Pacific, checking the sync line
+  still reads ET.
 - `tests/test_football_parser.py` — football parser (both templates, negative
   odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
   roster builder, and the Discord bot's file-name routing. Fully offline.

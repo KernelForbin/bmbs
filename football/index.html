@@ -34,10 +34,6 @@
   .legend .sw.na { background:var(--yellow-dim); border-color:var(--yellow); }
   .legend .sw.live-game { border-color:var(--amber); }
   .legend .sw.pending { border-color:var(--panel-line); }
-  .legend .sw.php-hit {
-    background: repeating-linear-gradient(135deg, var(--yellow) 0 2.5px, transparent 2.5px 6px), var(--green-dim);
-    border-color: var(--green);
-  }
   .sync-line { font-size:11px; color:var(--text-faint); margin-top:10px; }
 
   .payout-box { margin-top:14px; background:linear-gradient(135deg, var(--green-dim), var(--panel)); border:1px solid var(--green); border-radius:10px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
@@ -58,9 +54,8 @@
   .score-chip .lbl { font-size:9.5px; color:var(--text-faint); letter-spacing:.03em; margin-top:2px; }
   .score-chip.hit .num { color:var(--green); }
   .score-chip.miss .num { color:var(--red); }
-  .score-chip.na .num { color:var(--yellow); }
   .score-chip.live-game .num { color:var(--amber); }
-  .score-chip.pending .num, .score-chip.neutral .num { color:var(--text); }
+  .score-chip.pending .num { color:var(--text); }
   .filter-status { display:none; align-items:center; justify-content:space-between; margin-top:8px; background:var(--green-dim); border:1px solid var(--green); border-radius:7px; padding:7px 10px; font-size:11.5px; color:var(--green); }
   .filter-status.active { display:flex; }
   .filter-status .clear-btn { cursor:pointer; text-decoration:underline; font-weight:600; }
@@ -97,7 +92,7 @@
   .tdlog-body { display:block; }
   .tdlog-section.collapsed .tdlog-body { display:none; }
 
-  /* ---- Live At Bats ---- */
+  /* ---- Live Drives ---- */
   .drives-section { margin: 22px 0 14px; background:var(--panel); border:1px solid var(--panel-line); border-radius:10px; padding:14px 14px 12px; }
   .drives-section.collapsed { padding-bottom:14px; }
   .drives-head { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
@@ -119,15 +114,6 @@
   .ab-line.faint { color:var(--text-faint); }
   .ab-countrow { display:flex; align-items:center; gap:7px; margin-top:5px; }
   .ab-count { font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; line-height:1; letter-spacing:.02em; }
-  .ab-pitches { display:flex; flex-wrap:wrap; gap:3px; min-width:0; }
-  .ab-pitch { width:15px; height:15px; border-radius:50%; font-size:8.5px; font-weight:700; line-height:15px; text-align:center; border:1px solid var(--panel-line); color:var(--text-dim); box-sizing:content-box; }
-  .ab-pitch.ball { border-color:var(--green); color:var(--green); }
-  .ab-pitch.strike { border-color:var(--red); color:var(--red); background:var(--red-dim); }
-  .ab-pitch.foul { border-color:var(--yellow); color:var(--yellow); }
-  .ab-pitch.inplay { border-color:var(--text); color:var(--bg); background:var(--text); }
-  .ab-outs { display:inline-flex; gap:2px; vertical-align:middle; margin-left:2px; }
-  .ab-outs i { width:5px; height:5px; border-radius:50%; border:1px solid var(--text-faint); display:inline-block; box-sizing:content-box; }
-  .ab-outs i.on { background:var(--amber); border-color:var(--amber); }
   /* his offense has the ball: lit up, everything else recedes */
   .ab-tile.now { border-color:var(--green); background:linear-gradient(160deg, var(--green-dim), var(--bg) 70%); box-shadow:0 0 0 1px var(--green-dim); }
   .ab-tile.now .ab-tag { color:var(--green); }
@@ -135,9 +121,6 @@
   .ab-tile.soon { border-style:dashed; }
   .ab-tile.soon .ab-line { white-space:normal; }
   .ab-tile.soon .ab-name { color:var(--text-dim); }
-  .ab-tile.soon.ondeck { border-color:var(--amber); border-style:solid; }
-  .ab-tile.soon.ondeck .ab-tag { color:var(--amber); }
-  .ab-tile.soon.ondeck .ab-name { color:var(--text); }
   /* the drive just ended: hold the result, then the tile goes back to normal */
   .ab-tile.result { border-color:var(--red); background:var(--red-dim); animation:abSettle .35s ease-out; }
   .ab-tile.result .ab-line { white-space:normal; }
@@ -177,20 +160,6 @@
   .hr-detail dd { font-size:11.5px; color:var(--text); margin:0; word-wrap:break-word; }
   .hr-empty { color:var(--text-faint); font-size:12px; text-align:center; padding:16px 4px; line-height:1.5; margin:0; }
 
-  /* Strike zone, drawn from the pitch's `zone` number. Height is labelled in
-     words; left/right is shown only as a position in the grid, never called
-     "inside"/"outside" -- that depends on batter handedness and the API's
-     coordinate sign convention, which isn't verified here. */
-  .zloc { display:inline-flex; align-items:center; gap:8px; }
-  .zgrid { position:relative; display:inline-grid; grid-template-columns:repeat(3, 7px); grid-template-rows:repeat(3, 7px); gap:1px; flex:none; }
-  .zgrid .zcell { border:1px solid rgba(255,255,255,0.18); border-radius:1px; }
-  .zgrid .zcell.on { background:var(--green); border-color:var(--green); }
-  .zgrid .zout { position:absolute; width:5px; height:5px; border-radius:50%; background:var(--yellow); }
-  .zgrid .zout.z11 { top:-5px; left:-5px; }
-  .zgrid .zout.z12 { top:-5px; right:-5px; }
-  .zgrid .zout.z13 { bottom:-5px; left:-5px; }
-  .zgrid .zout.z14 { bottom:-5px; right:-5px; }
-
   .window { margin-bottom:28px; }
   .window-title { font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; display:flex; align-items:baseline; gap:10px; margin:0 0 12px; padding:0 2px; }
   .window-title .dot { width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; transform:translateY(-2px); }
@@ -208,12 +177,6 @@
   .iron-mark { font-size:12.5px; line-height:1; vertical-align:1px; }
   .leg-meta { font-size:12px; color:var(--text-dim); line-height:1.4; margin-top:2px; word-wrap:break-word; }
   .leg-live-context { font-size:10.5px; color:var(--amber); line-height:1.4; margin-top:3px; word-wrap:break-word; }
-  .leg-live-context.pinch-warning { color:var(--yellow); }
-  .leg-live-context.pinch-warning b { color:var(--yellow); }
-  .leg-live-context.pinch-hit-credit { color:var(--green); }
-  .leg-live-context.pinch-hit-credit b { color:var(--green); }
-  .leg-live-context.pinch-hit-void { color:var(--text-faint); }
-  .leg-live-context.pinch-hit-void b { color:var(--text-faint); font-weight:600; }
   .leg-action-tag { font-size:10px; font-weight:700; letter-spacing:.04em; margin-top:3px; padding:2px 7px; border-radius:5px; display:inline-block; }
   .leg-action-tag.now { background:var(--green-dim); color:var(--green); border:1px solid var(--green); }
   .leg-action-tag.soon { background:var(--amber); color:#1a1200; }
@@ -229,11 +192,6 @@
   .mark-badge[data-state="live"] .dash { display:block; stroke:var(--amber); }
   .mark-badge[data-state="hit"] { background:var(--green-dim); border-color:var(--green); }
   .mark-badge[data-state="hit"] .check-path { display:block; stroke:var(--green); }
-  .mark-badge.php-hit[data-state="hit"] {
-    background: repeating-linear-gradient(135deg, var(--yellow) 0 3px, transparent 3px 7px), var(--green-dim);
-    border-color: var(--green);
-  }
-  .mark-badge.php-hit[data-state="hit"] .check-path { stroke: var(--text); filter: drop-shadow(0 0 1.5px var(--bg)); }
   .mark-badge[data-state="miss"] { background:var(--red-dim); border-color:var(--red); }
   .mark-badge[data-state="miss"] .x-path { display:block; stroke:var(--red); }
   .mark-badge[data-state="na"] { background:var(--yellow-dim); border-color:var(--yellow); color:var(--yellow); }
@@ -544,10 +502,10 @@ function todayET() {
   return `${n.year}-${String(n.month).padStart(2, "0")}-${String(n.day).padStart(2, "0")}`;
 }
 
-// A slate normally rolls over the moment its last game goes Final. A
-// suspended game can sit non-Final for a day, though, so as a backstop a
-// slate is also considered over at 6am ET the morning after its date --
-// no MLB game is still being played by then.
+// A week normally rolls over the moment its last game goes Final. A game
+// ESPN never marks final can sit that way for a day, though, so as a
+// backstop a week is also considered over at 6am ET the morning after its
+// endDate -- no NFL game is still being played by then.
 function pastSafetyValve(dateStr) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const n = nowET();
@@ -1099,7 +1057,7 @@ const btnSvg = `
     <path class="x-path" d="M6 6L18 18M18 6L6 18" stroke-width="2.3" stroke-linecap="round"/>
   </svg>`;
 
-function badge(state, playerName) {
+function badge(state) {
   const inner = state === "na" ? "N/A" : btnSvg;
   return `<div class="mark-badge" data-state="${state}">${inner}</div>`;
 }
@@ -1572,12 +1530,12 @@ function drvEligiblePicks() {
   EVALUATED.forEach(({ tk, states, evalRes }) => {
     if (!isOpenOutcome(evalRes.outcome) || !ticketMatchesFilter(evalRes)) return;
     tk.legs.forEach((leg, i) => {
-      if (states[i] === "live" && legPassesFilters(states[i], leg.who, leg.player, true)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]));
+      if (states[i] === "live" && legPassesFilters(leg.who)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]));
     });
   });
   EVALUATED_SINGLES.forEach(({ s, state, outcome, iron }) => {
     if (state !== "live" || outcome !== "live") return;
-    if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(state, s.who, s.player, true)) return;
+    if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(s.who)) return;
     add(s.player, s.odds, s.who, iron);
   });
   return picks;
@@ -1844,7 +1802,10 @@ function computeAll() {
     `<b>Auto-tracked</b> ${TICKETS.note ? "&mdash; " + TICKETS.note : "against live NFL results."}`;
 }
 
-function legPassesFilters(state, rawWho, playerName, betIsOpen) {
+// Paired with ticketMatchesFilter: that one decides whether a bet shows at
+// all, this one whether an individual leg does. Only the bettor filter is
+// leg-level -- there has never been a leg-state filter on this page.
+function legPassesFilters(rawWho) {
   if (BETTOR_FILTER && whoKey(rawWho).toLowerCase() !== BETTOR_FILTER) return false;
   return true;
 }
@@ -1862,7 +1823,7 @@ function renderContent() {
     const rendered = [];
     items.forEach(({ tk, states, evalRes }) => {
       const betIsOpen = isOpenOutcome(evalRes.outcome);
-      const passing = tk.legs.map((leg, i) => legPassesFilters(states[i], leg.who, leg.player, betIsOpen) ? i : -1).filter(i => i >= 0);
+      const passing = tk.legs.map((leg, i) => legPassesFilters(leg.who) ? i : -1).filter(i => i >= 0);
       if (passing.length === 0) return; // no legs survive leg/bettor filters -> hide this ticket
       // An Iron is about how close the whole card is, so under that filter
       // every leg renders -- including the ones already hit. The leg-level
@@ -1884,7 +1845,7 @@ function renderContent() {
         html += `<div class="leg state-${state}">
           <div class="leg-left"><div class="leg-player">${leg.player}${isIronLeg(evalRes, state) ? ironMark() : ""}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen)}</div>
           <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
-          ${badge(state, leg.player)}
+          ${badge(state)}
         </div>`;
       });
       if (visibleLegIdx.length < tk.legs.length) {
@@ -1913,7 +1874,7 @@ function renderContent() {
   }
 
   const filteredSingles = EVALUATED_SINGLES.filter(e =>
-    ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.state, e.s.who, e.s.player, e.outcome === "live")
+    ticketMatchesFilter({ outcome: e.outcome, iron: e.iron }) && legPassesFilters(e.s.who)
   );
   html += `<div class="divider">&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;</div>
     <div class="window"><p class="singles-title">Single Bets Tracker</p><p class="singles-sub">One player prop per person, straight bet.</p><div class="ticket" style="padding-top:4px;padding-bottom:4px;">`;
@@ -1926,7 +1887,7 @@ function renderContent() {
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>
-      ${badge(state, s.player)}
+      ${badge(state)}
     </div>`;
   });
   html += `</div></div>`;
@@ -2125,7 +2086,9 @@ function updateSyncLine() {
     return;
   }
   const now = new Date();
-  el.textContent = `Live \u2014 last updated ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })} ET`;
+  // timeZone is required here: without it this formats the VISITOR's own clock
+  // and still labels it "ET", so anyone outside Eastern saw the wrong time.
+  el.textContent = `Live \u2014 last updated ${now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" })} ET`;
 }
 
 async function pollAndRender() {

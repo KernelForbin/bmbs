@@ -273,9 +273,12 @@ def ET(y, mo, d, h, mi):
     # September: ET is UTC-4
     return datetime(y, mo, d, h, mi, tzinfo=timezone.utc) + timedelta(hours=4)
 
-def open_page(p, at, init_scripts=()):
+def open_page(p, at, init_scripts=(), timezone_id=None):
     browser = p.chromium.launch()
-    page = browser.new_page(viewport={"width": 480, "height": 1000})
+    opts = {"viewport": {"width": 480, "height": 1000}}
+    if timezone_id:
+        opts["timezone_id"] = timezone_id   # only section Q needs a non-ET visitor
+    page = browser.new_page(**opts)
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "Failed to load resource" not in m.text else None)
@@ -1108,6 +1111,91 @@ with sync_playwright() as p:
     browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0))
     assert text(page, "dynamic-note") == "", text(page, "dynamic-note")
     print("O3 OK: the waiting-for-picks state leaves the note banner empty, not stale")
+    assert not errors, errors
+    browser.close()
+
+    # ========== P: the bettor filter ==========
+    # legPassesFilters() only does anything while BETTOR_FILTER is set, and
+    # nothing here ever set it -- the Bettor Tracker rows were only ever read,
+    # never clicked. So the whole filtering path (including the per-leg hiding
+    # inside a mixed-bettor parlay) went unverified.
+    SEEN.clear()
+    all_kenny = card(["Kenny Leg A", "Kenny Leg B"], "Card All Kenny")
+    mixed = card(["Mixed Kenny Leg", "Mixed Memo Leg"], "Card Mixed")
+    mixed["legs"][1]["who"] = "Memo"
+    mixed["legs"][1]["meta"] = "XXX &middot; Memo"
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Kenny Single"), ("Memo", "Memo Single")],
+                            cards=[all_kenny, mixed])
+    FX["previous"] = tickets("2026-09-18", [("Kenny", "Old Guy")])
+    FX["schedules"] = {"2026-09-18": schedule("2026-09-18", [(1901, "Final")]),
+                       "2026-09-19": schedule("2026-09-19", [(1902, "Live")])}
+    FX["feeds"] = {1901: feed("Final", ["Old Guy"]),
+                   1902: feed("Live", ["Kenny Single", "Memo Single", "Kenny Leg A", "Kenny Leg B",
+                                       "Mixed Kenny Leg", "Mixed Memo Leg"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0))
+
+    def click_bettor(name):
+        page.evaluate("""(n) => [...document.querySelectorAll('#bettor-list .bettor-row')]
+            .find(r => r.textContent.includes(n)).click()""", name)
+        page.wait_for_timeout(50)
+
+    unfiltered_singles, unfiltered_legs = single_states(page), leg_states(page)
+    assert set(unfiltered_singles) == {"Kenny Single", "Memo Single"}, unfiltered_singles
+    assert len(unfiltered_legs) == 4, unfiltered_legs
+    assert page.evaluate("BETTOR_FILTER") is None
+    print("P1 OK: no bettor filter -> every single and every leg renders")
+
+    click_bettor("Memo")
+    assert page.evaluate("BETTOR_FILTER") == "memo", page.evaluate("BETTOR_FILTER")
+    assert page.evaluate("document.querySelectorAll('#bettor-list .bettor-row.active-filter').length") == 1
+    print("P2 OK: clicking a Bettor Tracker row sets the filter and marks that row active")
+
+    assert set(single_states(page)) == {"Memo Single"}, single_states(page)
+    print("P3 OK: ...singles narrow to just that bettor's")
+
+    names = ticket_names(page)
+    assert "Card All Kenny" not in " ".join(names), names
+    assert set(leg_states(page)) == {"Mixed Memo Leg"}, leg_states(page)
+    print("P4 OK: ...a parlay with none of his legs drops out, and a mixed one shows only his")
+
+    assert "1 other leg(s) in this parlay hidden by the current filter." in page.inner_text("#content"), \
+        "the mixed card should say a leg is hidden rather than silently shrinking"
+    print("P5 OK: ...and the mixed card says so rather than silently shrinking")
+
+    click_bettor("Memo")
+    assert page.evaluate("BETTOR_FILTER") is None
+    assert single_states(page) == unfiltered_singles and leg_states(page) == unfiltered_legs
+    print("P6 OK: tapping the same row again clears the filter and restores every leg")
+
+    click_bettor("Kenny")
+    assert page.evaluate("BETTOR_FILTER") == "kenny"
+    page.click("#tab-btn-yesterday")
+    page.wait_for_timeout(50)
+    assert page.evaluate("BETTOR_FILTER") is None, "switching tabs must not carry a bettor filter across"
+    assert set(single_states(page)) == {"Old Guy"}, single_states(page)
+    print("P7 OK: switching tabs clears the filter instead of carrying it to the other slate")
+    assert not errors, errors
+    browser.close()
+
+    # ========== Q: the live sync line is ET for everyone, not the visitor's clock ==========
+    # updateSyncLine() formats with toLocaleTimeString and then appends " ET",
+    # so it MUST pass timeZone explicitly -- otherwise it prints the visitor's
+    # own wall clock under an ET label. Every other test runs in the machine's
+    # own timezone, where that bug is invisible; this one pins the browser to
+    # Pacific so the two readings can't coincide.
+    SEEN.clear()
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Live Guy")])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(2001, "Live")])}
+    FX["feeds"] = {2001: feed("Live", ["Live Guy"])}
+    # 9:00:00 PM ET, which is 6:00:00 PM for the Pacific visitor below
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0), timezone_id="America/Los_Angeles")
+
+    line = text(page, "sync-line")
+    assert page.evaluate("Intl.DateTimeFormat().resolvedOptions().timeZone") == "America/Los_Angeles"
+    assert line == "Live — last updated 9:00:00 PM ET", line
+    assert "6:00:00" not in line, f"that's the visitor's local clock wearing an ET label: {line}"
+    print("Q1 OK: a Pacific visitor sees 9:00:00 PM ET, not their own 6:00:00 PM")
     assert not errors, errors
     browser.close()
 

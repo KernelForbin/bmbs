@@ -165,6 +165,26 @@ TICKET_HASH_LEG_RE = re.compile(
     BULLET + r"\(([^)]+)\)\s*(.+?)\s+-\s+([A-Z]{2,4})\s*\(([+-]\d+)\)\s*-\s*([\d: ]*[AP]M\s*ET)\s*$", re.IGNORECASE
 )
 
+# ---- fourth raw-text template: an emoji-prefixed "Ticket #N (M-Leg Parlay)"
+# or "Bonus Ticket (M-Leg Parlay)" header (some tickets in the same card omit
+# the leg-count suffix entirely), stake/payout/book on their OWN line right
+# after it, and "• Player (TEAM) - TIME ET (+ODDS) (Bettor)" legs. First seen
+# 2026-09-20 (a real Discord upload the first three templates parsed as zero
+# tickets -- exit 1, nothing written, that day's real slate never posted):
+#     🎰 Ticket #1 (3-Leg Parlay)
+#     Bet: $4.00 (Memo) | PP: $283.50
+#     • Michael Busch (CHC) - 1:40 PM ET (+360) (Noid)
+#     🔥 Bonus Ticket (5-Leg Parlay)
+#     Bet: $5.00 (Memo) | PP: $33,141.11
+# The M-Leg count in the header is never trusted, same rule as every other
+# template -- actual leg count decides single vs. parlay. "Bonus Ticket" has
+# no number at all; it's given the placeholder name "Bonus" for the card name.
+EMOJI_TICKET_START_RE = re.compile(
+    r"^[^\w]*\s*(?:Ticket\s*#\s*(\d+)|(Bonus\s+Ticket))\s*(?:\(\s*\d+[- ]Leg\s*Parlay\s*\))?\s*$", re.IGNORECASE)
+EMOJI_BOOK_RE = re.compile(r"^Bet:\s*\$([\d,.]+)\s*\(([A-Za-z]+)\)\s*\|\s*PP:\s*\$([\d,.]+)\s*$", re.IGNORECASE)
+EMOJI_LEG_RE = re.compile(
+    BULLET + r"(.+?)\s*\(([A-Z]{2,4})\)\s*-\s*([\d: ]*[AP]M\s*ET)\s*\(([+-]\d+)\)\s*\(([^)]+)\)\s*$", re.IGNORECASE)
+
 
 # ---- bet markets: home runs (the default) and stolen bases ----
 # A leg is a home run bet unless the card says otherwise. This matcher predates
@@ -217,7 +237,11 @@ def section_header(line):
     """Header text if `line` is a section header (with or without '##'), else None."""
     text = line.lstrip("#").strip()
     # "Card 11: Mega Longshot Wager" would otherwise read as a singles header.
-    if CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text):
+    # "🎰 Ticket #1 (3-Leg Parlay)" would too -- it contains the literal
+    # substring "3-Leg Parlay", which PARLAY_HEADER_RE below matches, so every
+    # emoji-ticket header was misread as a brand new section before
+    # EMOJI_TICKET_START_RE ever got a look at it.
+    if CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text) or EMOJI_TICKET_START_RE.match(text):
         return None
     if SINGLES_HEADER_RE.search(text) or PARLAY_HEADER_RE.search(text):
         return text
@@ -407,6 +431,16 @@ def parse(text, team_by_name, canonical_by_norm):
                                "_stake": clean_num(stake), "_pp": clean_num(pp)}
             continue
 
+        emoji_start = EMOJI_TICKET_START_RE.match(line)
+        if emoji_start:
+            flush_ticket()
+            ticket_sb = sb_here
+            # stake/payout/book sit on their OWN line for this template
+            # (EMOJI_BOOK_RE below), never inline with the header.
+            current_ticket = {"_num": emoji_start.group(1) or "Bonus",
+                               "_legs": [], "_book": None, "_stake": None, "_pp": None}
+            continue
+
         if current_ticket is not None:
             foot = TICKET_FOOT_RE.match(line)
             if foot:
@@ -415,6 +449,18 @@ def parse(text, team_by_name, canonical_by_norm):
                 current_ticket["_stake"] = clean_num(stake)
                 current_ticket["_pp"] = clean_num(pp)
                 flush_ticket()
+                continue
+            book_line = EMOJI_BOOK_RE.match(line)
+            if book_line:
+                stake, book, pp = book_line.groups()
+                current_ticket["_stake"] = clean_num(stake)
+                current_ticket["_book"] = book
+                current_ticket["_pp"] = clean_num(pp)
+                continue
+            emoji_leg = EMOJI_LEG_RE.match(line)
+            if emoji_leg:
+                player_raw, team_raw, time_, odds, who = emoji_leg.groups()
+                current_ticket["_legs"].append((time_, player_raw, team_raw, odds, who, market_for(sb_here)))
                 continue
             leg = TICKET_LEG_RE.match(line)
             if leg:

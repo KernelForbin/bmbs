@@ -272,4 +272,48 @@ assert typed_as == "Zzzqqqxxx Nobody" and team == "", \
     "an unresolvable name must fall back to the name as typed with a BLANK team, never a guess"
 print("OK: resolve_player exact match, fuzzy-typo match, and the give-up fallback (blank team, name as typed)")
 
+# --- 10. fourth raw-text template: emoji-prefixed "Ticket #N (M-Leg Parlay)" /
+# "Bonus Ticket (M-Leg Parlay)" headers (some tickets in the same card omit the
+# leg-count suffix), "Bet: $X (Bettor) | PP: $Y" on their own line, and
+# "* Player (TEAM) - TIME ET (+ODDS) (Bettor)" legs. A real Discord upload on
+# 2026-09-20 that the first three templates parsed as zero tickets -- exit 1,
+# nothing written, that day's real slate never posted. Real fixture, not
+# paraphrased. The header's own "3-Leg Parlay" text is a trap: it's a literal
+# match for PARLAY_HEADER_RE, so every emoji-ticket header was first misread
+# as a brand-new section instead of a ticket -- one window (not eight) is the
+# regression check for that.
+emoji_text = (REPO / "tests" / "fixtures" / "discord_emoji_ticket_format.txt").read_text(encoding="utf-8")
+e_windows, e_singles, _ = pp.parse(emoji_text, team_by_name, canon)
+assert len(e_windows) == 1, [w["title"] for w in e_windows]
+assert e_singles == [] and [len(c["legs"]) for c in e_windows[0]["tickets"]] == [3, 2, 2, 2, 2, 2, 2, 5], \
+    [len(c["legs"]) for c in e_windows[0]["tickets"]]
+t1 = e_windows[0]["tickets"][0]
+assert (t1["stake"], t1["payout"], t1["book"]) == (4.0, 283.50, "Memo"), t1
+assert [(l["player"], l["team"], l["odds"], l["who"], l["time"]) for l in t1["legs"]] == [
+    ("Michael Busch", "CHC", "+360", "Noid", "1:40 PM ET"),
+    ("Kyle Schwarber", "PHI", "+240", "Joe", "1:10 PM ET"),
+    ("Junior Caminero", "TB", "+341", "Kevin", "1:40 PM ET")], t1["legs"]
+# a header with no leg-count suffix at all ("⚾ Ticket #2") still starts a ticket
+t2 = e_windows[0]["tickets"][1]
+assert (t2["stake"], t2["payout"]) == (8.5, 320.96) and t2["legs"][0]["team"] == "AZ", \
+    "team comes from the roster (ARI as typed -> AZ), same as every other template"
+# "Bonus Ticket" has no number at all -- given the placeholder card name "Bonus"
+bonus = e_windows[0]["tickets"][-1]
+assert bonus["name"] == "Card Bonus" and len(bonus["legs"]) == 5 and bonus["stake"] == 5.0
+# a typo close enough to fuzzy-match, and an initial-abbreviated name -- both
+# already covered by resolve_player, exercised here through a REAL card
+assert bonus["legs"][1]["player"] == "Riley Greene"
+sixth = e_windows[0]["tickets"][5]
+assert sixth["legs"][1]["player"] == "Lazaro Montes", "typed 'Lazuro Montes' must fuzzy-match the real spelling"
+seventh = e_windows[0]["tickets"][6]
+assert seventh["legs"][0]["player"] == "Pete Crow-Armstrong", "'P. Crow-Armstrong' must resolve off the roster"
+# a name the real card typed that genuinely isn't on the roster (even fuzzy)
+# must fall through unresolved -- but this template DOES give an explicit team
+# code per leg, so that typed code ("TOR") is kept rather than left blank;
+# only the player name itself is left exactly as typed, never guessed
+okamoto = bonus["legs"][2]
+assert okamoto["player"] == "K. Okamoto" and okamoto["team"] == "TOR", okamoto
+assert pp.parse.unread == [], pp.parse.unread
+print("OK: fourth template (emoji \"Ticket #N (M-Leg Parlay)\" / \"Bonus Ticket\") parses all 8 tickets (20 legs)")
+
 print("\nALL PARSER TESTS PASSED")

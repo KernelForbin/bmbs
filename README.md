@@ -96,16 +96,16 @@ for steals; and a player who never got into the game is void.
 
 ### If the picks format changes
 `scripts/parse_picks.py`'s docstring documents the exact expected shape(s) —
-the group's picks-generation prompt has changed template twice already
-(most recently 2026-09-19), each time with no warning, and the parser now
-accepts all three. `test_picks.txt` in this repo is a full real example of
+the group's picks-generation prompt has changed template three times already
+(most recently 2026-09-20), each time with no warning, and the parser now
+accepts all four. `test_picks.txt` in this repo is a full real example of
 the original one.
 If a new day's format doesn't match any of them, the parser exits non-zero
 with `WARNING: parsed nothing` and the Action fails loudly rather than
 silently posting an empty/wrong slate — check the Actions tab, grab the raw
 text from that failed run's upload, and paste it to Claude to add support
-for the new shape (a fourth template is just another regex pair, same as
-the last two).
+for the new shape (a fifth template is just another regex pair, same as
+the last three).
 
 ### Updating the roster
 `data/roster.json` doesn't update itself — it's a snapshot. Refresh it any

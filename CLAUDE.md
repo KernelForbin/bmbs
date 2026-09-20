@@ -836,7 +836,12 @@ on failure:
   `index.html` through one `page.route("**/*")` handler with in-memory
   fixtures (tickets files, MLB schedule, live feeds) and a pinned clock.
   Covers the past-midnight slate, the all-Final rollover, a new upload
-  landing, the 6am backstop, and filter regressions.
+  landing, the 6am backstop, and filter regressions. Also covers the
+  `#dynamic-note` banner (section O): every fixture sets a `note` on
+  `tickets.json` but nothing asserted it actually reaches the screen until
+  now -- a real parser warning renders verbatim, an empty note falls back to
+  "against live MLB results.", and the waiting-for-picks state leaves it
+  blank rather than stale.
 
 - `tests/test_live_at_bats.py` — the Live At Bats panel: one mocked game walked
   forward poll by poll (live count, strikeout, home run/bomb, stale at-bat,

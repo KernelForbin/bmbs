@@ -1080,4 +1080,35 @@ with sync_playwright() as p:
     assert not errors, errors
     browser.close()
 
+    # ========== O: the parser's `note` field actually reaches the screen ==========
+    # scripts/parse_picks.py writes an unread-bet-line warning into tickets.json's
+    # `note` specifically so the group sees it at the top of the live page -- every
+    # fixture above sets a note (tickets() defaults to f"slate {date}") but nothing
+    # ever asserted the banner renders it. This closes that loop.
+    FX["tickets"] = tickets("2026-09-19", [("Kenny", "Player Live")])
+    FX["tickets"]["note"] = "⚠ 1 line couldn't be read — first one: “Ticket #2”"
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(1801, "Live")])}
+    FX["feeds"] = {1801: feed("Live", ["Player Live"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0))
+    assert text(page, "dynamic-note") == "Auto-tracked — ⚠ 1 line couldn't be read — first one: “Ticket #2”", text(page, "dynamic-note")
+    print("O1 OK: a real parser warning in tickets.json's note renders verbatim in the Auto-tracked banner")
+
+    FX["tickets"]["note"] = ""
+    poll(page)
+    assert text(page, "dynamic-note") == "Auto-tracked against live MLB results.", text(page, "dynamic-note")
+    print("O2 OK: an empty note falls back to the plain 'against live MLB results.' line")
+    assert not errors, errors
+    browser.close()
+
+    # a slate with nothing to show (Waiting for today's picks) must not leak
+    # a stale note into a banner that no longer has a slate to describe
+    FX["tickets"] = None
+    FX["previous"] = None
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 21, 0))
+    assert text(page, "dynamic-note") == "", text(page, "dynamic-note")
+    print("O3 OK: the waiting-for-picks state leaves the note banner empty, not stale")
+    assert not errors, errors
+    browser.close()
+
 print("\nALL PAGE TESTS PASSED")

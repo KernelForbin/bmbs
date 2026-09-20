@@ -24,10 +24,18 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   `/features/`; redirecting to bare `/features` reloads the stub itself
   forever. `index.html`'s own footer link goes straight to `/features/`
   to skip the redirect hop entirely. Linked subtly from
-  `index.html`'s footer ("what this site can do"). **Maintained by hand
-  only, on request** — the user explicitly does not want this kept in
-  sync automatically with feature commits. Don't touch it as a side effect
-  of an unrelated change; only edit it when asked to update it.
+  `index.html`'s footer ("what this site can do"). **Kept in sync
+  automatically as of 2026-09-20** (previously hand-maintained on request
+  only — that restriction is lifted). Scope is strict, though: this page
+  lists only **current, live, functional, end-user-noticeable** features —
+  something a friend using the site would actually see or interact with.
+  Never mention a bug fix, a backend/pipeline change, a refactor, or anything
+  that isn't directly visible to a visitor (e.g. the results archive, the
+  parser accepting a new card template, or a grading-logic correction are all
+  out of scope unless they changed what's ON SCREEN). Update it as part of
+  any change that adds/removes/visibly alters a feature; don't let it drift
+  stale. Same page shape as the football section already there: color key,
+  one short paragraph per feature, in the voice already established.
 - **`data/tickets.json`** — the current day's parlay/single-bet picks, in a
   specific schema (see below), stamped with the MLB game `date` the slate
   is for. This is LIVE DATA, not code. Regenerated only by
@@ -569,8 +577,8 @@ football, then the play, ~14s. Same seeding / stale / off-tab guards as Live At
 Bats. Alerts and preferences use their own localStorage keys (`bmbs.fb.*`).
 
 Football's History page is `/football/history/` -- see "Results archive".
-`features/index.html` is hand-maintained on request and doesn't mention either
-History archive change yet.
+`features/index.html` is kept in sync automatically now -- see its entry at
+the top of this file for scope (live/functional/user-visible only).
 
 ## Results archive -- the site's memory (both sports)
 

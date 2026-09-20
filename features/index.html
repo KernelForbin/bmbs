@@ -60,6 +60,7 @@
   .swatch.na { background:var(--yellow-dim); border-color:var(--yellow); }
   .swatch.php { background:repeating-linear-gradient(135deg, var(--yellow) 0 2.5px, transparent 2.5px 6px), var(--green-dim); border-color:var(--green); }
   .swatch-emoji { width:12px; flex:none; font-size:11px; line-height:1; text-align:center; }
+  .swatch-steal { width:auto; min-width:12px; height:14px; padding:0 4px; border-radius:4px; background:rgba(91,184,245,0.14); border-color:#5BB8F5; color:#5BB8F5; font-family:'Oswald',sans-serif; font-size:8px; font-weight:700; letter-spacing:.06em; display:flex; align-items:center; justify-content:center; }
 
   footer { margin-top:20px; padding-top:14px; border-top:1px solid var(--panel-line); font-size:11px; color:var(--text-faint); text-align:center; line-height:1.6; }
 </style>
@@ -96,7 +97,8 @@
         <div class="legend-row"><span class="swatch php"></span>Pinch Hit Protection</div>
         <div class="legend-row"><span class="swatch miss"></span>Game final, no HR</div>
         <div class="legend-row"><span class="swatch na"></span>Didn't play</div>
-        <div class="legend-row"><span class="swatch-emoji">🧇</span>Iron &mdash; one HR from cashing</div>
+        <div class="legend-row"><span class="swatch-emoji">🧇</span>Iron &mdash; one leg from cashing</div>
+        <div class="legend-row"><span class="swatch-steal">STEAL</span>Stolen-base leg</div>
       </div>
     </section>
 
@@ -149,16 +151,30 @@
       </ul>
     </section>
 
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M6 20V4M6 4l4 3-4 3M18 4v16M18 20l-4-3 4-3"/></svg></span>
+        <h2>Stolen base bets</h2>
+      </div>
+      <ul>
+        <li>A pick isn't just home runs anymore &mdash; a leg can be a <span class="tag" style="background:rgba(91,184,245,0.14); color:#5BB8F5;">STEAL</span> bet instead, and one parlay can mix both kinds. Everything else about it &mdash; payouts, filters, the Bettor Tracker &mdash; works exactly the same either way.</li>
+        <li>The instant a stolen base shows up in the play-by-play, that leg turns green &mdash; even mid at-bat, since a runner can swipe a bag before the batter's own turn is even over.</li>
+        <li>Steal odds can run negative (a burner on the bases is often the favorite) &mdash; the page always shows the sign, never garbles it into something like "+-120".</li>
+        <li>One difference from home run bets: a steal leg has <b>no Pinch Hit Protection</b>. If that player's pulled from the game before he's swiped a bag, the leg is a miss right away. A player who never got into the game at all is still marked <b>"Didn't play"</b> and voided.</li>
+      </ul>
+    </section>
+
     <section class="card-item card--live">
       <div class="card-head">
         <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="7.5" height="6.5" rx="1.6"/><rect x="13" y="4.5" width="7.5" height="6.5" rx="1.6"/><rect x="3.5" y="13" width="7.5" height="6.5" rx="1.6"/><rect x="13" y="13" width="7.5" height="6.5" rx="1.6"/><circle cx="7.2" cy="7.7" r="1" fill="currentColor" stroke="none"/></svg></span>
-        <h2>Live At Bats</h2>
+        <h2>Live Bet Tracker</h2>
       </div>
       <ul>
-        <li>Tap <b>Live At Bats</b> to open a wall of tiles: every pick who's <b>at the plate right now</b> or <b>guaranteed to bat this inning</b>, across every game at once. Even closed, its header tells you how many are up and due.</li>
+        <li>Tap <b>Live Bet Tracker</b> to open a wall of tiles: every pick who's <b>at the plate right now</b>, <b>on base</b>, or <b>guaranteed to bat this inning</b>, across every game at once. Even closed, its header tells you how many are up, on base, and due.</li>
         <li>The man at the plate gets a lit-up tile with the pitcher he's facing, the live count, outs, and a dot for every pitch so far &mdash; ball, called strike, swinging strike, foul, in play &mdash; plus the last pitch spelled out.</li>
-        <li>Behind him, in order: <span class="tag">ON DECK</span>, <span class="tag">IN THE HOLE</span>, then the hitters leading off or due up next half-inning. Each tile shows the odds and whose pick it is.</li>
-        <li>When the at-bat ends, the result holds the tile for a few seconds &mdash; <b>STRIKEOUT</b>, <b>DOUBLE</b>, whatever it was &mdash; then it drops off and everyone slides up. A home run turns the tile into a 💣 first, then shows the distance and exit velo.</li>
+        <li>A steal pick who reaches base gets his own tile the moment he's on &mdash; <b>ON 1ST</b>, <b>ON 2ND</b>, or <b>ON 3RD</b> &mdash; showing the outs, who's up, and whether the next bag is open or blocked by another runner.</li>
+        <li>Behind them, in order: <span class="tag">ON DECK</span>, <span class="tag">IN THE HOLE</span>, then the hitters leading off or due up next half-inning. Each tile shows the odds and whose pick it is.</li>
+        <li>When the at-bat ends, the result holds the tile for a few seconds &mdash; <b>STRIKEOUT</b>, <b>DOUBLE</b>, whatever it was &mdash; then it drops off and everyone slides up. A home run turns the tile into a 💣 first, then shows the distance and exit velo. A steal turns it into a 🏃 first, then shows <b>SAFE</b> or <b>CAUGHT</b> &mdash; and if he's left on base with no attempt, a quick note says so instead of just vanishing.</li>
         <li>A 🧇 marks an Iron, so you can see at a glance which at-bat could cash something. The scoreboard filters work here too: tap <b>IRONS</b> and only those hitters remain; tap a name in the Bettor Tracker and it's just that person's guys.</li>
         <li>Only picks that can still win something appear &mdash; a hitter on a parlay that's already dead doesn't take up a tile. It refreshes with the rest of the page, so pitches arrive in small bursts rather than one by one. Tap any tile for Gameday.</li>
       </ul>
@@ -179,14 +195,15 @@
     <section class="card-item card--live">
       <div class="card-head">
         <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="11.5" cy="13" r="6.2"/><path d="M15.9 8.6 18.4 6M17 4.4l2.6 2.6M11.5 6.8V4M9.7 4h3.6"/></svg></span>
-        <h2>Bomb alerts</h2>
+        <h2>Bomb &amp; steal alerts</h2>
       </div>
       <ul>
-        <li>When someone in the day's picks goes deep, the page announces it: <b>"&lt;Player&gt; BOMB! 💣"</b>.</li>
-        <li>If that swing <b>cashes a bet</b> &mdash; an Iron finishing off a parlay, or a single coming home &mdash; the same alert goes gold 💰: money rains down the screen and it tells you what hit and for how much, like <b>"2-LEG PARLAY CASHED &middot; $154.00"</b>. One swing that cashes several bets adds them up. The push notification says it too.</li>
+        <li>When someone in the day's picks goes deep, the page announces it: <b>"&lt;Player&gt; BOMB! 💣"</b>. A stolen-base pick gets the same treatment when he swipes a bag: <b>"&lt;Player&gt; STOLE 2ND! 🏃"</b>.</li>
+        <li>If that swing (or steal) <b>cashes a bet</b> &mdash; an Iron finishing off a parlay, or a single coming home &mdash; the same alert goes gold 💰: money rains down the screen and it tells you what hit and for how much, like <b>"2-LEG PARLAY CASHED &middot; $154.00"</b>. One play that cashes several bets adds them up. The push notification says it too.</li>
+        <li>No alert fires for a home run or steal that can't change anything &mdash; if every bet naming that player is a parlay some other leg already missed, the page still tracks the hit but doesn't interrupt you with a popup for it.</li>
         <li>Two independent switches at the top &mdash; <b>Overlay</b> (a celebration right on the page) and <b>Push</b> (a normal phone/desktop notification, even if you're on another tab). Have either, both, or neither; the setting sticks on that device.</li>
         <li>Push has to be switched on by you, and your browser will ask permission first. It works while the page is open somewhere &mdash; not once you've closed it entirely.</li>
-        <li>Opening the page mid-game <b>won't</b> bury you in alerts for home runs that already happened &mdash; you only get told about ones hit while you're watching.</li>
+        <li>Opening the page mid-game <b>won't</b> bury you in alerts for home runs or steals that already happened &mdash; you only get told about ones that happen while you're watching.</li>
       </ul>
     </section>
 
@@ -207,7 +224,7 @@
         <h2>Home Run Log</h2>
       </div>
       <ul>
-        <li>A tap-to-open log of every home run of the day, newest first &mdash; on both the Today and Yesterday tabs.</li>
+        <li>A tap-to-open log of every home run of the day, newest first &mdash; on both the Today and Yesterday tabs. Its header shows a running <b>3 OURS &middot; 12 TOTAL</b> count, so you can gauge the day's action without opening it.</li>
         <li>Switch between <b>Our Picks</b> and <b>All Home Runs</b> (the whole league). Either way, anyone in the group's picks is highlighted so you can spot the ones that matter.</li>
         <li>Tap any home run for the full Statcast detail: exit velo, launch angle, distance, the pitch he hit and how hard it came in, where it was in the strike zone, plus ballpark, wind and temperature.</li>
       </ul>
@@ -219,8 +236,8 @@
         <h2>Bettor Tracker</h2>
       </div>
       <ul>
-        <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the slate.</li>
-        <li>Tap a name to filter the whole page to just that person's legs &mdash; including who shows up in Live At Bats.</li>
+        <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the slate. Now that steal bets can run at negative odds, a favorite like <b>-120</b> always shows its sign correctly, never garbled into something like "+-120".</li>
+        <li>Tap a name to filter the whole page to just that person's legs &mdash; including who shows up in the Live Bet Tracker.</li>
       </ul>
     </section>
 
@@ -230,7 +247,8 @@
         <h2>History &mdash; the whole record</h2>
       </div>
       <ul>
-        <li>A separate <a href="/history/" style="color:inherit;">History page</a> (linked at the bottom of the live card) covers every slate the group has logged &mdash; refreshed daily from the tracking sheet.</li>
+        <li>A separate <a href="/history/" style="color:inherit;">History page</a> (linked at the bottom of the live card) covers every slate the group has logged, and updates itself automatically each morning.</li>
+        <li><b>Real money:</b> a tile showing actual dollars staked vs. returned across the slates the tracker has recorded, not just a hypothetical.</li>
         <li><b>Bettor leaderboard:</b> legs, hits, hit rate, best hit, longest drought, and how you'd have done betting every pick straight. Tap a name to filter the whole page to that person.</li>
         <li><b>Are the odds worth it?</b> Hit rate by odds range against what those odds need just to break even, plus a slate-by-slate chart of how each night went.</li>
         <li><b>Players:</b> who gets picked most, who actually delivers, and who's picking them. Tap a player to see every parlay he was in.</li>
@@ -363,6 +381,7 @@
       <ul>
         <li>When someone in the week's picks finds the end zone, the page announces it: <b>"&lt;Player&gt; TOUCHDOWN! 🏈"</b>.</li>
         <li>If that score <b>cashes a bet</b> &mdash; an Iron finishing off a parlay, or a single coming home &mdash; the same alert goes gold 💰: money rains down the screen and it tells you what hit and for how much, like <b>"2-LEG PARLAY CASHED &middot; $154.00"</b>. One score that cashes several bets adds them up. The push notification says it too.</li>
+        <li>No alert fires for a touchdown that can't change anything &mdash; if every bet naming that player is a parlay some other leg already missed, the page still tracks the score but doesn't interrupt you with a popup for it.</li>
         <li>Two independent switches at the top &mdash; <b>Overlay</b> (a celebration right on the page) and <b>Push</b> (a normal phone/desktop notification, even if you're on another tab). Have either, both, or neither; the setting sticks on that device.</li>
         <li>Push has to be switched on by you, and your browser will ask permission first. It works while the page is open somewhere &mdash; not once you've closed it entirely.</li>
         <li>Opening the page mid-game <b>won't</b> bury you in alerts for touchdowns that already happened &mdash; you only get told about ones scored while you're watching.</li>
@@ -400,6 +419,23 @@
       <ul>
         <li>A collapsible leaderboard showing each person's hits, misses, and their average + best hit odds for the week.</li>
         <li>Tap a name to filter the whole page to just that person's legs &mdash; including who shows up in Live Drives.</li>
+      </ul>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 19V10M9.3 19V5M14.6 19v-6M20 19V8"/></svg></span>
+        <h2>History &mdash; the whole record</h2>
+      </div>
+      <ul>
+        <li>A separate <a href="/football/history/" style="color:inherit;">History page</a> (linked at the bottom of the football tracker) covers every NFL week the group has logged, and updates itself automatically each morning after a week's last game finishes.</li>
+        <li><b>Real money:</b> a tile showing actual dollars staked vs. returned across the weeks the tracker has recorded.</li>
+        <li><b>Bettor leaderboard:</b> legs, hits, hit rate, best hit, longest drought, and how you'd have done betting every pick straight. Tap a name to filter the whole page to that person.</li>
+        <li><b>Are the odds worth it?</b> Hit rate by odds range against what those odds need just to break even &mdash; bands sized for touchdown prices (favorites through +500 and up) &mdash; plus a week-by-week chart of how each one went.</li>
+        <li><b>Players:</b> who gets picked most, who actually delivers, and who's picking them. Tap a player to see every bet he was in.</li>
+        <li><b>Heartbreakers</b> &mdash; parlays that missed by exactly one leg, and the parlay killers responsible.</li>
+        <li>Every bet ever logged, filterable by who, what happened, and which player.</li>
+        <li>Brand new as of this week: it starts out empty and says so, filling in the morning after the first tracked week finishes.</li>
       </ul>
     </section>
 

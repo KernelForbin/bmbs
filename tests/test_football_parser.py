@@ -36,7 +36,17 @@ PLAYERS = [entry(1, "Saquon Barkley", "PHI", "RB"), entry(2, "Justin Jefferson",
            entry(4, "Ja'Marr Chase", "CIN"), entry(5, "Derrick Henry", "BAL", "RB"), entry(6, "CeeDee Lamb", "DAL"),
            entry(7, "Josh Allen", "BUF", "QB"), entry(8, "Brian Thomas Jr.", "JAX"), entry(9, "Travis Kelce", "KC", "TE"),
            entry(10, "Christian McCaffrey", "SF", "RB"), entry(11, "Jonathan Taylor", "IND", "RB"), entry(12, "Jahmyr Gibbs", "DET", "RB"),
-           entry(13, "Dalton Kincaid", "BUF", "TE"), entry(14, "James Cook III", "BUF", "RB"), entry(15, "Amon-Ra St. Brown", "DET")]
+           entry(13, "Dalton Kincaid", "BUF", "TE"), entry(14, "James Cook III", "BUF", "RB"), entry(15, "Amon-Ra St. Brown", "DET"),
+           # added for the "summary" template fixture below -- real names off that
+           # card, kept in this test's own small roster rather than the live one
+           entry(16, "Kenneth Walker III", "SEA", "RB"), entry(17, "Bijan Robinson", "ATL", "RB"), entry(18, "D'Andre Swift", "CHI", "RB"),
+           entry(19, "Ashton Jeanty", "LV", "RB"), entry(20, "Bucky Irving", "TB", "RB"), entry(21, "Chase Brown", "CIN", "RB"),
+           entry(22, "Jaxon Smith-Njigba", "SEA"), entry(23, "Malik Nabers", "NYG"), entry(24, "Travis Etienne Jr.", "JAX", "RB"),
+           entry(25, "Terry McLaurin", "WSH"), entry(26, "Garrett Wilson", "NYJ"), entry(27, "Trey McBride", "ARI", "TE"),
+           entry(28, "Chris Olave", "NO"), entry(29, "Chris Godwin Jr.", "TB")]
+           # "Golden" (Ticket 7) is deliberately left OUT of this roster -- the
+           # real card names him by first name only, and the point of that leg
+           # is to prove an unresolvable name still falls through cleanly.
 ROSTER = {"team_by_name": {br.norm_key(p["name"]): p["team"] for p in PLAYERS},
           "canonical_name_by_norm": {br.norm_key(p["name"]): p["name"] for p in PLAYERS},
           "id_by_norm": {br.norm_key(p["name"]): p["id"] for p in PLAYERS}}
@@ -66,6 +76,42 @@ check("same-game tag survives", "Both Players in DET @ BUF" in card["name"], car
 unknown_w, unknown_s = fp.parse("🎯 Longshot Straight Bets\nKenny: Totally Madeup Person (+500) | 1:00 PM ET • $5.00 bet | PP: $30.00\n", ROSTER)
 check("an unknown name is kept as typed with no id -- never guessed onto someone else",
       unknown_s[0]["player"] == "Totally Madeup Person" and unknown_s[0]["athleteId"] == "" and unknown_s[0]["team"] == "")
+
+# ---------- 2b. third template: "Ticket N (M-Leg Parlay)" / "Bettor: X | Bet: $Y |
+# Potential Payout: $Z" / "- (Bettor) Player (ODDS) Time" -- a real Discord upload
+# on 2026-09-20 that this parser (only two templates at the time) parsed as zero
+# tickets: exit 1, nothing written, the real slate never posted. Real fixture,
+# not paraphrased. The "M-Leg" count in the header is a trap: it contains the
+# literal substring PARLAY_HEADER_RE looks for ("5-Leg Parlay"), so every ticket
+# header was originally misread as a brand new section instead of a ticket --
+# windows3 having exactly ONE window is the regression check for that.
+summary_text = (REPO / "tests/fixtures/football_summary_format.txt").read_text(encoding="utf-8")
+windows3, singles3 = fp.parse(summary_text, ROSTER)
+check("summary format: one window (the doc title), not one per ticket header",
+      len(windows3) == 1 and windows3[0]["title"] == "Touchdown Parlays Summary", [w["title"] for w in windows3])
+check("all 7 tickets are multi-leg -> 7 parlay cards, 0 singles",
+      len(windows3[0]["tickets"]) == 7 and singles3 == [],
+      (len(windows3[0]["tickets"]), len(singles3)))
+check("leg count read from the body, never the header's own claimed count",
+      [len(c["legs"]) for c in windows3[0]["tickets"]] == [5, 4, 3, 2, 2, 2, 2],
+      [len(c["legs"]) for c in windows3[0]["tickets"]])
+t1 = windows3[0]["tickets"][0]
+check("stake/payout/book come from their OWN line, not the header or a footer",
+      (t1["stake"], t1["payout"], t1["book"]) == (8.5, 95.66, "Memo"), t1)
+check("every leg in ticket 1 resolves: name, team, id, minus-money odds kept, bettor",
+      [(l["player"], l["team"], l["athleteId"], l["odds"], l["who"]) for l in t1["legs"]] == [
+          ("Derrick Henry", "BAL", "5", "-260", "Kenny"), ("Christian McCaffrey", "SF", "10", "-250", "Bernie"),
+          ("Kenneth Walker III", "SEA", "16", "-225", "Kenny"), ("Bijan Robinson", "ATL", "17", "-180", "Bernie"),
+          ("D'Andre Swift", "CHI", "18", "-150", "Kenny")], t1["legs"])
+t2 = windows3[0]["tickets"][1]
+check("a free-text time ('Check Listings', no clock time at all) is kept as typed, not dropped",
+      t2["legs"][1]["time"] == "Check Listings", t2["legs"][1]["time"])
+t3 = windows3[0]["tickets"][2]
+check("a day-prefixed time ('Mon 8:15 PM') is kept as typed too",
+      t3["legs"][1]["time"] == "Mon 8:15 PM", t3["legs"][1]["time"])
+t7 = windows3[0]["tickets"][6]
+check("a name with no last name on the real card ('Golden') can't resolve -- kept as typed, blank team/id, never guessed",
+      (t7["legs"][0]["player"], t7["legs"][0]["team"], t7["legs"][0]["athleteId"]) == ("Golden", "", ""), t7["legs"][0])
 
 # resolve_player()'s fuzzy branch itself, direct -- every fixture above either
 # hits the exact-match path or the suffix-stripped exact match ("James Cook" ->

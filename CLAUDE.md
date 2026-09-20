@@ -498,6 +498,23 @@ script), and the Discord bot's routing. Keep it that way:
   `data/football/roster.json`. Own parser `scripts/parse_football_picks.py`,
   own workflow `parse-football-picks.yml`, own roster builder
   `scripts/build_football_roster.py`. None of them import baseball's.
+  **The football card template has changed too, independently of
+  baseball's** -- a card posted 2026-09-20 arrived as `Ticket N (M-Leg
+  Parlay)` headers, `Bettor: X | Bet: $Y | Potential Payout: $Z` on their
+  own line, and `- (Bettor) Player (ODDS) Time` legs (no team, no "ET",
+  time can be free text like "Check Listings"), which the parser's first
+  two templates didn't cover: exit 1, nothing written, that day's real
+  slate never posted. Fixed the same day. One sharp trap in the fix: the
+  header's own `"5-Leg Parlay"` text is a literal substring
+  `PARLAY_HEADER_RE` matches, so every ticket header was first misread as
+  a brand-new section (`section_header()` needed an explicit exclusion,
+  the same class of guard `CARD_HEADER_RE` already has there). This is a
+  DIFFERENT third shape from baseball's own third template, not the same
+  one arriving late -- the two parsers' accepted card shapes are
+  independent and have now diverged for real. If a future upload parses to
+  zero again, check which sport and don't assume it's the other sport's
+  already-known shape (`tests/test_football_parser.py` has a fixture +
+  assertions per template, same pattern as `test_parser.py`).
 - **The Discord bot routes by FILE NAME only**: `baseball*.txt` ->
   `data/incoming_picks.txt`, `football*.txt` -> `data/football/incoming_picks.txt`,
   anything else is refused with a rename hint. It never inspects the text --

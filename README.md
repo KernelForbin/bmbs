@@ -201,10 +201,14 @@ name** decides the sport:
 Anything else is refused with a note asking for a rename. (Or paste a card
 into `data/football/incoming_picks.txt` on GitHub, as with baseball.)
 
-Football cards use the same two templates as baseball. Differences the parser
-handles: odds can be negative (`-120`), players are stored with their ESPN
-athlete id so a missing "Jr." can't break matching, and the slate is dated from
-the NFL schedule -- so a Sunday card can go up on Friday.
+Football cards have their own set of accepted templates -- currently three, and
+they don't have to match baseball's. Differences the parser handles: odds can
+be negative (`-120`), players are stored with their ESPN athlete id so a
+missing "Jr." can't break matching, and the slate is dated from the NFL
+schedule -- so a Sunday card can go up on Friday. If a football upload parses
+to zero, that's a new football template, not necessarily the same shape
+baseball has already seen -- `scripts/parse_football_picks.py`'s docstring has
+the exact shapes it currently handles.
 
 Football runs by the **week**: the tabs are "This Week's Picks" and "Last
 Week's Picks", and a card stays on This Week until the week's last game

@@ -9,7 +9,8 @@ Deliberately a standalone sibling of parse_picks.py rather than an import
 of it: the two sports' cards will drift (they already differ -- see odds
 below), and a football fix must never be able to break baseball parsing.
 
-Both of the group's card templates are accepted, same as baseball:
+Three of the group's card templates are accepted -- its own set, not
+necessarily the same shapes baseball's parser handles at any given time:
 
     ## 🎯 Longshot Straight Bets
     * Kenny: Jahmyr Gibbs (-120) | (DET @ BUF) 8:15 PM ET • $5.00 bet | PP: $9.17
@@ -24,6 +25,25 @@ and
     ⚾/🏈 1-LINE PARLAYS (STRAIGHT BETS)
     * Ticket 1: 1:00 PM ET | Saquon Barkley (Eagles) -110 (Memo)
                 (Bet by Memo) [Bet: $5 | PP: 9.55]
+
+and a third, first seen 2026-09-20 (a real upload that parsed to zero tickets
+under the first two -- exit 1, nothing written, that day's slate never
+posted):
+
+    ### Touchdown Parlays Summary
+
+    Ticket 1 (5-Leg Parlay)
+    Bettor: Memo | Bet: $8.50 | Potential Payout: $95.66
+    - (Kenny) Derrick Henry (-260) 1:00 PM
+    - (Bernie) Christian McCaffrey (-250) 4:25 PM
+
+No team is given per leg in this one (resolved from the roster instead), the
+"M-Leg Parlay" count in the header is never trusted (same rule as the other
+two: actual leg count decides single vs. parlay), and the time can be free
+text ("Check Listings") instead of a real clock time. If a new upload parses
+to zero again, that's a fourth template -- check which sport failed, since
+baseball and football's accepted shapes are independent and have already
+diverged once.
 
 What's different from baseball, on purpose:
   * ODDS CAN BE NEGATIVE. A home run is always plus money; a star back to
@@ -91,6 +111,22 @@ TICKET_LEG_RE = re.compile(
     r"^(?:[A-Za-z]{3,9}\.?,?\s+)?([\d: ]*[AP]M\s*ET)\s*\|\s*(.+?)\s*\(([^)]+)\)\s*" + ODDS + r"\s*\(([^)]+)\)\s*$", re.IGNORECASE)
 TICKET_FOOT_RE = re.compile(
     r"^\(Bet by\s+([A-Za-z]+)\)\s*\[Bet:\s*\$([\d,.]+)\s*\|\s*PP:\s*\$?([\d,.]+)\]\s*$", re.IGNORECASE)
+
+# ---- third template, first seen 2026-09-20 (a Discord upload that parsed to
+# zero tickets, exit 1, nothing written -- the real slate never posted): a bare
+# "Ticket N (M-Leg Parlay)" header (no colon, unlike TICKET_START_RE), stake/
+# payout on their OWN line right after it instead of a header or footer, and
+# "- (Bettor) Player (ODDS) Time" legs -- no team, no "ET" suffix, and the time
+# can be free text ("Check Listings") instead of a real time:
+#     Ticket 1 (5-Leg Parlay)
+#     Bettor: Memo | Bet: $8.50 | Potential Payout: $95.66
+#     - (Kenny) Derrick Henry (-260) 1:00 PM
+# The M-Leg count in the header is never trusted, same rule as every other
+# template -- actual leg count decides single vs. parlay.
+SUMMARY_TICKET_START_RE = re.compile(r"^Ticket\s+(\d+)\s*\(\s*\d+[- ]Leg\s*Parlay\s*\)\s*$", re.IGNORECASE)
+SUMMARY_BOOK_RE = re.compile(
+    r"^Bettor:\s*([A-Za-z]+)\s*\|\s*Bet:\s*\$([\d,.]+)\s*\|\s*(?:Potential\s+)?Payout:\s*\$([\d,.]+)\s*$", re.IGNORECASE)
+SUMMARY_LEG_RE = re.compile(BULLET + r"\(([^)]+)\)\s*(.+?)\s*\(" + ODDS + r"\)\s*(.+)$", re.IGNORECASE)
 SUFFIX_RE = re.compile(r"\s+(jr|sr|ii|iii|iv|v)$")
 
 
@@ -131,7 +167,11 @@ def resolve_player(raw_name, roster):
 
 def section_header(line):
     text = line.lstrip("#").strip()
-    if CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text):
+    # "Ticket 1 (5-Leg Parlay)" contains the literal substring "5-Leg Parlay",
+    # which PARLAY_HEADER_RE below would otherwise match -- misreading every
+    # ticket header in the third template as a brand new section and starting
+    # a fresh (empty) window instead of ever reaching SUMMARY_TICKET_START_RE.
+    if CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text) or SUMMARY_TICKET_START_RE.match(text):
         return None
     if SINGLES_HEADER_RE.search(text) or PARLAY_HEADER_RE.search(text):
         return text
@@ -305,13 +345,19 @@ def parse(text, roster):
             continue
 
         start = TICKET_START_RE.match(line)
-        if start:
+        summary_start = None if start else SUMMARY_TICKET_START_RE.match(line)
+        if start or summary_start:
             if current_ticket is not None:
                 finalize_ticket(current_ticket)
-            current_ticket = {"_num": start.group(1), "_legs": [], "_book": None, "_stake": None, "_pp": None}
-            leg = TICKET_LEG_RE.match(start.group(2).strip())
-            if leg:
-                current_ticket["_legs"].append(leg.groups())
+            if start:
+                current_ticket = {"_num": start.group(1), "_legs": [], "_book": None, "_stake": None, "_pp": None}
+                leg = TICKET_LEG_RE.match(start.group(2).strip())
+                if leg:
+                    current_ticket["_legs"].append(leg.groups())
+            else:
+                # stake/payout/book sit on their OWN line for this template
+                # (SUMMARY_BOOK_RE below), never inline with the header.
+                current_ticket = {"_num": summary_start.group(1), "_legs": [], "_book": None, "_stake": None, "_pp": None}
             continue
         if current_ticket is not None:
             foot = TICKET_FOOT_RE.match(line)
@@ -322,9 +368,24 @@ def parse(text, roster):
                 finalize_ticket(current_ticket)
                 current_ticket = None
                 continue
+            book = SUMMARY_BOOK_RE.match(line)
+            if book:
+                current_ticket["_book"] = book.group(1)
+                current_ticket["_stake"] = clean_num(book.group(2))
+                current_ticket["_pp"] = clean_num(book.group(3))
+                continue
             leg = TICKET_LEG_RE.match(line)
             if leg:
                 current_ticket["_legs"].append(leg.groups())
+                continue
+            summary_leg = SUMMARY_LEG_RE.match(line)
+            if summary_leg:
+                who, player_raw, odds, time_ = summary_leg.groups()
+                # same 5-tuple shape finalize_ticket already expects from
+                # TICKET_LEG_RE: (time_, player_raw, team_raw, odds, who) --
+                # this template never gives a team, so that slot is blank and
+                # make_leg() falls through to the roster lookup for it.
+                current_ticket["_legs"].append((time_.strip(), player_raw.strip(), "", odds, who.strip()))
                 continue
 
         if mode == "parlay":

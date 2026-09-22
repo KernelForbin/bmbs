@@ -347,22 +347,20 @@ print("OK: fourth template (emoji \"Ticket #N (M-Leg Parlay)\" / \"Bonus Ticket\
 #     The four fixtures above re-parsing unchanged is what proves that.
 parlay_text = (REPO / "tests" / "fixtures" / "discord_parlay_window_format.txt").read_text(encoding="utf-8")
 p_windows, p_singles, _ = pp.parse(parlay_text, team_by_name, canon)
-assert len(p_windows) == 4, [w["title"] for w in p_windows]
+assert len(p_windows) == 5, [w["title"] for w in p_windows]
 assert [w["title"] for w in p_windows] == [
-    "🕒 Early Window (6:35 PM – 6:40 PM ET)",
-    "🕒 Prime Window (7:15 PM ET)",
-    "🕒 Night Window (8:05 PM – 9:40 PM ET)",
-    "🕒 Late Night Window (10:10 PM ET)"], [w["title"] for w in p_windows]
-# ...and note what is MISSING from that list: the card's own fifth heading,
-# "🎟️ Bonus Bets Tracker", did not open a section, so its two tickets are
-# filed under Late Night Window (10:10 PM ET) instead -- a heading the page
-# will show above bets that have nothing to do with 10:10 PM. WINDOW_HEADER_RE
-# only recognises a heading containing the literal word "Window", and
-# section_header() rejects anything without odds or an N-Leg/Singles phrase.
-# Pinned as current behaviour so the grouping can't drift further unnoticed;
-# it is a known defect, not the intended result.
-assert [len(c["legs"]) for c in p_windows[3]["tickets"]] == [2, 3, 3], \
-    "the two bonus tickets land in the last time window rather than their own section"
+    "\U0001f552 Early Window (6:35 PM \u2013 6:40 PM ET)",
+    "\U0001f552 Prime Window (7:15 PM ET)",
+    "\U0001f552 Night Window (8:05 PM \u2013 9:40 PM ET)",
+    "\U0001f552 Late Night Window (10:10 PM ET)",
+    "\U0001f39f\ufe0f Bonus Bets Tracker"], [w["title"] for w in p_windows]
+# That fifth section is the fix for a real defect: "Bonus Bets Tracker" holds
+# no literal "Window", so WINDOW_HEADER_RE missed it and section_header()
+# rejects anything without odds or an N-Leg/Singles phrase -- both bonus
+# tickets were filed under Late Night Window and the page showed them under a
+# 10:10 PM first pitch they have nothing to do with. TRACKER_HEADER_RE opens
+# it, and is deliberately narrow (word characters and spaces only) so it can
+# never match a leg line and swallow the rest of the card.
 assert p_singles == [], "every ticket on this card has 2+ legs; none is a single"
 assert [len(c["legs"]) for w in p_windows for c in w["tickets"]] == [2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3], \
     [len(c["legs"]) for w in p_windows for c in w["tickets"]]
@@ -381,30 +379,64 @@ assert p1["book"] != p1["legs"][0]["who"], "ticket owner and leg bettor are diff
 # MLB's own feed writes them, so stripping either here would make the leg
 # ungradeable (the Tatis Jr. incident).
 accented = p_windows[1]["tickets"][1]["legs"][1]
-assert accented["player"] == "Ronald Acuña Jr." and accented["team"] == "ATL", accented
+assert accented["player"] == "Ronald Acu\u00f1a Jr." and accented["team"] == "ATL", accented
 tatis = p_windows[3]["tickets"][0]["legs"][1]
 assert tatis["player"] == "Fernando Tatis Jr." and tatis["team"] == "SD", tatis
 
-# The "Bonus Bets Tracker" tickets are shaped differently -- their legs read
-# "* Francher-Harper (+540)": no time, and the text before the odds is a
-# BETTOR-PLAYER pair, not a player name. The parser currently keeps that whole
-# string as the player, which resolves to nothing and leaves the team blank.
-# Pinned as the CURRENT behaviour, deliberately not blessed as correct: the
-# six legs it produces cannot grade, and splitting the bettor prefix off is an
-# open question (the surnames left over -- "Vargas", "Karros" -- are ambiguous,
-# and this repo does not auto-resolve ambiguous shorthand). If that decision
-# gets made, this block is what changes.
-bonus_w = p_windows[3]  # see above: they are NOT in a section of their own
-b10, b11 = bonus_w["tickets"][1:]
+# As UPLOADED, the bonus legs read "* Francher-Harper (+540)" -- a
+# BETTOR-PLAYER pair with no time and no separate "(Who)". Nothing can rescue
+# that: the whole string stays the player, resolves to nobody, and the leg
+# carries a blank team, so it can never grade either way. Kept as a fixture
+# because this is exactly what arrived, and the give-up path must stay
+# predictable -- a blank team, never a guessed one.
+b10, b11 = p_windows[4]["tickets"]
 assert (b10["stake"], b10["payout"], b10["book"]) == (3.0, 1039.18, "Memo"), b10
 assert (b11["stake"], b11["payout"], b11["book"]) == (3.0, 609.84, "Kenny"), b11
 assert [l["player"] for l in b10["legs"]] == ["Francher-Harper", "Noid-Karros", "Memo-Merrill"]
 assert all(l["team"] == "" for l in b10["legs"] + b11["legs"]), \
     "unresolved names keep a BLANK team rather than a guessed one"
 assert all(l["time"] == "" for l in b10["legs"]), "bonus legs carry no start time"
+# and with no "(Who)" of their own they fall back to the ticket owner
+assert [l["who"] for l in b10["legs"]] == ["Memo", "Memo", "Memo"]
 
 # A thousands separator in the payout ("$1,039.18") reaches clean_num intact.
 assert b10["payout"] == 1039.18
+
+# --- the CORRECTED bonus shape: "* Player (+ODDS) (Who)", a real player and a
+# real per-leg bettor, still with no time. This is what the group re-sent once
+# the pairs above turned out to be "<bettor>-<player>" written as one string.
+# It is the reason PARLAY_LEG_RE's "(Who)" and "- TIME ET" tails are BOTH
+# optional: with the time mandatory these legs matched nothing at all.
+corrected = """\U0001f39f\ufe0f Bonus Bets Tracker
+
+Ticket 10 (Memo)
+* Bryce Harper (+540) (Francher)
+* Kyle Karros (+820) (Noid)
+* Jackson Merrill (+490) (Memo)
+* Wager: $3.00 | Payout: $1,039.18
+
+Ticket 11 (Kenny)
+* Julio Rodriguez (+425) (Bailey)
+* Randy Arozarena (+470) (Memo)
+* Miguel Vargas (+433) (Kenny)
+* Wager: $3.00 | Payout: $609.84
+"""
+c_windows, c_singles, _ = pp.parse(corrected, team_by_name, canon)
+assert c_singles == [] and len(c_windows) == 1, [w["title"] for w in c_windows]
+c10, c11 = c_windows[0]["tickets"]
+assert [(l["player"], l["team"], l["who"], l["odds"], l["time"]) for l in c10["legs"]] == [
+    ("Bryce Harper", "PHI", "Francher", "+540", ""),
+    ("Kyle Karros", "COL", "Noid", "+820", ""),
+    ("Jackson Merrill", "SD", "Memo", "+490", "")], c10["legs"]
+# every leg resolves to a real team -- the whole point of the correction, and
+# the difference between a leg that grades and one stuck forever at not_started
+assert all(l["team"] for l in c10["legs"] + c11["legs"]), "no leg may be left teamless"
+# the per-leg bettor is kept, NOT overwritten by the ticket owner
+assert [l["who"] for l in c10["legs"]] == ["Francher", "Noid", "Memo"] and c10["book"] == "Memo"
+assert [l["who"] for l in c11["legs"]] == ["Bailey", "Memo", "Kenny"] and c11["book"] == "Kenny"
+# the roster supplies the canonical spelling, accent and all
+assert c11["legs"][0]["player"] == "Julio Rodr\u00edguez", c11["legs"][0]
+assert pp.parse.unread == [], pp.parse.unread
 
 # Every earlier fixture must still parse EXACTLY as it did before this template
 # existed -- the whole point of rule 1b. (Section 7 already re-parses them for

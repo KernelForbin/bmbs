@@ -102,17 +102,19 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   the ticket OWNER (legs carry their own separate `(Who)`), legs written
   `* Player (+ODDS) (Who) – TIME ET` with an EN-DASH where templates three and
   four use a hyphen, closed by `* Wager: $X | Payout: $Y`.
-  **Two known defects in that auto-written support, both in its "Bonus Bets
-  Tracker" section and both pinned as current behaviour rather than blessed:**
-  (a) its legs read `* Francher-Harper (+540)` -- a BETTOR-PLAYER pair, not a
-  player name -- and the whole string is kept as the player, so those six legs
-  resolve to nothing, carry a blank team and can never grade either way (the
-  Tatis Jr. failure mode). Splitting the prefix off is an open decision,
-  because the surnames left over (`Vargas`, `Karros`) are ambiguous and this
-  repo does not auto-resolve ambiguous shorthand. (b) `🎟️ Bonus Bets Tracker`
-  does not open a section -- `WINDOW_HEADER_RE` wants the literal word
-  "Window" -- so those tickets are filed under the preceding 10:10 PM window
-  and the page shows them under a time they have nothing to do with.
+  Its "Bonus Bets Tracker" section is the same ticket shape with **no start
+  time on the legs**, so both the `(Who)` and the `- TIME ET` tails are
+  optional -- required at first, which meant those legs matched nothing and
+  were stored with the bettor still glued to the player name
+  (`Francher-Harper`): no team, resolved to nobody, unable to grade either way,
+  the Tatis Jr. failure mode. Fixed 2026-09-22 once the group re-sent the
+  section as `* Bryce Harper (+540) (Francher)`. `TRACKER_HEADER_RE` opens that
+  section too (it holds no literal "Window", so those tickets were being filed
+  under the preceding time window and shown under a first pitch they had
+  nothing to do with); it is deliberately narrow -- word characters and spaces
+  only -- so it can never match a leg line and swallow the rest of the card.
+  `test_parser.py` section 11 pins the raw upload AND the corrected shape,
+  and both changes were mutation-tested.
   **The emoji-ticket header is a trap for `section_header()`:**
   "🎰 Ticket #1 (3-Leg Parlay)" contains the literal substring "3-Leg Parlay",
   which `PARLAY_HEADER_RE` matches, so every one of its headers was first

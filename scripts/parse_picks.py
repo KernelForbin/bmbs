@@ -196,25 +196,36 @@ EMOJI_LEG_RE = re.compile(
 #     * Bo Bichette (+730) (Noid) – 6:35 PM ET
 #     * James Wood (+420) (Francher) – 6:40 PM ET
 #     * Wager: $7.33 | Payout: $310.28
-# Also covers the "Bonus Bets Tracker" section's "Ticket N (Bettor)" tickets,
-# whose legs have no player/team at all -- just two bettor names joined by a
-# dash, e.g. "* Francher-Harper (+540)" -- so the leg's "player" is stored
-# as-typed (resolve_player() will fail to match it and NOTE that, same as any
-# other unresolvable name) and there's no time on those legs.
 # The header's own "(Bettor)" is the ticket owner, used as the leg's "who"
 # fallback ONLY when a leg doesn't carry its own trailing "(Who)".
+#
+# The card's LAST section is a "Bonus Bets Tracker" whose tickets are the same
+# "Ticket N (Bettor)" shape but whose legs carry no start time:
+#     Bonus Bets Tracker
+#     Ticket 10 (Memo)
+#     * Bryce Harper (+540) (Francher)
+#     * Wager: $3.00 | Payout: $1,039.18
+# so BOTH the "(Who)" and the "- TIME ET" tail are optional. They were required
+# at first, which meant a timeless leg matched nothing, and the six legs that
+# produced were stored with the bettor still glued to the player name
+# ("Francher-Harper"): resolved to nobody, blank team, unable to grade either
+# way -- the Tatis Jr. failure mode. Making the tail optional fixes that and
+# subsumes the separate bonus-leg pattern that used to sit here.
 WINDOW_HEADER_RE = re.compile(r"^\W*\s*.+?\s+Window\s*\(.+\)\s*$", re.IGNORECASE)
+# A "Bonus Bets Tracker" heading opens a section too. Deliberately narrow --
+# word characters and spaces only -- so it can never match a LEG line (which
+# always carries parenthesised odds) and swallow the rest of the card. Without
+# it those tickets were filed under the preceding time window, and the page
+# showed them under a first pitch they had nothing to do with.
+TRACKER_HEADER_RE = re.compile(r"^\W*\s*[A-Za-z][\w ]*\bTracker\b[\w ]*$", re.IGNORECASE)
 PARLAY_START_RE = re.compile(r"^(?:Parlay|Ticket)\s+(\d+)\s*\(([A-Za-z]+)\)\s*$", re.IGNORECASE)
-# Player leg: "Bo Bichette (+730) (Noid) – 6:35 PM ET" -- requires the
-# trailing en/em-dash + TIME ET so it can't be confused with the two-name
-# bonus-tracker leg below (which has no time at all).
+# Player leg: "Bo Bichette (+730) (Noid) - 6:35 PM ET", or with either trailing
+# part absent. Reachable only while a "Parlay N (...)" ticket is open, which is
+# what keeps its lazy (.+?) from reaching a line an older template owns.
 PARLAY_LEG_RE = re.compile(
-    BULLET + r"(.+?)\s*\(([+-]\d+)\)\s*(?:\(([^)]+)\)\s*)?[\u2013\u2014-]\s*([\d: ]*[AP]M\s*ET)\s*$", re.IGNORECASE
+    BULLET + r"(.+?)\s*\(([+-]\d+)\)\s*(?:\(([^)]+)\)\s*)?"
+    r"(?:[\u2013\u2014-]\s*([\d: ]*[AP]M\s*ET)\s*)?$", re.IGNORECASE
 )
-# Bonus-tracker leg: "Francher-Harper (+540)" -- two bettor names joined by a
-# plain hyphen, no time, no separate "(Who)". Anchored with $ and no dash-time
-# tail so it never eats a PARLAY_LEG_RE line.
-PARLAY_BONUS_LEG_RE = re.compile(BULLET + r"([A-Za-z]+-[A-Za-z .]+?)\s*\(([+-]\d+)\)\s*$", re.IGNORECASE)
 PARLAY_FOOT_RE = re.compile(
     BULLET + r"Wager:\s*\$([\d,.]+)\s*\|\s*Payout:\s*\$?([\d,.]+)\s*$", re.IGNORECASE
 )
@@ -493,7 +504,8 @@ def parse(text, team_by_name, canonical_by_norm):
                 mode = None
             continue
 
-        if PART_HEADER_RE.match(original) or WINDOW_HEADER_RE.match(original):
+        if (PART_HEADER_RE.match(original) or WINDOW_HEADER_RE.match(original)
+                or TRACKER_HEADER_RE.match(original)):
             flush_card()
             flush_ticket()
             flush_parlay()
@@ -522,12 +534,10 @@ def parse(text, team_by_name, canonical_by_norm):
             leg = PARLAY_LEG_RE.match(line)
             if leg:
                 player_raw, odds, who, time_ = leg.groups()
-                current_parlay["_legs"].append((time_, player_raw, who or "", odds, market_for(sb_here)))
-                continue
-            bonus_leg = PARLAY_BONUS_LEG_RE.match(line)
-            if bonus_leg:
-                player_raw, odds = bonus_leg.groups()
-                current_parlay["_legs"].append(("", player_raw, "", odds, market_for(sb_here)))
+                # both trailing groups are optional -- a bonus-tracker leg has
+                # neither, so they arrive as None rather than ""
+                current_parlay["_legs"].append(
+                    (time_ or "", player_raw, who or "", odds, market_for(sb_here)))
                 continue
 
         ticket_start = TICKET_START_RE.match(line)

@@ -271,7 +271,12 @@
               "time": "10:10 PM ET"
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "title": "🎟️ Bonus Bets Tracker",
+      "tickets": [
         {
           "name": "Card 10",
           "sub": "3-Leg",
@@ -281,29 +286,29 @@
           "payout": 1039.18,
           "legs": [
             {
-              "id": "p3-c1-l0",
-              "player": "Francher-Harper",
-              "team": "",
-              "who": "Memo",
-              "meta": "Memo",
+              "id": "p4-c0-l0",
+              "player": "Bryce Harper",
+              "team": "PHI",
+              "who": "Francher",
+              "meta": "PHI &middot; Francher",
               "odds": "+540",
               "time": ""
             },
             {
-              "id": "p3-c1-l1",
-              "player": "Noid-Karros",
-              "team": "",
-              "who": "Memo",
-              "meta": "Memo",
+              "id": "p4-c0-l1",
+              "player": "Kyle Karros",
+              "team": "COL",
+              "who": "Noid",
+              "meta": "COL &middot; Noid",
               "odds": "+820",
               "time": ""
             },
             {
-              "id": "p3-c1-l2",
-              "player": "Memo-Merrill",
-              "team": "",
+              "id": "p4-c0-l2",
+              "player": "Jackson Merrill",
+              "team": "SD",
               "who": "Memo",
-              "meta": "Memo",
+              "meta": "SD &middot; Memo",
               "odds": "+490",
               "time": ""
             }
@@ -318,29 +323,29 @@
           "payout": 609.84,
           "legs": [
             {
-              "id": "p3-c2-l0",
-              "player": "Bailey-Julio Rodriguez",
-              "team": "",
-              "who": "Kenny",
-              "meta": "Kenny",
+              "id": "p4-c1-l0",
+              "player": "Julio Rodríguez",
+              "team": "SEA",
+              "who": "Bailey",
+              "meta": "SEA &middot; Bailey",
               "odds": "+425",
               "time": ""
             },
             {
-              "id": "p3-c2-l1",
-              "player": "Memo-Arozorena",
-              "team": "",
-              "who": "Kenny",
-              "meta": "Kenny",
+              "id": "p4-c1-l1",
+              "player": "Randy Arozarena",
+              "team": "SEA",
+              "who": "Memo",
+              "meta": "SEA &middot; Memo",
               "odds": "+470",
               "time": ""
             },
             {
-              "id": "p3-c2-l2",
-              "player": "Kenny-Vargas",
-              "team": "",
+              "id": "p4-c1-l2",
+              "player": "Miguel Vargas",
+              "team": "CWS",
               "who": "Kenny",
-              "meta": "Kenny",
+              "meta": "CWS &middot; Kenny",
               "odds": "+433",
               "time": ""
             }

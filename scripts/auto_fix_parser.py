@@ -259,6 +259,21 @@ def verify_fix(parser_path, incoming_path):
     if r.returncode != 0:
         tail = "\n".join((r.stdout + r.stderr).splitlines()[-15:])
         return False, f"parser still exits {r.returncode} against the real upload:\n{tail}"
+
+    # Exiting 0 is not the same as being CORRECT. run_full_suite() above ran
+    # BEFORE this parser run existed, so test_live_data_schema.py -- the one
+    # test that reads the real committed data/ files -- validated the PREVIOUS
+    # tickets.json, never the one just written. That gap shipped a patch on
+    # 2026-09-22 whose output had `"payout": "TBD"`, a string in a field the
+    # schema requires to be a number; the live page would have called
+    # fmtMoney() on it. So re-run the schema test now, against the file this
+    # parser actually produced. It's seconds, and it's the only check that
+    # looks at the artifact rather than the code.
+    schema = run([sys.executable, str(REPO / "tests" / "test_live_data_schema.py")])
+    if schema.returncode != 0:
+        tail = "\n".join((schema.stdout + schema.stderr).splitlines()[-12:])
+        return False, ("the upload parses, but the tickets.json it produced fails the live-data "
+                       f"schema check -- so the page could not render it:\n{tail}")
     return True, ""
 
 

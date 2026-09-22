@@ -75,7 +75,10 @@ jobs:
 
       # Only on a genuine new slate -- see parse-picks.yml's twin step for why
       # a failure isn't handled here at all.
+      # The slate is already committed and live by this point; a failed
+      # status ping must not turn a successful upload into a red run.
       - name: Notify Discord that this week's slate is live
+        continue-on-error: true
         if: steps.commit.outputs.committed == 'yes'
         env:
           DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}

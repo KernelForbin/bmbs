@@ -32,23 +32,43 @@ import urllib.request
 SITE_URL = {"baseball": "https://bmbs.bet/", "football": "https://bmbs.bet/football/"}
 
 
+class NotifyFailed(Exception):
+    """A Discord call didn't get through. Raised rather than exiting, so main()
+    can decide -- and main() always decides the same way: warn, exit 0. See the
+    note there; a status ping must never be able to fail the job around it."""
+
+
 def webhook_url():
     url = os.environ.get("DISCORD_STATUS_WEBHOOK")
     if not url:
-        sys.exit("DISCORD_STATUS_WEBHOOK is not set")
+        raise NotifyFailed("DISCORD_STATUS_WEBHOOK is not set")
     return url
+
+
+# Discord sits behind Cloudflare, which BLOCKS the default Python user agent
+# outright: a request with no User-Agent comes back 403 with Cloudflare "error
+# code: 1010" and never reaches Discord at all. That is exactly what happened
+# on 2026-09-22 -- every Discord call this project had ever made in CI failed
+# this way, unnoticed, because the tests all used a fake fetcher. Send a real
+# one. (Proved by probing a deliberately bogus webhook id: without this header
+# 403/1010, with it 404 "Unknown Webhook" -- i.e. Discord actually answering.)
+USER_AGENT = "bmbs-status-bot (https://bmbs.bet, 1.0)"
 
 
 def _request(url, payload, method):
     body = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method=method)
+    req = urllib.request.Request(
+        url, data=body, method=method,
+        headers={"Content-Type": "application/json", "User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(req, timeout=15) as res:
             raw = res.read()
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as e:
         # Never let the webhook URL itself reach stderr/logs.
-        sys.exit(f"Discord webhook request failed: HTTP {e.code}")
+        raise NotifyFailed(f"HTTP {e.code}") from None
+    except urllib.error.URLError as e:
+        raise NotifyFailed(f"{type(e).__name__}") from None
 
 
 def post_message(text, fetcher=_request):
@@ -96,13 +116,28 @@ def main():
     e.add_argument("--text", required=True)
 
     args = ap.parse_args()
-    if args.cmd == "success":
-        post_message(summarize(args.tickets, args.sport))
-    elif args.cmd == "post":
-        print(post_message(args.text))
-    elif args.cmd == "edit":
-        edit_message(args.id, args.text)
+    # THIS SCRIPT MUST NOT BE ABLE TO FAIL ITS CALLER. It posts status; it does
+    # no work anybody depends on. On 2026-09-22 a 403 from this script's first
+    # call killed the auto-fix job at step 4 of 8, so the picks were never
+    # repaired and -- the real damage -- the group got no message at all, which
+    # is the silent failure the whole notifier exists to prevent. A missing
+    # ping is a nuisance; a blocked repair is an outage. Warn and exit 0.
+    # The workflow steps also carry continue-on-error as a second layer.
+    try:
+        if args.cmd == "success":
+            post_message(summarize(args.tickets, args.sport))
+        elif args.cmd == "post":
+            print(post_message(args.text))
+        elif args.cmd == "edit":
+            edit_message(args.id, args.text)
+    except NotifyFailed as e:
+        # stderr, so `MSG_ID=$(... post ...)` captures an empty id rather than
+        # this text -- the workflow already falls back to posting fresh when
+        # the id is empty.
+        print(f"WARNING: Discord notification failed: {e}", file=sys.stderr)
+        return 0
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

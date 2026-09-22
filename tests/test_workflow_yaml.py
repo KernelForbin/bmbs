@@ -241,6 +241,52 @@ check("E14 auto_fix_parser.py itself never invokes git -- only the workflow's ow
       "does (keeps the highest-risk decision logic separate from the actual push mechanism)",
       not re.search(r'["\']git["\']', afp_source), "a literal 'git' argument was found in the script")
 
+# ---------------- F. a status ping can never veto the work ----------------
+# 2026-09-22: the auto-fix workflow's FIRST Discord call returned 403 (Cloudflare
+# blocking the default Python user agent) and, having no continue-on-error, took
+# the whole job down with it at step 4 of 8. The picks were never repaired and
+# the group got no message at all -- the exact silent failure the notifier was
+# built to prevent. Every Discord step in every workflow is now non-blocking,
+# and these checks exist so that can't quietly come undone.
+
+def steps_calling_notify(text):
+    """-> [(step name, step body)] for every step that runs notify_discord.py."""
+    out = []
+    for block in re.split(r"\n      - name: ", text)[1:]:
+        name = block.splitlines()[0].strip()
+        if "notify_discord.py" in block:
+            out.append((name, block))
+    return out
+
+
+notify_steps = []
+for wf_name in ("auto-fix-parse-failure.yml", "parse-picks.yml", "parse-football-picks.yml"):
+    wf_text = (WORKFLOWS / wf_name).read_text(encoding="utf-8")
+    for step_name, body in steps_calling_notify(wf_text):
+        notify_steps.append((wf_name, step_name, body))
+
+check("F1 every workflow that notifies Discord has at least one such step",
+      len(notify_steps) >= 4, f"found {len(notify_steps)}")
+
+missing = [f"{wf}: {name}" for wf, name, body in notify_steps if "continue-on-error: true" not in body]
+check("F2 EVERY Discord step is continue-on-error -- a failed status ping must never "
+      "fail the run that was doing the actual work", not missing, "; ".join(missing))
+
+# The script's own half of the same guarantee.
+nd_source = (SCRIPTS / "notify_discord.py").read_text(encoding="utf-8")
+check("F3 notify_discord.py sends a User-Agent -- without one Cloudflare 403s every call "
+      "before it ever reaches Discord",
+      "User-Agent" in nd_source and "USER_AGENT" in nd_source)
+check("F4 notify_discord.py no longer sys.exit()s on a failed request -- it raises "
+      "NotifyFailed, and main() turns that into a warning and exit 0",
+      "NotifyFailed" in nd_source and "sys.exit(f\"Discord webhook request failed" not in nd_source)
+
+# And the checkout must follow the branch, or this workflow can never be
+# exercised end to end before it is merged -- which is how the 403 shipped.
+check("F5 the auto-fix workflow checks out the branch it was dispatched from, not a "
+      "hardcoded main, so it can be proven end to end before merging",
+      "github.event.workflow_run.head_branch" in af_text and "\n          ref: main" not in af_text)
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

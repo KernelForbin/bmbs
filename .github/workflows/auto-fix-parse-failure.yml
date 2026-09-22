@@ -39,10 +39,14 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     steps:
+      # The branch the failing run was on (always main in practice), or the
+      # branch a manual dispatch was fired from. NOT hardcoded to main: that
+      # made it impossible to exercise this workflow end to end before merging
+      # it, because a branch run would still check out main's old scripts.
       - name: Check out repo
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event.workflow_run.head_branch || github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -69,8 +73,13 @@ jobs:
             echo "previous=data/tickets-previous.json" >> "$GITHUB_OUTPUT"
           fi
 
+      # continue-on-error, and the script exits 0 on a failed notification too.
+      # On 2026-09-22 a 403 here killed the job at step 4 of 8: the picks were
+      # never repaired AND the group got no message at all. A status ping is
+      # decoration; it must never be able to veto the actual work.
       - name: Post "investigating" status to Discord
         id: notify
+        continue-on-error: true
         env:
           DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
           SPORT: ${{ steps.sport.outputs.sport }}
@@ -120,6 +129,7 @@ jobs:
 
       - name: Edit the Discord status with the outcome
         if: always()
+        continue-on-error: true
         env:
           DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
           MESSAGE_ID: ${{ steps.notify.outputs.message_id }}

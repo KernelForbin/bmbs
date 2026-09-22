@@ -123,9 +123,9 @@ buf = io.StringIO()
 try:
     with contextlib.redirect_stderr(buf):
         nd._request("https://discord.test/api/webhooks/123/fake-token", {"content": "x"}, "POST")
-    check("C1 a failed request exits rather than returning", False)
-except SystemExit as e:
-    check("C1 a failed request exits with the HTTP status", "404" in str(e), str(e))
+    check("C1 a failed request raises rather than returning", False)
+except nd.NotifyFailed as e:
+    check("C1 a failed request raises NotifyFailed with the HTTP status", "404" in str(e), str(e))
     check("C2 the webhook URL itself never reaches the error message",
           "discord.test" not in str(e) and "fake-token" not in str(e), str(e))
 finally:
@@ -134,10 +134,52 @@ finally:
 del os.environ["DISCORD_STATUS_WEBHOOK"]
 try:
     nd.webhook_url()
-    check("C3 a missing DISCORD_STATUS_WEBHOOK exits rather than crashing with a KeyError", False)
-except SystemExit:
-    check("C3 a missing DISCORD_STATUS_WEBHOOK exits rather than crashing with a KeyError", True)
+    check("C3 a missing DISCORD_STATUS_WEBHOOK raises rather than crashing with a KeyError", False)
+except nd.NotifyFailed:
+    check("C3 a missing DISCORD_STATUS_WEBHOOK raises rather than crashing with a KeyError", True)
 os.environ["DISCORD_STATUS_WEBHOOK"] = "https://discord.test/api/webhooks/123/fake-token"
+
+# C4-C6 are the ones that matter most. On 2026-09-22 a 403 from this script
+# aborted the auto-fix workflow at step 4 of 8: the picks were never repaired
+# and the group got no message at all -- the exact silent failure the notifier
+# exists to prevent. A status ping must never be able to fail its caller.
+nd.urllib.request.urlopen = raising_urlopen
+buf = io.StringIO()
+try:
+    sys.argv = ["notify_discord.py", "post", "--text", "will not get through"]
+    with contextlib.redirect_stderr(buf), contextlib.redirect_stdout(io.StringIO()) as out:
+        rc = nd.main()
+    check("C4 main() returns 0 when Discord is unreachable -- it must not fail the job", rc == 0, repr(rc))
+    check("C5 ...and says so on stderr, so a dead webhook is still visible in the run log",
+          "WARNING" in buf.getvalue() and "404" in buf.getvalue(), buf.getvalue().strip())
+    check("C6 ...printing nothing to stdout, so `MSG_ID=$(...)` captures an empty id",
+          out.getvalue().strip() == "", repr(out.getvalue()))
+finally:
+    nd.urllib.request.urlopen = real_urlopen
+
+# The header that was missing for two days. Capture the Request object rather
+# than trusting the constant: what matters is what actually goes on the wire.
+captured = {}
+
+
+def capturing_urlopen(req, timeout=15):
+    captured["headers"] = dict(req.header_items())
+    raise FakeHTTPError(404)   # we only care about the request, not a reply
+
+
+nd.urllib.request.urlopen = capturing_urlopen
+try:
+    nd._request("https://discord.test/api/webhooks/123/fake-token", {"content": "x"}, "POST")
+except nd.NotifyFailed:
+    pass
+finally:
+    nd.urllib.request.urlopen = real_urlopen
+
+hdrs = {k.lower(): v for k, v in captured.get("headers", {}).items()}
+check("C7 the request carries a User-Agent -- without one Cloudflare 403s every call",
+      bool(hdrs.get("user-agent")), str(hdrs))
+check("C8 ...and it isn't Python's default, which is the one Cloudflare blocks",
+      "urllib" not in hdrs.get("user-agent", "").lower(), str(hdrs))
 
 
 # ---------------- D. the CLI wires each subcommand to the right function ----------------

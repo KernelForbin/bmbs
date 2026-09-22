@@ -27,6 +27,18 @@ def shape(windows, singles):
     }
 
 
+# --- 0. clean_num tolerates how money is actually written on a card ---
+# It stripped only commas until 2026-09-22, so a template whose regex captured
+# "$310.28" rather than "310.28" raised ValueError deep inside parse(). That
+# cost the automatic fixer an entire attempt on a patch that was otherwise
+# working. Every caller passes a price, so accept the symbol here rather than
+# making each future template's regex remember to exclude it.
+for raw, want in [("310.28", 310.28), ("$310.28", 310.28), ("1,039.18", 1039.18),
+                  ("$1,039.18", 1039.18), (" $7.33 ", 7.33)]:
+    got = pp.clean_num(raw)
+    assert got == want, f"clean_num({raw!r}) -> {got!r}, wanted {want!r}"
+print("OK: clean_num accepts $ and , and surrounding space")
+
 # --- 1. Gemini export (no ## / no *) vs raw markdown (test_picks.txt), same slate ---
 gemini_text = (REPO / "tests" / "fixtures" / "gemini_picks.txt").read_text(encoding="utf-8")
 md_text = (REPO / "test_picks.txt").read_text(encoding="utf-8")

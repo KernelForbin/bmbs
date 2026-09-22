@@ -223,7 +223,16 @@ def normalize_name(name):
 
 
 def clean_num(s):
-    return float(s.replace(",", ""))
+    """Money string -> float. Tolerates the currency symbol and separators,
+    because every caller is handing this a price off a betting card.
+
+    It used to strip only commas, so a template whose regex captured "$310.28"
+    rather than "310.28" blew up with a ValueError deep inside parse(). That
+    cost the automatic fixer a whole attempt on 2026-09-22 -- it had the new
+    template otherwise working and the full suite passing. A card that writes
+    its payout with a dollar sign is completely ordinary, so accept it here
+    instead of making every future template's regex remember to exclude it."""
+    return float(s.replace(",", "").replace("$", "").strip())
 
 
 def load_roster():

@@ -34,7 +34,12 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 MODEL = "claude-sonnet-5"
-MAX_ATTEMPTS = 2
+# Raised from 2 on 2026-09-22. On the first real template this pipeline ever
+# faced, attempt 1 tripped rule 1b below and attempt 2 -- having been given
+# that failure as feedback -- fixed it, passed the entire suite, and then died
+# on a one-character bug. It was one attempt from success and ran out. Each
+# attempt is one API call and about two minutes.
+MAX_ATTEMPTS = 4
 API_URL = "https://api.anthropic.com/v1/messages"
 
 # The full offline suite (test_feed_fields.py excluded on purpose -- it needs
@@ -77,6 +82,18 @@ anything:
    ticket-parsing code ever sees it, unless you add it to that function's
    exclusion list first. This happened on both sports' parsers independently
    the same day. Check for this collision explicitly and guard against it.
+1b. **The same trap, generalised -- this is the one that actually bit.**
+   Rule 1 is about headers, but it applies to EVERY pattern you add: a new
+   regex must not match lines that an older template already owns. A real
+   failure: a new leg pattern was written as
+   `BULLET + (.+?) \\(([+-]\\d+)\\) ... - TIME`, whose lazy `(.+?)` happily
+   swallowed an older template's `(Bettor) Player - TEAM` prefix, so that
+   template's legs started parsing with the bettor and team glued into the
+   player name. Before you finish: take each pattern you added, and mentally
+   run it against the example lines of EVERY other template quoted in the
+   file's own comments. If it matches one of them, tighten it -- anchor it,
+   forbid a leading `(`, require the exact separator -- or order your new
+   branch AFTER the existing ones so they claim their lines first.
 2. **Never trust a header's own claimed leg count.** A ticket is a single
    vs. a parlay card purely by how many leg lines it actually has, decided
    after parsing all of them -- never by a number printed in the header.

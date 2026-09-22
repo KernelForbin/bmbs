@@ -1086,7 +1086,13 @@ function americanToDecimal(odds) {
 // touchdown odds go negative (a star back is often -120); the baseball page never had to sign them
 function fmtOdds(n) { return (n > 0 ? "+" : "") + n; }
 
+// A payout can legitimately be UNKNOWN: a card may list its potential payout
+// as "TBD", and the parser stores that as null rather than inventing a number
+// or dropping the bet. Everything downstream funnels through here, so this is
+// the one place that has to cope -- n.toFixed() on null throws, and a null
+// added into a running total silently poisons it to NaN.
 function fmtMoney(n) {
+  if (typeof n !== "number" || !isFinite(n)) return "TBD";
   return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
@@ -2057,7 +2063,9 @@ function computeAll() {
       EVALUATED.push({ win, tk, states, evalRes });
 
       if (evalRes.outcome === "dead") betMiss++;
-      else if (evalRes.outcome === "hit") { betHit++; totalPayoutHit += evalRes.adjustedPayout; }
+      // `|| 0`: a cashed bet whose payout was never known must not turn the
+      // whole slate's estimate into NaN. It simply contributes nothing.
+      else if (evalRes.outcome === "hit") { betHit++; totalPayoutHit += evalRes.adjustedPayout || 0; }
       else if (evalRes.outcome === "void") betVoid++;
       else betOpen++;
       if (evalRes.iron) betIron++; // Irons are a subset of Open, counted in both

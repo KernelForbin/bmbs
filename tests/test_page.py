@@ -1748,4 +1748,44 @@ with sync_playwright() as p:
     assert not errors, errors
     browser.close()
 
+    # ========== X: a payout can be UNKNOWN ==========
+    # A card may print its potential payout as "TBD". The parser stores null
+    # rather than inventing a number or dropping the bet, so the page has to
+    # cope: fmtMoney(null) used to throw, and a null added into the slate total
+    # silently poisoned it to NaN. Agreed 2026-09-22, after a real upload with
+    # a TBD payout jammed the auto-fixer four times over -- the schema had no
+    # way to express "not known yet".
+    SEEN.clear()
+    known = card(["X Hit A", "X Hit B"], "Card KNOWN")           # both hit -> cashes 100.00
+    unknown = card(["X Hit A", "X Hit B"], "Card TBD")
+    unknown["payout"] = None                                      # the TBD card
+    unknown["foot"] = "<b>$7.33</b> bet by Noid &middot; Potential payout <b>TBD</b>"
+    FX["tickets"] = tickets("2026-09-19", [], cards=[known, unknown])
+    FX["previous"] = None
+    # A second, still-live game keeps the slate on the Today tab -- with every
+    # game Final it rolls to Yesterday and computeAll() never runs, which is
+    # what made the first draft of this test read $0.00.
+    FX["schedules"] = {"2026-09-19": schedule("2026-09-19", [(8001, "Final"), (8002, "Live")])}
+    FX["feeds"] = {8001: feed("Final", ["X Hit A", "X Hit B"], hrs=["X Hit A", "X Hit B"]),
+                   8002: feed("Live", ["X Bystander"])}
+    browser, page, errors = open_page(p, ET(2026, 9, 19, 23, 0))
+
+    assert page.evaluate("fmtMoney(null)") == "TBD", page.evaluate("fmtMoney(null)")
+    assert page.evaluate("fmtMoney(undefined)") == "TBD"
+    assert page.evaluate("fmtMoney(100)") == "$100.00"
+    print("X1 OK: fmtMoney renders an unknown payout as TBD instead of throwing")
+
+    # Both cards cashed. The known one contributes 100.00; the TBD one must
+    # contribute nothing rather than making the whole total NaN.
+    total = text(page, "total-payout")
+    assert total == "$100.00", f"a null payout poisoned the slate total: {total}"
+    assert "NaN" not in total
+    print("X2 OK: a cashed bet with an unknown payout adds nothing, and doesn't NaN the total")
+
+    assert text(page, "count-parlay-hit") == "2", text(page, "count-parlay-hit")
+    assert "TBD" in page.inner_text("#content"), "the TBD card should still say so on screen"
+    print("X3 OK: the bet still counts as HIT and still shows, with TBD where its payout goes")
+    assert not errors, errors
+    browser.close()
+
 print("\nALL PAGE TESTS PASSED")

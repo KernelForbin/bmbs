@@ -49,6 +49,12 @@ def is_num(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
+def is_num_or_null(v):
+    """Payouts only. An unknown ("TBD") payout is stored as null -- see the
+    note at its call site. Everything else that must be a number uses is_num."""
+    return v is None or is_num(v)
+
+
 def has_keys(obj, required, label):
     missing = [k for k in required if k not in obj]
     return not missing, f"{label} missing {missing}" if missing else ""
@@ -93,8 +99,12 @@ def check_tickets_file(label, path, football=False):
             if not ok:
                 ticket_problems.append(why)
                 continue
-            if not (is_num(t["stake"]) and is_num(t["payout"])):
-                ticket_problems.append(f"{t.get('name')}: stake/payout not numeric")
+            # payout may be null: a card can list its potential payout as "TBD",
+            # and the parser stores that rather than inventing a number or
+            # dropping the bet. stake is always known -- you always know what
+            # you put down. fmtMoney() renders a null payout as "TBD".
+            if not is_num(t["stake"]) or not is_num_or_null(t["payout"]):
+                ticket_problems.append(f"{t.get('name')}: stake not numeric, or payout not numeric-or-null")
             if not isinstance(t["legs"], list) or not t["legs"]:
                 ticket_problems.append(f"{t.get('name')}: legs missing or empty")
                 continue
@@ -120,8 +130,8 @@ def check_tickets_file(label, path, football=False):
             continue
         if not ODDS_STR_RE.match(s["odds"]):
             single_problems.append(f"{s.get('player')}: odds {s['odds']!r} not [+-]NNN")
-        if not (is_num(s["stake"]) and is_num(s["payout"])):
-            single_problems.append(f"{s.get('player')}: stake/payout not numeric")
+        if not is_num(s["stake"]) or not is_num_or_null(s["payout"]):
+            single_problems.append(f"{s.get('player')}: stake not numeric, or payout not numeric-or-null")
         if s.get("market") not in (None, "sb"):
             single_problems.append(f"{s.get('player')}: unknown market {s.get('market')!r}")
     check(f"{label}: every single has the full shape and valid odds", not single_problems, "; ".join(single_problems[:3]))

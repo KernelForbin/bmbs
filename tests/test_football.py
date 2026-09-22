@@ -793,6 +793,16 @@ with sync_playwright() as p:
     check("P5 ...through each panel's own toggle, so the Live Drives preference is still persisted",
           page.evaluate("localStorage.getItem('bmbs.fb.drives.open')") == "1"
           and page.evaluate("localStorage.getItem('bmbs.fb.cards.parlays')") == "1")
+    # A payout can be UNKNOWN: a card may print "TBD", which the parser stores
+    # as null rather than inventing a number or dropping the bet. fmtMoney()
+    # used to throw on that, and a null added into the slate total poisoned it
+    # to NaN. Baseball's section X covers this end to end; football shares the
+    # code, so pin the behaviour here too.
+    check("P7 fmtMoney renders an unknown payout as TBD rather than throwing",
+          page.evaluate("fmtMoney(null)") == "TBD" and page.evaluate("fmtMoney(120.5)") == "$120.50",
+          str(page.evaluate("fmtMoney(null)")))
+    check("P8 the slate total never reads NaN",
+          "NaN" not in page.inner_text("#total-payout"), page.inner_text("#total-payout"))
     check("P6 no script errors", not errors, str(errors))
     browser.close()
 

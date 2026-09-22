@@ -94,6 +94,12 @@ anything:
    file's own comments. If it matches one of them, tighten it -- anchor it,
    forbid a leading `(`, require the exact separator -- or order your new
    branch AFTER the existing ones so they claim their lines first.
+1c. **An unknown payout is `null`, never a string and never a dropped bet.**
+   Cards sometimes print their potential payout as "TBD". Write `null` into
+   the numeric `payout` field (the site's schema check accepts numeric-or-null
+   there and renders null as "TBD"); put the word TBD only in the
+   human-readable `foot` string. Never write "TBD" into the numeric field,
+   never guess a number, and never silently omit the bet.
 2. **Never trust a header's own claimed leg count.** A ticket is a single
    vs. a parlay card purely by how many leg lines it actually has, decided
    after parsing all of them -- never by a number printed in the header.

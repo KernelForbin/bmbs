@@ -93,15 +93,39 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   (+ODDS) (Bettor)`" legs (2026-09-20). All four parse from the same input,
   decided purely by which regex a line matches, and a ticket is a single vs.
   a parlay card by its actual leg count, never by which header/window it
-  sits under. **The emoji-ticket header is a trap for `section_header()`:**
+  sits under. A **fifth** template arrived 2026-09-22 and is the first one no
+  human wrote support for -- the auto-fixer read it, patched this file, passed
+  the whole suite and re-parsed the card itself (fixture
+  `tests/fixtures/discord_parlay_window_format.txt`, assertions in
+  `test_parser.py` section 11): `🕒 <Name> Window (...)` section headers, bare
+  `Parlay N (Bettor)` / `Ticket N (Bettor)` ticket headers whose `(Bettor)` is
+  the ticket OWNER (legs carry their own separate `(Who)`), legs written
+  `* Player (+ODDS) (Who) – TIME ET` with an EN-DASH where templates three and
+  four use a hyphen, closed by `* Wager: $X | Payout: $Y`.
+  **Two known defects in that auto-written support, both in its "Bonus Bets
+  Tracker" section and both pinned as current behaviour rather than blessed:**
+  (a) its legs read `* Francher-Harper (+540)` -- a BETTOR-PLAYER pair, not a
+  player name -- and the whole string is kept as the player, so those six legs
+  resolve to nothing, carry a blank team and can never grade either way (the
+  Tatis Jr. failure mode). Splitting the prefix off is an open decision,
+  because the surnames left over (`Vargas`, `Karros`) are ambiguous and this
+  repo does not auto-resolve ambiguous shorthand. (b) `🎟️ Bonus Bets Tracker`
+  does not open a section -- `WINDOW_HEADER_RE` wants the literal word
+  "Window" -- so those tickets are filed under the preceding 10:10 PM window
+  and the page shows them under a time they have nothing to do with.
+  **The emoji-ticket header is a trap for `section_header()`:**
   "🎰 Ticket #1 (3-Leg Parlay)" contains the literal substring "3-Leg Parlay",
   which `PARLAY_HEADER_RE` matches, so every one of its headers was first
   misread as a brand-new section -- same class of collision football's own
   third template hit the same day (see its entry below), needing the same
   exclusion-guard fix. **If a new upload parses to zero again, that's a
-  fifth template, not a regression** — check the Action's run log for
-  `WARNING: parsed nothing`, get the raw text, and add support the same way
-  (`tests/test_parser.py` has a fixture + assertions per template).
+  SIXTH template, not a regression** — and as of 2026-09-22 the first response
+  is to let the auto-fixer try it (it handled the fifth unaided), not to hand-
+  write the regex. Either way: check the Action's run log for `WARNING: parsed
+  nothing`, get the raw text, and add a fixture + assertions
+  (`tests/test_parser.py` has one per template — including for what the fixer
+  writes, which is reviewed like any other patch, not trusted because it
+  passed).
 - **`history/index.html`** — the standalone History page at `/history/`
   (see "History page" below). Own inline CSS/JS; shares nothing with
   `index.html` except one footer link each way.
@@ -1530,6 +1554,20 @@ was found by that one incident. Read it before touching any of this.
   suite passed, the upload parsed, and the workflow committed it. The schema
   error is now fed back to the model as retry feedback, so it can correct its
   own output instead of needing a human.
+- **The push-retry rebased onto a hardcoded `main` too,** and that only became
+  reachable once the checkout stopped doing the same thing -- before that the
+  job always ran on main, where the literal happened to be right. On a test
+  branch whose head had moved mid-run, the rejected push retried with
+  `git pull --rebase origin main`, tried to replay the entire branch onto main,
+  and hit add/add conflicts in all thirteen files the branch introduced. A
+  fix that had passed every gate -- new template read, patch written, full
+  suite green, real upload re-parsed, commit made -- was thrown away at the
+  last step. It now rebases onto the branch it actually checked out. The other
+  three workflows keep the literal `main` deliberately, since they only ever
+  run there; `test_workflow_yaml.py` F6/F7 pin both sides so nobody
+  "harmonizes" them. F6 strips comment lines before its negative grep, because
+  the fix's own comment quotes the bad command to explain it -- the same trap
+  `FEED_FIELDS`' extractor hit, and it caught F6 on its first run.
 
 **Needs `ANTHROPIC_API_KEY` (a GitHub Actions secret) to actually run.**
 Without it, `auto_fix_parser.py` short-circuits to `resolved=no` on the

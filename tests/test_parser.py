@@ -328,4 +328,89 @@ assert okamoto["player"] == "K. Okamoto" and okamoto["team"] == "TOR", okamoto
 assert pp.parse.unread == [], pp.parse.unread
 print("OK: fourth template (emoji \"Ticket #N (M-Leg Parlay)\" / \"Bonus Ticket\") parses all 8 tickets (20 legs)")
 
+# --- 11. FIFTH template: "🕒 <Name> Window (...)" section headers, bare
+# "Parlay N (Bettor)" / "Ticket N (Bettor)" ticket headers, legs written
+# "* Player (+ODDS) (Who) – TIME ET" (EN-DASH before the time, where the third
+# and fourth templates use a hyphen), closed by "* Wager: $X | Payout: $Y".
+#
+# This is the real 2026-09-22 Discord upload, and it is the first template this
+# repo did not hand-write support for: the automatic fixer read it, patched the
+# parser, passed this whole suite and re-parsed the card on its own. The fixture
+# is the raw upload the workflow archived, renamed. Two traps it had to clear,
+# both of which have bitten a human here before:
+#   * "Parlay 1 (Memo)" contains the word "Parlay", so PARLAY_HEADER_RE claims
+#     it and section_header() would call every ticket header a new SECTION --
+#     the same collision the emoji template hit. Four windows, not thirteen, is
+#     the regression check.
+#   * the new leg regexes are reachable only while a "Parlay N (...)" ticket is
+#     open, so a lazy (.+?) in them cannot eat an older template's leg lines.
+#     The four fixtures above re-parsing unchanged is what proves that.
+parlay_text = (REPO / "tests" / "fixtures" / "discord_parlay_window_format.txt").read_text(encoding="utf-8")
+p_windows, p_singles, _ = pp.parse(parlay_text, team_by_name, canon)
+assert len(p_windows) == 4, [w["title"] for w in p_windows]
+assert [w["title"] for w in p_windows] == [
+    "🕒 Early Window (6:35 PM – 6:40 PM ET)",
+    "🕒 Prime Window (7:15 PM ET)",
+    "🕒 Night Window (8:05 PM – 9:40 PM ET)",
+    "🕒 Late Night Window (10:10 PM ET)"], [w["title"] for w in p_windows]
+# ...and note what is MISSING from that list: the card's own fifth heading,
+# "🎟️ Bonus Bets Tracker", did not open a section, so its two tickets are
+# filed under Late Night Window (10:10 PM ET) instead -- a heading the page
+# will show above bets that have nothing to do with 10:10 PM. WINDOW_HEADER_RE
+# only recognises a heading containing the literal word "Window", and
+# section_header() rejects anything without odds or an N-Leg/Singles phrase.
+# Pinned as current behaviour so the grouping can't drift further unnoticed;
+# it is a known defect, not the intended result.
+assert [len(c["legs"]) for c in p_windows[3]["tickets"]] == [2, 3, 3], \
+    "the two bonus tickets land in the last time window rather than their own section"
+assert p_singles == [], "every ticket on this card has 2+ legs; none is a single"
+assert [len(c["legs"]) for w in p_windows for c in w["tickets"]] == [2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3], \
+    [len(c["legs"]) for w in p_windows for c in w["tickets"]]
+
+# The header's "(Bettor)" is the ticket OWNER (-> book), and each leg carries
+# its own separate "(Who)" -- they differ, and conflating them would misreport
+# the Bettor Tracker for the whole card.
+p1 = p_windows[0]["tickets"][0]
+assert (p1["stake"], p1["payout"], p1["book"]) == (7.33, 310.28, "Memo"), p1
+assert [(l["player"], l["team"], l["odds"], l["who"], l["time"]) for l in p1["legs"]] == [
+    ("Bo Bichette", "NYM", "+730", "Noid", "6:35 PM ET"),
+    ("James Wood", "WSH", "+420", "Francher", "6:40 PM ET")], p1["legs"]
+assert p1["book"] != p1["legs"][0]["who"], "ticket owner and leg bettor are different fields"
+
+# An accented name and a generational suffix both survive the round trip --
+# MLB's own feed writes them, so stripping either here would make the leg
+# ungradeable (the Tatis Jr. incident).
+accented = p_windows[1]["tickets"][1]["legs"][1]
+assert accented["player"] == "Ronald Acuña Jr." and accented["team"] == "ATL", accented
+tatis = p_windows[3]["tickets"][0]["legs"][1]
+assert tatis["player"] == "Fernando Tatis Jr." and tatis["team"] == "SD", tatis
+
+# The "Bonus Bets Tracker" tickets are shaped differently -- their legs read
+# "* Francher-Harper (+540)": no time, and the text before the odds is a
+# BETTOR-PLAYER pair, not a player name. The parser currently keeps that whole
+# string as the player, which resolves to nothing and leaves the team blank.
+# Pinned as the CURRENT behaviour, deliberately not blessed as correct: the
+# six legs it produces cannot grade, and splitting the bettor prefix off is an
+# open question (the surnames left over -- "Vargas", "Karros" -- are ambiguous,
+# and this repo does not auto-resolve ambiguous shorthand). If that decision
+# gets made, this block is what changes.
+bonus_w = p_windows[3]  # see above: they are NOT in a section of their own
+b10, b11 = bonus_w["tickets"][1:]
+assert (b10["stake"], b10["payout"], b10["book"]) == (3.0, 1039.18, "Memo"), b10
+assert (b11["stake"], b11["payout"], b11["book"]) == (3.0, 609.84, "Kenny"), b11
+assert [l["player"] for l in b10["legs"]] == ["Francher-Harper", "Noid-Karros", "Memo-Merrill"]
+assert all(l["team"] == "" for l in b10["legs"] + b11["legs"]), \
+    "unresolved names keep a BLANK team rather than a guessed one"
+assert all(l["time"] == "" for l in b10["legs"]), "bonus legs carry no start time"
+
+# A thousands separator in the payout ("$1,039.18") reaches clean_num intact.
+assert b10["payout"] == 1039.18
+
+# Every earlier fixture must still parse EXACTLY as it did before this template
+# existed -- the whole point of rule 1b. (Section 7 already re-parses them for
+# the market default; this repeats it after the fifth template is in play.)
+for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text, emoji_text):
+    pp.parse(fixture_text, team_by_name, canon)
+print("OK: fifth template (\"Parlay N (Bettor)\" under \"Window\" headers) parses 11 tickets (24 legs)")
+
 print("\nALL PARSER TESTS PASSED")

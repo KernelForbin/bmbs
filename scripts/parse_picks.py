@@ -185,33 +185,6 @@ EMOJI_BOOK_RE = re.compile(r"^Bet:\s*\$([\d,.]+)\s*\(([A-Za-z]+)\)\s*\|\s*PP:\s*
 EMOJI_LEG_RE = re.compile(
     BULLET + r"(.+?)\s*\(([A-Z]{2,4})\)\s*-\s*([\d: ]*[AP]M\s*ET)\s*\(([+-]\d+)\)\s*\(([^)]+)\)\s*$", re.IGNORECASE)
 
-# ---- fifth raw-text template: "Parlay N (Bettor)" header, no leg count
-# suffix and no odds-in-parens-in-the-header collision with PARLAY_HEADER_RE
-# (that regex needs an explicit "N-Leg"/"N-MAN" phrase, which "Parlay 1
-# (Memo)" doesn't have, so it's never misread as a section header -- see
-# section_header() below, which still special-cases it defensively same as
-# the emoji-ticket header). Legs give NO team code at all, just
-# "* Player (+ODDS) (Bettor) – TIME ET" (an en dash before the time, not a
-# hyphen), and the ticket is closed by an inline bullet line
-# "* Wager: $X | Payout: $Y" -- payout is sometimes literally "TBD" rather
-# than a number, which is kept as a string, not a float. First seen
-# 2026-09-23 (a real Discord upload, windowed by time-of-day rather than by
-# "Part N:", e.g. "🕒 Early Window (6:35 PM – 6:40 PM ET)"). A "Bonus Bets
-# Tracker" section at the end reuses the exact same Parlay/Ticket header and
-# footer shape but its legs are "Bettor-Player (+ODDS)" with no time and no
-# per-leg bettor parens -- PARLAY_DASH_LEG_RE's trailing time group is made
-# optional and its own leading "(Bettor)" group made optional to cover both,
-# and TICKET_HASH_LEG_RE / TICKET_PROP_LEG_RE don't apply here since those
-# require a team code or a spelled-out market this template never gives.
-PARLAY_DASH_START_RE = re.compile(r"^(?:Parlay|Ticket)\s+(\d+)\s*\(([A-Za-z]+)\)\s*$", re.IGNORECASE)
-PARLAY_DASH_LEG_RE = re.compile(
-    BULLET + r"(?:\(([^)]+)\)\s*)?([^()]+?)\s*\(([+-]\d+)\)\s*(?:\(([^)]+)\)\s*)?"
-    r"(?:[\u2013\u2014-]\s*([\d: ]*[AP]M\s*ET))?\s*$", re.IGNORECASE
-)
-PARLAY_DASH_FOOT_RE = re.compile(
-    BULLET + r"Wager:\s*\$([\d,.]+)\s*\|\s*Payout:\s*(\$?[\d,.]+|TBD)\s*$", re.IGNORECASE
-)
-
 
 # ---- bet markets: home runs (the default) and stolen bases ----
 # A leg is a home run bet unless the card says otherwise. This matcher predates
@@ -262,17 +235,6 @@ def clean_num(s):
     return float(s.replace(",", "").replace("$", "").strip())
 
 
-def clean_payout(s):
-    """Like clean_num(), but a payout can legitimately be free text ("TBD")
-    instead of a number -- a parlay whose outcome isn't decided yet. Stored
-    as typed (a string) rather than rejected or crashed on; numeric payouts
-    still come back as floats exactly as before."""
-    s = s.strip()
-    if re.fullmatch(r"\$?[\d,.]+", s):
-        return clean_num(s)
-    return s
-
-
 def load_roster():
     if not ROSTER_PATH.exists():
         return {}, {}
@@ -287,12 +249,8 @@ def section_header(line):
     # "🎰 Ticket #1 (3-Leg Parlay)" would too -- it contains the literal
     # substring "3-Leg Parlay", which PARLAY_HEADER_RE below matches, so every
     # emoji-ticket header was misread as a brand new section before
-    # EMOJI_TICKET_START_RE ever got a look at it. "Parlay 1 (Memo)" and
-    # "Ticket 10 (Memo)" (fifth template) don't contain an "N-Leg"/"N-MAN"
-    # phrase so PARLAY_HEADER_RE never fires on them, but they're excluded
-    # here too defensively, the same way the emoji header is.
-    if (CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text)
-            or EMOJI_TICKET_START_RE.match(text) or PARLAY_DASH_START_RE.match(text)):
+    # EMOJI_TICKET_START_RE ever got a look at it.
+    if CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text) or EMOJI_TICKET_START_RE.match(text):
         return None
     if SINGLES_HEADER_RE.search(text) or PARLAY_HEADER_RE.search(text):
         return text
@@ -376,9 +334,6 @@ def parse(text, team_by_name, canonical_by_norm):
     ticket_windows_by_title = {}
     current_ticket = None  # {"_legs": [(time, player, team, odds, who), ...]}
 
-    # ---- state for the "Parlay N (Bettor)" template (see PARLAY_DASH_START_RE) ----
-    current_dash_ticket = None  # {"_num", "_book", "_legs": [(player, odds, who, time, mkt)]}
-
     def flush_card():
         nonlocal current_card
         if current_card and current_card["_legs"]:
@@ -390,12 +345,6 @@ def parse(text, team_by_name, canonical_by_norm):
         if current_ticket is not None:
             finalize_ticket(current_ticket, current_ticket["_num"])
             current_ticket = None
-
-    def flush_dash_ticket():
-        nonlocal current_dash_ticket
-        if current_dash_ticket is not None:
-            finalize_dash_ticket(current_dash_ticket)
-            current_dash_ticket = None
 
     def windows_append_card(card):
         current_section["tickets"].append(card)
@@ -437,36 +386,6 @@ def parse(text, team_by_name, canonical_by_norm):
                     "_origPayout": ticket["_pp"], "_legs": legs}
             ticket_window(last_header_title)["tickets"].append(card)
 
-    def finalize_dash_ticket(ticket):
-        legs_raw = ticket["_legs"]
-        if not legs_raw or ticket["_stake"] is None:
-            return  # no footer line reached (e.g. file cut off) -- drop, don't guess
-        if len(legs_raw) == 1:
-            player_raw, odds, who, time_, mkt = legs_raw[0]
-            canon_name, team = resolve_player(player_raw, team_by_name, canonical_by_norm)
-            singles.append({
-                "who": (who or ticket["_book"] or "").strip().upper(),
-                "player": canon_name,
-                "team": team,
-                "odds": odds,
-                "market": mkt,
-                "matchup": "",
-                "time": (time_ or "").strip(),
-                "stake": ticket["_stake"],
-                "pp": ticket["_pp"],
-            })
-        else:
-            legs = []
-            for player_raw, odds, who, time_, mkt in legs_raw:
-                canon_name, team = resolve_player(player_raw, team_by_name, canonical_by_norm)
-                legs.append({"player": canon_name, "odds": odds,
-                             "who": (who or ticket["_book"] or "").strip(), "market": mkt,
-                             "team": team, "time": (time_ or "").strip()})
-            card = {"name": f"Card {ticket['_num']}", "sub": "", "tag": None,
-                    "_stake": ticket["_stake"], "_book": ticket["_book"],
-                    "_origPayout": ticket["_pp"], "_legs": legs}
-            ticket_window(last_header_title)["tickets"].append(card)
-
     for raw in lines:
         original = raw.strip()
         if not original or re.fullmatch(r"[-=]{3,}", original):
@@ -479,7 +398,6 @@ def parse(text, team_by_name, canonical_by_norm):
         if header_text is not None:
             flush_card()
             flush_ticket()
-            flush_dash_ticket()
             section_sb, ticket_sb = sb_here, False
             last_header_title = header_text
             if SINGLES_HEADER_RE.search(header_text):
@@ -496,7 +414,6 @@ def parse(text, team_by_name, canonical_by_norm):
         if PART_HEADER_RE.match(original):
             flush_card()
             flush_ticket()
-            flush_dash_ticket()
             section_sb, ticket_sb = sb_here, False
             last_header_title = original
             mode = None
@@ -531,20 +448,6 @@ def parse(text, team_by_name, canonical_by_norm):
             # (EMOJI_BOOK_RE below), never inline with the header.
             current_ticket = {"_num": emoji_start.group(1) or "Bonus",
                                "_legs": [], "_book": None, "_stake": None, "_pp": None}
-            continue
-
-        # "Parlay N (Bettor)" / "Ticket N (Bettor)" header (fifth template).
-        # Tried after TICKET_START_RE/TICKET_HASH_START_RE/EMOJI_TICKET_START_RE
-        # so their own "Ticket ..." shapes (which require a colon, a "#", or an
-        # emoji+leg-count) claim their lines first; PARLAY_DASH_START_RE only
-        # matches the bare "N (Bettor)" shape those don't cover.
-        dash_start = PARLAY_DASH_START_RE.match(line)
-        if dash_start and current_ticket is None:
-            flush_dash_ticket()
-            ticket_sb = sb_here
-            num, book = dash_start.groups()
-            current_dash_ticket = {"_num": num, "_book": book, "_legs": [],
-                                    "_stake": None, "_pp": None}
             continue
 
         if current_ticket is not None:
@@ -586,24 +489,6 @@ def parse(text, team_by_name, canonical_by_norm):
             if hash_leg:
                 who, player_raw, team_raw, odds, time_ = hash_leg.groups()
                 current_ticket["_legs"].append((time_, player_raw, team_raw, odds, who, market_for(sb_here)))
-                continue
-
-        if current_dash_ticket is not None:
-            dash_foot = PARLAY_DASH_FOOT_RE.match(line)
-            if dash_foot:
-                stake, payout = dash_foot.groups()
-                current_dash_ticket["_stake"] = clean_num(stake)
-                current_dash_ticket["_pp"] = clean_payout(payout)
-                flush_dash_ticket()
-                continue
-            dash_leg = PARLAY_DASH_LEG_RE.match(line)
-            if dash_leg:
-                who, player_raw, odds, who2, time_ = dash_leg.groups()
-                # who can arrive from either the leading "(Bettor)" group or the
-                # trailing one (e.g. "(Noid)" after the odds) -- never both on
-                # this template, so whichever fired is the bettor.
-                bettor = who or who2 or ""
-                current_dash_ticket["_legs"].append((player_raw.strip(), odds, bettor, time_, market_for(sb_here)))
                 continue
 
         if mode == "parlay":
@@ -680,7 +565,6 @@ def parse(text, team_by_name, canonical_by_norm):
 
     flush_card()
     flush_ticket()
-    flush_dash_ticket()
 
     # Drop windows that ended up with nothing in them (e.g. a document title
     # line like "HOME RUN PARLAY CARD" that happens to look header-shaped).
@@ -707,10 +591,8 @@ def parse(text, team_by_name, canonical_by_norm):
                     legs[-1]["market"] = "sb"
             tag_html = f' &middot; {card["tag"]}' if card.get("tag") else ""
             sub_html = f' &middot; {card["sub"]}' if card.get("sub") else ""
-            payout = card["_origPayout"]
-            payout_html = f'${payout:,.2f}' if isinstance(payout, (int, float)) else str(payout)
             foot = (f'<b>${card["_stake"]:.2f}</b> bet by {card["_book"]} '
-                    f'&middot; Potential payout <b>{payout_html}</b>')
+                    f'&middot; Potential payout <b>${card["_origPayout"]:,.2f}</b>')
             out_tickets.append({
                 "name": f'{card["name"]}{sub_html}{tag_html}',
                 "sub": f'{len(legs)}-Leg',
@@ -725,8 +607,6 @@ def parse(text, team_by_name, canonical_by_norm):
     out_singles = []
     for i, s in enumerate(singles):
         meta_parts = [p for p in [s["matchup"], s["time"], f'${s["stake"]:.2f} bet'] if p]
-        pp_val = s["pp"]
-        pp_html = f'PP ${pp_val:,.2f}' if isinstance(pp_val, (int, float)) else f'PP {pp_val}'
         out_singles.append({
             "id": f"single-{i}",
             "who": s["who"],
@@ -736,7 +616,7 @@ def parse(text, team_by_name, canonical_by_norm):
             "odds": s["odds"],
             "stake": s["stake"],
             "payout": s["pp"],
-            "pp": pp_html,
+            "pp": f'PP ${s["pp"]:,.2f}',
         })
         if s.get("market") == "sb":
             out_singles[-1]["market"] = "sb"

@@ -1,51 +1,74 @@
-🎰 Ticket #1 (3-Leg Parlay)
-Bet: $4.00 (Memo) | PP: $283.50
+🕒 Early Window (6:35 PM – 6:40 PM ET)
 
-• Michael Busch (CHC) - 1:40 PM ET (+360) (Noid)
-• Kyle Schwarber (PHI) - 1:10 PM ET (+240) (Joe)
-• Junior Caminero (TB) - 1:40 PM ET (+341) (Kevin)
+Parlay 1 (Memo)
+* Bo Bichette (+730) (Noid) – 6:35 PM ET
+* James Wood (+420) (Francher) – 6:40 PM ET
+* Wager: $7.33 | Payout: $310.28
 
-⚾ Ticket #2
-Bet: $8.50 (Memo) | PP: $320.96
+Parlay 2 (Noid)
+* Oneil Cruz (+650) (Noid) – 6:40 PM ET
+* Jackson Chourio (+570) (Francher) – 6:40 PM ET
+* Wager: $7.33 | Payout: TBD
 
-• Ketel Marte (ARI) - 4:10 PM ET (+550) (Kevin)
-• Gunnar Henderson (BAL) - 7:20 PM ET (+520) (Joe)
+Parlay 3 (Memo)
+* Jordan Walker (+590) (Francher) – 6:40 PM ET
+* CJ Abrams (+570) (Memo) – 6:40 PM ET
+* Wager: $7.33 | Payout: $405.15
 
-⚾ Ticket #3
-Bet: $8.50 (Memo) | PP: $263.50
+-----------------------------------------
 
-• Jac Caglianone (KC) - 1:35 PM ET (+369) (Kenny)
-• Elly De La Cruz (CIN) - 1:40 PM ET (+400) (Memo)
+🕒 Prime Window (7:15 PM ET)
 
-⚾ Ticket #4
-Bet: $8.50 (Memo) | PP: $263.50
+Parlay 4 (Memo)
+* Sal Stewart (+438) (Kenny) – 7:15 PM ET
+* Matt Olson (+320) (Memo) – 7:15 PM ET
+* Wager: $7.33 | Payout: $123.25
 
-• Salvador Perez (KC) - 1:35 PM ET (+540) (Noid)
-• Spencer Torkelson (DET) - 2:10 PM ET (+406) (Kevin)
+Parlay 5 (Memo)
+* Elly De La Cruz (+400) (Memo) – 7:15 PM ET
+* Ronald Acuña Jr. (+350) (Bailey) – 7:15 PM ET
+* Wager: $7.33 | Payout: $128.89
 
-⚾ Ticket #5
-Bet: $8.50 (Memo) | PP: $322.66
+-----------------------------------------
 
-• Roman Anthony (BOS) - 1:40 PM ET (+630) (Noid)
-• Corey Seager (TEX) - 2:35 PM ET (+420) (Memo)
+🕒 Night Window (8:05 PM – 9:40 PM ET)
 
-⚾ Ticket #6
-Bet: $8.50 (Memo) | PP: $243.10
+Parlay 6 (Memo)
+* Carson Benge (+730) (Memo) – 8:05 PM ET
+* Hunter Goodman (+286) (Kenny) – 8:40 PM ET
+* Wager: $7.33 | Payout: $237.27
 
-• Matt Olson (ATL) - 2:10 PM ET (+430) (Joe)
-• Lazuro Montes (SEA) - 3:10 PM ET (+441) (Kenny)
+Parlay 7 (Memo)
+* Francisco Lindor (+400) (Bailey) – 8:05 PM ET
+* Henry Bolte (+590) (Noid) – 9:40 PM ET
+* Wager: $7.33 | Payout: $247.83
 
-⚾ Ticket #7
-Bet: $8.50 (Memo) | PP: $163.20
+Parlay 8 (Memo)
+* Mike Trout (+348) (Kenny) – 9:40 PM ET
+* Zack Gelof (+420) (Memo) – 9:40 PM ET
+* Wager: $7.33 | Payout: $139.54
 
-• P. Crow-Armstrong (CHC) - 1:40 PM ET (+205) (Kenny)
-• Hao-Yu Lee (DET) - 2:10 PM ET (+540) (Memo)
+-----------------------------------------
 
-🔥 Bonus Ticket (5-Leg Parlay)
-Bet: $5.00 (Memo) | PP: $33,141.11
+🕒 Late Night Window (10:10 PM ET)
 
-• Alex Bregman (CHC) - 1:40 PM ET (+450) (Memo)
-• Riley Greene (DET) - 2:10 PM ET (+320) (Kenny)
-• K. Okamoto (TOR) - 2:35 PM ET (+420) (Kevin)
-• Cole Carrigg (COL) - 3:10 PM ET (+790) (Noid)
-• Corbin Carroll (ARI) - 4:10 PM ET (+520) (Joe)
+Parlay 9 (Memo)
+* Max Muncy (+350) (Bailey) – 10:10 PM ET
+* Fernando Tatis Jr. (+320) (Memo) – 10:10 PM ET
+* Wager: $7.33 | Payout: $119.60
+
+-----------------------------------------
+
+🎟️ Bonus Bets Tracker
+
+Ticket 10 (Memo)
+* Francher-Harper (+540)
+* Noid-Karros (+820)
+* Memo-Merrill (+490)
+* Wager: $3.00 | Payout: $1,039.18
+
+Ticket 11 (Kenny)
+* Bailey-Julio Rodriguez (+425)
+* Memo-Arozorena (+470)
+* Kenny-Vargas (+433)
+* Wager: $3.00 | Payout: $609.84

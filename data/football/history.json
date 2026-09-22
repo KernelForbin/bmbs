@@ -1,8 +1,18 @@
 {
   "sport": "football",
-  "firstSlate": null,
-  "lastSlate": null,
-  "recordedFrom": null,
-  "weeks": [],
-  "parlays": []
+  "firstSlate": "2026-09-20",
+  "lastSlate": "2026-09-20",
+  "recordedFrom": "2026-09-20",
+  "weeks": [
+    {"week":"2026-09-22","date":"2026-09-20","endDate":"2026-09-21","ourTouchdowns":9,"leagueTouchdowns":58}
+  ],
+  "parlays": [
+    {"date":"2026-09-20","week":"2026-09-22","set":1,"src":"site","legs":[{"bettor":"Kenny","pick":"Derrick Henry","odds":-260,"status":"hit","team":"BAL","tds":1,"yards":1},{"bettor":"Bernie","pick":"Christian McCaffrey","odds":-250,"status":"hit","team":"SF","tds":2,"yards":1},{"bettor":"Kenny","pick":"Kenneth Walker III","odds":-225,"status":"miss","team":"KC"},{"bettor":"Bernie","pick":"Bijan Robinson","odds":-180,"status":"miss","team":"ATL"},{"bettor":"Kenny","pick":"D'Andre Swift","odds":-150,"status":"miss","team":"CHI"}],"name":"Card 1","book":"Memo","stake":8.5,"payout":95.66,"returned":0.0},
+    {"date":"2026-09-20","week":"2026-09-22","set":1,"src":"site","legs":[{"bettor":"Memo","pick":"Saquon Barkley","odds":-105,"status":"miss","team":"PHI"},{"bettor":"Bernie","pick":"Ashton Jeanty","odds":-105,"status":"miss","team":"LV"},{"bettor":"Bernie","pick":"Bucky Irving","odds":100,"status":"miss","team":"TB"},{"bettor":"Noid","pick":"Chase Brown","odds":120,"status":"miss","team":"CIN"}],"name":"Card 2","book":"Memo","stake":8.5,"payout":139.4,"returned":0.0},
+    {"date":"2026-09-20","week":"2026-09-22","set":1,"src":"site","legs":[{"bettor":"Joe","pick":"Jaxon Smith-Njigba","odds":135,"status":"hit","team":"SEA","tds":3,"yards":82},{"bettor":"Kenny","pick":"Malik Nabers","odds":150,"status":"miss","team":"NYG"},{"bettor":"Bernie","pick":"Justin Jefferson","odds":170,"status":"miss","team":"MIN"}],"name":"Card 3","book":"Memo","stake":8.5,"payout":159.89,"returned":0.0},
+    {"date":"2026-09-20","week":"2026-09-22","set":1,"src":"site","legs":[{"bettor":"Noid","pick":"Travis Etienne Jr.","odds":185,"status":"miss","team":"NO"},{"bettor":"Memo","pick":"Terry McLaurin","odds":195,"status":"miss","team":"WSH"}],"name":"Card 4","book":"Memo","stake":8.5,"payout":72.68,"returned":0.0},
+    {"date":"2026-09-20","week":"2026-09-22","set":1,"src":"site","legs":[{"bettor":"Joe","pick":"Garrett Wilson","odds":200,"status":"hit","team":"NYJ","tds":1,"yards":5},{"bettor":"Noid","pick":"Trey McBride","odds":200,"status":"hit","team":"ARI","tds":1,"yards":2}],"name":"Card 5","book":"Kenny","stake":8.5,"payout":104.8,"returned":104.8,"won":104.8},
+    {"date":"2026-09-20","week":"2026-09-22","set":1,"src":"site","legs":[{"bettor":"Joe","pick":"Chris Olave","odds":210,"status":"hit","team":"NO","tds":1,"yards":21},{"bettor":"Joe","pick":"Chris Godwin Jr.","odds":210,"status":"miss","team":"TB"}],"name":"Card 6","book":"Memo","stake":8.5,"payout":89.59,"returned":0.0},
+    {"date":"2026-09-20","week":"2026-09-22","set":1,"src":"site","legs":[{"bettor":"Noid","pick":"Golden","odds":240,"status":"dnp"},{"bettor":"Memo","pick":"Kaelon Black","odds":260,"status":"miss","team":"SF"}],"name":"Card 7","book":"Memo","stake":9.0,"payout":113.22,"returned":0.0}
+  ]
 }

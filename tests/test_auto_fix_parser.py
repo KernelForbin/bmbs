@@ -171,6 +171,20 @@ ok, detail = afp.attempt_fix("baseball", incoming, parser, "fake-key", fetcher=f
 check("C5 a network/API failure is caught, not raised -- ok=False, file untouched",
       not ok and parser.read_text(encoding="utf-8") == ORIGINAL_SOURCE and "network is down" in detail, detail)
 
+# C6-C8: a failed attempt must say what it TRIED, not just what broke. Without
+# this the run log shows a test name and nothing else, so nobody can tell
+# whether the model was close or wildly off without an API key and a local
+# reproduction. Found the hard way on 2026-09-22.
+afp.run_full_suite = lambda: (False, "test_parser.py failed")
+afp.verify_fix = lambda p, i: (True, "")
+ok, detail = afp.attempt_fix("baseball", incoming, parser, "fake-key", fetcher=fetcher_returning(ENVELOPE))
+check("C6 a suite failure reports the model's own summary of what it did",
+      "the model said:" in detail, detail[:200])
+check("C7 ...and a unified diff of the patch it proposed",
+      "what the model changed:" in detail and "parser (model's patch)" in detail, detail[:300])
+check("C8 ...while still naming the test that failed",
+      "test_parser.py failed" in detail, detail[:200])
+
 afp.run_full_suite, afp.verify_fix = old_suite, old_verify
 
 

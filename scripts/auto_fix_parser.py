@@ -22,6 +22,7 @@ Writes GITHUB_OUTPUT keys `resolved` (yes/no) and `summary` (one line,
 used in the commit message and the Discord status edit).
 """
 import json
+import difflib
 import os
 import re
 import subprocess
@@ -244,6 +245,22 @@ def verify_fix(parser_path, incoming_path):
     return True, ""
 
 
+def patch_diff(original, proposed, limit=160):
+    """A unified diff of what the model actually changed.
+
+    Without this the run log shows only WHICH test failed, never what was
+    tried -- so a failed attempt is undebuggable after the fact and the next
+    person has to reproduce it by hand with an API key. The model's output is
+    untrusted text, but it only ever reaches a log line here."""
+    diff = list(difflib.unified_diff(
+        original.splitlines(), proposed.splitlines(),
+        fromfile="parser (before)", tofile="parser (model's patch)", lineterm="", n=2))
+    if not diff:
+        return "(the model returned the file unchanged)"
+    if len(diff) > limit:
+        diff = diff[:limit] + [f"... {len(diff) - limit} more diff lines truncated ..."]
+    return "\n".join(diff)
+
 def attempt_fix(sport, incoming_path, parser_path, api_key, retry_feedback=None, fetcher=None):
     """(ok, detail). On ok=True, the patched file is left in place (and the
     real tickets.json has been written by verify_fix's own parser run). On
@@ -266,15 +283,21 @@ def attempt_fix(sport, incoming_path, parser_path, api_key, retry_feedback=None,
 
     write(parser_path, new_source)
 
+    # Reported on failure so the run log shows what was attempted, not just
+    # what broke. Built before the file is reverted.
+    attempted = f"what the model changed:\n{patch_diff(original, new_source)}"
+    if summary:
+        attempted = f"the model said: {summary}\n\n{attempted}"
+
     passed, suite_detail = run_full_suite()
     if not passed:
         write(parser_path, original)
-        return False, f"the full test suite failed after the patch:\n{suite_detail}"
+        return False, f"the full test suite failed after the patch:\n{suite_detail}\n\n{attempted}"
 
     fixed, fix_detail = verify_fix(parser_path, incoming_path)
     if not fixed:
         write(parser_path, original)
-        return False, fix_detail
+        return False, f"{fix_detail}\n\n{attempted}"
 
     return True, summary
 

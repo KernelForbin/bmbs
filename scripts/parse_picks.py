@@ -185,6 +185,40 @@ EMOJI_BOOK_RE = re.compile(r"^Bet:\s*\$([\d,.]+)\s*\(([A-Za-z]+)\)\s*\|\s*PP:\s*
 EMOJI_LEG_RE = re.compile(
     BULLET + r"(.+?)\s*\(([A-Z]{2,4})\)\s*-\s*([\d: ]*[AP]M\s*ET)\s*\(([+-]\d+)\)\s*\(([^)]+)\)\s*$", re.IGNORECASE)
 
+# ---- fifth raw-text template: "Parlay N (Bettor)" / "Ticket N (Bettor)"
+# header naming the whole ticket's owner (NOT a per-leg bettor), legs of the
+# shape "Player (+ODDS) (Who) – TIME ET" (an en-dash before the time, not the
+# hyphen the third/fourth templates use), and a closing
+# "Wager: $X | Payout: $Y" line instead of a "Bet by"/"[PP: ...]" footer.
+# First seen 2026-09-21 under "🕒 <Name> Window (...)" section headers, e.g.:
+#     🕒 Early Window (6:35 PM – 6:40 PM ET)
+#     Parlay 1 (Memo)
+#     * Bo Bichette (+730) (Noid) – 6:35 PM ET
+#     * James Wood (+420) (Francher) – 6:40 PM ET
+#     * Wager: $7.33 | Payout: $310.28
+# Also covers the "Bonus Bets Tracker" section's "Ticket N (Bettor)" tickets,
+# whose legs have no player/team at all -- just two bettor names joined by a
+# dash, e.g. "* Francher-Harper (+540)" -- so the leg's "player" is stored
+# as-typed (resolve_player() will fail to match it and NOTE that, same as any
+# other unresolvable name) and there's no time on those legs.
+# The header's own "(Bettor)" is the ticket owner, used as the leg's "who"
+# fallback ONLY when a leg doesn't carry its own trailing "(Who)".
+WINDOW_HEADER_RE = re.compile(r"^\W*\s*.+?\s+Window\s*\(.+\)\s*$", re.IGNORECASE)
+PARLAY_START_RE = re.compile(r"^(?:Parlay|Ticket)\s+(\d+)\s*\(([A-Za-z]+)\)\s*$", re.IGNORECASE)
+# Player leg: "Bo Bichette (+730) (Noid) – 6:35 PM ET" -- requires the
+# trailing en/em-dash + TIME ET so it can't be confused with the two-name
+# bonus-tracker leg below (which has no time at all).
+PARLAY_LEG_RE = re.compile(
+    BULLET + r"(.+?)\s*\(([+-]\d+)\)\s*(?:\(([^)]+)\)\s*)?[\u2013\u2014-]\s*([\d: ]*[AP]M\s*ET)\s*$", re.IGNORECASE
+)
+# Bonus-tracker leg: "Francher-Harper (+540)" -- two bettor names joined by a
+# plain hyphen, no time, no separate "(Who)". Anchored with $ and no dash-time
+# tail so it never eats a PARLAY_LEG_RE line.
+PARLAY_BONUS_LEG_RE = re.compile(BULLET + r"([A-Za-z]+-[A-Za-z .]+?)\s*\(([+-]\d+)\)\s*$", re.IGNORECASE)
+PARLAY_FOOT_RE = re.compile(
+    BULLET + r"Wager:\s*\$([\d,.]+)\s*\|\s*Payout:\s*\$?([\d,.]+)\s*$", re.IGNORECASE
+)
+
 
 # ---- bet markets: home runs (the default) and stolen bases ----
 # A leg is a home run bet unless the card says otherwise. This matcher predates
@@ -249,8 +283,11 @@ def section_header(line):
     # "🎰 Ticket #1 (3-Leg Parlay)" would too -- it contains the literal
     # substring "3-Leg Parlay", which PARLAY_HEADER_RE below matches, so every
     # emoji-ticket header was misread as a brand new section before
-    # EMOJI_TICKET_START_RE ever got a look at it.
-    if CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text) or EMOJI_TICKET_START_RE.match(text):
+    # EMOJI_TICKET_START_RE ever got a look at it. Same story for
+    # "Parlay 1 (Memo)" against PARLAY_START_RE below -- it contains the word
+    # "Parlay" but is a ticket header, not a section header.
+    if (CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text)
+            or EMOJI_TICKET_START_RE.match(text) or PARLAY_START_RE.match(text)):
         return None
     if SINGLES_HEADER_RE.search(text) or PARLAY_HEADER_RE.search(text):
         return text
@@ -334,6 +371,9 @@ def parse(text, team_by_name, canonical_by_norm):
     ticket_windows_by_title = {}
     current_ticket = None  # {"_legs": [(time, player, team, odds, who), ...]}
 
+    # ---- state for the "Parlay N (Bettor)" template (see PARLAY_START_RE) ----
+    current_parlay = None  # {"_num": ..., "_who": bettor, "_legs": [...], "_stake": None, "_pp": None}
+
     def flush_card():
         nonlocal current_card
         if current_card and current_card["_legs"]:
@@ -345,6 +385,12 @@ def parse(text, team_by_name, canonical_by_norm):
         if current_ticket is not None:
             finalize_ticket(current_ticket, current_ticket["_num"])
             current_ticket = None
+
+    def flush_parlay():
+        nonlocal current_parlay
+        if current_parlay is not None:
+            finalize_parlay(current_parlay)
+            current_parlay = None
 
     def windows_append_card(card):
         current_section["tickets"].append(card)
@@ -386,6 +432,41 @@ def parse(text, team_by_name, canonical_by_norm):
                     "_origPayout": ticket["_pp"], "_legs": legs}
             ticket_window(last_header_title)["tickets"].append(card)
 
+    def finalize_parlay(ticket):
+        legs_raw = ticket["_legs"]
+        if not legs_raw:
+            return  # no legs at all -- nothing to report
+        # A "Wager"/"Payout" line is required for the third+ templates but
+        # this one always prints one right after its legs; if it's missing
+        # (truncated paste) the payout is unknown, not guessed -- see rule 1c.
+        stake = ticket["_stake"]
+        pp = ticket["_pp"] if ticket["_pp"] is not None else None
+        if len(legs_raw) == 1:
+            time_, player_raw, who, odds, mkt = legs_raw[0]
+            canon_name, team = resolve_player(player_raw, team_by_name, canonical_by_norm)
+            singles.append({
+                "who": (who or ticket["_who"]).strip().upper(),
+                "player": canon_name,
+                "team": team,
+                "odds": odds,
+                "market": mkt,
+                "matchup": "",
+                "time": time_.strip(),
+                "stake": stake,
+                "pp": pp,
+            })
+        else:
+            legs = []
+            for time_, player_raw, who, odds, mkt in legs_raw:
+                canon_name, team = resolve_player(player_raw, team_by_name, canonical_by_norm)
+                legs.append({"player": canon_name, "odds": odds,
+                             "who": (who or ticket["_who"]).strip(), "market": mkt,
+                             "team": team, "time": time_.strip()})
+            card = {"name": f'Card {ticket["_num"]}', "sub": "", "tag": None,
+                    "_stake": stake, "_book": ticket["_who"],
+                    "_origPayout": pp, "_legs": legs}
+            ticket_window(last_header_title)["tickets"].append(card)
+
     for raw in lines:
         original = raw.strip()
         if not original or re.fullmatch(r"[-=]{3,}", original):
@@ -398,6 +479,7 @@ def parse(text, team_by_name, canonical_by_norm):
         if header_text is not None:
             flush_card()
             flush_ticket()
+            flush_parlay()
             section_sb, ticket_sb = sb_here, False
             last_header_title = header_text
             if SINGLES_HEADER_RE.search(header_text):
@@ -411,14 +493,42 @@ def parse(text, team_by_name, canonical_by_norm):
                 mode = None
             continue
 
-        if PART_HEADER_RE.match(original):
+        if PART_HEADER_RE.match(original) or WINDOW_HEADER_RE.match(original):
             flush_card()
             flush_ticket()
+            flush_parlay()
             section_sb, ticket_sb = sb_here, False
             last_header_title = original
             mode = None
             current_section = None
             continue
+
+        parlay_start = PARLAY_START_RE.match(line)
+        if parlay_start:
+            flush_parlay()
+            ticket_sb = sb_here
+            num, who = parlay_start.groups()
+            current_parlay = {"_num": num, "_who": who, "_legs": [], "_stake": None, "_pp": None}
+            continue
+
+        if current_parlay is not None:
+            foot = PARLAY_FOOT_RE.match(line)
+            if foot:
+                stake, pp = foot.groups()
+                current_parlay["_stake"] = clean_num(stake)
+                current_parlay["_pp"] = clean_num(pp)
+                flush_parlay()
+                continue
+            leg = PARLAY_LEG_RE.match(line)
+            if leg:
+                player_raw, odds, who, time_ = leg.groups()
+                current_parlay["_legs"].append((time_, player_raw, who or "", odds, market_for(sb_here)))
+                continue
+            bonus_leg = PARLAY_BONUS_LEG_RE.match(line)
+            if bonus_leg:
+                player_raw, odds = bonus_leg.groups()
+                current_parlay["_legs"].append(("", player_raw, "", odds, market_for(sb_here)))
+                continue
 
         ticket_start = TICKET_START_RE.match(line)
         if ticket_start:
@@ -565,6 +675,7 @@ def parse(text, team_by_name, canonical_by_norm):
 
     flush_card()
     flush_ticket()
+    flush_parlay()
 
     # Drop windows that ended up with nothing in them (e.g. a document title
     # line like "HOME RUN PARLAY CARD" that happens to look header-shaped).
@@ -591,8 +702,12 @@ def parse(text, team_by_name, canonical_by_norm):
                     legs[-1]["market"] = "sb"
             tag_html = f' &middot; {card["tag"]}' if card.get("tag") else ""
             sub_html = f' &middot; {card["sub"]}' if card.get("sub") else ""
+            if card["_origPayout"] is None:
+                payout_str = "TBD"
+            else:
+                payout_str = f'${card["_origPayout"]:,.2f}'
             foot = (f'<b>${card["_stake"]:.2f}</b> bet by {card["_book"]} '
-                    f'&middot; Potential payout <b>${card["_origPayout"]:,.2f}</b>')
+                    f'&middot; Potential payout <b>{payout_str}</b>')
             out_tickets.append({
                 "name": f'{card["name"]}{sub_html}{tag_html}',
                 "sub": f'{len(legs)}-Leg',
@@ -607,6 +722,7 @@ def parse(text, team_by_name, canonical_by_norm):
     out_singles = []
     for i, s in enumerate(singles):
         meta_parts = [p for p in [s["matchup"], s["time"], f'${s["stake"]:.2f} bet'] if p]
+        pp_str = "PP TBD" if s["pp"] is None else f'PP ${s["pp"]:,.2f}'
         out_singles.append({
             "id": f"single-{i}",
             "who": s["who"],
@@ -616,7 +732,7 @@ def parse(text, team_by_name, canonical_by_norm):
             "odds": s["odds"],
             "stake": s["stake"],
             "payout": s["pp"],
-            "pp": f'PP ${s["pp"]:,.2f}',
+            "pp": pp_str,
         })
         if s.get("market") == "sb":
             out_singles[-1]["market"] = "sb"

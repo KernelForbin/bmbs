@@ -287,6 +287,27 @@ check("F5 the auto-fix workflow checks out the branch it was dispatched from, no
       "hardcoded main, so it can be proven end to end before merging",
       "github.event.workflow_run.head_branch" in af_text and "\n          ref: main" not in af_text)
 
+# F5's other half. The checkout follows the branch, so the push-retry has to as
+# well: a real run was rejected (the branch had moved), retried with
+# "git pull --rebase origin main", and tried to replay the whole test branch
+# onto main -- add/add conflicts in every file the branch introduced, and a
+# genuinely successful auto-fix was thrown away at the last step.
+# Strip comment lines first: the fix's own comment quotes the bad command to
+# explain it, and a naive negative grep matches that -- the same trap
+# FEED_FIELDS' extractor hit, caught here the same way.
+af_code = "\n".join(ln for ln in af_text.splitlines() if not ln.lstrip().startswith("#"))
+check("F6 the auto-fix workflow's push-retry rebases onto the branch it checked out, "
+      "not a hardcoded main",
+      "git pull --rebase origin \"$BRANCH\"" in af_code
+      and "git pull --rebase origin main" not in af_code)
+
+# The other three workflows only ever run on main (push-to-main / schedule), so
+# a literal main is correct there -- pinned so nobody "fixes" them to match.
+for wf_name in ("parse-picks.yml", "parse-football-picks.yml", "import-history.yml"):
+    body = (WORKFLOWS / wf_name).read_text(encoding="utf-8")
+    check(f"F7 {wf_name} still rebases onto main (it only ever runs there)",
+          "git pull --rebase origin main" in body)
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

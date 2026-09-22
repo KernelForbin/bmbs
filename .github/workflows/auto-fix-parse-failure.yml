@@ -112,6 +112,11 @@ jobs:
         run: |
           git config user.name "hr-checklist-bot"
           git config user.email "actions@users.noreply.github.com"
+          # Rebase onto whatever branch we actually checked out, NOT a hardcoded
+          # main: the checkout above follows workflow_run.head_branch, so on a
+          # test branch "git pull --rebase origin main" tries to replay the whole
+          # branch onto main and conflicts with every file the branch added.
+          BRANCH="$(git rev-parse --abbrev-ref HEAD)"
           git add "$PARSER" "$TICKETS" "tests/fixtures/"
           [ -f "$PREVIOUS" ] && git add "$PREVIOUS"
           git commit -m "Auto-fix: $SUMMARY"
@@ -121,7 +126,7 @@ jobs:
               exit 0
             fi
             echo "Push rejected (attempt $attempt), rebasing and retrying..."
-            git pull --rebase origin main
+            git pull --rebase origin "$BRANCH"
             sleep 3
           done
           echo "Failed to push after retries." >&2

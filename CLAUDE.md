@@ -1455,6 +1455,82 @@ names it listens for are cross-checked against the real workflows' own
 trigger), and the sport-routing step's football/baseball branches are
 checked directly so a swapped branch can't commit the wrong sport's files.
 
+**2026-09-22: the first real template this pipeline ever faced, and it failed
+at every single layer.** A genuine fifth baseball template arrived by Discord.
+The bot committed it, the parser correctly exited 1, the auto-fix workflow
+correctly fired -- and then the whole thing died in 8 seconds. Everything below
+was found by that one incident. Read it before touching any of this.
+
+- **Discord needs a `User-Agent`, or Cloudflare eats the request.** Every
+  Discord call this project had ever made in CI returned HTTP 403 with
+  Cloudflare `error code: 1010`, because `urllib` sends `Python-urllib/3.12`
+  and Cloudflare blocks it *before Discord ever sees the request*. Proved by
+  probing a deliberately bogus webhook id: without the header 403/1010, with it
+  404 "Unknown Webhook" -- i.e. Discord actually answering. The webhook itself
+  was fine the whole time.
+- **It had NEVER worked.** The secret was created 17:20Z on 9/20; the last
+  successful parse ran at 17:12Z and its step list contains no notify step at
+  all. No Discord message had ever been delivered in production. It looked
+  healthy because `test_notify_discord.py` is fully offline with a fake
+  fetcher -- correct, so tests never post to the group's channel, but it means
+  the entire HTTP layer was unexercised. `tests/test_notify_discord_live.py`
+  now hits the real host with a bogus id (posting nothing) and asserts we get
+  404 rather than 403. It ALSO asserts the no-User-Agent request is still
+  blocked, so the check can't quietly stop proving anything.
+- **A status ping must never be able to veto the repair.** The "investigating"
+  post had no `continue-on-error` and the script `sys.exit`ed on any HTTP
+  error, so under `bash -e` it killed the job at step 4 of 8. The picks were
+  never repaired AND the group got no message at all -- precisely the silent
+  failure the notifier exists to prevent. Now doubly guarded: every Discord
+  step is `continue-on-error`, and `notify_discord.py` raises `NotifyFailed`
+  which `main()` turns into a stderr warning and exit 0. `test_workflow_yaml.py`
+  section F pins both halves.
+- **The auto-fixer could never have succeeded in CI.** `tests/requirements.txt`
+  was missing `python-dotenv`, which `discord-bot/bot.py` imports at module
+  level, so the suite always died on file 12 of 19 -- making the fixer's "the
+  full suite must still pass" gate *unsatisfiable*. It produced patches and
+  reverted them over a failure that had nothing to do with the patch. Local
+  runs hid it: python-dotenv is installed on the machine that runs the bot.
+- **The workflow checked out a hardcoded `ref: main`,** so it could not be
+  exercised before being merged -- a branch run tested main's old scripts.
+  It now follows `github.event.workflow_run.head_branch || github.ref_name`,
+  which is the only reason any of this could be proven before shipping. Run it
+  on a branch with `gh workflow run "Auto-fix a Picks Parse Failure" --ref
+  <branch> -f sport=baseball`: real Discord, real Claude, real template, and
+  the resulting commit lands on the branch, not main.
+
+**What the fixer itself got wrong, and what was changed because of it:**
+
+- **A failed attempt used to log only the failing test name**, never the patch
+  it tried -- so diagnosing it needed an API key and a local reproduction,
+  which is the manual intervention this pipeline exists to remove.
+  `attempt_fix()` now includes the model's summary and a truncated unified diff
+  in the failure detail, built *before* the revert.
+- **Rule 1b in `SYSTEM_PROMPT` exists because of a real miss.** Rule 1 warned
+  about new *header* patterns colliding with `PARLAY_HEADER_RE`; the model duly
+  reasoned about that in its own comments -- and then walked into the same trap
+  one regex over, writing a leg pattern whose lazy `(.+?)` swallowed an OLDER
+  template's `(Bettor) Player - TEAM` prefix. The rule is now general: a new
+  pattern must not match a line an existing template owns, checked against the
+  example lines quoted in the parser's own comments.
+- **`clean_num()` accepts `$`.** It stripped only commas, so a template whose
+  regex captured `"$310.28"` raised ValueError deep inside `parse()`. That cost
+  an entire attempt on a patch that was otherwise working and suite-passing. A
+  card writing its payout with a dollar sign is completely ordinary; accept it
+  centrally rather than taxing every future template's regex.
+- **`MAX_ATTEMPTS` is 4, not 2.** On that incident attempt 2 fixed the regex
+  collision, passed the whole suite, and died on the `$` bug -- one attempt
+  from success, out of attempts. Each attempt is one API call and ~2 minutes.
+- **`verify_fix()` re-runs `test_live_data_schema.py` against the tickets.json
+  it just wrote.** `run_full_suite()` runs BEFORE that file exists, so the one
+  test that reads the real `data/` files was always validating the PREVIOUS
+  slate. Exiting 0 is not the same as being correct: a patch shipped whose
+  output had `"payout": "TBD"`, a string in a field the schema requires to be
+  numeric, and the live page would have handed that to `fmtMoney()`. The full
+  suite passed, the upload parsed, and the workflow committed it. The schema
+  error is now fed back to the model as retry feedback, so it can correct its
+  own output instead of needing a human.
+
 **Needs `ANTHROPIC_API_KEY` (a GitHub Actions secret) to actually run.**
 Without it, `auto_fix_parser.py` short-circuits to `resolved=no` on the
 first line -- a parse failure still gets the "investigating" Discord

@@ -278,6 +278,11 @@ check("G1 the API timeout is generous enough to regenerate the whole parser -- "
       "it is now ~10.5k output tokens and grows with every template added",
       afp.API_TIMEOUT >= 300, afp.API_TIMEOUT)
 
+# the upload must look genuinely broken, or the section-H guard short-circuits
+# main() before any of this is reached
+_real_already_parses = afp.already_parses
+afp.already_parses = lambda *a, **kw: False
+
 # every attempt a transport failure -> reason=transport
 afp.attempt_fix = lambda *a, **kw: (False, "TRANSPORT: couldn't reach the Claude API: timed out")
 gh_output.write_text("", encoding="utf-8")
@@ -303,6 +308,7 @@ check("G4 one real model failure among the timeouts -> reason=unresolved (the ca
 
 # G5-G7 exercise the REAL attempt_fix, so the stub above has to go first
 afp.attempt_fix = old_attempt_fix
+afp.already_parses = _real_already_parses
 
 # a transport-level exception inside call_claude must be caught, flagged, and
 # must never crash the workflow -- including non-timeout errors like auth
@@ -319,6 +325,46 @@ for exc, label in [(TimeoutError("timed out"), "G5 a socket timeout"),
 check("G8 a transport failure leaves the parser byte-for-byte original",
       parser_g.read_text(encoding="utf-8") == ORIGINAL_SOURCE)
 
+afp.attempt_fix = old_attempt_fix
+del os.environ["GITHUB_OUTPUT"]
+
+
+# ---------------- H. a healthy upload must NOT be reported as fixed ----------------
+# 2026-09-23: the workflow was dispatched on a branch cut BEFORE the failing
+# upload landed, so it read the PREVIOUS day's card -- which parses fine. The
+# model found nothing wrong, made a cosmetic edit, every gate passed (verify_fix
+# only asks "does it parse now", already true), and Discord announced
+# "Fixed automatically -- picks are live". It had fixed nothing, and the run
+# also re-parsed the old card over tickets.json and 408 lines of
+# tickets-previous.json, which merging would have pushed live over the real slate.
+
+os.environ["GITHUB_OUTPUT"] = str(gh_output)
+os.environ["ANTHROPIC_API_KEY"] = "test-key"
+parser_h, incoming_h = with_tmp_files(ORIGINAL_SOURCE, "some upload")
+os.environ["SPORT"], os.environ["INCOMING"], os.environ["PARSER"] = "baseball", str(incoming_h), str(parser_h)
+
+calls.clear()
+afp.attempt_fix = lambda *a, **kw: (calls.append(1), (True, "fixed!"))[1]
+old_already = afp.already_parses
+
+afp.already_parses = lambda *a, **kw: True
+gh_output.write_text("", encoding="utf-8")
+afp.main()
+out = read_outputs()
+check("H1 an upload that already parses reports reason=notbroken, never resolved=yes",
+      out.get("resolved") == "no" and out.get("reason") == "notbroken", out)
+check("H2 ...and no fix is even attempted (no needless rewrite of a working parser)",
+      calls == [], calls)
+
+# the guard must not block a genuinely broken upload
+afp.already_parses = lambda *a, **kw: False
+calls.clear()
+gh_output.write_text("", encoding="utf-8")
+afp.main()
+check("H3 a genuinely broken upload still gets fixed",
+      read_outputs().get("resolved") == "yes" and len(calls) == 1, (read_outputs(), calls))
+
+afp.already_parses = old_already
 afp.attempt_fix = old_attempt_fix
 del os.environ["GITHUB_OUTPUT"]
 

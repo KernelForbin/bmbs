@@ -158,6 +158,10 @@ jobs:
             # Do NOT say the card couldn't be parsed: nothing ever read it.
             # Saying so once sent someone rewriting a card that was fine.
             TEXT="⚠️ Couldn't reach the fixer service for the ${SPORT} upload -- the card itself hasn't been checked yet. Retrying is usually enough; check the Actions tab."
+          elif [ "$REASON" = "notbroken" ]; then
+            # The fixer found nothing to repair. Never report this as a fix:
+            # a run that changed nothing once announced "picks are live".
+            TEXT="ℹ️ Nothing to fix for the ${SPORT} upload -- it already parses with the current parser. No changes were made."
           elif [ "$REASON" = "nokey" ]; then
             TEXT="⚠️ The ${SPORT} upload needs a look -- the automatic fixer isn't configured (no API key)."
           else

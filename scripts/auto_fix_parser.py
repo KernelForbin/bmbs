@@ -301,6 +301,26 @@ def verify_fix(parser_path, incoming_path):
     return True, ""
 
 
+def already_parses(parser_path, incoming_path):
+    """Does the upload ALREADY parse with the parser as it stands?
+
+    Added 2026-09-23 after a false positive that reported "Fixed automatically
+    -- picks are live" to the group having fixed nothing. The workflow had been
+    dispatched on a branch cut BEFORE the failing upload landed, so the file it
+    read was the previous day's card, which parses fine. The model duly found
+    nothing wrong, made a cosmetic edit, and every downstream gate passed --
+    because verify_fix() only asks "does it parse now", which was true before
+    any of this started.
+
+    A repair job whose subject is already healthy must stop, not succeed. It
+    also protects the live data: that run re-parsed the OLD card over
+    tickets.json and 408 lines of tickets-previous.json, which merging would
+    have pushed live over the real slate.
+    """
+    r = run([sys.executable, str(REPO / parser_path), "--file", str(REPO / incoming_path)])
+    return r.returncode == 0
+
+
 def patch_diff(original, proposed, limit=160):
     """A unified diff of what the model actually changed.
 
@@ -390,6 +410,16 @@ def main():
     if not api_key:
         print("ANTHROPIC_API_KEY is not set", file=sys.stderr)
         set_output(resolved="no", reason="nokey", summary="ANTHROPIC_API_KEY is not configured")
+        return
+
+    # Nothing to repair -> say so and touch nothing. Deliberately BEFORE the
+    # first API call: cheap, and a needless rewrite of a working parser is its
+    # own risk.
+    if already_parses(parser_path, incoming_path):
+        print("The upload already parses with the current parser -- nothing to fix.")
+        set_output(resolved="no", reason="notbroken",
+                   summary="the upload already parses with the current parser -- "
+                           "nothing was changed (is this the right branch/upload?)")
         return
 
     feedback = None

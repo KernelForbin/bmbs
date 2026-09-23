@@ -146,11 +146,20 @@ jobs:
           # failed to actually push (a git conflict outlasting the retries,
           # say) from being reported as "live" when it never landed.
           COMMIT_OUTCOME: ${{ steps.commit.outcome }}
+          # 'transport' means every attempt died before the model answered, so
+          # the upload was never actually judged -- see below.
+          REASON: ${{ steps.fix.outputs.reason }}
         run: |
           if [ "$RESOLVED" = "yes" ] && [ "$COMMIT_OUTCOME" = "success" ]; then
             TEXT="✅ Fixed automatically -- ${SPORT} picks are live on bmbs.bet."
           elif [ "$RESOLVED" = "yes" ]; then
             TEXT="⚠️ Found a fix for the ${SPORT} upload but couldn't push it -- needs a look. Check the Actions tab."
+          elif [ "$REASON" = "transport" ]; then
+            # Do NOT say the card couldn't be parsed: nothing ever read it.
+            # Saying so once sent someone rewriting a card that was fine.
+            TEXT="⚠️ Couldn't reach the fixer service for the ${SPORT} upload -- the card itself hasn't been checked yet. Retrying is usually enough; check the Actions tab."
+          elif [ "$REASON" = "nokey" ]; then
+            TEXT="⚠️ The ${SPORT} upload needs a look -- the automatic fixer isn't configured (no API key)."
           else
             TEXT="❌ Couldn't parse this ${SPORT} upload automatically -- needs a look. Check the Actions tab for details."
           fi

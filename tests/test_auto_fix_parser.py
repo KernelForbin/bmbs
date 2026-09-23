@@ -262,6 +262,67 @@ except Exception as e:
     check("E1 set_output no-ops safely outside of Actions (no GITHUB_OUTPUT set)", False, str(e))
 
 
+# ---------------- G. a transport failure is NOT reported as a bad card ----------------
+# On 2026-09-23 all four attempts died on "The read operation timed out": the
+# model never answered, so the upload was never examined -- and the group was
+# told "Couldn't parse this baseball upload", which points the blame at a card
+# nothing had read. The cause was our own 120s timeout, outgrown because every
+# template we add makes the file the model has to REGENERATE IN FULL longer.
+
+os.environ["GITHUB_OUTPUT"] = str(gh_output)
+os.environ["ANTHROPIC_API_KEY"] = "test-key"
+parser_g, incoming_g = with_tmp_files(ORIGINAL_SOURCE, "some upload")
+os.environ["SPORT"], os.environ["INCOMING"], os.environ["PARSER"] = "baseball", str(incoming_g), str(parser_g)
+
+check("G1 the API timeout is generous enough to regenerate the whole parser -- "
+      "it is now ~10.5k output tokens and grows with every template added",
+      afp.API_TIMEOUT >= 300, afp.API_TIMEOUT)
+
+# every attempt a transport failure -> reason=transport
+afp.attempt_fix = lambda *a, **kw: (False, "TRANSPORT: couldn't reach the Claude API: timed out")
+gh_output.write_text("", encoding="utf-8")
+afp.main()
+out = read_outputs()
+check("G2 all-transport failures report reason=transport, not a card problem",
+      out.get("resolved") == "no" and out.get("reason") == "transport", out)
+check("G3 the summary says the upload was never examined",
+      "never examined" in out.get("summary", ""), out)
+
+# a genuine model failure still reports as unresolved, even mixed with one timeout
+seq = ["TRANSPORT: couldn't reach the Claude API: timed out",
+       "the model's response didn't match the required shape",
+       "TRANSPORT: couldn't reach the Claude API: timed out",
+       "the suite failed"]
+it = iter(seq)
+afp.attempt_fix = lambda *a, **kw: (False, next(it))
+gh_output.write_text("", encoding="utf-8")
+afp.main()
+out = read_outputs()
+check("G4 one real model failure among the timeouts -> reason=unresolved (the card WAS judged)",
+      out.get("reason") == "unresolved", out)
+
+# G5-G7 exercise the REAL attempt_fix, so the stub above has to go first
+afp.attempt_fix = old_attempt_fix
+
+# a transport-level exception inside call_claude must be caught, flagged, and
+# must never crash the workflow -- including non-timeout errors like auth
+for exc, label in [(TimeoutError("timed out"), "G5 a socket timeout"),
+                   (ConnectionError("network is down"), "G6 a connection error"),
+                   (ValueError("bad json"), "G7 an unexpected error")]:
+    def _boom(url, headers, body, _e=exc):
+        raise _e
+    ok, detail = afp.attempt_fix("baseball", str(incoming_g), str(parser_g), "k", fetcher=_boom)
+    check(f"{label} is caught, flagged TRANSPORT, and never crashes",
+          ok is False and detail.startswith("TRANSPORT:"), detail)
+
+# and the parser file must be untouched after any of them
+check("G8 a transport failure leaves the parser byte-for-byte original",
+      parser_g.read_text(encoding="utf-8") == ORIGINAL_SOURCE)
+
+afp.attempt_fix = old_attempt_fix
+del os.environ["GITHUB_OUTPUT"]
+
+
 # ---------------- F. archive_fixture copies the real upload content ----------------
 
 parser, incoming = with_tmp_files(ORIGINAL_SOURCE, "the real failing card text")

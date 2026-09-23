@@ -39,7 +39,21 @@ MODEL = "claude-sonnet-5"
 # that failure as feedback -- fixed it, passed the entire suite, and then died
 # on a one-character bug. It was one attempt from success and ran out. Each
 # attempt is one API call and about two minutes.
+class TransportError(RuntimeError):
+    """The Claude API call never completed -- a timeout or a network error.
+    Distinct from the model answering badly: nothing was learned about the
+    upload, so the group must not be told their card is the problem."""
+
+
 MAX_ATTEMPTS = 4
+# The model rewrites the ENTIRE parser, so the response grows with the file --
+# ~10.5k output tokens at 795 lines, and every new template adds more. A fixed
+# 120s was enough when this was first built and silently stopped being enough
+# on 2026-09-23: all four attempts died on "The read operation timed out",
+# so the upload was never actually examined and the group was told their CARD
+# couldn't be parsed. Generous on purpose; a slow call that succeeds beats a
+# fast failure, and a genuinely hung request still ends the attempt.
+API_TIMEOUT = 600
 API_URL = "https://api.anthropic.com/v1/messages"
 
 # The full offline suite (test_feed_fields.py excluded on purpose -- it needs
@@ -192,10 +206,14 @@ def call_claude(prompt, api_key, fetcher=None):
     else:
         req = urllib.request.Request(API_URL, data=body, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=120) as res:
+            with urllib.request.urlopen(req, timeout=API_TIMEOUT) as res:
                 raw = res.read()
         except urllib.error.HTTPError as e:
             raise RuntimeError(f"Claude API request failed: HTTP {e.code}") from None
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            # Reaching the API is a DIFFERENT failure from the card being
+            # unparseable, and must never be reported as the latter.
+            raise TransportError(f"couldn't reach the Claude API: {e}") from None
     data = json.loads(raw)
     return "".join(b.get("text", "") for b in data.get("content", []))
 
@@ -312,8 +330,16 @@ def attempt_fix(sport, incoming_path, parser_path, api_key, retry_feedback=None,
 
     try:
         response = call_claude(prompt, api_key, fetcher=fetcher)
-    except Exception as e:  # network, auth, rate limit -- never crash the workflow over it
-        return False, f"Claude API call failed: {e}"
+    except TransportError as e:
+        # Flagged so main() can tell the group the truth: we never got to look
+        # at the card. Reporting this as "couldn't parse your upload" sends
+        # someone off rewriting a card that was probably fine.
+        return False, f"TRANSPORT: {e}"
+    except Exception as e:  # auth, rate limit, bad JSON -- never crash the workflow over it
+        # Also never reached the model's ANSWER, so it counts as transport too.
+        # Kept broad on purpose: this is the last line of defence, and a fixer
+        # that dies here takes the whole repair attempt down with it.
+        return False, f"TRANSPORT: Claude API call failed: {e}"
 
     summary, new_source = extract_file_and_summary(response)
     if new_source is None:
@@ -363,10 +389,11 @@ def main():
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         print("ANTHROPIC_API_KEY is not set", file=sys.stderr)
-        set_output(resolved="no", summary="ANTHROPIC_API_KEY is not configured")
+        set_output(resolved="no", reason="nokey", summary="ANTHROPIC_API_KEY is not configured")
         return
 
     feedback = None
+    transport_only = True
     for attempt in range(1, MAX_ATTEMPTS + 1):
         print(f"Attempt {attempt}/{MAX_ATTEMPTS}...")
         ok, detail = attempt_fix(sport, incoming_path, parser_path, api_key, retry_feedback=feedback)
@@ -374,12 +401,21 @@ def main():
             fixture = archive_fixture(sport, incoming_path)
             print(f"Resolved: {detail}")
             print(f"Archived the raw upload as {fixture}")
-            set_output(resolved="yes", summary=detail.replace("\n", " ")[:200])
+            set_output(resolved="yes", reason="fixed", summary=detail.replace("\n", " ")[:200])
             return
         print(f"Attempt {attempt} did not resolve it:\n{detail}", file=sys.stderr)
+        transport_only = transport_only and detail.startswith("TRANSPORT:")
         feedback = detail
 
-    set_output(resolved="no", summary="couldn't resolve automatically after 2 attempts -- needs a human look")
+    if transport_only:
+        # Every attempt died before the model answered. The upload was never
+        # judged, so say that rather than blaming the card.
+        set_output(resolved="no", reason="transport",
+                   summary=f"couldn't reach the Claude API on any of {MAX_ATTEMPTS} attempts "
+                           "-- the upload was never examined")
+        return
+    set_output(resolved="no", reason="unresolved",
+               summary=f"couldn't resolve automatically after {MAX_ATTEMPTS} attempts -- needs a human look")
 
 
 if __name__ == "__main__":

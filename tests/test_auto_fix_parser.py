@@ -14,6 +14,7 @@ path, including a malformed model response or a raised exception.
     python tests/test_auto_fix_parser.py
 """
 import json
+import pathlib
 import sys
 import tempfile
 from pathlib import Path
@@ -345,6 +346,14 @@ os.environ["SPORT"], os.environ["INCOMING"], os.environ["PARSER"] = "baseball", 
 
 calls.clear()
 afp.attempt_fix = lambda *a, **kw: (calls.append(1), (True, "fixed!"))[1]
+# H3 drives main() down the SUCCESS path, which calls archive_fixture() for
+# real -- and that writes into tests/fixtures/ in the actual repo. Three junk
+# files ("some upload") were committed before this was stubbed. A test must
+# not leave anything behind; section F covers archive_fixture properly and
+# deletes what it writes.
+archived = []
+old_archive_h = afp.archive_fixture
+afp.archive_fixture = lambda sport, incoming: archived.append(sport) or pathlib.Path("(stubbed)")
 old_already = afp.already_parses
 
 afp.already_parses = lambda *a, **kw: True
@@ -364,6 +373,10 @@ afp.main()
 check("H3 a genuinely broken upload still gets fixed",
       read_outputs().get("resolved") == "yes" and len(calls) == 1, (read_outputs(), calls))
 
+check("H4 the success path archived exactly one fixture (stubbed -- a test must "
+      "never write into tests/fixtures/ for real)", archived == ["baseball"], archived)
+
+afp.archive_fixture = old_archive_h
 afp.already_parses = old_already
 afp.attempt_fix = old_attempt_fix
 del os.environ["GITHUB_OUTPUT"]

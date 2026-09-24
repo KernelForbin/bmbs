@@ -263,6 +263,28 @@ PARLAY_FOOT_RE = re.compile(
     BULLET + r"Wager:\s*\$([\d,.]+)\s*\|\s*Payout:\s*\$?([\d,.]+)\s*$", re.IGNORECASE
 )
 
+# ---- seventh raw-text template: the "SOLAR KEYS DAY TRACKER" card (first
+# seen 2026-09-24). Its ticket header states the stake and payout INLINE, in
+# plain-English parentheses, rather than the "[Bet: $X | PP: Y]" or
+# "(Bettor - $X Bet) [PP: $Y]" shapes above:
+#     🎟️ Ticket 1 (6.00 bet pays 198.00)
+#     * Carson Benge (+560) - NYM (Kevin) 🕒 2:35 PM ET
+#     * Miguel Vargas (+400) - CWS (Memo) 🕒 2:10 PM ET
+# There is no separate "Bet by"/"Wager" footer line at all -- the numbers on
+# the header line ARE the stake and payout, full stop. Each leg carries its
+# own bettor (per-leg, like the third template) and its own team code, and
+# ends with a clock emoji before the time rather than a bare "- TIME ET" tail
+# -- distinct enough from TICKET_HASH_LEG_RE (which requires a leading
+# "(Bettor)" *before* the player, not after the team) that the two never
+# collide. Reuses the existing "current_ticket"/finalize_ticket machinery,
+# same as templates two through four.
+EMOJI_STAKE_TICKET_START_RE = re.compile(
+    r"^[^\w]*\s*Ticket\s+(\d+)\s*\(\s*\$?([\d,.]+)\s*bet\s+pays\s*\$?([\d,.]+)\s*\)\s*$", re.IGNORECASE)
+EMOJI_STAKE_LEG_RE = re.compile(
+    BULLET + r"(.+?)\s*\(([+-]\d+)\)\s*-\s*([A-Z]{2,4})\s*\(([^)]+)\)\s*[^\w\s]*\s*([\d: ]*[AP]M\s*ET)\s*$",
+    re.IGNORECASE
+)
+
 
 # ---- bet markets: home runs (the default) and stolen bases ----
 # A leg is a home run bet unless the card says otherwise. This matcher predates
@@ -331,12 +353,19 @@ def section_header(line):
     # "Parlay 1 (Memo)" against PARLAY_START_RE below -- it contains the word
     # "Parlay" but is a ticket header, not a section header. And a THIRD time
     # for "Ticket #1 - 2-Leg Parlay $6.00" (TRACKER_TICKET_RE): the literal
-    # "2-Leg Parlay" inside it is a PARLAY_HEADER_RE match. Every new ticket
-    # header that names its own leg count lands here; assume the next one will
-    # too and add it to this guard before anything else.
+    # "2-Leg Parlay" inside it is a PARLAY_HEADER_RE match. And a FOURTH time
+    # for "🎟️ Ticket 1 (6.00 bet pays 198.00)" (EMOJI_STAKE_TICKET_START_RE):
+    # it doesn't contain "Parlay" at all, but ODDS_RE below is happy to match
+    # its own header form's odds group and would wrongly reject it as a
+    # ticket header candidate if it ever gained a "(+NNN)" -- it doesn't
+    # today, so no change needed there, but the exclusion is listed here
+    # regardless. Every new ticket header that names its own leg count, or
+    # otherwise coincidentally matches an existing section-header pattern,
+    # lands here; assume the next one will too and add it to this guard
+    # before anything else.
     if (CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text)
             or EMOJI_TICKET_START_RE.match(text) or PARLAY_START_RE.match(text)
-            or TRACKER_TICKET_RE.match(text)):
+            or TRACKER_TICKET_RE.match(text) or EMOJI_STAKE_TICKET_START_RE.match(text)):
         return None
     if SINGLES_HEADER_RE.search(text) or PARLAY_HEADER_RE.search(text):
         return text
@@ -648,6 +677,15 @@ def parse(text, team_by_name, canonical_by_norm):
                                "_stake": clean_num(stake), "_pp": clean_num(pp)}
             continue
 
+        emoji_stake_start = EMOJI_STAKE_TICKET_START_RE.match(line)
+        if emoji_stake_start:
+            flush_ticket()
+            ticket_sb = sb_here
+            num, stake, pp = emoji_stake_start.groups()
+            current_ticket = {"_num": num, "_legs": [], "_book": None,
+                               "_stake": clean_num(stake), "_pp": clean_num(pp)}
+            continue
+
         emoji_start = EMOJI_TICKET_START_RE.match(line)
         if emoji_start:
             flush_ticket()
@@ -677,6 +715,11 @@ def parse(text, team_by_name, canonical_by_norm):
             emoji_leg = EMOJI_LEG_RE.match(line)
             if emoji_leg:
                 player_raw, team_raw, time_, odds, who = emoji_leg.groups()
+                current_ticket["_legs"].append((time_, player_raw, team_raw, odds, who, market_for(sb_here)))
+                continue
+            stake_leg = EMOJI_STAKE_LEG_RE.match(line)
+            if stake_leg:
+                player_raw, odds, team_raw, who, time_ = stake_leg.groups()
                 current_ticket["_legs"].append((time_, player_raw, team_raw, odds, who, market_for(sb_here)))
                 continue
             leg = TICKET_LEG_RE.match(line)

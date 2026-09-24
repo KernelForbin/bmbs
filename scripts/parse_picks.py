@@ -226,6 +226,39 @@ PARLAY_LEG_RE = re.compile(
     BULLET + r"(.+?)\s*\(([+-]\d+)\)\s*(?:\(([^)]+)\)\s*)?"
     r"(?:[\u2013\u2014-]\s*([\d: ]*[AP]M\s*ET)\s*)?$", re.IGNORECASE
 )
+# ---- sixth raw-text template: the "DAILY HOME RUN PARLAY TRACKER" card
+# (first seen 2026-09-23). A bare bettor NAME on its own line opens that
+# person's section, and every ticket under it belongs to them:
+#     Francher
+#     Ticket #1 - 2-Leg Parlay $6.00
+#     [ ] Matt Olson +340 (Braves) 7:15 PM
+#     [ ] Kyle Schwarber +270 (Phillies) 6:40 PM
+#     Potential Payout: $97.68
+# Differences from every earlier template, all real on the first card:
+#   * the STAKE is in the ticket header, not a separate Wager line
+#   * legs are checkboxes, and the team is a full NICKNAME ("Braves"), not the
+#     2-4 letter code -- so it's ignored entirely and the roster supplies the
+#     team, exactly as the fifth template already does
+#   * times carry no "ET"; it's added so the page reads the same everywhere
+#   * "Steal" is written inline ("Elly De La Cruz Steal +350") -- take_market()
+#     already lifts that out, so nothing extra is needed here
+#   * a leg can have NO ODDS at all, and one was marked "- DNP"
+# The bettor line is deliberately NOT a trigger on its own: a bare capitalised
+# word is far too common to hang parsing off. It is only REMEMBERED, and used
+# when a Ticket header actually follows -- so a stray word does nothing.
+BARE_NAME_RE = re.compile(r"^[A-Z][A-Za-z.'\-]{1,19}$")
+TRACKER_TICKET_RE = re.compile(
+    r"^Ticket\s*#?\s*(\d+)\s*[\u2014\u2013-]\s*"
+    r"(?:\d+-Leg\s+Parlay|Straight\s+Bet)\s*\$([\d,.]+)\s*$", re.IGNORECASE)
+# "[ ] Player +ODDS (Team) TIME". Odds are optional so a priced and an unpriced
+# leg both MATCH -- the difference is handled below, where an unpriced one is
+# reported rather than silently dropped. A trailing "- DNP" lands in the tail.
+CHECKBOX_LEG_RE = re.compile(
+    r"^\[\s*[xX]?\s*\]\s*(.+?)\s*(?:([+-]\d+)\s*)?\(([^)]+)\)\s*(.*)$")
+# "Potential Payout: $97.68", or "N/A" when the card can't state one yet --
+# null, never a guess and never a dropped bet (rule 1c).
+TRACKER_PAYOUT_RE = re.compile(
+    r"^Potential\s+Payout:\s*(?:\$([\d,.]+)|N/?A)\s*$", re.IGNORECASE)
 PARLAY_FOOT_RE = re.compile(
     BULLET + r"Wager:\s*\$([\d,.]+)\s*\|\s*Payout:\s*\$?([\d,.]+)\s*$", re.IGNORECASE
 )
@@ -296,9 +329,14 @@ def section_header(line):
     # emoji-ticket header was misread as a brand new section before
     # EMOJI_TICKET_START_RE ever got a look at it. Same story for
     # "Parlay 1 (Memo)" against PARLAY_START_RE below -- it contains the word
-    # "Parlay" but is a ticket header, not a section header.
+    # "Parlay" but is a ticket header, not a section header. And a THIRD time
+    # for "Ticket #1 - 2-Leg Parlay $6.00" (TRACKER_TICKET_RE): the literal
+    # "2-Leg Parlay" inside it is a PARLAY_HEADER_RE match. Every new ticket
+    # header that names its own leg count lands here; assume the next one will
+    # too and add it to this guard before anything else.
     if (CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text)
-            or EMOJI_TICKET_START_RE.match(text) or PARLAY_START_RE.match(text)):
+            or EMOJI_TICKET_START_RE.match(text) or PARLAY_START_RE.match(text)
+            or TRACKER_TICKET_RE.match(text)):
         return None
     if SINGLES_HEADER_RE.search(text) or PARLAY_HEADER_RE.search(text):
         return text
@@ -384,6 +422,10 @@ def parse(text, team_by_name, canonical_by_norm):
 
     # ---- state for the "Parlay N (Bettor)" template (see PARLAY_START_RE) ----
     current_parlay = None  # {"_num": ..., "_who": bettor, "_legs": [...], "_stake": None, "_pp": None}
+    # ---- state for the "DAILY HOME RUN PARLAY TRACKER" template ----
+    # The last bare capitalised word seen. Only consumed when a Ticket header
+    # follows it, so it can never affect any other card shape.
+    pending_bettor = None
 
     def flush_card():
         nonlocal current_card
@@ -514,6 +556,52 @@ def parse(text, team_by_name, canonical_by_norm):
             mode = None
             current_section = None
             continue
+
+        if BARE_NAME_RE.match(original):
+            # Remembered, never acted on here -- see BARE_NAME_RE's note. No
+            # `continue`: the line still falls through exactly as before.
+            pending_bettor = original
+
+        tracker_ticket = TRACKER_TICKET_RE.match(line)
+        if tracker_ticket:
+            flush_card()
+            flush_ticket()
+            flush_parlay()
+            ticket_sb = sb_here
+            num, stake_s = tracker_ticket.groups()
+            if pending_bettor:
+                last_header_title = pending_bettor  # one window per bettor
+            current_parlay = {"_num": num, "_who": pending_bettor or "",
+                              "_legs": [], "_stake": clean_num(stake_s), "_pp": None}
+            continue
+
+        if current_parlay is not None:
+            tracker_payout = TRACKER_PAYOUT_RE.match(line)
+            if tracker_payout:
+                amt = tracker_payout.group(1)
+                current_parlay["_pp"] = clean_num(amt) if amt else None
+                flush_parlay()
+                continue
+            checkbox = CHECKBOX_LEG_RE.match(line)
+            if checkbox:
+                player_raw, odds, _team_nickname, tail = checkbox.groups()
+                if "DNP" in tail.upper():
+                    # An explicit scratch, not an unreadable line: the card
+                    # says so itself, so it's dropped without a warning and
+                    # the ticket grades on its remaining legs.
+                    continue
+                if not odds:
+                    # A leg with no price can't be graded or paid out, and
+                    # guessing one would be inventing money. Reported so the
+                    # page's note names it, and left untracked.
+                    unread.append(original)
+                    continue
+                time_ = tail.strip()
+                if time_ and not re.search(r"\bET\b", time_, re.IGNORECASE):
+                    time_ += " ET"   # every other template's times say ET
+                current_parlay["_legs"].append(
+                    (time_, player_raw, "", odds, market_for(sb_here)))
+                continue
 
         parlay_start = PARLAY_START_RE.match(line)
         if parlay_start:

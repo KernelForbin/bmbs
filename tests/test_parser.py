@@ -444,5 +444,66 @@ assert pp.parse.unread == [], pp.parse.unread
 for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text, emoji_text):
     pp.parse(fixture_text, team_by_name, canon)
 print("OK: fifth template (\"Parlay N (Bettor)\" under \"Window\" headers) parses 11 tickets (24 legs)")
+# --- 12. SIXTH template: the "DAILY HOME RUN PARLAY TRACKER" card. A bare
+# bettor NAME opens that person's section; tickets read
+# "Ticket #N - 2-Leg Parlay $6.00" with the STAKE in the header; legs are
+# checkboxes carrying a full team NICKNAME instead of a code; times have no
+# "ET"; "Steal" is written inline; and the footer is "Potential Payout: $X"
+# or "N/A". Real upload, 2026-09-23.
+tracker_text = (REPO / "tests" / "fixtures" / "discord_tracker_checkbox_format.txt").read_text(encoding="utf-8")
+k_windows, k_singles, _ = pp.parse(tracker_text, team_by_name, canon)
+
+# One window per bettor, in card order -- that's what the bare-name line buys.
+assert [w["title"] for w in k_windows] == [
+    "Francher", "Kenny", "Kevin", "Noid", "Bernie", "Bailey", "Memo"], [w["title"] for w in k_windows]
+assert sum(len(c["legs"]) for w in k_windows for c in w["tickets"]) == 24
+
+# The header's own "2-Leg Parlay" is a literal PARLAY_HEADER_RE match, so
+# section_header() claimed every ticket header as a new SECTION until
+# TRACKER_TICKET_RE joined its exclusion guard -- the THIRD template to hit
+# that exact trap. Seven windows (not twenty) is the regression check.
+assert len(k_windows) == 7
+
+# Stake comes off the ticket header; the team comes off the ROSTER, never the
+# card's nickname ("Braves" -> ATL); the bettor comes off the section heading.
+f1 = k_windows[0]["tickets"][0]
+assert (f1["stake"], f1["payout"], f1["book"]) == (6.0, 97.68, "Francher"), f1
+assert [(l["player"], l["team"], l["who"], l["odds"], l["time"]) for l in f1["legs"]] == [
+    ("Matt Olson", "ATL", "Francher", "+340", "7:15 PM ET"),
+    ("Kyle Schwarber", "PHI", "Francher", "+270", "6:40 PM ET")], f1["legs"]
+
+# "Steal" written inline is lifted by take_market(): the leg is an SB bet and
+# the player name does NOT keep the word.
+bailey = k_windows[5]["tickets"]
+steal_leg = bailey[0]["legs"][0]
+assert steal_leg["player"] == "Elly De La Cruz" and steal_leg.get("market") == "sb", steal_leg
+assert bailey[1]["legs"][0]["player"] == "Pete Crow-Armstrong"
+assert bailey[1]["legs"][0].get("market") == "sb", bailey[1]["legs"][0]
+# ...and a home run leg on the same card stays unmarked
+assert bailey[0]["legs"][1].get("market", "hr") == "hr", bailey[0]["legs"][1]
+
+# A leg with NO ODDS is reported, never guessed and never silently dropped: a
+# price can't be invented, so that bet isn't tracked and the page says so.
+assert pp.parse.unread == ["[ ] Pete Crow-Armstrong (Cubs) 7:40 PM"], pp.parse.unread
+# Its ticket therefore has one leg left, which makes it a SINGLE by leg count
+# -- never by which header it sat under.
+murakami = [s for s in k_singles if s["player"] == "Munetaka Murakami"][0]
+assert (murakami["who"], murakami["odds"], murakami["stake"]) == ("FRANCHER", "+350", 6.0), murakami
+
+# A leg marked "- DNP" is an explicit scratch: dropped WITHOUT a warning,
+# because the card itself said so -- unlike the unpriced leg above.
+assert not any("DNP" in u for u in pp.parse.unread), pp.parse.unread
+soto = [s for s in k_singles if s["player"] == "Juan Soto"][0]
+assert (soto["who"], soto["odds"], soto["stake"]) == ("NOID", "+420", 5.0), soto
+# "Potential Payout: N/A" is null -- not 0, not a guess, not a dropped bet
+assert soto["payout"] is None, soto
+assert len(k_singles) == 2, k_singles
+
+# Every earlier fixture must STILL parse unchanged: the new patterns are
+# reachable only from a tracker ticket, so they cannot reach another template.
+for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text, emoji_text, parlay_text):
+    pp.parse(fixture_text, team_by_name, canon)
+print("OK: sixth template (DAILY HOME RUN PARLAY TRACKER checkbox card) parses 12 tickets (24 legs) across 7 bettors")
+
 
 print("\nALL PARSER TESTS PASSED")

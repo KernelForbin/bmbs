@@ -115,13 +115,28 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   only -- so it can never match a leg line and swallow the rest of the card.
   `test_parser.py` section 11 pins the raw upload AND the corrected shape,
   and both changes were mutation-tested.
+  A **sixth** template arrived 2026-09-23, the "DAILY HOME RUN PARLAY TRACKER"
+  card (fixture `discord_tracker_checkbox_format.txt`, assertions in
+  `test_parser.py` section 12): a bare bettor NAME on its own line opens that
+  person's section, tickets read `Ticket #N - 2-Leg Parlay $6.00` with the
+  STAKE in the header, legs are checkboxes `[ ] Player +ODDS (Nickname) TIME`
+  carrying a full team NICKNAME rather than a code (ignored -- the roster
+  supplies the team), times omit "ET", `Steal` is written inline, and the
+  footer is `Potential Payout: $X` or `N/A` (null). The bare name is only
+  REMEMBERED, never a trigger on its own -- a lone capitalised word is far too
+  common -- and is consumed only when a ticket header actually follows.
+  **Two user decisions are baked in:** a leg with NO ODDS is reported through
+  the unread/`note` path and NOT tracked (a price can't be invented, and its
+  ticket then has one leg left, so it becomes a single by leg count), while a
+  leg marked `- DNP` is dropped WITHOUT a warning, because the card itself
+  said so. Both are mutation-tested; don't "tidy" them into the same branch.
   **The emoji-ticket header is a trap for `section_header()`:**
   "🎰 Ticket #1 (3-Leg Parlay)" contains the literal substring "3-Leg Parlay",
   which `PARLAY_HEADER_RE` matches, so every one of its headers was first
   misread as a brand-new section -- same class of collision football's own
   third template hit the same day (see its entry below), needing the same
   exclusion-guard fix. **If a new upload parses to zero again, that's a
-  SIXTH template, not a regression** — and as of 2026-09-22 the first response
+  SEVENTH template, not a regression** — and as of 2026-09-22 the first response
   is to let the auto-fixer try it (it handled the fifth unaided), not to hand-
   write the regex. Either way: check the Action's run log for `WARNING: parsed
   nothing`, get the raw text, and add a fixture + assertions

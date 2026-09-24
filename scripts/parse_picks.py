@@ -847,14 +847,23 @@ def parse(text, team_by_name, canonical_by_norm):
                 payout_str = "TBD"
             else:
                 payout_str = f'${card["_origPayout"]:,.2f}'
-            foot = (f'<b>${card["_stake"]:.2f}</b> bet by {card["_book"]} '
+            # Not every template names a ticket OWNER. The "SOLAR KEYS" card
+            # has none -- each leg carries its own bettor instead -- and
+            # interpolating that straight in printed "bet by None" on the live
+            # page. The schema check can't see this: it validates types and
+            # never reads the prebuilt foot string. So the phrase is dropped
+            # entirely when there's nobody to name, rather than rendering a
+            # placeholder, and book is "" rather than None.
+            book = (card["_book"] or "").strip()
+            by_html = f' bet by {book}' if book else ' bet'
+            foot = (f'<b>${card["_stake"]:.2f}</b>{by_html} '
                     f'&middot; Potential payout <b>{payout_str}</b>')
             out_tickets.append({
                 "name": f'{card["name"]}{sub_html}{tag_html}',
                 "sub": f'{len(legs)}-Leg',
                 "foot": foot,
                 "stake": card["_stake"],
-                "book": card["_book"],
+                "book": book,
                 "payout": card["_origPayout"],
                 "legs": legs,
             })

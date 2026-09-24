@@ -108,6 +108,17 @@ def check_tickets_file(label, path, football=False):
             if not isinstance(t["legs"], list) or not t["legs"]:
                 ticket_problems.append(f"{t.get('name')}: legs missing or empty")
                 continue
+            # "foot" is a PREBUILT HTML string the page prints as-is, so a
+            # Python value interpolated into it reaches the screen verbatim.
+            # A template with no ticket OWNER once rendered "bet by None" live:
+            # every type check above passed, because none of them read this
+            # string. Cheap to pin, and it catches the whole family.
+            if is_str(t.get("foot")):
+                for junk in ("None", "nan", "undefined", "$None"):
+                    if junk in t["foot"]:
+                        ticket_problems.append(
+                            f"{t.get('name')}: foot contains {junk!r} -- "
+                            f"a placeholder leaked into what the page prints: {t['foot']!r}")
             for leg in t["legs"]:
                 ok, why = has_keys(leg, TICKET_LEG_KEYS, "leg")
                 if not ok:

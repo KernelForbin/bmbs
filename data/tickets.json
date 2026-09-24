@@ -8,9 +8,9 @@
         {
           "name": "Card 1",
           "sub": "2-Leg",
-          "foot": "<b>$6.00</b> bet by None &middot; Potential payout <b>$198.00</b>",
+          "foot": "<b>$6.00</b> bet &middot; Potential payout <b>$198.00</b>",
           "stake": 6.0,
-          "book": null,
+          "book": "",
           "payout": 198.0,
           "legs": [
             {
@@ -36,9 +36,9 @@
         {
           "name": "Card 2",
           "sub": "2-Leg",
-          "foot": "<b>$6.00</b> bet by None &middot; Potential payout <b>$135.30</b>",
+          "foot": "<b>$6.00</b> bet &middot; Potential payout <b>$135.30</b>",
           "stake": 6.0,
-          "book": null,
+          "book": "",
           "payout": 135.3,
           "legs": [
             {
@@ -64,9 +64,9 @@
         {
           "name": "Card 3",
           "sub": "2-Leg",
-          "foot": "<b>$6.00</b> bet by None &middot; Potential payout <b>$136.80</b>",
+          "foot": "<b>$6.00</b> bet &middot; Potential payout <b>$136.80</b>",
           "stake": 6.0,
-          "book": null,
+          "book": "",
           "payout": 136.8,
           "legs": [
             {
@@ -92,9 +92,9 @@
         {
           "name": "Card 4",
           "sub": "2-Leg",
-          "foot": "<b>$6.00</b> bet by None &middot; Potential payout <b>$217.80</b>",
+          "foot": "<b>$6.00</b> bet &middot; Potential payout <b>$217.80</b>",
           "stake": 6.0,
-          "book": null,
+          "book": "",
           "payout": 217.8,
           "legs": [
             {

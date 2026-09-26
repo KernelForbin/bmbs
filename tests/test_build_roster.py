@@ -77,6 +77,43 @@ dup_teams = {
 dup_result = br.build(fetcher=lambda url: dup_teams[url])
 check("a name collision doesn't crash -- last one wins", dup_result["canonical_name_by_norm"].get("jose fermin") == "José Fermin")
 
+# ---- a rebuild MERGES; it must never lose a player ----------------------
+# The MLB API serves ACTIVE rosters, which exclude anyone on the IL, so a
+# straight overwrite drops players. Measured for real on 2026-09-26: a rebuild
+# 8 days after the previous one lost 73 names and gained 74, and one of the 73
+# was Aaron Judge. A missing player is the worst state there is -- nothing
+# matches his name, so his leg can never resolve a hit OR a miss.
+#
+# merge_rosters() is a pure function precisely so this stays OFFLINE: driving
+# main() would hit the real API, and then whether Judge is present depends on
+# today's IL, which is the very thing under test.
+existing = {
+    "team_by_name": {"retired slugger": "BOS", "manny machado": "STALE"},
+    "canonical_name_by_norm": {"retired slugger": "Retired Slugger",
+                               "manny machado": "Manny Machado"},
+}
+fresh = {
+    "team_by_name": {"manny machado": "SD", "aaron judge": "NYY"},
+    "canonical_name_by_norm": {"manny machado": "Manny Machado",
+                               "aaron judge": "Aaron Judge"},
+}
+merged, kept, moved = br.merge_rosters(existing, fresh)
+
+check("a player the active rosters no longer list is KEPT, not dropped",
+      merged["team_by_name"].get("retired slugger") == "BOS", merged["team_by_name"])
+check("fresh data WINS for anyone in both, so a trade is picked up",
+      merged["team_by_name"].get("manny machado") == "SD", merged["team_by_name"])
+check("players only the fresh build knows about are added",
+      merged["team_by_name"].get("aaron judge") == "NYY", merged["team_by_name"])
+check("the kept count and moved list are reported for the log",
+      kept == 1 and moved == ["manny machado"], (kept, moved))
+check("canonical names merge the same way",
+      merged["canonical_name_by_norm"].get("retired slugger") == "Retired Slugger")
+# An empty/absent existing roster must behave like a plain build.
+plain, kept0, moved0 = br.merge_rosters({}, fresh)
+check("merging into nothing is just the fresh roster",
+      plain["team_by_name"] == fresh["team_by_name"] and kept0 == 0 and moved0 == [])
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

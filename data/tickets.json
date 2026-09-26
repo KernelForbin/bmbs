@@ -1,119 +1,287 @@
 {
-  "date": "2026-09-24",
+  "date": "2026-09-26",
   "note": "",
   "windows": [
     {
-      "title": "📋 THE SOLAR KEYS DAY TRACKER",
+      "title": "Parlay Cards",
       "tickets": [
         {
           "name": "Card 1",
           "sub": "2-Leg",
-          "foot": "<b>$6.00</b> bet &middot; Potential payout <b>$198.00</b>",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$117.48</b>",
           "stake": 6.0,
-          "book": "",
-          "payout": 198.0,
+          "book": "Memo",
+          "payout": 117.48,
           "legs": [
             {
               "id": "p0-c0-l0",
-              "player": "Carson Benge",
+              "player": "Juan Soto",
               "team": "NYM",
-              "who": "Kevin",
-              "meta": "NYM &middot; Kevin",
-              "odds": "+560",
-              "time": "2:35 PM ET"
+              "who": "Joe",
+              "meta": "NYM &middot; Joe",
+              "odds": "+480",
+              "time": "12:35 PM ET"
             },
             {
               "id": "p0-c0-l1",
-              "player": "Miguel Vargas",
-              "team": "CWS",
+              "player": "CJ Abrams",
+              "team": "WSH",
               "who": "Memo",
-              "meta": "CWS &middot; Memo",
-              "odds": "+400",
-              "time": "2:10 PM ET"
+              "meta": "WSH &middot; Memo",
+              "odds": "+500",
+              "time": "12:35 PM ET"
             }
           ]
         },
         {
           "name": "Card 2",
           "sub": "2-Leg",
-          "foot": "<b>$6.00</b> bet &middot; Potential payout <b>$135.30</b>",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$158.76</b>",
           "stake": 6.0,
-          "book": "",
-          "payout": 135.3,
+          "book": "Memo",
+          "payout": 158.76,
           "legs": [
             {
               "id": "p0-c1-l0",
-              "player": "Hunter Goodman",
-              "team": "COL",
-              "who": "Kevin",
-              "meta": "COL &middot; Kevin",
-              "odds": "+310",
-              "time": "3:10 PM ET"
+              "player": "Brandon Lowe",
+              "team": "PIT",
+              "who": "Memo",
+              "meta": "PIT &middot; Memo",
+              "odds": "+390",
+              "time": "1:10 PM ET"
             },
             {
               "id": "p0-c1-l1",
-              "player": "Carter Jensen",
-              "team": "KC",
-              "who": "Memo",
-              "meta": "KC &middot; Memo",
-              "odds": "+450",
-              "time": "2:10 PM ET"
+              "player": "Francisco Lindor",
+              "team": "NYM",
+              "who": "Kevin",
+              "meta": "NYM &middot; Kevin",
+              "odds": "+470",
+              "time": "12:35 PM ET"
             }
           ]
         },
         {
           "name": "Card 3",
           "sub": "2-Leg",
-          "foot": "<b>$6.00</b> bet &middot; Potential payout <b>$136.80</b>",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$262.32</b>",
           "stake": 6.0,
-          "book": "",
-          "payout": 136.8,
+          "book": "Memo",
+          "payout": 262.32,
           "legs": [
             {
               "id": "p0-c2-l0",
-              "player": "Jackson Chourio",
-              "team": "MIL",
+              "player": "Kevin McGonigle",
+              "team": "DET",
               "who": "Kevin",
-              "meta": "MIL &middot; Kevin",
-              "odds": "+470",
-              "time": "6:05 PM ET"
+              "meta": "DET &middot; Kevin",
+              "odds": "+560",
+              "time": "1:10 PM ET"
             },
             {
               "id": "p0-c2-l1",
-              "player": "Matt Olson",
-              "team": "ATL",
+              "player": "Elly De La Cruz",
+              "team": "CIN",
               "who": "Memo",
-              "meta": "ATL &middot; Memo",
-              "odds": "+300",
-              "time": "7:15 PM ET"
+              "meta": "CIN &middot; Memo",
+              "odds": "+570",
+              "time": "3:07 PM ET"
             }
           ]
         },
         {
           "name": "Card 4",
           "sub": "2-Leg",
-          "foot": "<b>$6.00</b> bet &middot; Potential payout <b>$217.80</b>",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$277.02</b>",
           "stake": 6.0,
-          "book": "",
-          "payout": 217.8,
+          "book": "Memo",
+          "payout": 277.02,
           "legs": [
             {
               "id": "p0-c3-l0",
-              "player": "Dominic Canzone",
-              "team": "SEA",
+              "player": "Wyatt Langford",
+              "team": "TEX",
               "who": "Kevin",
-              "meta": "SEA &middot; Kevin",
+              "meta": "TEX &middot; Kevin",
+              "odds": "+421",
+              "time": "4:10 PM ET"
+            },
+            {
+              "id": "p0-c3-l1",
+              "player": "Mookie Betts",
+              "team": "LAD",
+              "who": "Joe",
+              "meta": "LAD &middot; Joe",
+              "odds": "+700",
+              "time": "4:05 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 5",
+          "sub": "2-Leg",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$330.48</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 330.48,
+          "legs": [
+            {
+              "id": "p0-c4-l0",
+              "player": "Andy Pages",
+              "team": "LAD",
+              "who": "Noid",
+              "meta": "LAD &middot; Noid",
+              "odds": "+440",
+              "time": "4:05 PM ET"
+            },
+            {
+              "id": "p0-c4-l1",
+              "player": "Alejandro Kirk",
+              "team": "TOR",
+              "who": "Noid",
+              "meta": "TOR &middot; Noid",
+              "odds": "+980",
+              "time": "3:07 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 6",
+          "sub": "2-Leg",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$108.57</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 108.57,
+          "legs": [
+            {
+              "id": "p0-c5-l0",
+              "player": "Jac Caglianone",
+              "team": "KC",
+              "who": "Joe",
+              "meta": "KC &middot; Joe",
+              "odds": "+285",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p0-c5-l1",
+              "player": "Hunter Goodman",
+              "team": "COL",
+              "who": "Bailey",
+              "meta": "COL &middot; Bailey",
+              "odds": "+350",
+              "time": "7:10 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 7",
+          "sub": "2-Leg",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$136.48</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 136.48,
+          "legs": [
+            {
+              "id": "p0-c6-l0",
+              "player": "Jackson Chourio",
+              "team": "MIL",
+              "who": "Joe",
+              "meta": "MIL &middot; Joe",
+              "odds": "+450",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p0-c6-l1",
+              "player": "Jordan Walker",
+              "team": "STL",
+              "who": "Bailey",
+              "meta": "STL &middot; Bailey",
+              "odds": "+450",
+              "time": "7:10 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 8",
+          "sub": "2-Leg",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$311.04</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 311.04,
+          "legs": [
+            {
+              "id": "p0-c7-l0",
+              "player": "Angel Martínez",
+              "team": "CLE",
+              "who": "Noid",
+              "meta": "CLE &middot; Noid",
+              "odds": "+680",
+              "time": "7:10 PM ET"
+            },
+            {
+              "id": "p0-c7-l1",
+              "player": "Bryce Harper",
+              "team": "PHI",
+              "who": "Bailey",
+              "meta": "PHI &middot; Bailey",
+              "odds": "+600",
+              "time": "7:15 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 9",
+          "sub": "2-Leg",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$160.44</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 160.44,
+          "legs": [
+            {
+              "id": "p0-c8-l0",
+              "player": "Manny Machado",
+              "team": "SD",
+              "who": "Bailey",
+              "meta": "SD &middot; Bailey",
+              "odds": "+450",
+              "time": "8:40 PM ET"
+            },
+            {
+              "id": "p0-c8-l1",
+              "player": "Nolan Arenado",
+              "team": "AZ",
+              "who": "Noid",
+              "meta": "AZ &middot; Noid",
+              "odds": "+560",
+              "time": "8:40 PM ET"
+            }
+          ]
+        },
+        {
+          "name": "Card 10",
+          "sub": "2-Leg",
+          "foot": "<b>$6.00</b> bet by Memo &middot; Potential payout <b>$267.30</b>",
+          "stake": 6.0,
+          "book": "Memo",
+          "payout": 267.3,
+          "legs": [
+            {
+              "id": "p0-c9-l0",
+              "player": "Isaac Paredes",
+              "team": "HOU",
+              "who": "Memo",
+              "meta": "HOU &middot; Memo",
               "odds": "+450",
               "time": "9:40 PM ET"
             },
             {
-              "id": "p0-c3-l1",
-              "player": "Lawrence Butler",
-              "team": "ATH",
-              "who": "Memo",
-              "meta": "ATH &middot; Memo",
-              "odds": "+560",
-              "time": "9:40 PM ET"
+              "id": "p0-c9-l1",
+              "player": "Freddie Freeman",
+              "team": "LAD",
+              "who": "Kevin",
+              "meta": "LAD &middot; Kevin",
+              "odds": "+600",
+              "time": "4:05 PM ET"
             }
           ]
         }

@@ -286,6 +286,33 @@ EMOJI_STAKE_LEG_RE = re.compile(
 )
 
 
+# ---- eighth raw-text template (first seen 2026-09-26): a BARE "Parlay N"
+# header, legs separated from a FULL team name by an em-dash, and a footer
+# carrying stake, payout and the ticket OWNER all at once:
+#     Parlay 1
+#     * Juan Soto (+480) - New York Mets (Joe) 12:35 PM
+#     $6.00 Bet | Potential Payout: $117.48 (Memo)
+# Near-miss with the fifth template ("Parlay N (Bettor)"), but the header names
+# nobody, the team is spelled out in full instead of coded, and the footer is a
+# different shape entirely -- the owner is at the END, after the payout.
+# The full team name is IGNORED and the roster supplies the team, exactly as
+# the fifth, sixth and seventh templates already do: a nickname-to-code map
+# would be a second source of truth that could drift from the roster.
+PLAIN_PARLAY_START_RE = re.compile(r"^Parlay\s+(\d+)\s*$", re.IGNORECASE)
+# The separator is restricted to an EM/EN dash, never a plain hyphen. The
+# seventh template's legs ("* Carson Benge (+560) - NYM (Kevin) ...") would
+# otherwise match this pattern too -- same player/odds/team/bettor order, just
+# a hyphen -- and whichever regex ran first would quietly own both shapes.
+PLAIN_PARLAY_LEG_RE = re.compile(
+    BULLET + r"(.+?)\s*\(([+-]\d+)\)\s*[\u2014\u2013]\s*(.+?)\s*\(([^)]+)\)\s*(.*)$")
+# "$6.00 Bet | Potential Payout: $117.48 (Memo)" -- the trailing "(Owner)" is
+# optional so a card that omits it still parses, with the ticket left ownerless
+# (which prints as a plain "$6.00 bet", never "bet by None").
+PLAIN_PARLAY_FOOT_RE = re.compile(
+    r"^\$?([\d,.]+)\s*Bet\s*\|\s*Potential\s+Payout:\s*\$?([\d,.]+)"
+    r"(?:\s*\(([^)]+)\))?\s*$", re.IGNORECASE)
+
+
 # ---- bet markets: home runs (the default) and stolen bases ----
 # A leg is a home run bet unless the card says otherwise. This matcher predates
 # the first real steal card (2026-09-19, which turned out to spell the market
@@ -611,6 +638,24 @@ def parse(text, team_by_name, canonical_by_norm):
                 current_parlay["_pp"] = clean_num(amt) if amt else None
                 flush_parlay()
                 continue
+            plain_foot = PLAIN_PARLAY_FOOT_RE.match(line)
+            if plain_foot:
+                stake, pp, owner = plain_foot.groups()
+                current_parlay["_stake"] = clean_num(stake)
+                current_parlay["_pp"] = clean_num(pp)
+                if owner:
+                    current_parlay["_who"] = owner.strip()
+                flush_parlay()
+                continue
+            plain_leg = PLAIN_PARLAY_LEG_RE.match(line)
+            if plain_leg:
+                player_raw, odds, _full_team, who, tail = plain_leg.groups()
+                time_ = tail.strip()
+                if time_ and not re.search(r"\bET\b", time_, re.IGNORECASE):
+                    time_ += " ET"   # every other template's times say ET
+                current_parlay["_legs"].append(
+                    (time_, player_raw, who, odds, market_for(sb_here)))
+                continue
             checkbox = CHECKBOX_LEG_RE.match(line)
             if checkbox:
                 player_raw, odds, _team_nickname, tail = checkbox.groups()
@@ -631,6 +676,18 @@ def parse(text, team_by_name, canonical_by_norm):
                 current_parlay["_legs"].append(
                     (time_, player_raw, "", odds, market_for(sb_here)))
                 continue
+
+        plain_start = PLAIN_PARLAY_START_RE.match(line)
+        if plain_start:
+            flush_card()
+            flush_ticket()
+            flush_parlay()
+            ticket_sb = sb_here
+            # No bettor on the header -- the footer names the owner, so _who
+            # is filled in when that line is reached.
+            current_parlay = {"_num": plain_start.group(1), "_who": "",
+                              "_legs": [], "_stake": None, "_pp": None}
+            continue
 
         parlay_start = PARLAY_START_RE.match(line)
         if parlay_start:

@@ -72,6 +72,21 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   doesn't strip suffixes -- MLB's own feed always includes them, so the
   fix is matching them, never stripping them). Rebuilt from the API instead
   of re-uploading a CSV; not a live-data file, ordinary to regenerate.
+  **A rebuild MERGES and never replaces** (`merge_rosters()`, 2026-09-26). The
+  API serves ACTIVE rosters, which exclude anyone on the IL, so an overwrite
+  silently DROPS players: measured on a rebuild 8 days after the previous one,
+  73 names lost and 74 gained — and one of the 73 was Aaron Judge. A missing
+  player is the worst state available, since `normalizeName()` matches nothing
+  and his leg can never resolve a hit OR a miss. A stale TEAM on someone who
+  has since moved is far cheaper: it only affects which game a leg is shown
+  waiting on pre-game, and grading goes by name in the boxscore. So fresh data
+  wins for anyone in both and nobody is dropped; `--replace` is the escape
+  hatch. **It is also on no schedule** — nothing rebuilds it automatically,
+  and it had gone 8 days stale before a picked call-up (Andy Pages) turned up
+  absent and ungradeable. Rebuild it whenever a name won't resolve.
+  `merge_rosters()` is a pure function so `test_build_roster.py` can cover it
+  offline: driving `main()` would hit the real API, and then whether Judge is
+  present depends on today's IL — the very thing under test.
 - **`scripts/parse_picks.py`** — parses the raw picks text format into
   `tickets.json`. Also resolves player names against `roster.json` (exact
   match, then fuzzy). Accepts the text with or without markdown markers
@@ -130,13 +145,22 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   ticket then has one leg left, so it becomes a single by leg count), while a
   leg marked `- DNP` is dropped WITHOUT a warning, because the card itself
   said so. Both are mutation-tested; don't "tidy" them into the same branch.
+  An **eighth** arrived 2026-09-26 (fixture
+  `discord_plain_parlay_emdash_format.txt`, `test_parser.py` section 13): a
+  BARE `Parlay N` header naming nobody, legs `* Player (+ODDS) — Full Team
+  Name (Bettor) TIME` separated by an EM-DASH with the team spelled out in
+  full, and `$6.00 Bet | Potential Payout: $117.48 (Memo)` carrying stake,
+  payout and the ticket OWNER together at the end. **The em-dash is
+  load-bearing:** the seventh template's legs are the same shape with a plain
+  HYPHEN, so `PLAIN_PARLAY_LEG_RE` deliberately excludes `-` — accept it and
+  one pattern silently owns both shapes. Pinned directly in section 13.
   **The emoji-ticket header is a trap for `section_header()`:**
   "🎰 Ticket #1 (3-Leg Parlay)" contains the literal substring "3-Leg Parlay",
   which `PARLAY_HEADER_RE` matches, so every one of its headers was first
   misread as a brand-new section -- same class of collision football's own
   third template hit the same day (see its entry below), needing the same
   exclusion-guard fix. **If a new upload parses to zero again, that's a
-  SEVENTH template, not a regression** — and as of 2026-09-22 the first response
+  NINTH template, not a regression** — and as of 2026-09-22 the first response
   is to let the auto-fixer try it (it handled the fifth unaided), not to hand-
   write the regex. Either way: check the Action's run log for `WARNING: parsed
   nothing`, get the raw text, and add a fixture + assertions

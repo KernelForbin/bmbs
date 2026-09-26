@@ -505,5 +505,71 @@ for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text, emoj
     pp.parse(fixture_text, team_by_name, canon)
 print("OK: sixth template (DAILY HOME RUN PARLAY TRACKER checkbox card) parses 12 tickets (24 legs) across 7 bettors")
 
+# --- 13. EIGHTH template (2026-09-26): a BARE "Parlay N" header, legs split
+# from a FULL team name by an em-dash, and a footer carrying stake, payout and
+# the ticket OWNER at once:
+#     Parlay 1
+#     * Juan Soto (+480) - New York Mets (Joe) 12:35 PM
+#     $6.00 Bet | Potential Payout: $117.48 (Memo)
+# A near-miss with the fifth template, which is what makes it worth pinning:
+# that one's header NAMES the bettor, this one names nobody, and the owner
+# turns up at the very end of the footer instead.
+emdash_text = (REPO / "tests" / "fixtures" / "discord_plain_parlay_emdash_format.txt").read_text(encoding="utf-8")
+e8_windows, e8_singles, _ = pp.parse(emdash_text, team_by_name, canon)
+
+assert len(e8_windows) == 1, [w["title"] for w in e8_windows]
+assert e8_singles == [] and len(e8_windows[0]["tickets"]) == 10
+assert [len(c["legs"]) for c in e8_windows[0]["tickets"]] == [2] * 10
+
+# Stake and payout come off the footer, and so does the OWNER -- which is a
+# different person from either leg's bettor on this card. Both are kept.
+c1 = e8_windows[0]["tickets"][0]
+assert (c1["stake"], c1["payout"], c1["book"]) == (6.0, 117.48, "Memo"), c1
+assert [(l["player"], l["team"], l["who"], l["odds"], l["time"]) for l in c1["legs"]] == [
+    ("Juan Soto", "NYM", "Joe", "+480", "12:35 PM ET"),
+    ("CJ Abrams", "WSH", "Memo", "+500", "12:35 PM ET")], c1["legs"]
+assert c1["legs"][0]["who"] != c1["book"], "leg bettor and ticket owner are separate fields"
+
+# The full team name is thrown away and the ROSTER supplies the code, so a
+# "New York Mets" spelled out in full still grades. Nothing may be left
+# teamless: a blank team is a leg that can never resolve either way.
+assert all(l["team"] for c in e8_windows[0]["tickets"] for l in c["legs"]), \
+    [l["player"] for c in e8_windows[0]["tickets"] for l in c["legs"] if not l["team"]]
+
+# Times carry no "ET" on the card and must gain one, so the page reads the same
+# everywhere -- every displayed time on this site is Eastern.
+assert all(l["time"].endswith(" ET") for c in e8_windows[0]["tickets"] for l in c["legs"])
+
+# Nothing on this card is unreadable -- if a leg line ever stops matching it
+# would land in `unread` and the whole card would quietly shrink instead.
+assert pp.parse.unread == [], pp.parse.unread
+
+# The separator is an em-dash ON PURPOSE. The seventh template's legs are the
+# same shape with a plain HYPHEN, and if this pattern accepted one it would own
+# both -- whichever ran first silently deciding for the other. Pinned directly.
+assert pp.PLAIN_PARLAY_LEG_RE.match("* Juan Soto (+480) \u2014 New York Mets (Joe) 12:35 PM")
+assert not pp.PLAIN_PARLAY_LEG_RE.match("* Carson Benge (+560) - NYM (Kevin) 2:35 PM ET"), \
+    "a hyphen leg belongs to the seventh template, not this one"
+
+# ...and a footer with no "(Owner)" leaves the ticket ownerless rather than
+# printing a placeholder -- see the "bet by None" incident.
+# Two legs on purpose: a one-leg ticket correctly becomes a SINGLE instead,
+# and singles carry no "foot" string, so the check below would have nothing
+# to look at.
+no_owner = ("Parlay 1\n"
+            "* Juan Soto (+480) \u2014 New York Mets (Joe) 12:35 PM\n"
+            "* CJ Abrams (+500) \u2014 Washington Nationals (Memo) 12:35 PM\n"
+            "$6.00 Bet | Potential Payout: $117.48\n")
+n_windows, _, _ = pp.parse(no_owner, team_by_name, canon)
+n1 = n_windows[0]["tickets"][0]
+assert n1["book"] == "" and "None" not in n1["foot"], n1
+assert n1["foot"] == '<b>$6.00</b> bet &middot; Potential payout <b>$117.48</b>', n1["foot"]
+
+# Every earlier fixture must STILL parse unchanged.
+for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text,
+                     emoji_text, parlay_text, tracker_text):
+    pp.parse(fixture_text, team_by_name, canon)
+print("OK: eighth template (bare \"Parlay N\" / em-dash full team names) parses 10 tickets (20 legs)")
+
 
 print("\nALL PARSER TESTS PASSED")

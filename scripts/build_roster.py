@@ -75,9 +75,43 @@ def build(fetcher=fetch):
     return {"team_by_name": team_by_name, "canonical_name_by_norm": canonical_name_by_norm}
 
 
+def merge_rosters(existing, fresh):
+    """Fold a freshly built roster into the one already on disk.
+
+    A rebuild must never LOSE a player. The API serves ACTIVE rosters, which
+    exclude anyone on the IL, so a straight overwrite silently drops people:
+    measured 2026-09-26, a rebuild 8 days on lost 73 names and gained 74, and
+    one of the 73 was Aaron Judge. A missing player is the worst possible
+    state, because normalizeName() then matches nothing and his leg can never
+    resolve a hit OR a miss -- the Tatis Jr. failure from a new direction.
+
+    A stale TEAM on someone who has since moved is a much smaller problem: it
+    only affects which game a leg is shown waiting on before first pitch, and
+    grading itself goes by name in the boxscore. So fresh data wins for anyone
+    in both, and nobody is ever dropped.
+
+    Returns (merged_payload, kept_count, moved_names).
+    """
+    merged = dict(fresh)
+    kept = 0
+    for key in ("team_by_name", "canonical_name_by_norm"):
+        before = dict(existing.get(key) or {})
+        only_in_existing = set(before) - set(fresh.get(key) or {})
+        before.update(fresh.get(key) or {})      # fresh data wins
+        merged[key] = before
+        kept = max(kept, len(only_in_existing))
+    old_teams = existing.get("team_by_name") or {}
+    moved = [n for n, t in old_teams.items()
+             if n in merged["team_by_name"] and merged["team_by_name"][n] != t]
+    return merged, kept, moved
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=str(OUT_PATH))
+    ap.add_argument("--replace", action="store_true",
+                    help="overwrite instead of merging -- discards anyone the active "
+                         "rosters no longer list. Only for building from scratch.")
     args = ap.parse_args()
 
     payload = build()
@@ -88,9 +122,23 @@ def main():
           f"the exact class of name this rebuild fixes.")
 
     out = Path(args.out)
+
+    if out.exists() and not args.replace:
+        try:
+            existing = json.loads(out.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"NOTE: couldn't read the existing roster ({e}) -- writing a fresh one.")
+            existing = None
+        if existing:
+            payload, kept, moved = merge_rosters(existing, payload)
+            print(f"  Merged with the existing roster: kept {kept} name(s) the active "
+                  f"rosters no longer list (IL, optioned), updated {len(moved)} team(s).")
+            if moved:
+                print(f"    moved: {', '.join(sorted(moved)[:6])}")
+
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True), encoding="utf-8")
-    print(f"Wrote {out}")
+    print(f"Wrote {out} ({len(payload['team_by_name'])} players)")
 
 
 if __name__ == "__main__":

@@ -565,6 +565,80 @@ notification controls next to frozen, archived results is misleading. This
 is visibility only: the saved settings and Today's actual notifications are
 completely unaffected by which tab happens to be on screen.
 
+## Bet markets: a registry, not a list of special cases
+
+**As of 2026-09-29 markets are a REGISTRY** (`MARKETS` in `index.html`), each
+entry declaring `label`, `subject` (`player` / `team` / `game`) and `grade`.
+Before this they were an hr/sb binary and every branch forked on it. **No
+`market` field still means home runs**, so a slate written before any of this
+takes exactly the path it always did -- the same guarantee steals were added
+under, and the reason a home-run-only card's `tickets.json` is unchanged.
+
+Graded off data the feed was ALREADY fetching (three extra `FEED_FIELDS`
+names, since `fields` matches names at any depth and the batting line and the
+score use the same words):
+- **Stat props** -- `hrr` (H+R+RBI), `hits`, `rbi`, `runs`, `tb` -- summed from
+  `boxscore...stats.batting`, with `leg.line` and `leg.side` ("over"/"under";
+  no line means "at least one", as HR and SB always have). An OVER settles the
+  moment it clears, mid-game; an UNDER can only settle at the end unless it has
+  already busted. Same void rule as a home run bet: rostered but never batted
+  is a refund, not a loss.
+- **Game lines** -- `ml`, `spread`, `total` -- from `linescore.teams`, keyed by
+  team ABBREVIATION (the key `leg.team` already uses, and why the schedule
+  request carries `hydrate=team`). **Only ever settled on a FINAL game**: a 7-1
+  lead in the sixth is not a result. `test_page.py` Y9 pins that with a live
+  game carrying a score -- a mutation proved the check was otherwise untested,
+  because the first fixture only had a finished game. A spread or total landing
+  exactly on the number is a PUSH -> `na`.
+
+**THE DEFAULT IS THE WHOLE SAFETY STORY.** An unrecognised market grades to
+`untracked`: shown by name, labelled as not graded, counted in neither column,
+and unable to kill a parlay. That is what makes "accept anything" safe. Don't
+"improve" `stateForLeg()` by falling back to `stateForPlayer()` -- that grades
+a spread as though it were a home run bet, and a mutation for exactly that is
+in the suite.
+
+**A bet carrying an untracked leg is `partial`** (the user's rule, 2026-09-29):
+a MISS anywhere still kills it -- certain whatever the untracked leg did -- but
+nothing else may be claimed, so it can go `dead` and can never go `hit`. It is
+counted inside OPEN and surfaced by its own slim **NOT FULLY TRACKED** bar
+(`#chip-partial`), NOT a fifth chip: the BETS row has to stay four wide to line
+up with LEGS, which is the same reason Irons was moved out of the grid. An
+untracked LEG folds into the LIVE chip for the same reason, and the always-on
+status line says which it actually is.
+
+**The parser reports what the card SAID**, not what's gradeable:
+`detect_market()` reads common phrasings plus a line/over-under, and an
+unrecognised market WORD is passed through as-is for the page to show.
+**No real card using any of this has arrived yet** -- the phrasings are
+educated, not observed -- so treat the first one that does as a template
+incident: get the raw text, pin a fixture, refine. A leg nothing matches still
+goes through `BETLIKE_RE` into the `note`.
+
+**Two things are deliberately NOT done, and are the outstanding work:**
+- **`record_results.py` does NOT grade the new markets.** It writes the
+  PERMANENT record, and a half-ported grader would bake a wrong result into
+  history forever. It refuses to fall through to home-run grading and writes
+  `untracked` instead (`RECORDER_MARKETS`), and `evaluate_ticket()` returns
+  `partial`, which counts as INCOMPLETE so a later run looks again. This is the
+  outstanding half of "change one, change the other" -- porting the graders is
+  the follow-up, and until then a recorded slate carrying one of these markets
+  is complete except for those legs.
+- **The Live Bet Tracker is hr/sb only** (`LIVE_TILE_MARKETS`), at the user's
+  request -- live tracking for the rest is a later decision. A tile is
+  at-bat / on-base context, which means nothing for a game line, and bucketing
+  an H+R+RBI pick into the HR odds list would mislabel its price.
+
+**A doubleheader can clobber a settled score.** `teamScores` is keyed by
+abbreviation, so the nightcap overwrites the afternoon game. A row with real
+runs now beats one without, which stops the score going backwards; WHICH game a
+leg refers to is genuinely ambiguous from the card and nothing pretends
+otherwise.
+
+`test_page.py` **section Y** covers all of it (17 checks) and five mutations
+were run against it: unknown-market-falls-back-to-HR, untracked-leg-ignored,
+game-line-settles-early, never-batted-is-a-loss, push-counts-as-a-win.
+
 ## Bet markets: home runs and stolen bases
 
 Since 2026-09-19 a leg can be a STOLEN BASE bet: `"market": "sb"` on the leg or

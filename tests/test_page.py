@@ -371,6 +371,52 @@ def open_page(p, at, init_scripts=(), timezone_id=None, expand=True):
     return browser, page, errors
 
 
+# ---- section Y helpers: feeds carrying a batting LINE and a SCORE --------
+def mkt_feed(abstract, batters, away_runs=None, home_runs_=None, away="NYY", home="BOS"):
+    """`batters` is {name: {"hits": n, "runs": n, "rbi": n, "pa": n}}.
+    pa 0 means he was on the roster but never got in -- void, not a loss."""
+    sides = {"away": {}, "home": {}}
+    for i, (name, ln) in enumerate(batters.items()):
+        side = "away" if i < 9 else "home"
+        sides[side][f"ID{i}"] = {
+            "person": {"fullName": name}, "battingOrder": f"{(i % 9) + 1}00",
+            "stats": {"batting": {"plateAppearances": ln.get("pa", 3), "hits": ln.get("hits", 0),
+                                  "runs": ln.get("runs", 0), "rbi": ln.get("rbi", 0),
+                                  "totalBases": ln.get("totalBases", 0)}}}
+    linescore = {}
+    if away_runs is not None:
+        linescore = {"teams": {"away": {"runs": away_runs}, "home": {"runs": home_runs_}}}
+    return {"gameData": {"status": {"abstractGameState": abstract},
+                         "teams": {"away": {"abbreviation": away}, "home": {"abbreviation": home}}},
+            "liveData": {"plays": {"allPlays": []},
+                         "boxscore": {"teams": {"away": {"players": sides["away"]},
+                                                "home": {"players": sides["home"]}}},
+                         "linescore": linescore}}
+
+
+def mkt_leg(player, market=None, line=None, side=None, team="NYY", odds="+300", who="Memo"):
+    leg = {"id": f"l-{player}-{market}", "player": player, "team": team, "who": who,
+           "meta": team, "odds": odds, "time": "7:00 PM ET"}
+    if market:
+        leg["market"] = market
+    if line is not None:
+        leg["line"] = line
+    if side:
+        leg["side"] = side
+    return leg
+
+
+def mkt_card(name, legs, stake=5.0, payout=50.0):
+    return {"name": name, "sub": f"{len(legs)}-Leg", "foot": "f", "stake": stake,
+            "book": "Memo", "payout": payout, "legs": legs}
+
+
+# 1 hit + 1 run = 2 for the first; 1 for the second; the third never batted.
+BATTERS = {"Two Total": {"hits": 1, "runs": 1, "rbi": 0},
+           "One Total": {"hits": 1, "runs": 0, "rbi": 0},
+           "Never Got In": {"hits": 0, "runs": 0, "rbi": 0, "pa": 0}}
+
+
 with sync_playwright() as p:
     # ================= A: 1am ET on 9/18, the 9/17 slate still has a live game =================
     FX["tickets"] = tickets("2026-09-17",
@@ -1787,5 +1833,100 @@ with sync_playwright() as p:
     print("X3 OK: the bet still counts as HIT and still shows, with TBD where its payout goes")
     assert not errors, errors
     browser.close()
+
+    # ================= Y: bet markets beyond home runs and steals =================
+    # Stat props off the boxscore batting line, game lines off the linescore,
+    # and -- the part that makes "accept anything" safe -- a market the page has
+    # never heard of, which must be SHOWN and left ungraded rather than quietly
+    # graded as a home run bet.
+    FX["tickets"] = tickets("2026-09-18", [], [mkt_card("HRR", [mkt_leg("Two Total", "hrr", 1.5, "over")])])
+    FX["previous"] = None
+    # Game 2 is still going so the slate does NOT roll off the Today tab: a
+    # slate whose games are all Final moves to Yesterday, and RESULTS follows
+    # the tab, which would leave every map here empty.
+    FX["schedules"] = {"2026-09-18": schedule("2026-09-18", [
+        (1, "Final", "Final", "F", ["NYY", "BOS"]),
+        (2, "Live", "In Progress", "I", ["CHC", "STL"])])}
+    FX["feeds"] = {1: mkt_feed("Final", BATTERS, away_runs=5, home_runs_=2),
+                   2: mkt_feed("Live", {"Someone Else": {"hits": 0}}, away_runs=7, home_runs_=1,
+                               away="CHC", home="STL")}
+    browser, page, errors = open_page(p, ET(2026, 9, 18, 23, 0))
+
+    def st(player, market, line=None, side=None, team="NYY"):
+        return page.evaluate("a => stateForLeg(a)",
+                             {"player": player, "team": team, "market": market,
+                              "line": line, "side": side})
+
+    assert st("Two Total", "hrr", 1.5, "over") == "hit", "1 hit + 1 run = 2, which clears over 1.5"
+    print("Y1 OK: an H+R+RBI over clears on the summed boxscore line")
+    assert st("One Total", "hrr", 1.5, "over") == "miss", "1 total on a final game is a loss"
+    print("Y2 OK: an H+R+RBI over that didn't get there is a miss once the game is final")
+    assert st("One Total", "hrr", 1.5, "under") == "hit" and st("Two Total", "hrr", 1.5, "under") == "miss"
+    print("Y3 OK: unders grade the other way, and bust the moment they're exceeded")
+    assert st("Never Got In", "hrr", 1.5, "over") == "na", "on the roster, never played -> void"
+    print("Y4 OK: a prop on someone who never got in is void, not a loss")
+    assert st("Two Total", "hits", 0.5, "over") == "hit" and st("Two Total", "rbi", 0.5, "over") == "miss"
+    print("Y5 OK: hits / RBI / runs each read their own column")
+
+    assert st(None, "ml", None, None, "NYY") == "hit" and st(None, "ml", None, None, "BOS") == "miss"
+    print("Y6 OK: a moneyline reads the final score, from either side")
+    assert st(None, "spread", -1.5, None, "NYY") == "hit", "won by 3, covers -1.5"
+    assert st(None, "spread", -3.5, None, "NYY") == "miss", "won by 3, doesn't cover -3.5"
+    assert st(None, "spread", -3, None, "NYY") == "na", "won by exactly 3 on -3 is a push"
+    print("Y7 OK: spreads cover, fail, and push")
+    assert st(None, "total", 6.5, "over") == "hit" and st(None, "total", 8.5, "over") == "miss"
+    assert st(None, "total", 7, "over") == "na", "7 runs on a 7 line is a push"
+    print("Y8 OK: totals grade over/under and push on the number")
+
+    # A game line is ONLY ever settled at the final. CHC lead 7-1 in a game
+    # still in progress: that is not a result, and calling it would be the
+    # worst kind of wrong on a page about money. Without this the "final"
+    # check was untested, which a mutation proved.
+    assert st(None, "ml", None, None, "CHC") == "live", "a 7-1 lead mid-game is not a win yet"
+    assert st(None, "spread", -1.5, None, "CHC") == "live", "nor does it cover anything yet"
+    assert st(None, "total", 5.5, "over", "CHC") == "live", "nor is the total settled at 8 runs so far"
+    print("Y9 OK: a game line is not settled until the game is FINAL, however lopsided")
+
+    assert st("Two Total", "strikeouts", 5.5, "over") == "untracked", \
+        "a market the page has never heard of must NOT be graded"
+    print("Y10 OK: an unknown market grades to 'untracked', never to hit or miss")
+    assert page.evaluate("legMarket({})") == "hr", "no market field still means home runs"
+    print("Y11 OK: a leg with no market field is still a home run bet, unchanged")
+    assert not errors, errors
+    browser.close()
+
+    # ---- how a mixed bet behaves, and how all of it renders ----
+    FX["tickets"] = tickets("2026-09-18", [], [
+        mkt_card("Untracked only", [mkt_leg("Two Total", "hrr", 1.5, "over"),
+                                    mkt_leg("Two Total", "strikeouts", 5.5, "over")]),
+        mkt_card("Untracked plus a miss", [mkt_leg("One Total", "hrr", 1.5, "over"),
+                                           mkt_leg("Two Total", "strikeouts", 5.5, "over")]),
+    ])
+    browser, page, errors = open_page(p, ET(2026, 9, 18, 23, 0))
+
+    outcomes = page.evaluate("EVALUATED.map(e => e.evalRes.outcome)")
+    assert outcomes[0] == "partial", f"a hit leg + an untracked leg can't be called a win: {outcomes}"
+    print("Y12 OK: a bet carrying an untracked leg is 'partial' -- never claimed as cashed")
+    assert outcomes[1] == "dead", f"a MISS still kills it regardless of the untracked leg: {outcomes}"
+    print("Y13 OK: ...but a miss anywhere still kills it, which is knowable for certain")
+
+    body = page.inner_text("#content")
+    assert "STRIKEOUTS" in body.upper(), "an unknown market must be NAMED on the card, not hidden"
+    assert "isn't tracked yet" in body, "and must say plainly that it isn't being graded"
+    print("Y14 OK: an unknown market is shown by name and says it isn't graded")
+    assert "H+R+RBI" in body, "a known prop shows its own label"
+    print("Y15 OK: a known prop is labelled with its market")
+
+    assert page.evaluate("document.getElementById('chip-partial').classList.contains('show')"), \
+        "the NOT FULLY TRACKED bar must appear when such a bet exists"
+    assert text(page, "count-parlay-partial") == "1", text(page, "count-parlay-partial")
+    print("Y16 OK: the NOT FULLY TRACKED bar appears and counts only the partial bet")
+    # It is a QUALIFIER, not a fifth state: the four BETS chips still add up.
+    four = sum(int(text(page, f"count-parlay-{k}")) for k in ("open", "hit", "miss", "void"))
+    assert four == 2, f"the four BETS chips must still account for every bet: {four}"
+    print("Y17 OK: partial is counted inside OPEN, so the four-wide row still adds up")
+    assert not errors, errors
+    browser.close()
+
 
 print("\nALL PAGE TESTS PASSED")

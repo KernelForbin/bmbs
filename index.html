@@ -67,6 +67,14 @@
   .irons-bar { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; padding:6px 10px; background:var(--panel); border:1px solid var(--panel-line); border-radius:7px; cursor:pointer; user-select:none; transition:border-color .15s ease, background .15s ease; }
   .irons-bar:active { transform:scale(0.99); }
   .irons-bar.active-filter { border-color:var(--amber); background:rgba(232,184,88,0.10); }
+  /* Deliberately muted rather than amber: amber is reserved for Irons, and a
+     bet we can't finish grading is information, not urgency. Hidden when the
+     count is zero -- the ordinary case, and a permanent empty row would just
+     be clutter. */
+  .partial-bar { display:none; }
+  .partial-bar.show { display:flex; }
+  .partial-bar .irons-lbl { color:var(--muted); }
+  .partial-bar.active-filter { border-color:var(--muted); background:rgba(255,255,255,0.04); }
   .irons-lbl { font-family:'Oswald',sans-serif; font-size:11px; font-weight:600; letter-spacing:.09em; color:var(--amber); display:flex; align-items:baseline; gap:8px; }
   .irons-sub { font-family:'Inter',sans-serif; font-size:10px; font-weight:500; letter-spacing:0; color:var(--text-faint); }
   .irons-num { font-family:'Oswald',sans-serif; font-size:16px; font-weight:700; color:var(--amber); }
@@ -276,6 +284,13 @@
   .leg-live-context.steal-credit { color:var(--green); }
   .mkt-tag { font-family:'Inter',sans-serif; font-size:9px; font-weight:700; letter-spacing:.07em; border-radius:4px; padding:1px 5px; vertical-align:2px; }
   .mkt-tag.sb { color:var(--steal); background:var(--steal-dim); border:1px solid var(--steal); }
+  /* A player stat prop and a game line read as distinct kinds of bet, and an
+     UNKNOWN market is deliberately the dimmest of the three -- it is shown so
+     nothing is hidden, but it is not being graded and shouldn't look like it
+     carries the same weight as a pick the page is actually tracking. */
+  .mkt-tag.prop { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
+  .mkt-tag.line { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
+  .mkt-tag.unknown { color:var(--muted); background:transparent; border:1px dashed var(--panel-line); }
   .gameday-link { display:inline-block; font-size:10px; color:var(--green); margin-top:3px; text-decoration:underline; }
   .leg-right { flex:none; text-align:right; }
   .leg-odds { font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:var(--amber); }
@@ -469,6 +484,17 @@
       <span class="irons-lbl">&#129479; IRONS<span class="irons-sub">one swing from cashing</span></span>
       <span class="irons-num" id="count-parlay-iron">0</span>
     </div>
+    <!-- Bets carrying a leg in a market this page can't grade. Like IRONS,
+         this is a QUALIFIER and not a fifth state: such a bet is still counted
+         in OPEN above, because it genuinely can still be graded. Giving it a
+         chip in the row would break the four-wide alignment with LEGS, which
+         is the whole reason Irons was moved out of the grid in the first
+         place. Hidden entirely when there aren't any, which is the normal
+         case. -->
+    <div class="irons-bar partial-bar" id="chip-partial" onclick="toggleFilter('partial')">
+      <span class="irons-lbl">&#9678; NOT FULLY TRACKED<span class="irons-sub">has a leg in a market we don't grade yet</span></span>
+      <span class="irons-num" id="count-parlay-partial">0</span>
+    </div>
     <p class="stat-row-label">LEGS &middot; tap to filter below</p>
     <div class="scoreboard bets-row">
       <div class="score-chip pending clickable" id="chip-leg-live" onclick="toggleLegFilter('live')"><div class="num" id="count-leg-live">0</div><div class="lbl">LIVE</div></div>
@@ -603,7 +629,7 @@ const SLATE_POLLS = new Map();
 const FINAL_SNAPSHOTS = new Map();
 
 function emptyResults() {
-  return { hitNames: new Set(), sbNames: new Set(), appeared: new Set(), inBox: new Map(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), homeRuns: [], gameInfo: new Map(), teamState: new Map(), allGamesFinal: false, ready: false, noGames: false };
+  return { hitNames: new Set(), sbNames: new Set(), appeared: new Set(), inBox: new Map(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), homeRuns: [], gameInfo: new Map(), teamState: new Map(), batStats: new Map(), teamScores: new Map(), allGamesFinal: false, ready: false, noGames: false };
 }
 
 // League-average probability that a plate appearance ends in an out. Not
@@ -764,6 +790,11 @@ const FEED_FIELDS = [
   "linescore", "currentInning", "inningState", "outs", "offense",
   // stolen bases: every play's runner events, and who is standing on which base
   "runners", "runner", "playIndex", "first", "second", "third",
+  // stat props (H+R+RBI and friends) and game lines. `fields` matches NAMES at
+  // any depth, so these four cover BOTH boxscore.players[].stats.batting AND
+  // linescore.teams.{away,home} -- the batting line and the score come from
+  // the same words. Cheap: both objects were already being fetched.
+  "hits", "rbi", "totalBases", "isFinal",
 ].join(",");
 
 async function getGameSnapshot(gamePk) {
@@ -947,6 +978,7 @@ async function getGameSnapshot(gamePk) {
   // defensive sub who never hit is void too. The fallbacks cover a feed that
   // hasn't filled in plateAppearances yet.
   const played = new Set();
+  const batStats = new Map();   // norm name -> { hits, runs, rbi, totalBases, walks }
   const boxTeams = (data.liveData && data.liveData.boxscore && data.liveData.boxscore.teams) || {};
   ["away", "home"].forEach(side => {
     const players = (boxTeams[side] && boxTeams[side].players) || {};
@@ -956,6 +988,17 @@ async function getGameSnapshot(gamePk) {
       const norm = normalizeName(full);
       rosterNames.add(norm);
       const batting = (p.stats && p.stats.batting) || null;
+      if (batting) {
+        // The raw batting line, for stat props (H+R+RBI, hits, RBI, runs,
+        // total bases). Absent numbers read 0 rather than undefined so a sum
+        // is always a number; whether he actually PLAYED is a separate
+        // question answered by `played` just below, and a prop on someone who
+        // never got in is void, not a loss.
+        batStats.set(norm, {
+          hits: batting.hits || 0, runs: batting.runs || 0, rbi: batting.rbi || 0,
+          totalBases: batting.totalBases || 0, walks: batting.baseOnBalls || 0,
+        });
+      }
       if (batting && typeof batting.plateAppearances === "number") {
         if (batting.plateAppearances > 0) played.add(norm);
       } else if (p.battingOrder || (p.allPositions && p.allPositions.length) || (batting && Object.keys(batting).length)) {
@@ -1036,7 +1079,29 @@ async function getGameSnapshot(gamePk) {
     nextUpSlot[side] = slot;
   });
 
-  return { status, hrNames, homeRuns, rosterNames, played, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk, currentAB, recentABs, sbNames, steals, bases };
+  // The score, for game lines. Keyed by team ABBREVIATION -- the same key
+  // leg.team already uses, and the reason the schedule request carries
+  // hydrate=team. A game line is only ever settled when the game is FINAL:
+  // "winning in the 7th" is not a result, so status rides along and the
+  // graders refuse to call anything before then.
+  const lineTeams = (data.liveData && data.liveData.linescore && data.liveData.linescore.teams) || {};
+  const scoreTeams = (data.gameData && data.gameData.teams) || {};
+  const teamScores = new Map();
+  ["away", "home"].forEach(side => {
+    const other = side === "away" ? "home" : "away";
+    const abbr = scoreTeams[side] && scoreTeams[side].abbreviation;
+    const oppAbbr = scoreTeams[other] && scoreTeams[other].abbreviation;
+    if (!abbr) return;
+    const mine = lineTeams[side] || {};
+    const theirs = lineTeams[other] || {};
+    teamScores.set(abbr, {
+      runs: typeof mine.runs === "number" ? mine.runs : null,
+      oppRuns: typeof theirs.runs === "number" ? theirs.runs : null,
+      opponent: oppAbbr || "", gamePk, status,
+    });
+  });
+
+  return { status, hrNames, homeRuns, rosterNames, played, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk, currentAB, recentABs, sbNames, steals, bases, batStats, teamScores };
 }
 
 // How many more outs a team's side needs to record before the (assumed
@@ -1206,7 +1271,7 @@ async function pollSlate(date) {
   const snapshots = await Promise.all(games.map(g => {
     if (FINAL_SNAPSHOTS.has(g.gamePk)) return FINAL_SNAPSHOTS.get(g.gamePk);
     // Nothing from a not-yet-started game's feed is used below, so skip the download.
-    if (g.preview) return { status: "preview", gamePk: g.gamePk, hrNames: new Set(), homeRuns: [], rosterNames: new Set(), played: new Set(), orderSlot: new Map(), slotHolders: { away: {}, home: {} }, sbNames: new Set(), steals: [], bases: {} };
+    if (g.preview) return { status: "preview", gamePk: g.gamePk, hrNames: new Set(), homeRuns: [], rosterNames: new Set(), played: new Set(), orderSlot: new Map(), slotHolders: { away: {}, home: {} }, sbNames: new Set(), steals: [], bases: {}, batStats: new Map(), teamScores: new Map() };
     return getGameSnapshot(g.gamePk).then(snap => {
       if (snap.status === "final") FINAL_SNAPSHOTS.set(g.gamePk, snap);
       return snap;
@@ -1228,6 +1293,8 @@ async function pollSlate(date) {
   // team abbr -> what the SCHEDULE says about that team's game today. The only
   // source for a game that hasn't started, since there's no boxscore yet.
   const teamState = new Map();
+  const batStats = new Map();    // norm name -> batting line, for stat props
+  const teamScores = new Map();  // team ABBR -> { runs, oppRuns, opponent, status }
   games.forEach(g => (g.teams || []).forEach(abbr =>
     teamState.set(abbr, { detailed: g.detailedState, reason: g.reason })));
   let allFinal = true;
@@ -1252,12 +1319,24 @@ async function pollSlate(date) {
         if (currentHolder && currentHolder.orderFull > info.orderFull) substitutedOut.add(n);
       });
     }
+    if (snap.batStats) snap.batStats.forEach((v, n) => batStats.set(n, v));
+    if (snap.teamScores) snap.teamScores.forEach((v, a) => {
+      // Keyed by team abbreviation, so a DOUBLEHEADER puts the same team on
+      // two games in one day. A settled game must not be clobbered by the
+      // nightcap that hasn't started, so a row with real runs beats one
+      // without. Which of the two a leg actually refers to is genuinely
+      // ambiguous from the card, and nothing here pretends otherwise -- this
+      // only stops the score going backwards.
+      const prev = teamScores.get(a);
+      if (prev && prev.runs !== null && v.runs === null) return;
+      teamScores.set(a, v);
+    });
     gameInfo.set(snap.gamePk, snap);
     if (snap.status !== "final") allFinal = false;
   });
 
   homeRuns.sort((a, b) => String(b.time).localeCompare(String(a.time))); // newest first, across games
-  const results = { hitNames, sbNames, appeared, inBox, rosterStatus, rosterSide, substitutedOut, homeRuns, gameInfo, teamState, allGamesFinal: allFinal, ready: true, noGames: false };
+  const results = { hitNames, sbNames, appeared, inBox, rosterStatus, rosterSide, substitutedOut, homeRuns, gameInfo, teamState, batStats, teamScores, allGamesFinal: allFinal, ready: true, noGames: false };
   const anyFetchFailed = snapshots.some(s => !s);
   return { results, done: allScheduledFinal || pastSafetyValve(date), settled: allScheduledFinal && !anyFetchFailed };
 }
@@ -1291,14 +1370,131 @@ function stateForPlayer(playerName) {
 }
 
 // ---------------- bet markets ----------------
-// A leg is a HOME RUN bet unless it says otherwise: `market: "sb"` makes it a
-// stolen-base bet. No field at all means "hr", so every slate written before
-// steals existed -- and every home run leg since -- takes exactly the path it
-// always did: stateForLeg() hands it straight to stateForPlayer(), unchanged.
-function legMarket(leg) { return leg && leg.market === "sb" ? "sb" : "hr"; }
+// Markets are a REGISTRY, not an hr/sb binary (2026-09-29). No `market` field
+// at all still means "hr", so every slate written before any of this -- and
+// every home run leg since -- takes exactly the path it always did:
+// stateForLeg() hands it straight to stateForPlayer(), untouched.
+//
+// Each entry declares:
+//   label    what the tag next to the pick reads ("" for home runs, which are
+//            the default and would just be noise)
+//   subject  "player" | "team" | "game" -- a game line has no player at all,
+//            which is the one genuinely structural difference here
+//   grade    leg -> state
+//
+// THE IMPORTANT PART IS THE DEFAULT. A market nobody has taught this page is
+// never an error and never a miss: stateForLeg() returns "untracked", which is
+// shown plainly, counted in neither column, and cannot kill a parlay. That is
+// what makes "accept anything" safe -- a card can name a market invented this
+// morning and the slate still posts, still grades every leg it understands,
+// and says out loud which one it didn't.
+const MARKETS = {
+  hr:     { label: "",            subject: "player", grade: leg => stateForPlayer(leg.player) },
+  sb:     { label: "STEAL",       subject: "player", grade: leg => stateForSteal(leg.player) },
+  hrr:    { label: "H+R+RBI",     subject: "player", grade: leg => stateForStatProp(leg, ["hits", "runs", "rbi"]) },
+  hits:   { label: "HITS",        subject: "player", grade: leg => stateForStatProp(leg, ["hits"]) },
+  rbi:    { label: "RBI",         subject: "player", grade: leg => stateForStatProp(leg, ["rbi"]) },
+  runs:   { label: "RUNS",        subject: "player", grade: leg => stateForStatProp(leg, ["runs"]) },
+  tb:     { label: "TOTAL BASES", subject: "player", grade: leg => stateForStatProp(leg, ["totalBases"]) },
+  ml:     { label: "MONEYLINE",   subject: "team",   grade: leg => stateForMoneyline(leg) },
+  spread: { label: "SPREAD",      subject: "team",   grade: leg => stateForSpread(leg) },
+  total:  { label: "TOTAL",       subject: "game",   grade: leg => stateForTotal(leg) },
+};
+
+function legMarket(leg) {
+  const m = leg && leg.market;
+  return m && MARKETS[m] ? m : (m ? String(m) : "hr");
+}
+function marketDef(leg) { return MARKETS[legMarket(leg)] || null; }
+function marketSubject(leg) { const d = marketDef(leg); return d ? d.subject : "player"; }
+
+// What this leg is ABOUT, for display. A player prop names the player; a game
+// line names the team or the matchup, and has no player at all -- which is why
+// nothing may assume leg.player exists.
+function legSubjectName(leg) {
+  if (!leg) return "";
+  if (marketSubject(leg) === "player") return leg.player || "";
+  return leg.team || leg.game || leg.player || "";
+}
+
+// "Over 1.5" -> the leg must reach 2. A market with no line stated behaves the
+// way home runs and steals always have: at least one.
+function legLine(leg) {
+  const n = leg && leg.line !== undefined && leg.line !== null ? Number(leg.line) : 0.5;
+  return Number.isFinite(n) ? n : 0.5;
+}
+function legSide(leg) { return leg && leg.side === "under" ? "under" : "over"; }
 
 function stateForLeg(leg) {
-  return legMarket(leg) === "sb" ? stateForSteal(leg.player) : stateForPlayer(leg.player);
+  const def = marketDef(leg);
+  // Unknown market -> untracked. Never a miss: we have no idea, and guessing
+  // would either kill a live parlay or claim money that wasn't won.
+  if (!def || typeof def.grade !== "function") return "untracked";
+  return def.grade(leg);
+}
+
+// ---- stat props (H+R+RBI, hits, RBI, runs, total bases) ----
+// Graded off the boxscore batting line, which was already being fetched for
+// plateAppearances. Same void rule as a home run bet: on the roster of a
+// finished game without ever batting is a refund, not a loss.
+function stateForStatProp(leg, statKeys) {
+  const norm = normalizeName(leg.player || "");
+  if (!RESULTS.ready) return "not_started";
+  const line = legLine(leg), under = legSide(leg) === "under";
+  const row = RESULTS.batStats && RESULTS.batStats.get(norm);
+  const total = row ? statKeys.reduce((a, k) => a + (row[k] || 0), 0) : 0;
+  const gameStatus = RESULTS.inBox && RESULTS.inBox.get(norm);
+  const finished = gameStatus === "final";
+
+  // An OVER settles the moment it clears, mid-game -- 2 hits is 2 hits whether
+  // or not the game is over. An UNDER can only ever be settled at the end,
+  // except when it has already been busted.
+  if (!under && total > line) return "hit";
+  if (under && total > line) return "miss";
+  if (!finished) return gameStatus ? "live" : "not_started";
+  // Final. He has to have actually played, or the bet is void.
+  const played = RESULTS.rosterStatus && RESULTS.rosterStatus.has(norm);
+  if (!played) return gameStatus ? "na" : "not_started";
+  return under ? "hit" : "miss";
+}
+
+// ---- game lines ----
+// Only ever settled on a FINAL game: leading in the 7th is not a result, and
+// calling one early would be the worst kind of wrong on this page.
+function teamScoreFor(leg) {
+  const abbr = (leg && (leg.team || leg.game) || "").toUpperCase();
+  const row = RESULTS.teamScores && RESULTS.teamScores.get(abbr);
+  if (!row || row.runs === null || row.oppRuns === null) return null;
+  return row;
+}
+function settledScore(leg) {
+  if (!RESULTS.ready) return null;
+  const row = teamScoreFor(leg);
+  if (!row) return null;
+  return row.status === "final" ? row : null;
+}
+function stateForMoneyline(leg) {
+  const row = settledScore(leg);
+  if (!row) return teamScoreFor(leg) ? "live" : "not_started";
+  return row.runs > row.oppRuns ? "hit" : "miss";
+}
+function stateForSpread(leg) {
+  const row = settledScore(leg);
+  if (!row) return teamScoreFor(leg) ? "live" : "not_started";
+  // A spread is signed from the bet's point of view: -1.5 must be beaten by 2.
+  const line = leg && leg.line !== undefined && leg.line !== null ? Number(leg.line) : 0;
+  if (!Number.isFinite(line)) return "untracked";
+  const margin = (row.runs + line) - row.oppRuns;
+  if (margin === 0) return "na";   // a push is a refund, like a void leg
+  return margin > 0 ? "hit" : "miss";
+}
+function stateForTotal(leg) {
+  const row = settledScore(leg);
+  if (!row) return teamScoreFor(leg) ? "live" : "not_started";
+  const combined = row.runs + row.oppRuns;
+  const line = legLine(leg);
+  if (combined === line) return "na";  // exact push
+  return (legSide(leg) === "under") === (combined < line) ? "hit" : "miss";
 }
 
 // Steal bets differ from home run bets in two ways the user settled on:
@@ -1399,9 +1595,16 @@ function evaluateTicket(tk, states) {
   const hitCount = states.filter(s => s === "hit").length;
   const activeCount = states.length - naCount;
 
+  // A leg in a market this page can't grade. The user's rule (2026-09-29):
+  // a MISS anywhere still kills the bet -- that conclusion is certain no
+  // matter what the untracked leg did -- but nothing else may be claimed.
+  // So a card with an untracked leg can go "dead", and can never go "hit".
+  const untrackedCount = states.filter(s => s === "untracked").length;
+
   let outcome;
   if (activeCount === 0) outcome = "void";
-  else if (missCount > 0) outcome = "dead";
+  else if (missCount > 0) outcome = "dead";          // certain, even with an untracked leg
+  else if (untrackedCount > 0) outcome = "partial";  // can't be finished either way
   else if (hitCount === activeCount) outcome = "hit";
   else outcome = "live";
 
@@ -1419,12 +1622,22 @@ function evaluateTicket(tk, states) {
   // An "Iron": an open parlay sitting exactly one leg away from cashing --
   // every other active leg has already hit. Parlays only; a single bet is
   // never an Iron, and singles are evaluated by singleOutcome() instead.
+  // "partial" is excluded by construction: outcome must be "live", and a bet
+  // with an untracked leg never reaches that. A card one leg from cashing
+  // where that leg is ungradeable is not one swing away -- it is unknowable.
   const iron = outcome === "live" && (activeCount - hitCount) === 1;
 
-  return { outcome, activeCount, hitCount, missCount, naCount, adjustedPayout, iron };
+  return { outcome, activeCount, hitCount, missCount, naCount, untrackedCount, adjustedPayout, iron };
 }
 
-function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void"; }
+// "partial" -- a bet carrying a leg in a market we can't grade -- counts as
+// open here for the same reason "void" does: this asks "can this still be
+// graded", not "which scoreboard column is it". It is NOT open for the BETS
+// row (see betFilterMatches), where it has its own slim bar instead, exactly
+// like Irons -- a bet that can't be finished is a qualifier, not a fifth
+// mutually-exclusive state, and the row has to stay four wide to line up
+// with LEGS.
+function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void" || outcome === "partial"; }
 
 // The four bets chips are mutually exclusive, so they line up column-for-column
 // with the four legs chips. `open` means genuinely live: a VOID bet (every leg
@@ -1436,6 +1649,7 @@ function betFilterMatches(key, evalRes) {
   if (key === "open") return evalRes.outcome === "live";
   if (key === "void") return evalRes.outcome === "void";
   if (key === "irons") return evalRes.iron === true;
+  if (key === "partial") return evalRes.outcome === "partial";
   if (key === "hit") return evalRes.outcome === "hit";
   if (key === "dead") return evalRes.outcome === "dead";
   return false;
@@ -1456,6 +1670,9 @@ function anyFilterActive() { return !!(BET_FILTERS.size || LEG_FILTERS.size || B
 function singleOutcome(state) {
   if (state === "hit") return "hit";
   if (state === "miss") return "dead";
+  // A single in a market we can't grade is exactly as indeterminate as the
+  // parlay case: never claimed as won, never written off as lost.
+  if (state === "untracked") return "partial";
   // He never played -> refunded, the single-bet twin of an all-N/A parlay's
   // "void". It used to return "live" here, which put it in the OPEN count with
   // bets that can still cash; now that N/A is its own chip it belongs there.
@@ -1501,7 +1718,9 @@ const btnSvg = `
 
 function badge(state, playerName, market) {
   const phpHit = market !== "sb" && state === "hit" && isPhpCreditedHit(playerName);
-  const inner = state === "na" ? "N/A" : btnSvg;
+  // An untracked market gets a question mark, never the tick: the tick is a
+  // claim that the bet won, and we have no idea.
+  const inner = state === "na" ? "N/A" : (state === "untracked" ? "?" : btnSvg);
   return `<div class="mark-badge${phpHit ? " php-hit" : ""}" data-state="${state}">${inner}</div>`;
 }
 
@@ -1514,8 +1733,14 @@ function statusLineHtml(text) { return `<div class="leg-live-context leg-status"
 
 function playerStatusLine(playerName, state, market, team) {
   const norm = normalizeName(playerName);
-  const what = market === "sb" ? "steal" : "home run";
+  const def = MARKETS[market];
+  const what = market === "sb" ? "steal" : (def && def.label ? def.label.toLowerCase() : "home run");
   if (!RESULTS.ready) return statusLineHtml("Waiting on live results&hellip;");
+  // Said plainly, because the alternative is a pick that silently never
+  // resolves and looks like the page is broken.
+  if (state === "untracked") {
+    return statusLineHtml("This market isn't tracked yet &mdash; shown here, but not graded.");
+  }
   if (state === "hit") return "";
   // A delay, a suspension or warmup is the most useful thing we can say, and
   // it outranks the generic "hasn't started yet" below.
@@ -1542,7 +1767,12 @@ function playerStatusLine(playerName, state, market, team) {
 // sense when both are true -- no point flagging "batting now" on a leg
 // that's already resolved, or on a parlay that's already dead from
 // another leg missing. Returns "" when there's nothing to show.
-function liveContextHtml(playerName, state, betIsOpen, market, team) {
+function liveContextHtml(playerName, state, betIsOpen, market, team, leg) {
+  // Markets whose subject is a TEAM or a GAME have no player, so none of the
+  // batting-order machinery below applies. They get their own plain line.
+  const def = MARKETS[market];
+  if (def && def.subject !== "player") return gameLineStatusLine(state, market, team, leg);
+  if (state === "untracked") return playerStatusLine(playerName, state, market, team);
   if (market === "sb") return stealContextHtml(playerName, state, betIsOpen, team);
   const norm = normalizeName(playerName);
   const ownHit = RESULTS.hitNames && RESULTS.hitNames.has(norm);
@@ -1616,8 +1846,58 @@ function stealsBy(norm) {
   return out;
 }
 
-function marketTag(market) {
-  return market === "sb" ? ` <span class="mkt-tag sb" title="Stolen base bet">STEAL</span>` : "";
+// The tag beside a pick. Home runs get none -- they're the default and a tag
+// on every leg would be noise. An unknown market still gets one, reading the
+// market name as the card wrote it, so nothing is ever displayed as though it
+// were a home run bet just because the page doesn't recognise it.
+function marketTag(market, leg) {
+  if (!market || market === "hr") return "";
+  const def = MARKETS[market];
+  const line = leg ? lineText(leg) : "";
+  if (!def) {
+    const raw = escapeHtml(String(market).toUpperCase().slice(0, 18));
+    return ` <span class="mkt-tag unknown" title="This market isn't tracked yet -- shown, but not graded">${raw}${line}</span>`;
+  }
+  if (!def.label) return "";
+  const cls = market === "sb" ? "sb" : (def.subject === "player" ? "prop" : "line");
+  return ` <span class="mkt-tag ${cls}" title="${escapeHtml(def.label)} bet">${escapeHtml(def.label)}${line}</span>`;
+}
+
+// "O1.5" / "U8.5" / "-1.5". Only shown when the card actually stated a line:
+// a home run or steal bet is "at least one" and has never needed one.
+function lineText(leg) {
+  if (!leg || leg.line === undefined || leg.line === null) return "";
+  const n = Number(leg.line);
+  if (!Number.isFinite(n)) return "";
+  if (legMarket(leg) === "spread") return ` ${n > 0 ? "+" : ""}${n}`;
+  return ` ${legSide(leg) === "under" ? "U" : "O"}${n}`;
+}
+
+// The always-on line for a market whose subject is a team or a game. Same
+// contract as playerStatusLine(): it never returns "" except on a hit, where
+// the green check has already said it.
+function gameLineStatusLine(state, market, team, leg) {
+  if (!RESULTS.ready) return statusLineHtml("Waiting on live results&hellip;");
+  if (state === "hit") return "";
+  if (state === "untracked") {
+    return statusLineHtml("This market isn't tracked yet &mdash; shown here, but not graded.");
+  }
+  const sched = teamGameState(team);
+  const schedText = sched ? scheduleStateText(sched.detailed, sched.reason) : null;
+  const row = leg ? teamScoreFor(leg) : null;
+  if (state === "na") return statusLineHtml("Push &mdash; refunded.");
+  if (state === "not_started") return statusLineHtml(schedText || "Game hasn't started yet.");
+  if (state === "miss") {
+    return statusLineHtml(row ? `Final ${row.runs}&ndash;${row.oppRuns} &mdash; didn't get there.`
+                              : "Game final &mdash; didn't get there.");
+  }
+  // live: a game line is only ever settled when the game is FINAL, so say so
+  // rather than implying it's close.
+  if (schedText) return statusLineHtml(schedText);
+  if (row && row.runs !== null) {
+    return statusLineHtml(`Game on &mdash; ${row.runs}&ndash;${row.oppRuns} so far. Settles at the final.`);
+  }
+  return statusLineHtml("Game on &mdash; settles at the final.");
 }
 
 function ordinal(n) {
@@ -2157,6 +2437,11 @@ function zoneGridHtml(zone) {
 // Normalized names whose home run matters to this slate: anyone actually
 // picked, plus any substitute whose HR is currently crediting one of our
 // legs under Pinch Hit Protection.
+// Which markets get a tile in the Live Bet Tracker. Everything else is shown
+// on its card and counted, just not given live at-bat context -- see the note
+// at the add() call site.
+const LIVE_TILE_MARKETS = new Set(["hr", "sb"]);
+
 function relevantHrNames() {
   const set = new Set();
   if (!TICKETS) return set;
@@ -2322,11 +2607,17 @@ function labEligiblePicks() {
   EVALUATED.forEach(({ tk, states, evalRes }) => {
     if (!isOpenOutcome(evalRes.outcome) || !ticketMatchesFilter(evalRes)) return;
     tk.legs.forEach((leg, i) => {
-      if (states[i] === "live" && legPassesFilters(states[i], leg.who)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]), legMarket(leg));
+      // The Live Bet Tracker is home-run and steal tiles only. The other
+      // markets are deliberately left out for now (the user deferred live
+      // tracking for them): a tile is at-bat / on-base context, which means
+      // nothing for a game line, and bucketing an H+R+RBI pick into the HR
+      // list would mislabel its odds.
+      if (states[i] === "live" && LIVE_TILE_MARKETS.has(legMarket(leg)) && legPassesFilters(states[i], leg.who)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]), legMarket(leg));
     });
   });
   EVALUATED_SINGLES.forEach(({ s, state, outcome, iron }) => {
     if (state !== "live" || outcome !== "live") return;
+    if (!LIVE_TILE_MARKETS.has(legMarket(s))) return;   // see the parlay side
     if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(state, s.who)) return;
     add(s.player, s.odds, s.who, iron, legMarket(s));
   });
@@ -2655,7 +2946,7 @@ function toggleLiveAb() {
 function computeAll() {
   if (!TICKETS) return;
 
-  let betOpen = 0, betHit = 0, betMiss = 0, betVoid = 0, betIron = 0;
+  let betOpen = 0, betHit = 0, betMiss = 0, betVoid = 0, betIron = 0, betPartial = 0;
   let totalPayoutHit = 0;
   const bettors = new Map();
   // Every leg on the slate, parlay legs and singles alike, bucketed for the
@@ -2685,6 +2976,7 @@ function computeAll() {
       else if (evalRes.outcome === "void") betVoid++;
       else betOpen++;
       if (evalRes.iron) betIron++; // Irons are a subset of Open, counted in both
+      if (evalRes.outcome === "partial") betPartial++; // also a subset of Open
 
       tk.legs.forEach((leg, i) => {
         const state = states[i];
@@ -2711,6 +3003,7 @@ function computeAll() {
     else if (outcome === "hit") { betHit++; totalPayoutHit += (s.payout || 0); }
     else if (outcome === "void") betVoid++;
     else betOpen++;
+    if (outcome === "partial") betPartial++;
 
     const b = touchBettor(s.who);
     if (b) {
@@ -2721,6 +3014,10 @@ function computeAll() {
 
   document.getElementById("count-parlay-open").textContent = betOpen;
   document.getElementById("count-parlay-iron").textContent = betIron;
+  // The bar only exists when there is something to say.
+  const partialBar = document.getElementById("chip-partial");
+  document.getElementById("count-parlay-partial").textContent = betPartial;
+  partialBar.classList.toggle("show", betPartial > 0);
   document.getElementById("count-parlay-hit").textContent = betHit;
   document.getElementById("count-parlay-miss").textContent = betMiss;
   document.getElementById("count-parlay-void").textContent = betVoid;
@@ -2764,7 +3061,14 @@ function computeAll() {
 
 // Which LEGS chip a leg state belongs to. The chip row is four wide to fit a
 // phone, so `not_started` rides along with `live` -- both mean "still to come".
-function legFilterBucket(state) { return state === "not_started" ? "live" : state; }
+// The LEGS row is deliberately four chips so it lines up column-for-column
+// with BETS (see CLAUDE.md). "not started" has always folded into LIVE, and an
+// UNTRACKED leg folds in for the same reason: the chip means "not resolved",
+// which is true of both, and the always-on status line under each pick says
+// which of them it actually is.
+function legFilterBucket(state) {
+  return (state === "not_started" || state === "untracked") ? "live" : state;
+}
 
 // Paired with ticketMatchesFilter: that one decides whether a bet shows at
 // all, this one whether an individual leg does. Both leg-level filters apply.
@@ -2863,7 +3167,7 @@ function renderContent() {
         const leg = tk.legs[i];
         const state = states[i];
         html += `<div class="leg state-${state}">
-          <div class="leg-left"><div class="leg-player">${leg.player}${marketTag(legMarket(leg))}${isIronLeg(evalRes, state) ? ironMark() : ""}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen, legMarket(leg), leg.team)}</div>
+          <div class="leg-left"><div class="leg-player">${escapeHtml(legSubjectName(leg))}${marketTag(legMarket(leg), leg)}${isIronLeg(evalRes, state) ? ironMark() : ""}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen, legMarket(leg), leg.team, leg)}</div>
           <div class="leg-right"><div class="leg-odds">${leg.odds}</div><div class="leg-time">${leg.time || ""}</div></div>
           ${badge(state, leg.player, legMarket(leg))}
         </div>`;
@@ -2904,7 +3208,7 @@ function renderContent() {
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
     singlesHtml += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player}${marketTag(legMarket(s))}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team)}
+      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${escapeHtml(legSubjectName(s))}${marketTag(legMarket(s), s)}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team, s)}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>
@@ -2930,8 +3234,8 @@ function renderContent() {
 const FILTER_GROUPS = {
   bet: {
     set: BET_FILTERS, label: "Bets",
-    chips: { open: "chip-open", irons: "chip-iron", hit: "chip-hit", dead: "chip-dead", void: "chip-void" },
-    names: { open: "Open", irons: "Irons", hit: "Hit", dead: "Missed", void: "N/A" }
+    chips: { open: "chip-open", irons: "chip-iron", partial: "chip-partial", hit: "chip-hit", dead: "chip-dead", void: "chip-void" },
+    names: { open: "Open", irons: "Irons", partial: "Not fully tracked", hit: "Hit", dead: "Missed", void: "N/A" }
   },
   leg: {
     set: LEG_FILTERS, label: "Legs",

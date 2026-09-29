@@ -68,6 +68,29 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 TICKET_LEG_KEYS = ("id", "player", "team", "who", "meta", "odds", "time")
 TICKET_KEYS = ("name", "sub", "foot", "stake", "book", "payout", "legs")
+
+# A market is a short lowercase token. Deliberately NOT an allow-list: the
+# whole point of the registry on the page is that a market nobody has taught
+# it yet is displayed and left ungraded rather than rejected, so a card naming
+# a market invented this morning must still be able to post. What's checked is
+# that it LOOKS like a market key, which is what catches a real mistake --
+# a whole sentence, or a stray None, landing in the field.
+MARKET_RE = re.compile(r"^[a-z][a-z0-9 +._-]{0,23}$")
+
+
+def market_problem(leg, label):
+    m = leg.get("market")
+    if m is None:
+        return None
+    if not is_str(m) or not MARKET_RE.match(m):
+        return f"{label}: market {m!r} isn't a short lowercase token"
+    # A line/side only mean anything alongside a market, and must be the right
+    # types -- the page does arithmetic with the line.
+    if "line" in leg and leg["line"] is not None and not is_num(leg["line"]):
+        return f"{label}: line {leg['line']!r} is not numeric"
+    if "side" in leg and leg["side"] is not None and leg["side"] not in ("over", "under"):
+        return f"{label}: side {leg['side']!r} is neither 'over' nor 'under'"
+    return None
 SINGLE_KEYS = ("id", "who", "player", "team", "meta", "odds", "stake", "payout", "pp")
 
 
@@ -126,8 +149,9 @@ def check_tickets_file(label, path, football=False):
                     continue
                 if not ODDS_STR_RE.match(leg["odds"]):
                     leg_problems.append(f"{leg.get('player')}: odds {leg['odds']!r} not [+-]NNN")
-                if leg.get("market") not in (None, "sb"):
-                    leg_problems.append(f"{leg.get('player')}: unknown market {leg.get('market')!r}")
+                mp = market_problem(leg, str(leg.get("player") or leg.get("team") or "leg"))
+                if mp:
+                    leg_problems.append(mp)
                 if football and "athleteId" in leg and leg["athleteId"] is not None and not is_str(leg["athleteId"]):
                     leg_problems.append(f"{leg.get('player')}: athleteId present but not a string")
     check(f"{label}: every ticket has the full parlay-card shape", not ticket_problems, "; ".join(ticket_problems[:3]))
@@ -143,8 +167,9 @@ def check_tickets_file(label, path, football=False):
             single_problems.append(f"{s.get('player')}: odds {s['odds']!r} not [+-]NNN")
         if not is_num(s["stake"]) or not is_num_or_null(s["payout"]):
             single_problems.append(f"{s.get('player')}: stake not numeric, or payout not numeric-or-null")
-        if s.get("market") not in (None, "sb"):
-            single_problems.append(f"{s.get('player')}: unknown market {s.get('market')!r}")
+        mp = market_problem(s, str(s.get("player") or s.get("team") or "single"))
+        if mp:
+            single_problems.append(mp)
     check(f"{label}: every single has the full shape and valid odds", not single_problems, "; ".join(single_problems[:3]))
 
     all_names = [leg["player"] for w in data["windows"] for t in w["tickets"] for leg in t["legs"]] + [s["player"] for s in data["singles"]]
@@ -226,8 +251,9 @@ def check_history_file(label, path, sport):
                 leg_problems.append(f"{leg['pick']}: unknown status {leg['status']!r}")
             if leg["odds"] is not None and not isinstance(leg["odds"], int):
                 leg_problems.append(f"{leg['pick']}: odds {leg['odds']!r} is neither an int nor null")
-            if leg.get("market") not in (None, "sb"):
-                leg_problems.append(f"{leg['pick']}: unknown market {leg.get('market')!r}")
+            mp = market_problem(leg, str(leg.get("pick") or "leg"))
+            if mp:
+                leg_problems.append(mp)
     check(f"{label}: every parlay has a valid date and at least one leg", not parlay_problems, "; ".join(parlay_problems[:3]))
     check(f"{label}: every leg has bettor/pick/odds/status, odds is int-or-null, status is a known value",
           not leg_problems, "; ".join(leg_problems[:3]))

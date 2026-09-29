@@ -331,6 +331,111 @@ SB_MARK_RE = re.compile(
     r"[\(\[]?\s*\b(?:SB|stolen\s+bases?|steals?|to\s+steal(?:\s+a\s+base)?)\b\s*[\)\]]?", re.IGNORECASE)
 
 
+# ---- markets beyond home runs and steals (2026-09-29) -------------------
+# The page carries a market REGISTRY, and anything it doesn't recognise is
+# shown but not graded rather than silently treated as a home run. The parser's
+# job is therefore to report what the card SAID, not to decide what's
+# gradeable: an unknown market word is passed through as-is, and the page
+# handles it. That is the whole reason this can be tolerant.
+#
+# No real card has arrived yet using any of these, so the phrasings below are
+# the common ones rather than anything observed. A leg nothing matches still
+# goes through BETLIKE_RE and surfaces in the note -- never dropped in silence.
+MARKET_ALIASES = [
+    ("hrr",    r"h\s*\+\s*r\s*\+\s*rbi|hits?\s*\+\s*runs?\s*\+\s*rbis?"),
+    ("tb",     r"total\s+bases|tot\s*bases|\bTB\b"),
+    ("hits",   r"\bhits?\b"),
+    ("rbi",    r"\brbis?\b"),
+    ("runs",   r"\bruns?\s+scored\b|\bruns?\b"),
+    ("sb",     r"\bsb\b|stolen\s+bases?|steals?"),
+    ("hr",     r"home\s+runs?|\bhr\b|to\s+go\s+deep"),
+    ("ml",     r"\bml\b|money\s*line|to\s+win(?:\s+the\s+game)?"),
+    ("spread", r"run\s*line|\bspread\b"),
+    ("total",  r"\btotal\b|\bo/u\b|over\s*/\s*under"),
+]
+MARKET_ALIAS_RE = [(k, re.compile(pat, re.IGNORECASE)) for k, pat in MARKET_ALIASES]
+
+# "Over 1.5" / "O1.5" / "U8.5" / "+1.5" / "-1.5"
+OVER_UNDER_RE = re.compile(r"\b(?:(over|under)|([ou]))\s*(\d+(?:\.\d+)?)\b", re.IGNORECASE)
+SPREAD_NUM_RE = re.compile(r"(?<![\w.])([+-]\d+(?:\.\d+)?)(?![\d])")
+# Anything that looks like it names a market we don't have an alias for --
+# "Strikeouts O5.5", "Doubles Over 0.5". Captured so the page can show it,
+# untracked, instead of the leg quietly grading as a home run.
+UNKNOWN_MARKET_RE = re.compile(
+    r"\b((?:[A-Za-z][A-Za-z+]*\s+){0,1}[A-Za-z][A-Za-z+]*)\s*"
+    r"(?:\b(?:over|under)\b|\b[OU])\s*\d+(?:\.\d+)?\b", re.IGNORECASE)
+
+
+def detect_market(text):
+    """What market does this leg text name, and at what line?
+
+    -> (market_key or None, line or None, side or None, text with the market
+    phrase removed). None for the key means "say nothing", which leaves the
+    leg exactly as it has always been: a home run bet with no market field.
+    """
+    if not text:
+        return None, None, None, text
+    key = None
+    for k, rx in MARKET_ALIAS_RE:
+        if rx.search(text):
+            key = k
+            break
+    line = side = None
+    ou = OVER_UNDER_RE.search(text)
+    if ou:
+        side = (ou.group(1) or ou.group(2) or "o").lower()
+        side = "under" if side.startswith("u") else "over"
+        line = float(ou.group(3))
+    if key is None:
+        unknown = UNKNOWN_MARKET_RE.search(text)
+        if unknown:
+            raw = re.sub(r"\s+", " ", unknown.group(1)).strip().lower()
+            # Don't let a player's own name become a "market": only accept it
+            # when an over/under number sat right behind it.
+            if raw and ou:
+                key = raw
+    if key == "spread" and line is None:
+        sp = SPREAD_NUM_RE.search(text)
+        if sp:
+            line = float(sp.group(1))
+    elif key is None and side is None:
+        # "Yankees -1.5" -- a team and a signed number, nothing else. Narrow on
+        # purpose: the whole line has to look like exactly that, so a stray
+        # "+390" price can never be read as a run line.
+        bare = re.match(r"^\s*([A-Za-z][A-Za-z .'-]{1,24}?)\s*([+-]\d+(?:\.\d+)?)\s*$", text)
+        if bare and "." in bare.group(2):
+            key, line = "spread", float(bare.group(2))
+            return key, line, None, bare.group(1).strip()
+    if key is None and side is not None:
+        stripped = OVER_UNDER_RE.sub(" ", text, count=1).strip(" -|:")
+        if not stripped:
+            key = "total"
+    cleaned = text
+    if key:
+        for k, rx in MARKET_ALIAS_RE:
+            if k == key:
+                cleaned = rx.sub(" ", cleaned, count=1)
+                break
+    if ou:
+        cleaned = OVER_UNDER_RE.sub(" ", cleaned, count=1)
+    cleaned = re.sub(r"\s*[-|:]\s*$", "", re.sub(r"\s{2,}", " ", cleaned).strip())
+    return key, line, side, cleaned
+
+
+def market_fields(key, line, side):
+    """The leg fields a detected market contributes. Home runs contribute
+    NOTHING, so a home-run-only card's tickets.json is byte-for-byte what it
+    has always been -- the same guarantee steals were added under."""
+    out = {}
+    if key and key != "hr":
+        out["market"] = key
+    if line is not None:
+        out["line"] = line
+    if side and side != "over":
+        out["side"] = side
+    return out
+
+
 def take_market(line):
     """-> (line with any steal marker removed, whether there was one)."""
     m = SB_MARK_RE.search(line)
@@ -786,10 +891,15 @@ def parse(text, team_by_name, canonical_by_norm):
             prop_leg = TICKET_PROP_LEG_RE.match(original)
             if prop_leg:
                 who, player_raw, market_word, threshold, odds, matchup, time_ = prop_leg.groups()
-                if threshold and float(threshold) != 0.5:
+                mkt, _line, _side, _ = detect_market(market_word)
+                mkt = mkt or "hr"
+                if threshold and float(threshold) != 0.5 and mkt in ("hr", "sb"):
+                    # HR and SB are "at least one" markets and carry no line,
+                    # so an over-1.5 on them really can't be graded properly.
+                    # Every other market DOES carry its line through, so this
+                    # warning no longer applies to them.
                     print(f"NOTE: '{original}' is an over-{threshold} bet; the tracker only knows 'at least one' -- "
                           f"it will be marked a hit on the FIRST one.", file=sys.stderr)
-                mkt = "hr" if re.match(r"h", market_word, re.IGNORECASE) else "sb"
                 # no team code on these lines: resolve_player() supplies it from the roster
                 current_ticket["_legs"].append((time_, player_raw, "", odds, who or current_ticket["_book"] or "", mkt))
                 continue

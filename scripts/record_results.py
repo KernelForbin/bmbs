@@ -327,7 +327,12 @@ def evaluate_ticket(stake, payout, legs):
     if active == 0:
         return "void", stake                  # nobody played: the book refunds it
     if miss:
-        return "dead", 0.0
+        return "dead", 0.0                    # certain, even alongside an untracked leg
+    # A leg in a market this script can't grade. Same rule the page uses: a
+    # miss anywhere still kills the bet (handled above), but nothing else may
+    # be claimed -- so this can never be recorded as a win.
+    if states.count("untracked"):
+        return "partial", None
     if hit != active:
         return "live", None                   # unresolved (suspended game at the backstop)
     adjusted = payout
@@ -347,9 +352,37 @@ def hr_detail(hr):
     return {k: hr[k] for k in keep if hr.get(k) not in (None, "")}
 
 
+# Markets this recorder can actually grade. Everything else is written down
+# as "untracked" rather than guessed at.
+#
+# DELIBERATE GAP (2026-09-29): index.html grades stat props (H+R+RBI, hits,
+# RBI, runs, total bases) and game lines (moneyline, spread, total) from the
+# boxscore and linescore. This recorder does NOT yet, because it writes the
+# PERMANENT record -- a half-ported grader here would bake a wrong result into
+# history forever, which is far worse than an honest "not graded". The rule
+# from CLAUDE.md still stands and this is the outstanding half of it: porting
+# these graders is the follow-up, and until then a recorded slate carrying
+# one of those markets is complete except for those legs.
+RECORDER_MARKETS = {None, "hr", "sb"}
+
+
 def grade_leg(results, src):
     player = src.get("player") or ""
-    steal = src.get("market") == "sb"
+    market = src.get("market")
+    if market not in RECORDER_MARKETS:
+        # Never fall through to grade_player(): that would grade a spread or
+        # an H+R+RBI prop as though it were a home run bet.
+        leg = {"player": player, "team": src.get("team") or "",
+               "who": who_name(src.get("who")), "odds": odds_to_number(src.get("odds")),
+               "state": "untracked", "mlbId": results["rosterIds"].get(normalize_name(player)),
+               "market": market}
+        for k in ("line", "side"):
+            if src.get(k) is not None:
+                leg[k] = src[k]
+        if src.get("time"):
+            leg["time"] = src["time"]
+        return leg
+    steal = market == "sb"
     state, php_by = (grade_steal(results, player), None) if steal else grade_player(results, player)
     norm = normalize_name(player)
     leg = {"player": player, "team": src.get("team") or "", "who": who_name(src.get("who")),
@@ -398,7 +431,9 @@ def grade_slate(tickets, results):
     picked = {normalize_name(l["player"]) for l in hr_legs} | {normalize_name(l["php"]) for l in hr_legs if l.get("php")}
     sb_picked = {normalize_name(l["player"]) for l in all_legs if l.get("market") == "sb"}
     stolen = [st for st in results["steals"] if not st["caught"]]
-    complete = all(b["outcome"] != "live" for b in bets)
+    # "partial" counts as incomplete: those legs are not graded, so the slate
+    # is not finished being recorded and a later run should look again.
+    complete = all(b["outcome"] not in ("live", "partial") for b in bets)
     return {
         "sport": "baseball",
         "date": tickets["date"],

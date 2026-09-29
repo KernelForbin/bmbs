@@ -1,6 +1,6 @@
 {
   "date": "2026-09-29",
-  "note": "&#9888; 1 leg can't be tracked live &mdash; it shows on the card but won't be graded: &ldquo;First 5 innings Red Sox vs Cubs under 3.5 (partial game)&rdquo;",
+  "note": "&#9888; 1 leg can't be tracked live &mdash; it shows on the card but won't be graded: &ldquo;BOS f5 — BOS played NYY, not CHC&rdquo;",
   "windows": [
     {
       "title": "Parlay Cards",
@@ -26,13 +26,18 @@
             },
             {
               "id": "p0-c0-l1",
-              "player": "First 5 innings Red Sox vs Cubs under 3.5",
-              "team": "",
+              "player": "",
+              "team": "BOS",
               "who": "",
-              "meta": "",
+              "meta": "BOS &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
-              "market": "partial game"
+              "time": "8:00 PM ET",
+              "market": "f5",
+              "line": 3.5,
+              "side": "under",
+              "opponent": "CHC",
+              "innings": 5,
+              "mismatch": "BOS played NYY, not CHC"
             },
             {
               "id": "p0-c0-l2",

@@ -605,6 +605,29 @@ score use the same words):
   because the first fixture only had a finished game. A spread or total landing
   exactly on the number is a PUSH -> `na`.
 
+**A "first N innings" total IS gradeable** (`f5`, 2026-09-29). I claimed for
+a while that it wasn't -- "the page reads a final score, not a per-inning
+one" -- and never checked. `linescore.innings[]` carries every inning for both
+sides, so `stateForPartial()` sums the first N and settles EARLY when the
+number is already passed, exactly like a stat prop. `completeInnings` is how
+many innings are actually FINISHED (the last one in the array may be in
+progress), which is what it waits for. Don't repeat the mistake: check the
+feed before declaring something untrackable.
+
+**A card can name a matchup that isn't real.** The 2026-09-29 card said "Red
+Sox vs Cubs" on a night BOS played NYY and CHC played SD. The parser keeps
+both teams (`team` + `opponent`), `flag_matchups()` compares them against the
+schedule, and the page returns `untracked` when they disagree -- grading it
+against whichever team happened to resolve would answer a question nobody
+asked. The note says what really happened ("BOS played NYY, not CHC") rather
+than a bare "not tracked".
+
+**A TEAM BET HAS NO PLAYER, and that crashed the page the first time one
+WON.** `badge()` asked `isPhpCreditedHit(leg.player)` on every hit, and
+`normalizeName(null)` threw, taking the whole render down. Guarded in both
+places now; `test_page.py` AB covers it, and removing BOTH guards is what the
+mutation has to do, since either one alone prevents the crash.
+
 **THE DEFAULT IS THE WHOLE SAFETY STORY.** An unrecognised market grades to
 `untracked`: shown by name, labelled as not graded, counted in neither column,
 and unable to kill a parlay. That is what makes "accept anything" safe. Don't

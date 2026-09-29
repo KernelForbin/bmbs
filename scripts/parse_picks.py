@@ -477,15 +477,47 @@ def read_prop_leg(text, teams, roster=None):
     # nobody here can grade: the page reads a FINAL score, not a per-inning
     # one. Named as its own market so it shows honestly rather than being
     # mistaken for the game total.
-    if re.search(r"\bfirst\s+\d+\s+innings?\b|\b\d(?:st|nd|rd|th)\s+inning\b", text, re.IGNORECASE):
-        # No player and no single team to hang it on, so the leg displays its
-        # own text. That is the most honest thing available for a bet nothing
-        # here can grade -- and it keeps "anything is at least SHOWN" true.
-        leg.update({"player": text, "team": "", "market": "partial game"})
+    # A total over part of a game -- "First 5 innings Red Sox vs Cubs under
+    # 3.5". Gradeable off the linescore's per-inning runs; the reason it
+    # wasn't for a while is that I assumed only the final score was available
+    # and never checked.
+    partial = re.search(r"\bfirst\s+(\d+)\s+innings?\b", text, re.IGNORECASE)
+    inning_only = re.search(r"\b(\d)(?:st|nd|rd|th)\s+inning\b", text, re.IGNORECASE)
+    if partial or inning_only:
+        # The over/under scan below hasn't run yet at this point, so do it
+        # here -- without it the line was silently dropped and every partial
+        # total graded against the default 0.5.
+        if line is None:
+            ou_here = OVER_UNDER_RE.search(text)
+            if ou_here:
+                side = "under" if (ou_here.group(1) or ou_here.group(2) or "o").lower().startswith("u") else "over"
+                line = float(ou_here.group(3))
+        words = roster.get("abbr_by_team_word") or {}
+        # Both team names, in the order the card WRITES them, matched
+        # longest-first so "White Sox" wins over a bare "Sox".
+        hits_ = []
+        for word in sorted(words, key=len, reverse=True):
+            m = re.search(rf"\b{re.escape(word)}\b", text, re.IGNORECASE)
+            if m and all(not (m.start() < e and s_ < m.end()) for s_, e in [(h[0], h[1]) for h in hits_]):
+                hits_.append((m.start(), m.end(), words[word]))
+        named = []
+        for _, _, abbr in sorted(hits_):
+            if abbr not in named:
+                named.append(abbr)
+        leg.update({"player": "" if named else text, "team": named[0] if named else "",
+                    "market": "f5" if partial else "partial game"})
+        if len(named) > 1:
+            # Kept so the page can refuse a matchup that isn't real: the card
+            # can name two teams that aren't playing each other.
+            leg["opponent"] = named[1]
+        if partial:
+            leg["innings"] = int(partial.group(1))
         if line is not None:
             leg["line"] = line
         if side and side != "over":
             leg["side"] = side
+        if not named:
+            leg["player"] = text
         return leg
 
     generic, g_line, g_side, cleaned = detect_market(text)
@@ -754,6 +786,9 @@ ROSTER_EXTRAS = {}
 # Network, so it fails SOFT: unreachable MLB means times stay blank and the
 # slate still posts, which is the same bargain every other fetch here makes.
 MLB_SCHEDULE = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&hydrate=team&date="
+# Filled in as a side effect of fetch_start_times(), which reads the same
+# payload -- one request answers both questions.
+_SCHEDULE_OPPONENTS = {}
 
 
 def fetch_start_times(date, fetcher=None):
@@ -796,10 +831,45 @@ def fetch_start_times(date, fetcher=None):
                 abbr = (((game.get("teams") or {}).get(side) or {}).get("team") or {}).get("abbreviation")
                 if not abbr:
                     continue
+                other = "home" if side == "away" else "away"
+                opp = (((game.get("teams") or {}).get(other) or {}).get("team") or {}).get("abbreviation")
                 prev = out.get(abbr)
                 if prev is None or when < prev[1]:
-                    out[abbr] = (label, when)
+                    out[abbr] = (label, when, opp or "")
+    _SCHEDULE_OPPONENTS[date] = {a: v[2] for a, v in out.items() if v[2]}
     return {a: v[0] for a, v in out.items()}
+
+
+def fetch_opponents(date, fetcher=None):
+    """-> {TEAM ABBR: OPPONENT ABBR} for one slate date, or {} if unavailable.
+
+    Shares fetch_start_times()'s work because it reads the same payload; kept
+    separate so a caller that only wants times isn't handed a second map it
+    has to think about.
+    """
+    return _SCHEDULE_OPPONENTS.get(date, {})
+
+
+def flag_matchups(windows, opponents):
+    """Mark any leg naming a matchup the schedule contradicts. -> how many.
+
+    A card can name two teams that aren't playing each other -- the
+    2026-09-29 card said "Red Sox vs Cubs" on a night BOS played NYY and CHC
+    played SD. The page refuses to grade that (grading against whichever team
+    resolved would answer a question nobody asked), so the reason is recorded
+    here and surfaced in the note, rather than leaving a bare "not tracked".
+    """
+    if not opponents:
+        return 0
+    flagged = 0
+    for win in windows:
+        for card_ in win["tickets"]:
+            for lg in card_["legs"]:
+                want, team = lg.get("opponent"), lg.get("team")
+                if want and team and opponents.get(team) and opponents[team] != want:
+                    lg["mismatch"] = f"{team} played {opponents[team]}, not {want}"
+                    flagged += 1
+    return flagged
 
 
 def fill_missing_times(windows, singles, date, fetcher=None):
@@ -1475,7 +1545,8 @@ def parse(text, team_by_name, canonical_by_norm):
                 # on the way out -- the leg then rendered as a plain home run
                 # bet. A home run leg still contributes nothing, which is what
                 # keeps a home-run-only card byte-for-byte unchanged.
-                for k in ("market", "line", "side", "players", "text"):
+                for k in ("market", "line", "side", "players", "text", "opponent",
+                          "innings", "mismatch"):
                     if leg.get(k) is not None and not (k == "market" and leg[k] == "hr"):
                         legs[-1][k] = leg[k]
             tag_html = f' &middot; {card["tag"]}' if card.get("tag") else ""
@@ -1572,6 +1643,12 @@ def main():
     # Fill in first pitches the card never gave. After the slate date is
     # settled, because that's the date whose schedule to ask for.
     filled = fill_missing_times(windows, out_singles, slate_date)
+    # A card can name a matchup that isn't on tonight's schedule -- the
+    # 2026-09-29 card said "Red Sox vs Cubs" on a night BOS played NYY and CHC
+    # played SD. The page refuses to grade it (grading against whichever team
+    # resolved would answer a question nobody asked), so say WHY rather than
+    # leaving a bare "not tracked".
+    flag_matchups(windows, fetch_opponents(slate_date))
     if filled:
         print(f"Filled in {filled} start time(s) from MLB's schedule for {slate_date}.", file=sys.stderr)
 
@@ -1584,13 +1661,15 @@ def main():
     # unresolved and the note was empty. The page already says it per-leg;
     # this is what puts it where the group actually looks.
     KNOWN = {"hr", "sb", "hrr", "hits", "rbi", "runs", "tb", "doubles", "k",
-             "ml", "spread", "total"}
+             "ml", "spread", "total", "f5"}
     ungradeable = []
     for win in windows:
         for card_ in win["tickets"]:
             for lg in card_["legs"]:
                 mk = lg.get("market")
-                if mk is not None and mk not in KNOWN:
+                if lg.get("mismatch"):
+                    ungradeable.append(f"{lg.get('team')} {mk or ''} — {lg['mismatch']}".strip())
+                elif mk is not None and mk not in KNOWN:
                     ungradeable.append(f"{lg.get('player') or lg.get('team') or '?'} ({mk})")
                 elif mk in (None, "hr", "sb", "hrr", "hits", "rbi", "runs", "tb", "doubles", "k") \
                         and not lg.get("team"):

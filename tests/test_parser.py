@@ -705,21 +705,45 @@ assert leg_of("Crow-Armstrong")["player"] == "Pete Crow-Armstrong"
 assert leg_of("Miguel Vargas")["player"] == "Miguel Vargas"
 print("OK: hand-reviewed shorthand resolves 'PCA' and 'Vargas'")
 
-# An inning-scoped bet cannot be followed from a final score. It is SHOWN,
-# carrying its own text, under a market that says what it is -- never filed
-# under a market invented from the words next to the number (this one came out
-# as "vs cubs" before the guard was tightened).
-partial = leg_of("First 5 innings")
-assert partial["market"] == "partial game", partial
-print("OK: a first-five-innings total is named honestly, not guessed at")
+# A first-five-innings total IS gradeable -- the linescore carries per-inning
+# runs. It reads as a team bet with the innings and the line, and keeps the
+# OPPONENT the card named so a matchup that isn't real can be refused rather
+# than graded against whichever team happened to resolve.
+partial = next(l for l in tb_legs if l.get("market") == "f5")
+assert (partial["team"], partial["opponent"]) == ("BOS", "CHC"), partial
+assert partial["innings"] == 5 and partial["line"] == 3.5 and partial["side"] == "under", partial
+print("OK: a first-five-innings total parses as a gradeable team bet")
+
+# ...and this particular one still can't be graded, for a nameable reason:
+# BOS played NYY that night, not CHC. The note has to SAY that rather than
+# leaving a bare "not tracked".
+# flag_matchups() is a pure function so this stays offline -- the real check
+# needs the night's schedule, which a test must not go and fetch.
+n = pp.flag_matchups(tb_windows, {"BOS": "NYY", "CHC": "SD", "CWS": "HOU", "NYY": "BOS"})
+assert n == 1 and "BOS played NYY, not CHC" in partial.get("mismatch", ""), partial.get("mismatch")
+print("OK: a matchup the schedule contradicts is flagged with what really happened")
+
+# A matchup that IS real is left alone, and an unavailable schedule flags
+# nothing rather than guessing.
+ok_leg = {"team": "CWS", "opponent": "HOU"}
+w_ok = [{"title": "W", "tickets": [{"legs": [ok_leg]}]}]
+assert pp.flag_matchups(w_ok, {"CWS": "HOU"}) == 0 and "mismatch" not in ok_leg
+assert pp.flag_matchups(w_ok, {}) == 0
+print("OK: a real matchup is untouched, and no schedule flags nothing")
 
 # Exactly one leg on this card can't be tracked, and the NOTE says so. Before
 # this, six legs were ungradeable and the note was empty: the slate posted,
 # the page marked them, and nobody was told.
-ungradeable = [l for l in tb_legs if l.get("market") == "partial game" or
-               (not l["team"] and l.get("market") not in ("ml", "spread", "total"))]
-assert len(ungradeable) == 1, [l["player"] for l in ungradeable]
-print("OK: 16 of 17 legs grade; the one that can't is the partial-game total")
+# Every leg on this card now reads as a market the page knows, with a subject
+# it can grade against -- including the first-five total, which was the last
+# holdout. The only thing standing between this card and 17 of 17 is the
+# matchup the schedule contradicts, flagged above.
+TEAM_SUBJECT = {"ml", "spread", "total", "f5"}
+unreadable = [l for l in tb_legs
+              if not l["team"] and l.get("market") not in TEAM_SUBJECT]
+assert not unreadable, [l["player"] for l in unreadable]
+assert all(l["team"] for l in tb_legs if l.get("market") in TEAM_SUBJECT)
+print("OK: all 17 legs resolve to a market and a subject the page can grade")
 
 for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text,
                      emoji_text, parlay_text, tracker_text, emdash_text, props_text):

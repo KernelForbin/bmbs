@@ -653,6 +653,7 @@ const LEAGUE_OUT_RATE = 0.685;
 // ---------------- MLB Stats API polling ----------------
 
 function normalizeName(name) {
+  if (!name) return "";        // a team bet has no player to normalize
   return name
     .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[.']/g, "")
@@ -813,6 +814,10 @@ const FEED_FIELDS = [
   // silently undercounted by its runs component. Nothing failed; the numbers
   // were just quietly wrong.
   "runs", "hits", "rbi", "totalBases", "isFinal", "doubles", "triples", "homeRuns",
+  // per-inning runs, for a "first N innings" total. I assumed for a while that
+  // only the FINAL score was available and that a partial-game bet therefore
+  // couldn't be graded; the linescore carries every inning, so it can.
+  "innings", "num",
   // pitcher strikeouts, for a "5+ Strikeouts" leg
   "pitching", "strikeOuts",
 ].join(",");
@@ -1111,7 +1116,18 @@ async function getGameSnapshot(gamePk) {
   // hydrate=team. A game line is only ever settled when the game is FINAL:
   // "winning in the 7th" is not a result, so status rides along and the
   // graders refuse to call anything before then.
-  const lineTeams = (data.liveData && data.liveData.linescore && data.liveData.linescore.teams) || {};
+  const lineScore = (data.liveData && data.liveData.linescore) || {};
+  const lineTeams = lineScore.teams || {};
+  // Combined runs per inning, both sides. An inning only appears once it has
+  // started, and the LAST one may be in progress -- so `completeInnings` is
+  // how many are actually finished, which is what a partial-game total needs
+  // before it can be settled.
+  const inningRuns = (lineScore.innings || []).map(
+    inn => ((inn.away && inn.away.runs) || 0) + ((inn.home && inn.home.runs) || 0));
+  const curInning = lineScore.currentInning || 0;
+  const midGame = status !== "final";
+  const completeInnings = midGame ? Math.max(0, Math.min(inningRuns.length, curInning - 1))
+                                  : inningRuns.length;
   const scoreTeams = (data.gameData && data.gameData.teams) || {};
   const teamScores = new Map();
   ["away", "home"].forEach(side => {
@@ -1125,6 +1141,9 @@ async function getGameSnapshot(gamePk) {
       runs: typeof mine.runs === "number" ? mine.runs : null,
       oppRuns: typeof theirs.runs === "number" ? theirs.runs : null,
       opponent: oppAbbr || "", gamePk, status,
+      // Combined runs by inning, so a "first N innings" total can be graded.
+      // innings[] is in order and only contains innings that have started.
+      byInning: inningRuns, completeInnings,
     });
   });
 
@@ -1438,6 +1457,10 @@ const MARKETS = {
   ml:     { label: "MONEYLINE",   subject: "team",   grade: leg => stateForMoneyline(leg) },
   spread: { label: "SPREAD",      subject: "team",   grade: leg => stateForSpread(leg) },
   total:  { label: "TOTAL",       subject: "game",   grade: leg => stateForTotal(leg) },
+  // "First 5 innings under 3.5". Gradeable off the linescore's per-inning
+  // runs -- the reason it wasn't, for a while, is that I assumed only the
+  // final score was available and never looked.
+  f5:     { label: "1ST 5 INN",   subject: "game",   grade: leg => stateForPartial(leg) },
 };
 
 function legMarket(leg) {
@@ -1548,6 +1571,29 @@ function stateForSpread(leg) {
   if (margin === 0) return "na";   // a push is a refund, like a void leg
   return margin > 0 ? "hit" : "miss";
 }
+// A total over the first N innings. Settles as soon as it CAN: an over that
+// has already cleared is a hit mid-game, an under that has already been
+// busted is a miss, and otherwise it waits for those innings to finish.
+function stateForPartial(leg) {
+  if (!RESULTS.ready) return "not_started";
+  const row = teamScoreFor(leg);
+  if (!row || !row.byInning) return "not_started";
+  // The card can name a matchup that isn't real -- "Red Sox vs Cubs" on a
+  // night they play different opponents. Grading it against whichever team
+  // resolved would answer a question nobody asked.
+  if (leg.opponent && row.opponent && leg.opponent.toUpperCase() !== row.opponent.toUpperCase()) {
+    return "untracked";
+  }
+  const through = Math.max(1, Math.floor(Number(leg.innings) || 5));
+  const line = legLine(leg), under = legSide(leg) === "under";
+  const done = Math.min(row.completeInnings, through);
+  const soFar = row.byInning.slice(0, through).reduce((a, b) => a + b, 0);
+  if (soFar > line) return under ? "miss" : "hit";       // decided already
+  if (done < through) return row.status === "final" ? (under ? "hit" : "miss") : "live";
+  if (soFar === line) return "na";                        // exact push
+  return under ? "hit" : "miss";
+}
+
 function stateForTotal(leg) {
   const row = settledScore(leg);
   if (!row) return teamScoreFor(leg) ? "live" : "not_started";
@@ -1785,7 +1831,11 @@ const btnSvg = `
   </svg>`;
 
 function badge(state, playerName, market) {
-  const phpHit = market !== "sb" && state === "hit" && isPhpCreditedHit(playerName);
+  // A team bet has NO player, and Pinch Hit Protection is meaningless for one
+  // -- but this used to ask anyway, and normalizeName(null) threw the moment
+  // a game line actually WON, taking the whole render down with it.
+  const phpHit = !!playerName && market !== "sb" && state === "hit"
+    && isPhpCreditedHit(playerName);
   // An untracked market gets a question mark, never the tick: the tick is a
   // claim that the bet won, and we have no idea.
   const inner = state === "na" ? "N/A" : (state === "untracked" ? "?" : btnSvg);

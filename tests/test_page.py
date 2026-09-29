@@ -1929,6 +1929,58 @@ with sync_playwright() as p:
     browser.close()
 
 
+# ---------------------------------------------------------------- SECTION AB
+# A "first N innings" total. I claimed for a while that this couldn't be
+# graded -- "the page reads a final score, not a per-inning one" -- and never
+# checked. linescore.innings[] carries every inning for both sides, so it can.
+    def f5_feed(innings, current, state="Live"):
+        f = mkt_feed(state, BATTERS, away_runs=sum(a for a, _ in innings),
+                     home_runs_=sum(h for _, h in innings), away="BOS", home="NYY")
+        f["liveData"]["linescore"]["innings"] = [
+            {"num": i + 1, "away": {"runs": a}, "home": {"runs": h}}
+            for i, (a, h) in enumerate(innings)]
+        f["liveData"]["linescore"]["currentInning"] = current
+        return f
+
+    FX["tickets"] = tickets("2026-09-18", [], [mkt_card("F5", [
+        mkt_leg(None, "f5", 3.5, "under", team="NYY")])])
+    FX["previous"] = None
+    FX["schedules"] = {"2026-09-18": schedule("2026-09-18", [
+        (1, "Live", "In Progress", "I", ["BOS", "NYY"])])}
+    # Four complete innings (the fifth is in progress), two runs so far.
+    FX["feeds"] = {1: f5_feed([(1, 0), (0, 1), (0, 0), (0, 0), (0, 0)], 5)}
+    browser, page, errors = open_page(p, ET(2026, 9, 18, 20, 0))
+
+    def f5(**kw):
+        return page.evaluate("a => stateForLeg(a)", dict({"team": "NYY", "market": "f5",
+                                                          "innings": 5}, **kw))
+
+    assert f5(line=3.5, side="under") == "live", "four innings in at 2 runs isn't settled"
+    print("AB1 OK: a first-five under waits while those innings are still being played")
+    assert f5(line=1.5, side="under") == "miss" and f5(line=1.5, side="over") == "hit"
+    print("AB2 OK: it settles EARLY once the number has already been passed")
+
+    # Five complete innings, two runs -- and three more in the sixth, which
+    # must not leak into a first-five total.
+    FX["feeds"] = {1: f5_feed([(1, 0), (0, 1), (0, 0), (0, 0), (0, 0), (0, 3)], 6)}
+    poll(page)
+    assert f5(line=3.5, side="under") == "hit" and f5(line=3.5, side="over") == "miss"
+    print("AB3 OK: once five innings are complete it grades on those innings alone")
+    assert f5(line=2, side="over") == "na", "an exact line is a push"
+    print("AB4 OK: landing exactly on the number is a push")
+    assert f5(line=4.5, side="under") == "hit", "the sixth inning's runs are irrelevant"
+    print("AB5 OK: later innings don't leak into a first-five total")
+    assert f5(line=0.5, side="under", innings=1) == "miss", "the first inning alone had a run"
+    print("AB6 OK: the innings count is respected, not hardcoded to five")
+
+    # The card can name a matchup that isn't real. Grading it against
+    # whichever team resolved would answer a question nobody asked.
+    assert f5(line=3.5, side="under", opponent="CHC") == "untracked"
+    assert f5(line=3.5, side="under", opponent="BOS") == "hit", "the real opponent grades"
+    print("AB7 OK: a matchup the schedule contradicts is refused, not guessed at")
+    assert not errors, errors
+    browser.close()
+
 # ---------------------------------------------------------------- SECTION AA
 # FEED_FIELDS has to actually REQUEST every stat the code reads. `fields=`
 # matches names at any depth and a missing one yields `undefined` with no

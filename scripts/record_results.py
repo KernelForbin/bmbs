@@ -239,7 +239,16 @@ def game_snapshot(game_pk, feed):
     # The score, for game lines. Keyed by team ABBREVIATION, the same key
     # leg.team uses. A game line is ONLY ever settled on a FINAL game, so the
     # status rides along and the graders refuse to call anything before then.
-    line_teams = ((feed.get("liveData") or {}).get("linescore") or {}).get("teams") or {}
+    line_score = (feed.get("liveData") or {}).get("linescore") or {}
+    line_teams = line_score.get("teams") or {}
+    # Combined runs per inning, for a "first N innings" total. An inning only
+    # appears once it has started and the last may be in progress, so
+    # complete_innings is what a partial-game bet can actually be settled on.
+    inning_runs = [((i.get("away") or {}).get("runs") or 0) + ((i.get("home") or {}).get("runs") or 0)
+                   for i in (line_score.get("innings") or [])]
+    cur_inning = line_score.get("currentInning") or 0
+    complete_innings = (len(inning_runs) if status == "final"
+                        else max(0, min(len(inning_runs), cur_inning - 1)))
     team_scores = {}
     for side in ("away", "home"):
         other = "home" if side == "away" else "away"
@@ -248,6 +257,7 @@ def game_snapshot(game_pk, feed):
             team_scores[abbr(side)] = {
                 "runs": mine.get("runs"), "oppRuns": theirs.get("runs"),
                 "opponent": abbr(other) or "", "status": status,
+                "byInning": inning_runs, "completeInnings": complete_innings,
             }
 
     return {"status": status, "gamePk": game_pk, "hrNames": hr_names, "homeRuns": home_runs, "roster": roster, "played": played,
@@ -398,7 +408,7 @@ MARKET_STATS = {
     "runs": ("runs",), "tb": ("totalBases",), "doubles": ("doubles",),
     "hr": ("homeRuns",), "k": ("strikeOuts",),
 }
-TEAM_MARKETS = ("ml", "spread", "total")
+TEAM_MARKETS = ("ml", "spread", "total", "f5")
 
 
 def leg_players(src):
@@ -467,10 +477,32 @@ def grade_game_line(results, src):
         if margin == 0:
             return "na"
         return "hit" if margin > 0 else "miss"
+    if market == "f5":
+        return grade_partial(results, src, row)
     combined, line = mine + theirs, leg_line(src)
     if combined == line:
         return "na"
     return "hit" if (src.get("side") == "under") == (combined < line) else "miss"
+
+
+def grade_partial(results, src, row):
+    """index.html's stateForPartial(): a total over the first N innings."""
+    if src.get("opponent") and row.get("opponent") and             src["opponent"].upper() != row["opponent"].upper():
+        # The card named a matchup that isn't real; grading it against
+        # whichever team resolved would answer a question nobody asked.
+        return "untracked"
+    through = max(1, int(src.get("innings") or 5))
+    line, under = leg_line(src), src.get("side") == "under"
+    by_inning = row.get("byInning") or []
+    done = min(row.get("completeInnings") or 0, through)
+    so_far = sum(by_inning[:through])
+    if so_far > line:
+        return "miss" if under else "hit"
+    if done < through:
+        return ("hit" if under else "miss") if row.get("status") == "final" else "live"
+    if so_far == line:
+        return "na"
+    return "hit" if under else "miss"
 
 
 def grade_market(results, src):

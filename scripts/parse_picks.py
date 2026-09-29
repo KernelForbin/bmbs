@@ -81,6 +81,7 @@ This OVERWRITES data/tickets.json.
 """
 import difflib
 import json
+import os
 import re
 import sys
 import unicodedata
@@ -737,6 +738,96 @@ def clean_num(s):
 # (team words, surnames). load_roster() keeps returning its two maps so every
 # existing caller -- and parse()'s signature -- is untouched.
 ROSTER_EXTRAS = {}
+
+
+# ---- first pitch times, from MLB rather than from the card --------------
+# Cards increasingly don't state a time at all (the 2026-09-29 one states
+# none), and a pick with no time reads on the page as if nobody knows when
+# it's on. MLB does know, and the slate date is already established, so the
+# schedule fills the blanks.
+#
+# Only ever FILLS a blank: a time the card stated is left exactly as written.
+# Overriding what a person typed -- silently, from a different source -- is a
+# worse failure than a stale time, and a card sometimes means something
+# specific by the time it gives.
+#
+# Network, so it fails SOFT: unreachable MLB means times stay blank and the
+# slate still posts, which is the same bargain every other fetch here makes.
+MLB_SCHEDULE = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&hydrate=team&date="
+
+
+def fetch_start_times(date, fetcher=None):
+    """-> {TEAM ABBR: "7:05 PM ET"} for one slate date, or {} if unavailable.
+
+    A doubleheader gives a team two games; the EARLIER one wins, because a
+    card that doesn't say which game it means almost certainly means the one
+    that starts first. Which game a leg actually refers to is not knowable
+    from the card, and nothing here pretends otherwise.
+    """
+    try:
+        if fetcher is not None:
+            data = fetcher(MLB_SCHEDULE + date)
+        else:
+            import urllib.request
+            with urllib.request.urlopen(MLB_SCHEDULE + date, timeout=20) as res:
+                data = json.loads(res.read())
+    except Exception as e:                      # noqa: BLE001 -- soft on purpose
+        print(f"NOTE: couldn't read MLB's schedule for {date} ({e}) -- "
+              f"times the card didn't state will stay blank.", file=sys.stderr)
+        return {}
+
+    out = {}
+    for day in data.get("dates") or []:
+        for game in day.get("games") or []:
+            iso = game.get("gameDate")
+            if not iso:
+                continue
+            # A game with no announced time still carries a placeholder
+            # gameDate. Filling from that would print an invented first pitch,
+            # which is worse than printing none.
+            if (game.get("status") or {}).get("startTimeTBD"):
+                continue
+            try:
+                when = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(ET)
+            except ValueError:
+                continue
+            label = when.strftime("%-I:%M %p ET") if os.name != "nt" else when.strftime("%#I:%M %p ET")
+            for side in ("away", "home"):
+                abbr = (((game.get("teams") or {}).get(side) or {}).get("team") or {}).get("abbreviation")
+                if not abbr:
+                    continue
+                prev = out.get(abbr)
+                if prev is None or when < prev[1]:
+                    out[abbr] = (label, when)
+    return {a: v[0] for a, v in out.items()}
+
+
+def fill_missing_times(windows, singles, date, fetcher=None):
+    """Fill in any leg or single whose time the card never gave. -> how many."""
+    blanks = [l for w in windows for c in w["tickets"] for l in c["legs"] if not l.get("time")]
+    blanks += [s for s in singles if not s.get("time")]
+    if not blanks:
+        return 0
+    times = fetch_start_times(date, fetcher)
+    if not times:
+        return 0
+    filled = 0
+    for item in blanks:
+        when = times.get((item.get("team") or "").upper())
+        if not when:
+            continue
+        item["time"] = when
+        # A SINGLE displays its time through the prebuilt `meta` string, which
+        # was assembled before this ran -- so setting `time` alone would fill
+        # it everywhere except the one place it's read. Splice it in ahead of
+        # the stake, matching how meta is built.
+        if "meta" in item and when not in (item["meta"] or ""):
+            parts = [x for x in (item["meta"] or "").split(" &middot; ") if x]
+            stake_at = next((i for i, x in enumerate(parts) if x.startswith("$")), len(parts))
+            parts.insert(stake_at, when)
+            item["meta"] = " &middot; ".join(parts)
+        filled += 1
+    return filled
 
 
 def load_roster():
@@ -1477,6 +1568,12 @@ def main():
             now = now.replace(tzinfo=ET)
         print(f"Dating the slate as of {now.isoformat()} (--now)", file=sys.stderr)
     slate_date = slate_date_for(all_times, now)
+
+    # Fill in first pitches the card never gave. After the slate date is
+    # settled, because that's the date whose schedule to ask for.
+    filled = fill_missing_times(windows, out_singles, slate_date)
+    if filled:
+        print(f"Filled in {filled} start time(s) from MLB's schedule for {slate_date}.", file=sys.stderr)
 
     # A bet line nothing understood means a bet that is NOT being tracked. The
     # upload still posts (better most of a slate than none), but the page's note

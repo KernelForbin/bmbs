@@ -92,6 +92,20 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   match, then fuzzy). Accepts the text with or without markdown markers
   (`## ` headers, `* ` bullets) — text copied out of a rendered Gemini
   response has them stripped, and that silently broke parsing once.
+  **Fills in first pitch times MLB knows and the card didn't**
+  (`fetch_start_times()` / `fill_missing_times()`, 2026-09-29): cards
+  increasingly state no time at all, and a pick with no time reads on the page
+  as if nobody knows when it's on. Only ever fills a BLANK -- a time the card
+  stated is left exactly as written, because silently overriding what a person
+  typed from another source is a worse failure than a stale time. A game whose
+  `startTimeTBD` is set is skipped, since MLB carries a placeholder
+  `gameDate` for it and filling from that prints an invented first pitch. A
+  doubleheader takes the EARLIER game. It's the parser's only network call and
+  it fails SOFT: unreachable MLB means times stay blank and the slate still
+  posts. A SINGLE shows its time through the prebuilt `meta` string, so that
+  gets spliced too -- setting `time` alone fills it everywhere except the one
+  place it's read. `test_parser.py` section 16 covers it offline with an
+  injected schedule; five mutations caught.
   Stamps `date` from the listed start times: a slate posted after its
   last first pitch is for tomorrow, otherwise it's for today (ET).
   **The group's picks-generation prompt has changed template at least three

@@ -726,5 +726,76 @@ for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text,
     pp.parse(fixture_text, team_by_name, canon)
 print("OK: tenth template (bare 'Ticket N', team bets, no game header) parses 7 tickets + 1 single")
 
+# --- 16. first pitch times filled in from MLB when the card doesn't say ---
+# Cards increasingly state no time at all (2026-09-29 stated none), and a pick
+# with no time reads on the page as if nobody knows when it's on. Offline:
+# the schedule is injected, because a test that needs the network is a test
+# that fails on a quiet day.
+def fake_schedule(url):
+    assert "2026-09-29" in url, url
+    return {"dates": [{"games": [
+        {"gameDate": "2026-09-29T21:00:00Z",
+         "status": {"startTimeTBD": False},
+         "teams": {"away": {"team": {"abbreviation": "CWS"}},
+                   "home": {"team": {"abbreviation": "HOU"}}}},
+        {"gameDate": "2026-09-30T00:00:00Z",
+         "status": {"startTimeTBD": False},
+         "teams": {"away": {"team": {"abbreviation": "BOS"}},
+                   "home": {"team": {"abbreviation": "NYY"}}}},
+        # A doubleheader: the same team again, LATER. The earlier game wins.
+        {"gameDate": "2026-09-30T03:30:00Z",
+         "status": {"startTimeTBD": False},
+         "teams": {"away": {"team": {"abbreviation": "CWS"}},
+                   "home": {"team": {"abbreviation": "SD"}}}},
+        # No announced time yet: MLB still carries a PLACEHOLDER gameDate, and
+        # filling from it would print an invented first pitch.
+        {"gameDate": "2026-09-29T03:33:00Z",
+         "status": {"startTimeTBD": True},
+         "teams": {"away": {"team": {"abbreviation": "TBD1"}},
+                   "home": {"team": {"abbreviation": "TBD2"}}}},
+    ]}]}
+
+
+times = pp.fetch_start_times("2026-09-29", fake_schedule)
+assert times["CWS"] == "5:00 PM ET" and times["HOU"] == "5:00 PM ET", times
+assert times["NYY"] == "8:00 PM ET" and times["BOS"] == "8:00 PM ET", times
+print("OK: MLB's schedule becomes a team -> first pitch map, in ET")
+assert times["CWS"] == "5:00 PM ET", "a doubleheader takes the EARLIER game"
+print("OK: on a doubleheader the earlier game wins")
+assert "TBD1" not in times and "TBD2" not in times, times
+print("OK: a game with no announced time is skipped, not filled from its placeholder")
+
+# Filling only ever touches a BLANK. A time the card stated is left exactly as
+# written -- silently overriding what a person typed, from another source, is
+# a worse failure than a stale time.
+w = [{"title": "W", "tickets": [{"legs": [
+    {"player": "A", "team": "NYY", "time": ""},
+    {"player": "B", "team": "HOU", "time": "9:99 PM ET"},   # nonsense, but STATED
+    {"player": "C", "team": "", "time": ""},                 # nothing to look up
+]}]}]
+sg = [{"player": "D", "team": "CWS", "meta": "$7.00 bet"}]
+n = pp.fill_missing_times(w, sg, "2026-09-29", fake_schedule)
+legs = w[0]["tickets"][0]["legs"]
+assert legs[0]["time"] == "8:00 PM ET", legs[0]
+assert legs[1]["time"] == "9:99 PM ET", "a stated time is never overwritten"
+assert legs[2]["time"] == "", "a leg with no team has nothing to fill from"
+assert n == 2, n
+print("OK: blanks are filled, stated times are left alone, teamless legs skipped")
+
+# A single shows its time through the prebuilt meta string, so setting `time`
+# alone would fill it everywhere except the one place it's read.
+assert sg[0]["time"] == "5:00 PM ET" and "5:00 PM ET" in sg[0]["meta"], sg[0]
+assert sg[0]["meta"].index("5:00 PM ET") < sg[0]["meta"].index("$7.00"), sg[0]["meta"]
+print("OK: a single's meta string gets the time too, ahead of the stake")
+
+# Unreachable MLB must not stop the slate posting.
+def boom(url):
+    raise OSError("network down")
+
+w2 = [{"title": "W", "tickets": [{"legs": [{"player": "A", "team": "NYY", "time": ""}]}]}]
+assert pp.fill_missing_times(w2, [], "2026-09-29", boom) == 0
+assert w2[0]["tickets"][0]["legs"][0]["time"] == ""
+print("OK: an unreachable schedule leaves times blank and the slate still posts")
+
 
 print("\nALL PARSER TESTS PASSED")

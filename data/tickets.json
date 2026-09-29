@@ -18,9 +18,9 @@
               "player": "Yordan Alvarez",
               "team": "HOU",
               "who": "",
-              "meta": "HOU",
+              "meta": "HOU &middot; 5:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "5:00 PM ET",
               "market": "rbi",
               "line": 0.5
             },
@@ -39,9 +39,9 @@
               "player": "",
               "team": "CHC",
               "who": "",
-              "meta": "CHC",
+              "meta": "CHC &middot; 10:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "10:00 PM ET",
               "market": "ml"
             }
           ]
@@ -59,9 +59,9 @@
               "player": "",
               "team": "CWS",
               "who": "",
-              "meta": "CWS",
+              "meta": "CWS &middot; 5:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "5:00 PM ET",
               "market": "ml"
             },
             {
@@ -69,9 +69,9 @@
               "player": "",
               "team": "NYY",
               "who": "",
-              "meta": "NYY",
+              "meta": "NYY &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "8:00 PM ET",
               "market": "spread",
               "line": -1.5
             },
@@ -80,9 +80,9 @@
               "player": "Carson Kelly",
               "team": "CHC",
               "who": "",
-              "meta": "CHC",
+              "meta": "CHC &middot; 10:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "10:00 PM ET",
               "market": "tb",
               "line": 1.5
             }
@@ -101,9 +101,9 @@
               "player": "Jose Altuve",
               "team": "HOU",
               "who": "",
-              "meta": "HOU",
+              "meta": "HOU &middot; 5:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "5:00 PM ET",
               "market": "hits",
               "line": 1.5
             },
@@ -112,9 +112,9 @@
               "player": "George Lombard Jr.",
               "team": "NYY",
               "who": "",
-              "meta": "NYY",
+              "meta": "NYY &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "8:00 PM ET",
               "market": "runs",
               "line": 0.5
             },
@@ -123,9 +123,9 @@
               "player": "Dansby Swanson",
               "team": "CHC",
               "who": "",
-              "meta": "CHC",
+              "meta": "CHC &middot; 10:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "10:00 PM ET",
               "market": "rbi",
               "line": 0.5
             }
@@ -144,9 +144,9 @@
               "player": "",
               "team": "CWS",
               "who": "",
-              "meta": "CWS",
+              "meta": "CWS &middot; 5:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "5:00 PM ET",
               "market": "total",
               "line": 5.5
             },
@@ -155,9 +155,9 @@
               "player": "Manny Machado",
               "team": "SD",
               "who": "",
-              "meta": "SD",
+              "meta": "SD &middot; 10:00 PM ET",
               "odds": null,
-              "time": ""
+              "time": "10:00 PM ET"
             }
           ]
         },
@@ -174,18 +174,18 @@
               "player": "Miguel Vargas",
               "team": "CWS",
               "who": "",
-              "meta": "CWS",
+              "meta": "CWS &middot; 5:00 PM ET",
               "odds": null,
-              "time": ""
+              "time": "5:00 PM ET"
             },
             {
               "id": "p0-c4-l1",
               "player": "George Lombard Jr.",
               "team": "NYY",
               "who": "",
-              "meta": "NYY",
+              "meta": "NYY &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "8:00 PM ET",
               "market": "rbi",
               "line": 0.5
             }
@@ -204,9 +204,9 @@
               "player": "Ceddanne Rafaela",
               "team": "BOS",
               "who": "",
-              "meta": "BOS",
+              "meta": "BOS &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "8:00 PM ET",
               "market": "tb",
               "line": 1.5
             },
@@ -215,9 +215,9 @@
               "player": "Pete Crow-Armstrong",
               "team": "CHC",
               "who": "",
-              "meta": "CHC",
+              "meta": "CHC &middot; 10:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "10:00 PM ET",
               "market": "tb",
               "line": 4.5
             }
@@ -236,9 +236,9 @@
               "player": "Kyle Teel",
               "team": "CWS",
               "who": "",
-              "meta": "CWS",
+              "meta": "CWS &middot; 5:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "5:00 PM ET",
               "market": "tb",
               "line": 2.5
             },
@@ -247,9 +247,9 @@
               "player": "Yordan Alvarez",
               "team": "HOU",
               "who": "",
-              "meta": "HOU",
+              "meta": "HOU &middot; 5:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "5:00 PM ET",
               "market": "runs",
               "line": 1.5
             }
@@ -264,11 +264,12 @@
       "who": "",
       "player": "George Lombard Jr.",
       "team": "NYY",
-      "meta": "$7.00 bet",
+      "meta": "8:00 PM ET &middot; $7.00 bet",
       "odds": null,
       "stake": 7.0,
       "payout": 91.0,
-      "pp": "PP $91.00"
+      "pp": "PP $91.00",
+      "time": "8:00 PM ET"
     }
   ]
 }

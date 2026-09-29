@@ -806,7 +806,13 @@ const FEED_FIELDS = [
   // any depth, so these four cover BOTH boxscore.players[].stats.batting AND
   // linescore.teams.{away,home} -- the batting line and the score come from
   // the same words. Cheap: both objects were already being fetched.
-  "hits", "rbi", "totalBases", "isFinal", "doubles", "triples", "homeRuns",
+  // "runs" covers BOTH the batting line's runs scored and the linescore's team
+  // score. It was assumed to be here already and was not, which is the
+  // documented FEED_FIELDS trap exactly: a missing name yields `undefined`
+  // with no error, so every game line read "not started" forever and H+R+RBI
+  // silently undercounted by its runs component. Nothing failed; the numbers
+  // were just quietly wrong.
+  "runs", "hits", "rbi", "totalBases", "isFinal", "doubles", "triples", "homeRuns",
   // pitcher strikeouts, for a "5+ Strikeouts" leg
   "pitching", "strikeOuts",
 ].join(",");
@@ -2984,7 +2990,7 @@ function labSoonTile(pick, ctx) {
     : (d === 0 ? "LEADS OFF NEXT" : d === 1 ? "DUE UP 2ND" : d === 2 ? "DUE UP 3RD" : "DUE UP");
   const facing = ctx.sideBatting && game.currentAB && game.currentAB.pitcher ? ` &middot; vs ${escapeHtml(labShortName(game.currentAB.pitcher))}` : "";
   return labTileShell(`soon${ctx.sideBatting && d === 1 ? " ondeck" : ""}`, tag, pick, ctx.gamedayLink, `
-    <div class="ab-line">${ctx.inningLabel} ${ctx.sideBatting ? labOutsDots(game.outs) : ""}${facing}${pick.whos.length ? ` &middot; ${escapeHtml(pick.whos.join(", "))}` : ""}</div>`);
+    <div class="ab-line">${ctx.inningLabel} ${ctx.sideBatting ? labOutsDots(game.outs) : ""}${facing}${pick.whos.length ? ` &middot; ${escapeHtml(pick.whos.join(", "))}` : ""}</div>${labProgressHtml(pick)}`);
 }
 
 function labResultTile(flash, now) {

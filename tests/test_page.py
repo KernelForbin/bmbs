@@ -1929,4 +1929,39 @@ with sync_playwright() as p:
     browser.close()
 
 
+# ---------------------------------------------------------------- SECTION AA
+# FEED_FIELDS has to actually REQUEST every stat the code reads. `fields=`
+# matches names at any depth and a missing one yields `undefined` with no
+# error, so the failure mode is silence: on 2026-09-29 "runs" was assumed to
+# be in the list and wasn't, which left every game line reading "not started"
+# forever and made H+R+RBI undercount by its runs component. Nothing threw.
+# Nothing failed. The numbers were just quietly wrong.
+#
+# Static and offline on purpose -- test_feed_fields.py proves the list is
+# complete against a LIVE game, but only when games are in progress, and this
+# is the check that runs every time.
+import re as _re  # noqa: E402
+
+_src = INDEX.read_text(encoding="utf-8")
+_block = _src[_src.index("const FEED_FIELDS = ["):_src.index('].join(",")')]
+# Strip // comments first: a quoted phrase in one would otherwise read as a
+# field NAME (the documented trap that once spliced a comment into the URL).
+_names = set(_re.findall(r'"([A-Za-z][A-Za-z0-9]*)"', _re.sub(r"//.*", "", _block)))
+
+# Every stat column MARKET_STATS counts, pulled from the page itself so the
+# two can't drift.
+_ms = _src[_src.index("const MARKET_STATS = {"):]
+_ms = _ms[:_ms.index("};")]
+_stats = set(_re.findall(r'"([A-Za-z][A-Za-z0-9]*)"', _ms)) - set(_re.findall(r'\n\s*([a-z]+):', _ms))
+_missing = sorted(st for st in _stats if st not in _names)
+assert not _missing, f"MARKET_STATS counts {_missing}, which FEED_FIELDS never asks for"
+print("AA1 OK: every stat MARKET_STATS counts is actually requested in FEED_FIELDS")
+
+# The fields the graders and tiles read by name, beyond the stat columns.
+for _need in ("runs", "hits", "rbi", "totalBases", "doubles", "homeRuns",
+              "strikeOuts", "pitching", "batting", "linescore", "boxscore",
+              "plateAppearances", "abbreviation"):
+    assert _need in _names, f"FEED_FIELDS is missing {_need!r}, which the page reads"
+print("AA2 OK: the batting line, the pitching line and the linescore score are all requested")
+
 print("\nALL PAGE TESTS PASSED")

@@ -3,126 +3,256 @@
   "note": "",
   "windows": [
     {
-      "title": "Phillies vs. Braves",
+      "title": "Parlay Cards",
       "tickets": [
         {
           "name": "Ticket 1",
           "sub": "3-Leg",
-          "foot": "<b>$5.00</b> bet &middot; Potential payout <b>$109.70</b>",
-          "stake": 5.0,
+          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$65.18</b>",
+          "stake": 7.0,
           "book": "",
-          "payout": 109.7,
+          "payout": 65.18,
           "legs": [
             {
               "id": "p0-c0-l0",
-              "player": "",
-              "team": "PHI",
+              "player": "Yordan Alvarez",
+              "team": "HOU",
               "who": "",
-              "meta": "PHI",
+              "meta": "HOU",
               "odds": null,
-              "time": "2:00 PM ET",
-              "market": "spread",
-              "line": 1.5
+              "time": "",
+              "market": "rbi",
+              "line": 0.5
             },
             {
               "id": "p0-c0-l1",
-              "player": "Kyle Schwarber",
-              "team": "PHI",
+              "player": "First 5 innings Red Sox vs Cubs",
+              "team": "",
               "who": "",
-              "meta": "PHI",
+              "meta": "",
               "odds": null,
-              "time": "2:00 PM ET",
-              "line": 0.5,
-              "players": [
-                "Kyle Schwarber",
-                "Matt Olson"
-              ]
+              "time": "",
+              "market": "vs cubs",
+              "line": 3.5,
+              "side": "under"
             },
             {
               "id": "p0-c0-l2",
-              "player": "Trea Turner",
-              "team": "PHI",
+              "player": "Cubs",
+              "team": "",
               "who": "",
-              "meta": "PHI",
+              "meta": "",
               "odds": null,
-              "time": "2:00 PM ET",
-              "market": "sb"
+              "time": "",
+              "market": "ml"
             }
           ]
         },
         {
           "name": "Ticket 2",
           "sub": "3-Leg",
-          "foot": "<b>$4.00</b> bet &middot; Potential payout <b>$111.50</b>",
-          "stake": 4.0,
+          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$120.56</b>",
+          "stake": 7.0,
           "book": "",
-          "payout": 111.5,
+          "payout": 120.56,
           "legs": [
             {
               "id": "p0-c1-l0",
-              "player": "Bryce Harper",
-              "team": "PHI",
-              "who": "",
-              "meta": "PHI",
-              "odds": null,
-              "time": "2:00 PM ET",
-              "market": "tb",
-              "line": 3.5,
-              "players": [
-                "Bryce Harper",
-                "Drake Baldwin"
-              ]
-            },
-            {
-              "id": "p0-c1-l1",
-              "player": "Ozzie Albies",
-              "team": "ATL",
-              "who": "",
-              "meta": "ATL",
-              "odds": null,
-              "time": "2:00 PM ET",
-              "market": "hits",
-              "line": 1.5
-            },
-            {
-              "id": "p0-c1-l2",
-              "player": "Over 1.5 runs in 6th inning",
+              "player": "White Sox",
               "team": "",
               "who": "",
               "meta": "",
               "odds": null,
-              "time": "2:00 PM ET",
-              "market": "inning runs"
+              "time": "",
+              "market": "ml"
+            },
+            {
+              "id": "p0-c1-l1",
+              "player": "Yankees -1.5 RL",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": null,
+              "time": "",
+              "market": "unknown"
+            },
+            {
+              "id": "p0-c1-l2",
+              "player": "Carson Kelly",
+              "team": "CHC",
+              "who": "",
+              "meta": "CHC",
+              "odds": null,
+              "time": "",
+              "market": "tb",
+              "line": 1.5
             }
           ]
         },
         {
           "name": "Ticket 3",
-          "sub": "2-Leg",
-          "foot": "<b>$5.00</b> bet &middot; Potential payout <b>$131.28</b>",
-          "stake": 5.0,
+          "sub": "3-Leg",
+          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$318.99</b>",
+          "stake": 7.0,
           "book": "",
-          "payout": 131.28,
+          "payout": 318.99,
           "legs": [
             {
               "id": "p0-c2-l0",
-              "player": "Ronald Acuña Jr.",
-              "team": "ATL",
+              "player": "Jose Altuve",
+              "team": "HOU",
               "who": "",
-              "meta": "ATL",
+              "meta": "HOU",
               "odds": null,
-              "time": "2:00 PM ET",
-              "market": "sb"
+              "time": "",
+              "market": "hits",
+              "line": 1.5
             },
             {
               "id": "p0-c2-l1",
-              "player": "Alec Bohm",
-              "team": "PHI",
+              "player": "Lombard Jr",
+              "team": "",
               "who": "",
-              "meta": "PHI",
+              "meta": "",
               "odds": null,
-              "time": "2:00 PM ET",
-              "market": "doubles"
+              "time": "",
+              "market": "runs",
+              "line": 0.5
+            },
+            {
+              "id": "p0-c2-l2",
+              "player": "Dansby Swanson",
+              "team": "CHC",
+              "who": "",
+              "meta": "CHC",
+              "odds": null,
+              "time": "",
+              "market": "rbi",
+              "line": 0.5
+            }
+          ]
+        },
+        {
+          "name": "Ticket 4",
+          "sub": "2-Leg",
+          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$115.01</b>",
+          "stake": 7.0,
+          "book": "",
+          "payout": 115.01,
+          "legs": [
+            {
+              "id": "p0-c3-l0",
+              "player": "White Sox Total",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": null,
+              "time": "",
+              "market": "runs",
+              "line": 5.5
+            },
+            {
+              "id": "p0-c3-l1",
+              "player": "Manny Machado",
+              "team": "SD",
+              "who": "",
+              "meta": "SD",
+              "odds": null,
+              "time": ""
+            }
+          ]
+        },
+        {
+          "name": "Ticket 5",
+          "sub": "2-Leg",
+          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$138.52</b>",
+          "stake": 7.0,
+          "book": "",
+          "payout": 138.52,
+          "legs": [
+            {
+              "id": "p0-c4-l0",
+              "player": "Vargas",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": null,
+              "time": ""
+            },
+            {
+              "id": "p0-c4-l1",
+              "player": "Lombard Jr",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": null,
+              "time": "",
+              "market": "rbi",
+              "line": 0.5
+            }
+          ]
+        },
+        {
+          "name": "Ticket 6",
+          "sub": "2-Leg",
+          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$129.67</b>",
+          "stake": 7.0,
+          "book": "",
+          "payout": 129.67,
+          "legs": [
+            {
+              "id": "p0-c5-l0",
+              "player": "Ceddanne Rafaela",
+              "team": "BOS",
+              "who": "",
+              "meta": "BOS",
+              "odds": null,
+              "time": "",
+              "market": "tb",
+              "line": 1.5
+            },
+            {
+              "id": "p0-c5-l1",
+              "player": "PCA",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": null,
+              "time": "",
+              "market": "tb",
+              "line": 4.5
+            }
+          ]
+        },
+        {
+          "name": "Ticket 7",
+          "sub": "2-Leg",
+          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$156.82</b>",
+          "stake": 7.0,
+          "book": "",
+          "payout": 156.82,
+          "legs": [
+            {
+              "id": "p0-c6-l0",
+              "player": "Kyle Teel",
+              "team": "CWS",
+              "who": "",
+              "meta": "CWS",
+              "odds": null,
+              "time": "",
+              "market": "tb",
+              "line": 2.5
+            },
+            {
+              "id": "p0-c6-l1",
+              "player": "Yordan Alvarez",
+              "team": "HOU",
+              "who": "",
+              "meta": "HOU",
+              "odds": null,
+              "time": "",
+              "market": "runs",
+              "line": 1.5
             }
           ]
         }
@@ -133,15 +263,13 @@
     {
       "id": "single-0",
       "who": "",
-      "player": "Jesús Luzardo",
-      "team": "PHI",
-      "meta": "2:00 PM ET &middot; $10.00 bet",
+      "player": "Lombard Jr",
+      "team": "",
+      "meta": "$7.00 bet",
       "odds": null,
-      "stake": 10.0,
-      "payout": 42.6,
-      "pp": "PP $42.60",
-      "market": "k",
-      "line": 4.5
+      "stake": 7.0,
+      "payout": 91.0,
+      "pp": "PP $91.00"
     }
   ]
 }

@@ -358,6 +358,26 @@ CARD_MARKET_WORDS = [
 ]
 CARD_MARKET_RE = [(k, re.compile(pat, re.IGNORECASE)) for k, pat in CARD_MARKET_WORDS]
 
+# ---- tenth raw-text template (first seen 2026-09-30): a BARE "Ticket N"
+# header with no stake/payout on it at all, bullet legs that are pure
+# free-form market text with NO odds and no game header naming the two teams
+# first -- so there is no team restriction to resolve surnames against, and
+# a Wager/Payout footer that closes the ticket instead of a "$X pays $Y" line:
+#     Ticket 1
+#     • Yordan Alvarez 1+ RBI
+#     • First 5 innings Red Sox vs Cubs under 3.5
+#     • Cubs ML
+#     Wager: $7.00 | Payout: $65.18
+# Distinguished from the ninth template's PLAIN_TICKET_RE (which requires a
+# preceding GAME_HEADER_RE to even be looked at) by being reachable with NO
+# game header seen -- current_prop is only opened when prop_teams is already
+# non-empty, so this template needed its own trigger. Reuses read_prop_leg()
+# with an empty team set (full-league surname resolution is skipped there the
+# same way it already is for an ambiguous surname -- see resolve_in_teams),
+# and reuses PARLAY_FOOT_RE for the footer since "Wager: $X | Payout: $Y" is
+# exactly that pattern already used by the eighth-and-earlier templates.
+BARE_TICKET_RE = re.compile(r"^Ticket\s*#?\s*(\d+)\s*$", re.IGNORECASE)
+
 
 def resolve_in_teams(name, teams, roster=None):
     """A surname (or full name) resolved against only the teams the card named.
@@ -671,7 +691,8 @@ def section_header(line):
     # before anything else.
     if (CARD_HEADER_RE.match(text) or ODDS_RE.search(text) or BET_FOOT_RE.search(text)
             or EMOJI_TICKET_START_RE.match(text) or PARLAY_START_RE.match(text)
-            or TRACKER_TICKET_RE.match(text) or EMOJI_STAKE_TICKET_START_RE.match(text)):
+            or TRACKER_TICKET_RE.match(text) or EMOJI_STAKE_TICKET_START_RE.match(text)
+            or BARE_TICKET_RE.match(text)):
         return None
     if SINGLES_HEADER_RE.search(text) or PARLAY_HEADER_RE.search(text):
         return text
@@ -1020,11 +1041,26 @@ def parse(text, team_by_name, canonical_by_norm):
             current_prop = {"_num": plain_ticket.group(1), "_legs": [], "_stake": None, "_pp": None}
             continue
 
+        bare_ticket = BARE_TICKET_RE.match(line)
+        if bare_ticket and not prop_teams:
+            # No game header at all for this template -- a bare "Ticket N"
+            # opens a prop ticket with no team restriction on surnames.
+            flush_card(); flush_ticket(); flush_parlay(); flush_prop()
+            current_prop = {"_num": bare_ticket.group(1), "_legs": [], "_stake": None, "_pp": None}
+            continue
+
         if current_prop is not None:
             pays = PAYS_FOOT_RE.match(original)
             if pays:
                 current_prop["_stake"] = clean_num(pays.group(1))
                 current_prop["_pp"] = clean_num(pays.group(2))
+                flush_prop()
+                continue
+            wager_foot = PARLAY_FOOT_RE.match(line)
+            if wager_foot:
+                stake, pp = wager_foot.groups()
+                current_prop["_stake"] = clean_num(stake)
+                current_prop["_pp"] = clean_num(pp)
                 flush_prop()
                 continue
             bullet = BULLET_PROP_RE.match(original)

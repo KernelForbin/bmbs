@@ -191,7 +191,18 @@ def call_claude(prompt, api_key, fetcher=None):
         doesn't need exploratory reasoning -- the hard rules above already
         spell out exactly what to check."""
     body = json.dumps({
-        "model": MODEL, "max_tokens": 20000,
+        # The model rewrites the ENTIRE parser, so the response grows with the
+        # file -- ~16k output tokens at 1101 lines, and every template adds
+        # more. 20000 was close enough to the ceiling that a truncated file
+        # (no closing marker -> "didn't match the required shape") is the most
+        # likely cause of the 2026-09-26 and 2026-09-29 failures, four
+        # attempts each. Raised with thinking still explicitly disabled, which
+        # is what made a large budget usable at all.
+        #
+        # THIS DOES NOT SCALE and is worth redesigning: asking for the whole
+        # file back costs more every time a template is added, and the ceiling
+        # will be hit again. A patch/diff-shaped response would not grow.
+        "model": MODEL, "max_tokens": 32000,
         "thinking": {"type": "disabled"},
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": prompt}],
@@ -215,6 +226,18 @@ def call_claude(prompt, api_key, fetcher=None):
             # unparseable, and must never be reported as the latter.
             raise TransportError(f"couldn't reach the Claude API: {e}") from None
     data = json.loads(raw)
+    # Say WHY a response was unusable. Without this the log only ever showed
+    # "didn't match the required shape", which cannot distinguish a truncated
+    # file from a malformed one -- and that ambiguity cost two separate
+    # incidents' worth of diagnosis.
+    stop = data.get("stop_reason")
+    usage = data.get("usage") or {}
+    print(f"  Claude responded: stop_reason={stop!r} "
+          f"in={usage.get('input_tokens')} out={usage.get('output_tokens')}", file=sys.stderr)
+    if stop == "max_tokens":
+        print("  WARNING: the response hit the output ceiling, so the file is "
+              "truncated. Raise max_tokens, or stop asking for the whole file.",
+              file=sys.stderr)
     return "".join(b.get("text", "") for b in data.get("content", []))
 
 

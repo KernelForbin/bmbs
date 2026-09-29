@@ -313,6 +313,164 @@ PLAIN_PARLAY_FOOT_RE = re.compile(
     r"(?:\s*\(([^)]+)\))?\s*$", re.IGNORECASE)
 
 
+# ---- ninth template (2026-09-29): the single-game prop card ------------
+# The first card to use markets other than home runs and steals, and unlike
+# every template before it the legs carry NO ODDS at all -- only the ticket is
+# priced:
+#     Phillies vs. Braves  2:00 PM
+#     Ticket #1
+#     - Phillies +1.5
+#     - Schwarber/Olson 1+ Total Homers
+#     - Turner SB
+#     $5 pays $109.70
+# Three things here are new and each was a user decision:
+#   * a leg may have a NULL price. The ticket's own stake and payout still
+#     work, so the card is fully usable; inventing per-leg odds would be
+#     inventing money.
+#   * names are SURNAMES, which this repo refuses to resolve league-wide --
+#     "Turner" is several players. The header names both teams, so a surname
+#     is resolved against only those two rosters, and one that still matches
+#     two players there stays unresolved rather than picking.
+#   * a leg can name TWO players ("Schwarber/Olson 1+ Total Homers"), graded
+#     as their combined total.
+GAME_HEADER_RE = re.compile(
+    r"^\W*\s*([A-Za-z][A-Za-z .']{2,25}?)\s+(?:vs\.?|@|at)\s+([A-Za-z][A-Za-z .']{2,25}?)"
+    r"\s*\W*\s*(\d{1,2}:\d{2}\s*[AP]M(?:\s*ET)?)?\s*$", re.IGNORECASE)
+PLAIN_TICKET_RE = re.compile(r"^Ticket\s*#\s*(\d+)\s*$", re.IGNORECASE)
+# "$5 pays $109.70"
+PAYS_FOOT_RE = re.compile(
+    r"^\W*\s*\$?([\d,.]+)\s*pays\s*\$?([\d,.]+)\s*$", re.IGNORECASE)
+# A bullet leg with no odds and free-form market text.
+BULLET_PROP_RE = re.compile(r"^[*\-\u2022\u00b7]\s*(.+?)\s*$")
+# "1+ Total Homers" / "4+ Total Bases" / "2+ Hits" / "5+ Strikeouts".
+# "N+" means at least N, which is an over on N-0.5.
+N_PLUS_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*\+", re.IGNORECASE)
+# The market words this card uses, checked before the generic table because
+# "Total Homers" must not be read as a game TOTAL.
+CARD_MARKET_WORDS = [
+    ("hr",     r"total\s+homers?|home\s+runs?\b|\bhr\b"),
+    ("tb",     r"total\s+bases\b"),
+    ("k",      r"strikeouts?\b|\bks?\b"),
+    ("doubles", r"\bdoubles?\b"),
+    ("hits",   r"\bhits?\b"),
+    ("rbi",    r"\brbis?\b"),
+    ("sb",     r"\bsb\b|stolen\s+bases?|steals?\b"),
+]
+CARD_MARKET_RE = [(k, re.compile(pat, re.IGNORECASE)) for k, pat in CARD_MARKET_WORDS]
+
+
+def resolve_in_teams(name, teams, roster=None):
+    """A surname (or full name) resolved against only the teams the card named.
+
+    Returns (canonical name, abbr) or (name as typed, "") when it can't be
+    pinned down -- never a guess. Resolving a bare surname league-wide is
+    exactly what this repo refuses to do for history nicknames, and for the
+    same reason: "Turner" is several players.
+    """
+    roster = roster if roster is not None else ROSTER_EXTRAS
+    by_surname = roster.get("by_surname") or {}
+    canon = roster.get("canonical_name_by_norm") or {}
+    team_by_name = roster.get("team_by_name") or {}
+    norm = normalize_name(name)
+    if norm in team_by_name:                       # a full name needs no help
+        return canon.get(norm, name), team_by_name[norm]
+    candidates = [c for c in by_surname.get(norm, []) if not teams or c[1] in teams]
+    if len(candidates) == 1:
+        full, abbr = candidates[0]
+        return canon.get(full, name), abbr
+    if len(candidates) > 1:
+        print(f"NOTE: '{name}' matches {len(candidates)} players on "
+              f"{'/'.join(sorted(teams))} -- left unresolved rather than guessed.", file=sys.stderr)
+    return name, ""
+
+
+def read_prop_leg(text, teams, roster=None):
+    """One free-form bullet leg -> a leg dict, or None if it reads as nothing.
+
+    Deliberately generous: anything it can't classify still becomes a leg with
+    an unknown market, which the page shows and leaves ungraded. The only way
+    to produce None is an empty line.
+    """
+    roster = roster if roster is not None else ROSTER_EXTRAS
+    text = text.strip()
+    if not text:
+        return None
+    leg = {"odds": None}
+    market = line = side = None
+
+    n_plus = N_PLUS_RE.search(text)
+    if n_plus:
+        line = float(n_plus.group(1)) - 0.5       # "2+ hits" is over 1.5
+        side = "over"
+    for key, rx in CARD_MARKET_RE:
+        if rx.search(text):
+            market = key
+            break
+
+    # An inning-specific total ("Over 1.5 runs in 6th inning") is a real bet
+    # nobody here can grade: the page reads a FINAL score, not a per-inning
+    # one. Named as its own market so it shows honestly rather than being
+    # mistaken for the game total.
+    if re.search(r"\b(?:in(?:ning)?|\d(?:st|nd|rd|th)\s+inning)\b", text, re.IGNORECASE) \
+            and re.search(r"\bruns?\b", text, re.IGNORECASE):
+        # No player and no single team to hang it on, so the leg displays its
+        # own text. That is the most honest thing available for a bet nothing
+        # here can grade -- and it keeps "anything is at least SHOWN" true.
+        leg.update({"player": text, "team": "", "market": "inning runs"})
+        if line is not None:
+            leg["line"] = line
+        if side and side != "over":
+            leg["side"] = side
+        return leg
+
+    generic, g_line, g_side, cleaned = detect_market(text)
+    if market is None and generic:
+        market, cleaned_text = generic, cleaned
+        if line is None:
+            line, side = g_line, g_side
+    else:
+        cleaned_text = text
+        for key, rx in CARD_MARKET_RE:
+            if key == market:
+                cleaned_text = rx.sub(" ", cleaned_text, count=1)
+                break
+    if n_plus:
+        cleaned_text = N_PLUS_RE.sub(" ", cleaned_text, count=1)
+    cleaned_text = re.sub(r"\s{2,}", " ", cleaned_text).strip(" -|:")
+
+    # A team bet: the remaining text names one of the teams the card is about.
+    words = roster.get("abbr_by_team_word") or {}
+    team_abbr = words.get(normalize_name(cleaned_text))
+    if market == "spread" or (team_abbr and market is None):
+        if team_abbr:
+            leg.update({"player": "", "team": team_abbr, "market": market or "ml"})
+            if line is not None:
+                leg["line"] = line
+            return leg
+
+    # One or two players, "/"-separated.
+    names = [n.strip() for n in re.split(r"\s*/\s*", cleaned_text) if n.strip()]
+    resolved = [resolve_in_teams(n, teams, roster) for n in names] if names else []
+    if not resolved:
+        leg.update({"player": cleaned_text or text, "team": "", "market": market or "unknown"})
+        return leg
+    leg["player"] = resolved[0][0]
+    leg["team"] = resolved[0][1]
+    if len(resolved) > 1:
+        # Graded as the combined total across both names, which is what the
+        # bet means. The page sums them.
+        leg["players"] = [r[0] for r in resolved]
+    if market and market != "hr":
+        leg["market"] = market
+    elif market is None:
+        leg["market"] = "unknown"
+    if line is not None:
+        leg["line"] = line
+    if side and side != "over":
+        leg["side"] = side
+    return leg
+
+
 # ---- bet markets: home runs (the default) and stolen bases ----
 # A leg is a home run bet unless the card says otherwise. This matcher predates
 # the first real steal card (2026-09-19, which turned out to spell the market
@@ -341,17 +499,25 @@ SB_MARK_RE = re.compile(
 # No real card has arrived yet using any of these, so the phrasings below are
 # the common ones rather than anything observed. A leg nothing matches still
 # goes through BETLIKE_RE and surfaces in the note -- never dropped in silence.
+# ORDER MATTERS, most specific first. "Home Runs" contains the word "Runs",
+# so a `runs` alias checked earlier claims it and a home run prop grades as a
+# runs prop -- which is exactly what happened to the real steals fixture the
+# first time this table was written. Same class of collision as the
+# PARLAY_HEADER_RE trap: a later pattern must not match a line an earlier one
+# owns. Add new markets in specificity order, never alphabetically.
 MARKET_ALIASES = [
-    ("hrr",    r"h\s*\+\s*r\s*\+\s*rbi|hits?\s*\+\s*runs?\s*\+\s*rbis?"),
-    ("tb",     r"total\s+bases|tot\s*bases|\bTB\b"),
-    ("hits",   r"\bhits?\b"),
-    ("rbi",    r"\brbis?\b"),
-    ("runs",   r"\bruns?\s+scored\b|\bruns?\b"),
-    ("sb",     r"\bsb\b|stolen\s+bases?|steals?"),
-    ("hr",     r"home\s+runs?|\bhr\b|to\s+go\s+deep"),
-    ("ml",     r"\bml\b|money\s*line|to\s+win(?:\s+the\s+game)?"),
-    ("spread", r"run\s*line|\bspread\b"),
-    ("total",  r"\btotal\b|\bo/u\b|over\s*/\s*under"),
+    ("hrr",     r"h\s*\+\s*r\s*\+\s*rbi|hits?\s*\+\s*runs?\s*\+\s*rbis?"),
+    ("hr",      r"home\s+runs?|total\s+homers?|\bhr\b|to\s+go\s+deep"),
+    ("tb",      r"total\s+bases|tot\s*bases|\bTB\b"),
+    ("sb",      r"\bsb\b|stolen\s+bases?|steals?"),
+    ("doubles", r"\bdoubles?\b"),
+    ("k",       r"strikeouts?\b"),
+    ("hits",    r"\bhits?\b"),
+    ("rbi",     r"\brbis?\b"),
+    ("runs",    r"\bruns?\s+scored\b|\bruns?\b"),
+    ("ml",      r"\bml\b|money\s*line|to\s+win(?:\s+the\s+game)?"),
+    ("spread",  r"run\s*line|\bspread\b"),
+    ("total",   r"\btotal\b|\bo/u\b|over\s*/\s*under"),
 ]
 MARKET_ALIAS_RE = [(k, re.compile(pat, re.IGNORECASE)) for k, pat in MARKET_ALIASES]
 
@@ -467,10 +633,18 @@ def clean_num(s):
     return float(s.replace(",", "").replace("$", "").strip())
 
 
+# The whole roster file, for the lookups that aren't keyed by player name
+# (team words, surnames). load_roster() keeps returning its two maps so every
+# existing caller -- and parse()'s signature -- is untouched.
+ROSTER_EXTRAS = {}
+
+
 def load_roster():
     if not ROSTER_PATH.exists():
         return {}, {}
     data = json.loads(ROSTER_PATH.read_text(encoding="utf-8"))
+    ROSTER_EXTRAS.clear()
+    ROSTER_EXTRAS.update(data)
     return data.get("team_by_name", {}), data.get("canonical_name_by_norm", {})
 
 
@@ -588,6 +762,11 @@ def parse(text, team_by_name, canonical_by_norm):
     # follows it, so it can never affect any other card shape.
     pending_bettor = None
 
+    # ---- state for the single-game prop card (see GAME_HEADER_RE) ----
+    current_prop = None      # {"_num": n, "_legs": [leg dicts], "_stake", "_pp"}
+    prop_teams = set()       # the two teams the card's header named
+    prop_time = ""           # the one start time it gave
+
     def flush_card():
         nonlocal current_card
         if current_card and current_card["_legs"]:
@@ -599,6 +778,39 @@ def parse(text, team_by_name, canonical_by_norm):
         if current_ticket is not None:
             finalize_ticket(current_ticket, current_ticket["_num"])
             current_ticket = None
+
+    def flush_prop():
+        nonlocal current_prop
+        if current_prop is None:
+            return
+        legs = current_prop["_legs"]
+        if legs:
+            finalize_prop(current_prop)
+        current_prop = None
+
+    def finalize_prop(ticket):
+        legs = []
+        for i, leg in enumerate(ticket["_legs"]):
+            out = dict(leg)
+            out["id"] = f"prop-{ticket['_num']}-{i}"
+            out["who"] = ""          # this card names no bettor at all
+            out["time"] = prop_time
+            out["meta"] = out.get("team") or ""
+            legs.append(out)
+        if len(legs) == 1:
+            one = legs[0]
+            singles.append({
+                "who": "", "player": one.get("player", ""), "team": one.get("team", ""),
+                "odds": one.get("odds"), "market": one.get("market"),
+                "matchup": "", "time": prop_time,
+                "stake": ticket["_stake"], "pp": ticket["_pp"],
+                "_extra": {k: one[k] for k in ("line", "side", "players", "text") if k in one},
+            })
+            return
+        card = {"name": f'Ticket {ticket["_num"]}', "sub": "", "tag": None,
+                "_stake": ticket["_stake"], "_book": "", "_origPayout": ticket["_pp"],
+                "_legs": legs, "_prebuilt": True}
+        ticket_window(last_header_title)["tickets"].append(card)
 
     def flush_parlay():
         nonlocal current_parlay
@@ -780,6 +992,46 @@ def parse(text, team_by_name, canonical_by_norm):
                     time_ += " ET"   # every other template's times say ET
                 current_parlay["_legs"].append(
                     (time_, player_raw, "", odds, market_for(sb_here)))
+                continue
+
+        game_header = GAME_HEADER_RE.match(original)
+        if game_header and not current_prop:
+            a, b, when = game_header.groups()
+            words = ROSTER_EXTRAS.get("abbr_by_team_word") or {}
+            ta, tb_ = words.get(normalize_name(a)), words.get(normalize_name(b))
+            if ta and tb_:
+                # Only treated as a game header when BOTH names really are
+                # teams -- otherwise "Player vs Player" chatter would reset
+                # the card's context.
+                flush_card(); flush_ticket(); flush_parlay(); flush_prop()
+                prop_teams = {ta, tb_}
+                prop_time = (when or "").strip()
+                if prop_time and not re.search(r"\bET\b", prop_time, re.IGNORECASE):
+                    prop_time += " ET"
+                last_header_title = f"{a.strip()} vs. {b.strip()}"
+                current_section = None
+                continue
+
+        plain_ticket = PLAIN_TICKET_RE.match(line)
+        if plain_ticket and prop_teams:
+            # Gated on a game header having been seen: a bare "Ticket #1" is
+            # otherwise ambiguous with templates that use the same words.
+            flush_card(); flush_ticket(); flush_parlay(); flush_prop()
+            current_prop = {"_num": plain_ticket.group(1), "_legs": [], "_stake": None, "_pp": None}
+            continue
+
+        if current_prop is not None:
+            pays = PAYS_FOOT_RE.match(original)
+            if pays:
+                current_prop["_stake"] = clean_num(pays.group(1))
+                current_prop["_pp"] = clean_num(pays.group(2))
+                flush_prop()
+                continue
+            bullet = BULLET_PROP_RE.match(original)
+            if bullet:
+                leg = read_prop_leg(bullet.group(1), prop_teams)
+                if leg:
+                    current_prop["_legs"].append(leg)
                 continue
 
         plain_start = PLAIN_PARLAY_START_RE.match(line)
@@ -984,6 +1236,7 @@ def parse(text, team_by_name, canonical_by_norm):
     flush_card()
     flush_ticket()
     flush_parlay()
+    flush_prop()
 
     # Drop windows that ended up with nothing in them (e.g. a document title
     # line like "HOME RUN PARLAY CARD" that happens to look header-shaped).
@@ -1006,8 +1259,15 @@ def parse(text, team_by_name, canonical_by_norm):
                     "odds": leg["odds"],
                     "time": leg["time"],
                 })
-                if leg.get("market") == "sb":
-                    legs[-1]["market"] = "sb"
+                # Carry EVERY market field, not just "sb". Until 2026-09-29
+                # only steals survived this loop, so a prop's market, its line
+                # and a combined leg's second player were all silently dropped
+                # on the way out -- the leg then rendered as a plain home run
+                # bet. A home run leg still contributes nothing, which is what
+                # keeps a home-run-only card byte-for-byte unchanged.
+                for k in ("market", "line", "side", "players", "text"):
+                    if leg.get(k) is not None and not (k == "market" and leg[k] == "hr"):
+                        legs[-1][k] = leg[k]
             tag_html = f' &middot; {card["tag"]}' if card.get("tag") else ""
             sub_html = f' &middot; {card["sub"]}' if card.get("sub") else ""
             if card["_origPayout"] is None:
@@ -1051,8 +1311,13 @@ def parse(text, team_by_name, canonical_by_norm):
             "payout": s["pp"],
             "pp": pp_str,
         })
-        if s.get("market") == "sb":
-            out_singles[-1]["market"] = "sb"
+        # Same as the parlay legs above: every market field rides through,
+        # and a home run single still contributes nothing.
+        if s.get("market") and s["market"] != "hr":
+            out_singles[-1]["market"] = s["market"]
+        for k, v in (s.get("_extra") or {}).items():
+            if v is not None:
+                out_singles[-1][k] = v
 
     return out_windows, out_singles, singles
 
@@ -1078,7 +1343,21 @@ def main():
 
     all_times = [leg["time"] for w in windows for c in w["tickets"] for leg in c["legs"] if leg.get("time")]
     all_times += [s["time"] for s in raw_singles if s.get("time")]
-    slate_date = slate_date_for(all_times, datetime.now(ET))
+    # The slate date belongs to when the card was UPLOADED, not to whenever
+    # the parser happens to run. Normally those are the same thing -- the
+    # workflow fires on the commit -- but a re-run hours later would decide
+    # differently, because "posted after the last first pitch" means tomorrow.
+    # That window is knife-edge for a SINGLE-GAME card: the 2026-09-29 card
+    # had one 2:00 PM game and was uploaded at 1:58 PM, so a re-parse at 2:14
+    # dated it tomorrow. --now makes re-parsing an earlier upload reproducible.
+    now = datetime.now(ET)
+    if "--now" in sys.argv:
+        raw = sys.argv[sys.argv.index("--now") + 1]
+        now = datetime.fromisoformat(raw)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=ET)
+        print(f"Dating the slate as of {now.isoformat()} (--now)", file=sys.stderr)
+    slate_date = slate_date_for(all_times, now)
 
     # A bet line nothing understood means a bet that is NOT being tracked. The
     # upload still posts (better most of a slate than none), but the page's note

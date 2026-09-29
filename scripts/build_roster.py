@@ -49,12 +49,26 @@ def build(fetcher=fetch):
 
     team_by_name = {}
     canonical_name_by_norm = {}
+    # A card can name a team any number of ways -- "Phillies", "Philadelphia",
+    # "Philadelphia Phillies", "PHI". This maps every one of those, normalized,
+    # onto the abbreviation everything else here is keyed by.
+    abbr_by_team_word = {}
+    # Surname -> [(normalized full name, abbr)]. Kept as a LIST because a
+    # surname is ambiguous league-wide on purpose: resolving one is only ever
+    # allowed once the card has narrowed it to specific teams (a header like
+    # "Phillies vs. Braves"), and a surname matching two players on those same
+    # teams still has to stay unresolved rather than pick one.
+    by_surname = {}
     collisions = []
     for team in teams:
         abbr = team.get("abbreviation")
         if not abbr:
             print(f"NOTE: team {team.get('name')!r} has no abbreviation, skipped", file=sys.stderr)
             continue
+        for word in (team.get("teamName"), team.get("locationName"),
+                     team.get("name"), team.get("clubName"), abbr):
+            if word:
+                abbr_by_team_word[normalize_name(str(word))] = abbr
         roster = fetcher(f"{API}/teams/{team['id']}/roster?rosterType=active").get("roster", [])
         for entry in roster:
             full_name = (entry.get("person") or {}).get("fullName")
@@ -66,13 +80,40 @@ def build(fetcher=fetch):
                 # but worth knowing about rather than silently overwriting).
                 collisions.append((norm, canonical_name_by_norm[norm], full_name))
             team_by_name[norm] = abbr
+            # The surname is the last word that ISN'T a generational suffix.
+            # Taking the last word outright filed Ronald Acuna Jr. under "jr",
+            # so a card saying "Acuna SB" found only Luisangel Acuna and
+            # resolved to the wrong team -- the Tatis Jr. trap wearing a new
+            # hat. MLB's feed always writes the suffix, so it's skipped here
+            # rather than stripped from the name itself.
+            # (by_surname is derived from team_by_name below, by
+            # surname_index(), so there is exactly one place that computes it)
             canonical_name_by_norm[norm] = full_name
 
     for norm, first, second in collisions:
         print(f"NOTE: two active players both normalize to {norm!r}: "
               f"{first!r} and {second!r} (last one wins) -- check by hand if either is picked.", file=sys.stderr)
 
-    return {"team_by_name": team_by_name, "canonical_name_by_norm": canonical_name_by_norm}
+    return {"team_by_name": team_by_name, "canonical_name_by_norm": canonical_name_by_norm,
+            "abbr_by_team_word": abbr_by_team_word, "by_surname": surname_index(team_by_name)}
+
+
+SUFFIXES = ("jr", "sr", "ii", "iii", "iv", "v")
+
+
+def surname_index(team_by_name):
+    """normalized surname -> [[normalized full name, abbr], ...].
+
+    The surname is the last word that ISN'T a generational suffix: taking the
+    last word outright files "ronald acuna jr" under "jr", so a card saying
+    "Acuna" then finds the wrong player entirely. A list, because a surname is
+    ambiguous league-wide on purpose -- callers narrow it by team.
+    """
+    out = {}
+    for norm, abbr in team_by_name.items():
+        parts = [w for w in norm.split() if w not in SUFFIXES]
+        out.setdefault(parts[-1] if parts else norm, []).append([norm, abbr])
+    return out
 
 
 def merge_rosters(existing, fresh):
@@ -94,12 +135,19 @@ def merge_rosters(existing, fresh):
     """
     merged = dict(fresh)
     kept = 0
-    for key in ("team_by_name", "canonical_name_by_norm"):
+    for key in ("team_by_name", "canonical_name_by_norm", "abbr_by_team_word"):
         before = dict(existing.get(key) or {})
         only_in_existing = set(before) - set(fresh.get(key) or {})
         before.update(fresh.get(key) or {})      # fresh data wins
         merged[key] = before
         kept = max(kept, len(only_in_existing))
+    # by_surname is DERIVED, never merged: it is an index over the merged
+    # player set, and merging it would keep stale entries pointing at players
+    # who have since moved -- plus any keys an older build got wrong (a
+    # suffix-blind build filed Acuna Jr. under "jr"). Rebuilding it here means
+    # one place computes it, from whatever the merge actually produced.
+    merged["by_surname"] = surname_index(merged["team_by_name"])
+
     old_teams = existing.get("team_by_name") or {}
     moved = [n for n, t in old_teams.items()
              if n in merged["team_by_name"] and merged["team_by_name"][n] != t]

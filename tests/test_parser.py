@@ -571,5 +571,87 @@ for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text,
     pp.parse(fixture_text, team_by_name, canon)
 print("OK: eighth template (bare \"Parlay N\" / em-dash full team names) parses 10 tickets (20 legs)")
 
+# --- 14. NINTH template (2026-09-29): the single-game prop card, and the
+# first real card to use markets other than home runs and steals.
+#     Phillies vs. Braves  2:00 PM
+#     Ticket #1
+#     - Phillies +1.5
+#     - Schwarber/Olson 1+ Total Homers
+#     - Turner SB
+#     $5 pays $109.70
+# Three things here were user decisions and each is pinned below: legs carry
+# NO odds, names are SURNAMES resolved only against the two teams the header
+# names, and a leg can name TWO players graded on their combined total.
+props_text = (REPO / "tests" / "fixtures" / "discord_single_game_props.txt").read_text(encoding="utf-8")
+pr_windows, pr_singles, _ = pp.parse(props_text, team_by_name, canon)
+
+assert [w["title"] for w in pr_windows] == ["Phillies vs. Braves"], [w["title"] for w in pr_windows]
+assert len(pr_windows[0]["tickets"]) == 3 and len(pr_singles) == 1
+assert [len(c["legs"]) for c in pr_windows[0]["tickets"]] == [3, 3, 2]
+
+t1 = pr_windows[0]["tickets"][0]
+assert (t1["stake"], t1["payout"]) == (5.0, 109.70), t1
+
+# Every leg is PRICELESS. The ticket's own stake and payout still work, so the
+# card is fully usable; inventing per-leg odds would be inventing money.
+assert all(l["odds"] is None for c in pr_windows[0]["tickets"] for l in c["legs"]), \
+    "no leg on this card is priced"
+assert pr_singles[0]["odds"] is None
+print("OK: a leg with no price parses as null odds rather than being dropped")
+
+# A team bet has no player at all, and carries its line.
+spread = t1["legs"][0]
+assert (spread["player"], spread["team"], spread["market"], spread["line"]) == ("", "PHI", "spread", 1.5), spread
+print("OK: 'Phillies +1.5' reads as a spread on PHI, with no player")
+
+# TWO players on one leg, graded as their combined total. "1+" means at least
+# one, which is an over on 0.5 -- and "Total Homers" must resolve to the HOME
+# RUN market, not the RUNS market. That collision is real: "Home Runs"
+# contains the word "Runs", and an alias table checked in the wrong order
+# graded a home run prop as a runs prop.
+combo = t1["legs"][1]
+assert combo["players"] == ["Kyle Schwarber", "Matt Olson"], combo
+assert combo.get("market") in (None, "hr") and combo["line"] == 0.5, combo
+print("OK: a two-player leg keeps both names, and 'Total Homers' is the HR market")
+
+# Surnames resolved against ONLY the teams the header named -- and a
+# generational suffix must not break it. "Acuna" is Ronald Acuna Jr. of the
+# Braves here; filing him under his suffix instead of his surname sent this
+# to the wrong player entirely.
+assert (t1["legs"][2]["player"], t1["legs"][2]["team"]) == ("Trea Turner", "PHI"), t1["legs"][2]
+acuna = pr_windows[0]["tickets"][2]["legs"][0]
+assert (acuna["player"], acuna["team"], acuna["market"]) == ("Ronald Acu\u00f1a Jr.", "ATL", "sb"), acuna
+print("OK: surnames resolve within the named teams, suffixes included")
+
+t2 = pr_windows[0]["tickets"][1]
+assert t2["legs"][0]["market"] == "tb" and t2["legs"][0]["line"] == 3.5
+assert t2["legs"][1]["market"] == "hits" and t2["legs"][1]["line"] == 1.5
+assert (t2["legs"][1]["player"], t2["legs"][1]["team"]) == ("Ozzie Albies", "ATL")
+print("OK: '4+ Total Bases' and '2+ Hits' become over-3.5 and over-1.5")
+
+# A bet nobody here can grade -- an inning-specific total -- is still SHOWN,
+# carrying its own text, under a market name that says what it is.
+inning = t2["legs"][2]
+assert inning["market"] == "inning runs" and "6th inning" in inning["player"], inning
+print("OK: an inning-specific total is shown with its own text, not dropped")
+
+# A one-leg ticket is a SINGLE by leg count, as always.
+assert pr_singles[0]["player"] == "Jes\u00fas Luzardo" and pr_singles[0]["market"] == "k"
+assert pr_singles[0]["line"] == 4.5 and pr_singles[0]["stake"] == 10.0
+print("OK: '5+ Strikeouts' is a pitcher-strikeout single at over 4.5")
+
+assert pp.parse.unread == [], pp.parse.unread
+
+# The alias table's ORDER is load-bearing; check the collision directly.
+assert pp.detect_market("Home Runs O0.5")[0] == "hr", "'Home Runs' must not match the runs alias"
+assert pp.detect_market("Runs O1.5")[0] == "runs"
+print("OK: 'Home Runs' beats 'Runs' in the alias table")
+
+# Every earlier fixture must STILL parse unchanged.
+for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text,
+                     emoji_text, parlay_text, tracker_text, emdash_text):
+    pp.parse(fixture_text, team_by_name, canon)
+print("OK: ninth template (single-game prop card) parses 3 tickets + 1 single (8 legs)")
+
 
 print("\nALL PARSER TESTS PASSED")

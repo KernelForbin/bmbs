@@ -147,8 +147,11 @@ def check_tickets_file(label, path, football=False):
                 if not ok:
                     leg_problems.append(why)
                     continue
-                if not ODDS_STR_RE.match(leg["odds"]):
-                    leg_problems.append(f"{leg.get('player')}: odds {leg['odds']!r} not [+-]NNN")
+                # Odds may be NULL: some cards price only the ticket, never the
+                # individual legs. The leg still grades; the price is simply
+                # unknown, and inventing one would be inventing money.
+                if leg["odds"] is not None and not ODDS_STR_RE.match(leg["odds"] or ""):
+                    leg_problems.append(f"{leg.get('player')}: odds {leg['odds']!r} is neither [+-]NNN nor null")
                 mp = market_problem(leg, str(leg.get("player") or leg.get("team") or "leg"))
                 if mp:
                     leg_problems.append(mp)
@@ -163,7 +166,7 @@ def check_tickets_file(label, path, football=False):
         if not ok:
             single_problems.append(why)
             continue
-        if not ODDS_STR_RE.match(s["odds"]):
+        if s["odds"] is not None and not ODDS_STR_RE.match(s["odds"] or ""):
             single_problems.append(f"{s.get('player')}: odds {s['odds']!r} not [+-]NNN")
         if not is_num(s["stake"]) or not is_num_or_null(s["payout"]):
             single_problems.append(f"{s.get('player')}: stake not numeric, or payout not numeric-or-null")
@@ -172,8 +175,21 @@ def check_tickets_file(label, path, football=False):
             single_problems.append(mp)
     check(f"{label}: every single has the full shape and valid odds", not single_problems, "; ".join(single_problems[:3]))
 
-    all_names = [leg["player"] for w in data["windows"] for t in w["tickets"] for leg in t["legs"]] + [s["player"] for s in data["singles"]]
-    check(f"{label}: no leg/single has a blank player name", all(n.strip() for n in all_names))
+    # A blank player is only legitimate when the bet isn't ABOUT a player: a
+    # spread, a moneyline or a game total names a team instead. Anything else
+    # with no name is a parse that quietly lost its subject, which is the
+    # failure this check exists to catch.
+    TEAM_SUBJECT = {"ml", "spread", "total", "inning runs"}
+
+    def named(item):
+        if (item.get("player") or "").strip():
+            return True
+        return bool((item.get("team") or "").strip()) and item.get("market") in TEAM_SUBJECT
+
+    unnamed = [leg for w in data["windows"] for t in w["tickets"] for leg in t["legs"] if not named(leg)]
+    unnamed += [s for s in data["singles"] if not named(s)]
+    check(f"{label}: every leg names a player, or a team for a team bet",
+          not unnamed, [{k: u.get(k) for k in ("player", "team", "market")} for u in unnamed[:3]])
 
 
 check_tickets_file("data/tickets.json", DATA / "tickets.json")
@@ -197,6 +213,25 @@ def check_roster_file(label, path, required_maps, min_size):
         check(f"{label}.{m}: is a non-trivially-sized dict", isinstance(data[m], dict) and len(data[m]) >= min_size, len(data.get(m, {})))
     # every map should share the same key set (normalized name), so a lookup
     # in one always has a matching entry in the others
+    # The two PLAYER maps must agree key-for-key. The lookup maps added
+    # 2026-09-29 are deliberately keyed differently -- by team word and by
+    # surname -- so they are checked for shape here instead of being forced
+    # into that comparison.
+    words = data.get("abbr_by_team_word")
+    if words is not None:
+        check(f"{label}.abbr_by_team_word: maps team words to abbreviations",
+              isinstance(words, dict) and len(words) >= 30
+              and all(isinstance(k, str) and isinstance(v, str) and 1 <= len(v) <= 4
+                      for k, v in words.items()),
+              len(words) if isinstance(words, dict) else type(words).__name__)
+    sur = data.get("by_surname")
+    if sur is not None:
+        bad = [k for k, v in sur.items()
+               if not isinstance(v, list) or not v
+               or any(not (isinstance(e, list) and len(e) == 2) for e in v)]
+        check(f"{label}.by_surname: surname -> list of [full name, team] pairs",
+              isinstance(sur, dict) and len(sur) >= 100 and not bad, bad[:3])
+
     key_sets = [set(data[m].keys()) for m in required_maps]
     check(f"{label}: every map is keyed by the same set of normalized names", all(ks == key_sets[0] for ks in key_sets),
           [len(ks) for ks in key_sets])

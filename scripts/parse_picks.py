@@ -379,6 +379,28 @@ CARD_MARKET_RE = [(k, re.compile(pat, re.IGNORECASE)) for k, pat in CARD_MARKET_
 BARE_TICKET_RE = re.compile(r"^Ticket\s*#?\s*(\d+)\s*$", re.IGNORECASE)
 
 
+_NICKNAMES = None
+
+
+def nickname_map():
+    """normalized group shorthand -> full player name, from the hand-reviewed
+    scripts/history_player_map.json. Read once; an absent or unreadable file
+    is a normal state that simply means no shorthand is known."""
+    global _NICKNAMES
+    if _NICKNAMES is None:
+        _NICKNAMES = {}
+        path = Path(__file__).resolve().parent / "history_player_map.json"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for short, info in (data.get("players") or {}).items():
+                full = (info or {}).get("name")
+                if full:
+                    _NICKNAMES[normalize_name(short)] = full
+        except (OSError, json.JSONDecodeError, AttributeError):
+            pass
+    return _NICKNAMES
+
+
 def resolve_in_teams(name, teams, roster=None):
     """A surname (or full name) resolved against only the teams the card named.
 
@@ -394,13 +416,36 @@ def resolve_in_teams(name, teams, roster=None):
     norm = normalize_name(name)
     if norm in team_by_name:                       # a full name needs no help
         return canon.get(norm, name), team_by_name[norm]
-    candidates = [c for c in by_surname.get(norm, []) if not teams or c[1] in teams]
+    # by_surname is keyed on the last word that ISN'T a suffix, so the lookup
+    # has to drop one too: "Lombard Jr" was queried as "lombard jr" and found
+    # nothing, even though George Lombard Jr. is right there in the index.
+    key = norm
+    parts = [w for w in norm.split() if w not in ("jr", "sr", "ii", "iii", "iv", "v")]
+    if parts:
+        key = parts[-1]
+    # The group's own HAND-REVIEWED shorthand, from history_player_map.json --
+    # the table the history importer already trusts, where every entry was
+    # checked against real MLB game logs. "PCA" is Pete Crow-Armstrong and
+    # "Vargas" is Miguel Vargas because a human decided so, not because
+    # anything here inferred it. That is the difference between this and the
+    # auto-resolution CLAUDE.md forbids: reviewed beats ambiguous, and an
+    # initialism has no surname to match on at all.
+    #
+    # Entries must stay hand-reviewed (`import_history.py --draft-map`). If a
+    # nickname is wrong here it is wrong in the permanent history too.
+    nick = nickname_map().get(norm)
+    if nick:
+        full_norm = normalize_name(nick)
+        return canon.get(full_norm, nick), team_by_name.get(full_norm, "")
+
+    candidates = [c for c in by_surname.get(key, []) if not teams or c[1] in teams]
     if len(candidates) == 1:
         full, abbr = candidates[0]
         return canon.get(full, name), abbr
     if len(candidates) > 1:
-        print(f"NOTE: '{name}' matches {len(candidates)} players on "
-              f"{'/'.join(sorted(teams))} -- left unresolved rather than guessed.", file=sys.stderr)
+        where = f"on {'/'.join(sorted(teams))}" if teams else "league-wide"
+        print(f"NOTE: '{name}' matches {len(candidates)} players {where} -- "
+              f"left unresolved rather than guessed.", file=sys.stderr)
     return name, ""
 
 
@@ -431,12 +476,11 @@ def read_prop_leg(text, teams, roster=None):
     # nobody here can grade: the page reads a FINAL score, not a per-inning
     # one. Named as its own market so it shows honestly rather than being
     # mistaken for the game total.
-    if re.search(r"\b(?:in(?:ning)?|\d(?:st|nd|rd|th)\s+inning)\b", text, re.IGNORECASE) \
-            and re.search(r"\bruns?\b", text, re.IGNORECASE):
+    if re.search(r"\bfirst\s+\d+\s+innings?\b|\b\d(?:st|nd|rd|th)\s+inning\b", text, re.IGNORECASE):
         # No player and no single team to hang it on, so the leg displays its
         # own text. That is the most honest thing available for a bet nothing
         # here can grade -- and it keeps "anything is at least SHOWN" true.
-        leg.update({"player": text, "team": "", "market": "inning runs"})
+        leg.update({"player": text, "team": "", "market": "partial game"})
         if line is not None:
             leg["line"] = line
         if side and side != "over":
@@ -458,15 +502,51 @@ def read_prop_leg(text, teams, roster=None):
         cleaned_text = N_PLUS_RE.sub(" ", cleaned_text, count=1)
     cleaned_text = re.sub(r"\s{2,}", " ", cleaned_text).strip(" -|:")
 
-    # A team bet: the remaining text names one of the teams the card is about.
+    # A team bet: whatever text is left names one of the teams.
     words = roster.get("abbr_by_team_word") or {}
+    # "Yankees -1.5 RL" -- RL/run line is just how a spread is written. Lift it
+    # out before the team lookup or the team never matches.
+    rl = re.search(r"\b(?:RL|run\s*line)\b", cleaned_text, re.IGNORECASE)
+    if rl:
+        cleaned_text = re.sub(r"\s*\b(?:RL|run\s*line)\b\s*", " ", cleaned_text, count=1,
+                              flags=re.IGNORECASE).strip()
+        if market is None:
+            market = "spread"
+    if market == "spread" and line is None:
+        bare = re.search(r"([+-]\d+(?:\.\d+)?)\s*$", cleaned_text)
+        if bare:
+            line = float(bare.group(1))
+            cleaned_text = cleaned_text[:bare.start()].strip()
+    # A team bet often carries a qualifier the market alias doesn't eat:
+    # "White Sox over 5.5 Total Runs" leaves "White Sox Total" once "Runs" is
+    # lifted, and the stray word stops the team ever matching. Only tried when
+    # the text ISN'T already a team name, so a real club called e.g. "Team X"
+    # could never be damaged by it.
+    if normalize_name(cleaned_text) not in words:
+        stripped = re.sub(r"\b(?:total|totals|team|game)\b", " ", cleaned_text, flags=re.IGNORECASE)
+        stripped = re.sub(r"\s{2,}", " ", stripped).strip()
+        if normalize_name(stripped) in words:
+            cleaned_text = stripped
     team_abbr = words.get(normalize_name(cleaned_text))
-    if market == "spread" or (team_abbr and market is None):
-        if team_abbr:
-            leg.update({"player": "", "team": team_abbr, "market": market or "ml"})
-            if line is not None:
-                leg["line"] = line
-            return leg
+    # "White Sox over 5.5 Total Runs" is a TEAM total, not a player's runs
+    # prop -- the leftover text names a team, so the counting alias that
+    # matched ("runs") belongs to the game, not a batter.
+    if team_abbr and market in ("runs", "hits", "tb", "hr", None) and line is not None:
+        market = "total"
+    if team_abbr and market in ("ml", "spread", "total"):
+        leg.update({"player": "", "team": team_abbr, "market": market})
+        if line is not None:
+            leg["line"] = line
+        if side and side != "over":
+            leg["side"] = side
+        return leg
+    if market in ("ml", "spread", "total") and not team_abbr:
+        # Named as a game bet but we can't tell WHICH team, so it can't be
+        # graded. Shown with its own text rather than filed under a player.
+        leg.update({"player": text, "team": "", "market": market})
+        if line is not None:
+            leg["line"] = line
+        return leg
 
     # One or two players, "/"-separated.
     names = [n.strip() for n in re.split(r"\s*/\s*", cleaned_text) if n.strip()]
@@ -1401,8 +1481,39 @@ def main():
     # A bet line nothing understood means a bet that is NOT being tracked. The
     # upload still posts (better most of a slate than none), but the page's note
     # line says so where the group will see it, instead of only an Actions log.
+    # A leg that PARSED but can't be graded is the quiet failure mode: the
+    # slate posts, the page shows the leg marked "not tracked", and nobody is
+    # told. Real card, 2026-09-29: six of seventeen legs were untracked or
+    # unresolved and the note was empty. The page already says it per-leg;
+    # this is what puts it where the group actually looks.
+    KNOWN = {"hr", "sb", "hrr", "hits", "rbi", "runs", "tb", "doubles", "k",
+             "ml", "spread", "total"}
+    ungradeable = []
+    for win in windows:
+        for card_ in win["tickets"]:
+            for lg in card_["legs"]:
+                mk = lg.get("market")
+                if mk is not None and mk not in KNOWN:
+                    ungradeable.append(f"{lg.get('player') or lg.get('team') or '?'} ({mk})")
+                elif mk in (None, "hr", "sb", "hrr", "hits", "rbi", "runs", "tb", "doubles", "k") \
+                        and not lg.get("team"):
+                    ungradeable.append(f"{lg.get('player') or '?'} (couldn't match a player)")
+    for sg in out_singles:
+        mk = sg.get("market")
+        if mk is not None and mk not in KNOWN:
+            ungradeable.append(f"{sg.get('player') or '?'} ({mk})")
+        elif not sg.get("team") and mk not in ("ml", "spread", "total"):
+            ungradeable.append(f"{sg.get('player') or '?'} (couldn't match a player)")
+
     unread = getattr(parse, "unread", [])
     note = ""
+    if ungradeable and not unread:
+        for u in ungradeable:
+            print(f"NOTE: not being tracked: {u}", file=sys.stderr)
+        note = (f"&#9888; {len(ungradeable)} leg{'s' if len(ungradeable) != 1 else ''} "
+                f"can't be tracked live &mdash; {'they show' if len(ungradeable) != 1 else 'it shows'} "
+                f"on the card but won't be graded: &ldquo;{ungradeable[0]}&rdquo;"
+                + (f" and {len(ungradeable) - 1} more" if len(ungradeable) > 1 else ""))
     if unread:
         for line in unread:
             print(f"WARNING: couldn't read: {line}", file=sys.stderr)

@@ -179,7 +179,7 @@ def check_tickets_file(label, path, football=False):
     # spread, a moneyline or a game total names a team instead. Anything else
     # with no name is a parse that quietly lost its subject, which is the
     # failure this check exists to catch.
-    TEAM_SUBJECT = {"ml", "spread", "total", "inning runs"}
+    TEAM_SUBJECT = {"ml", "spread", "total", "partial game"}
 
     def named(item):
         if (item.get("player") or "").strip():

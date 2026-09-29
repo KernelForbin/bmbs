@@ -374,7 +374,7 @@ check("J11 a game line is NOT settled while the game is live, however lopsided",
       and rr.grade_market(LIVE, {"team": "AAA", "market": "spread", "line": -1.5})[0] == "live",
       rr.grade_market(LIVE, {"team": "AAA", "market": "ml"})[0])
 check("J12 an UNRECOGNISED market is untracked, never graded as something else",
-      st(player="Two Hits", market="inning runs", line=1.5) == "untracked"
+      st(player="Two Hits", market="partial game", line=1.5) == "untracked"
       and st(player="Two Hits", market="strikeouts by the catcher") == "untracked")
 check("J13 a leg with no market at all is still the ordinary home run path",
       rr.grade_market(R, {"player": "Home Bat", "team": "HHH"})[0]

@@ -1,6 +1,6 @@
 {
   "date": "2026-09-29",
-  "note": "",
+  "note": "&#9888; 1 leg can't be tracked live &mdash; it shows on the card but won't be graded: &ldquo;First 5 innings Red Sox vs Cubs under 3.5 (partial game)&rdquo;",
   "windows": [
     {
       "title": "Parlay Cards",
@@ -26,22 +26,20 @@
             },
             {
               "id": "p0-c0-l1",
-              "player": "First 5 innings Red Sox vs Cubs",
+              "player": "First 5 innings Red Sox vs Cubs under 3.5",
               "team": "",
               "who": "",
               "meta": "",
               "odds": null,
               "time": "",
-              "market": "vs cubs",
-              "line": 3.5,
-              "side": "under"
+              "market": "partial game"
             },
             {
               "id": "p0-c0-l2",
-              "player": "Cubs",
-              "team": "",
+              "player": "",
+              "team": "CHC",
               "who": "",
-              "meta": "",
+              "meta": "CHC",
               "odds": null,
               "time": "",
               "market": "ml"
@@ -58,23 +56,24 @@
           "legs": [
             {
               "id": "p0-c1-l0",
-              "player": "White Sox",
-              "team": "",
+              "player": "",
+              "team": "CWS",
               "who": "",
-              "meta": "",
+              "meta": "CWS",
               "odds": null,
               "time": "",
               "market": "ml"
             },
             {
               "id": "p0-c1-l1",
-              "player": "Yankees -1.5 RL",
-              "team": "",
+              "player": "",
+              "team": "NYY",
               "who": "",
-              "meta": "",
+              "meta": "NYY",
               "odds": null,
               "time": "",
-              "market": "unknown"
+              "market": "spread",
+              "line": -1.5
             },
             {
               "id": "p0-c1-l2",
@@ -110,10 +109,10 @@
             },
             {
               "id": "p0-c2-l1",
-              "player": "Lombard Jr",
-              "team": "",
+              "player": "George Lombard Jr.",
+              "team": "NYY",
               "who": "",
-              "meta": "",
+              "meta": "NYY",
               "odds": null,
               "time": "",
               "market": "runs",
@@ -142,13 +141,13 @@
           "legs": [
             {
               "id": "p0-c3-l0",
-              "player": "White Sox Total",
-              "team": "",
+              "player": "",
+              "team": "CWS",
               "who": "",
-              "meta": "",
+              "meta": "CWS",
               "odds": null,
               "time": "",
-              "market": "runs",
+              "market": "total",
               "line": 5.5
             },
             {
@@ -172,19 +171,19 @@
           "legs": [
             {
               "id": "p0-c4-l0",
-              "player": "Vargas",
-              "team": "",
+              "player": "Miguel Vargas",
+              "team": "CWS",
               "who": "",
-              "meta": "",
+              "meta": "CWS",
               "odds": null,
               "time": ""
             },
             {
               "id": "p0-c4-l1",
-              "player": "Lombard Jr",
-              "team": "",
+              "player": "George Lombard Jr.",
+              "team": "NYY",
               "who": "",
-              "meta": "",
+              "meta": "NYY",
               "odds": null,
               "time": "",
               "market": "rbi",
@@ -213,10 +212,10 @@
             },
             {
               "id": "p0-c5-l1",
-              "player": "PCA",
-              "team": "",
+              "player": "Pete Crow-Armstrong",
+              "team": "CHC",
               "who": "",
-              "meta": "",
+              "meta": "CHC",
               "odds": null,
               "time": "",
               "market": "tb",
@@ -263,8 +262,8 @@
     {
       "id": "single-0",
       "who": "",
-      "player": "Lombard Jr",
-      "team": "",
+      "player": "George Lombard Jr.",
+      "team": "NYY",
       "meta": "$7.00 bet",
       "odds": null,
       "stake": 7.0,

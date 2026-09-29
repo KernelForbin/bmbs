@@ -487,7 +487,7 @@ with sync_playwright() as p:
     TICKETS["windows"][0]["tickets"] = [
         card(1, [prop_leg("Up Now", "hits", 1.5), prop_leg("On Deck", "tb", 2.5)]),
         card(2, [prop_leg("Ace Arm", "k", 5.5), prop_leg("", "spread", -1.5, team="NYY")]),
-        card(3, [prop_leg("Inning Bet", "inning runs", 1.5), prop_leg("In Hole", "hits", 0.5)]),
+        card(3, [prop_leg("Inning Bet", "partial game", 1.5), prop_leg("In Hole", "hits", 0.5)]),
     ]
     TICKETS["singles"] = []
     page.goto("http://bmbs.test/index.html")
@@ -521,9 +521,9 @@ with sync_playwright() as p:
     # with the exclusion removed -- a mutation proved it.)
     check("Z9 an inning-specific total is excluded from tiles outright: it "
           "can't be followed from a final score, so a number would mean nothing",
-          page.evaluate("liveTileKind({market: 'inning runs'})") is None
+          page.evaluate("liveTileKind({market: 'partial game'})") is None
           and page.evaluate("liveTileKind({market: 'strikeouts'})") is None,
-          page.evaluate("[liveTileKind({market:'inning runs'}), liveTileKind({market:'hits'})]"))
+          page.evaluate("[liveTileKind({market:'partial game'}), liveTileKind({market:'hits'})]"))
     check("Z9b ...and the known markets each map to the right KIND of tile",
           page.evaluate("['hr','sb','hits','k','spread'].map(m => liveTileKind({market: m}))")
           == ["bat", "base", "bat", "mound", "game"],

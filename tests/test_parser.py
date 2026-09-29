@@ -632,7 +632,10 @@ print("OK: '4+ Total Bases' and '2+ Hits' become over-3.5 and over-1.5")
 # A bet nobody here can grade -- an inning-specific total -- is still SHOWN,
 # carrying its own text, under a market name that says what it is.
 inning = t2["legs"][2]
-assert inning["market"] == "inning runs" and "6th inning" in inning["player"], inning
+# Renamed from "inning runs" once it was clear the same problem covers any
+# inning-scoped bet, not just one about runs -- a first-five-innings total
+# is equally unfollowable from a final score.
+assert inning["market"] == "partial game" and "6th inning" in inning["player"], inning
 print("OK: an inning-specific total is shown with its own text, not dropped")
 
 # A one-leg ticket is a SINGLE by leg count, as always.
@@ -652,6 +655,76 @@ for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text,
                      emoji_text, parlay_text, tracker_text, emdash_text):
     pp.parse(fixture_text, team_by_name, canon)
 print("OK: ninth template (single-game prop card) parses 3 tickets + 1 single (8 legs)")
+
+# --- 15. TENTH template (2026-09-29): bare "Ticket N", bullet prop legs with
+# no odds, "Wager: $X | Payout: $Y", and -- the new part -- NO GAME HEADER at
+# all, plus team bets written several ways. The auto-fixer handled the shape
+# on its first attempt; everything below is what the shape then EXPOSED in
+# read_prop_leg(), which is the part worth pinning.
+team_text = (REPO / "tests" / "fixtures" / "discord_team_bets_no_header.txt").read_text(encoding="utf-8")
+tb_windows, tb_singles, _ = pp.parse(team_text, team_by_name, canon)
+tb_legs = [l for w in tb_windows for c in w["tickets"] for l in c["legs"]]
+assert len(tb_windows[0]["tickets"]) == 7 and len(tb_singles) == 1
+assert len(tb_legs) == 17, len(tb_legs)
+
+
+def leg_of(fragment):
+    return next(l for l in tb_legs if fragment.lower() in (l["player"] or l["team"] or "").lower())
+
+
+# A team bet resolves its TEAM, and has no player at all. The lookup used to
+# fire only for a spread or a market-less leg, so "Cubs ML" fell through to
+# the player path and came out as a player named "Cubs" with a blank team --
+# which can never grade.
+cubs = next(l for l in tb_legs if l["team"] == "CHC" and l.get("market") == "ml")
+assert cubs["player"] == "" and cubs["market"] == "ml", cubs
+print("OK: 'Cubs ML' is a moneyline on CHC, not a player named Cubs")
+
+# "RL" is just how a run line is written; it stopped the team matching.
+nyy = next(l for l in tb_legs if l["team"] == "NYY" and l.get("market") == "spread")
+assert nyy["line"] == -1.5 and nyy["player"] == "", nyy
+print("OK: 'Yankees -1.5 RL' is a spread of -1.5 on NYY")
+
+# A TEAM total, not a player's runs prop: the leftover text names a team, so
+# the counting alias that matched belongs to the game.
+cws = next(l for l in tb_legs if l["team"] == "CWS" and l.get("market") == "total")
+assert cws["line"] == 5.5 and cws["player"] == "", cws
+print("OK: 'White Sox over 5.5 Total Runs' is a team total, not a runs prop")
+
+# A surname LOOKUP has to drop generational suffixes, the same way the index
+# it queries does -- "Lombard Jr" was queried whole and found nothing.
+lombard = leg_of("Lombard")
+assert lombard["player"] == "George Lombard Jr." and lombard["team"] == "NYY", lombard
+print("OK: 'Lombard Jr' resolves despite the suffix")
+
+# The group's HAND-REVIEWED shorthand resolves what nothing else can: an
+# initialism has no surname to match, and "Vargas" is ambiguous league-wide.
+# Both come from history_player_map.json, where a human checked them against
+# real game logs -- reviewed, not inferred.
+assert leg_of("Crow-Armstrong")["player"] == "Pete Crow-Armstrong"
+assert leg_of("Miguel Vargas")["player"] == "Miguel Vargas"
+print("OK: hand-reviewed shorthand resolves 'PCA' and 'Vargas'")
+
+# An inning-scoped bet cannot be followed from a final score. It is SHOWN,
+# carrying its own text, under a market that says what it is -- never filed
+# under a market invented from the words next to the number (this one came out
+# as "vs cubs" before the guard was tightened).
+partial = leg_of("First 5 innings")
+assert partial["market"] == "partial game", partial
+print("OK: a first-five-innings total is named honestly, not guessed at")
+
+# Exactly one leg on this card can't be tracked, and the NOTE says so. Before
+# this, six legs were ungradeable and the note was empty: the slate posted,
+# the page marked them, and nobody was told.
+ungradeable = [l for l in tb_legs if l.get("market") == "partial game" or
+               (not l["team"] and l.get("market") not in ("ml", "spread", "total"))]
+assert len(ungradeable) == 1, [l["player"] for l in ungradeable]
+print("OK: 16 of 17 legs grade; the one that can't is the partial-game total")
+
+for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text,
+                     emoji_text, parlay_text, tracker_text, emdash_text, props_text):
+    pp.parse(fixture_text, team_by_name, canon)
+print("OK: tenth template (bare 'Ticket N', team bets, no game header) parses 7 tickets + 1 single")
 
 
 print("\nALL PARSER TESTS PASSED")

@@ -616,14 +616,22 @@ incident: get the raw text, pin a fixture, refine. A leg nothing matches still
 goes through `BETLIKE_RE` into the `note`.
 
 **Two things are deliberately NOT done, and are the outstanding work:**
-- **`record_results.py` does NOT grade the new markets.** It writes the
-  PERMANENT record, and a half-ported grader would bake a wrong result into
-  history forever. It refuses to fall through to home-run grading and writes
-  `untracked` instead (`RECORDER_MARKETS`), and `evaluate_ticket()` returns
-  `partial`, which counts as INCOMPLETE so a later run looks again. This is the
-  outstanding half of "change one, change the other" -- porting the graders is
-  the follow-up, and until then a recorded slate carrying one of these markets
-  is complete except for those legs.
+- **`record_results.py` grades them too, as of 2026-09-30** -- the outstanding
+  half of "change one, change the other", now closed. `grade_market()` mirrors
+  `stateForLeg()`, `grade_stat_prop()` mirrors `stateForStatProp()` (summed
+  across every name on a combined leg), and `grade_game_line()` mirrors the
+  three game-line graders including the FINAL-only rule and the push. Checked
+  against the live page on the real 2026-09-29 card: every leg agreed.
+  A recorded leg now also carries `counted` (what the prop actually summed) or
+  `score` (what the line was graded from), so a number in the permanent record
+  is auditable instead of something the reader takes on trust.
+  **`MARKET_STATS` exists in BOTH files and they have to agree** -- it's the
+  first thing to check if the page and history ever disagree on a prop.
+  Statcast detail is gated to home run legs: without that check a cashed
+  spread carried somebody else's home runs into the record.
+  An unrecognised market is still `untracked` here, exactly as on the page,
+  and `evaluate_ticket()` returns `partial`, which counts as INCOMPLETE so a
+  later run looks again.
 - **The Live Bet Tracker now covers every market it can actually FOLLOW**
   (2026-09-29). `LIVE_TILE_KIND` maps a market to the KIND of tile it earns:
   `bat` (the batting-order machinery, plus a progress line off `MARKET_STATS`
@@ -649,6 +657,12 @@ otherwise.
 `test_page.py` **section Y** covers all of it (17 checks) and five mutations
 were run against it: unknown-market-falls-back-to-HR, untracked-leg-ignored,
 game-line-settles-early, never-batted-is-a-loss, push-counts-as-a-win.
+
+**`test_record_results.py`'s checks must sit ABOVE its `if failures:` block.**
+Section J was first appended after it, so nineteen checks ran, printed, and
+could never fail the run -- six mutations all came back NOT CAUGHT, which is
+the only reason it was noticed. If a whole new section passes its mutations
+suspiciously badly, check where it sits in the file before believing it.
 
 ## Bet markets: home runs and stolen bases
 

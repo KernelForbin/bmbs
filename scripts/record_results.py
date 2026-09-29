@@ -198,6 +198,8 @@ def game_snapshot(game_pk, feed):
 
     roster = {}         # normalized name -> MLB person id (everyone in the boxscore)
     played = set()      # ...of whom, those who actually got into the game
+    bat_stats = {}      # normalized name -> batting line, for stat props
+    pitch_stats = {}    # normalized name -> pitching line
     order_slot = {}     # normalized name -> {slot, side, orderFull}
     slot_holders = {"away": {}, "home": {}}
     box_teams = ((feed.get("liveData") or {}).get("boxscore") or {}).get("teams") or {}
@@ -211,6 +213,12 @@ def game_snapshot(game_pk, feed):
             roster[norm] = person.get("id")
             stats = p.get("stats") or {}
             batting = stats.get("batting") or {}
+            if batting:
+                bat_stats[norm] = {k: batting.get(k) or 0 for k in
+                                   ("hits", "runs", "rbi", "totalBases", "doubles", "triples", "homeRuns")}
+            pitching = stats.get("pitching") or {}
+            if "strikeOuts" in pitching:
+                pitch_stats[norm] = {"strikeOuts": pitching.get("strikeOuts") or 0}
             if "plateAppearances" in batting:
                 # a home run bet needs a plate appearance: a pinch runner or late
                 # defensive sub who never batted is void at the books, same as the bench
@@ -228,8 +236,23 @@ def game_snapshot(game_pk, feed):
                     order_slot[norm] = {"slot": slot, "side": side, "orderFull": order_full}
                     slot_holders[side].setdefault(slot, []).append({"name": full, "orderFull": order_full})
 
+    # The score, for game lines. Keyed by team ABBREVIATION, the same key
+    # leg.team uses. A game line is ONLY ever settled on a FINAL game, so the
+    # status rides along and the graders refuse to call anything before then.
+    line_teams = ((feed.get("liveData") or {}).get("linescore") or {}).get("teams") or {}
+    team_scores = {}
+    for side in ("away", "home"):
+        other = "home" if side == "away" else "away"
+        mine, theirs = line_teams.get(side) or {}, line_teams.get(other) or {}
+        if abbr(side):
+            team_scores[abbr(side)] = {
+                "runs": mine.get("runs"), "oppRuns": theirs.get("runs"),
+                "opponent": abbr(other) or "", "status": status,
+            }
+
     return {"status": status, "gamePk": game_pk, "hrNames": hr_names, "homeRuns": home_runs, "roster": roster, "played": played,
-            "sbNames": sb_names, "steals": steals,
+            "sbNames": sb_names, "steals": steals, "batStats": bat_stats, "pitchStats": pitch_stats,
+            "teamScores": team_scores,
             "orderSlot": order_slot, "slotHolders": slot_holders,
             "matchup": f"{abbr('away')} @ {abbr('home')}" if abbr("away") and abbr("home") else ""}
 
@@ -246,6 +269,7 @@ def poll_slate(day, fetcher=fetch_json):
             games.append({"gamePk": g["gamePk"], "final": abstract == "Final", "preview": abstract == "Preview"})
 
     results = {"hitNames": set(), "sbNames": set(), "steals": [], "inBox": {}, "appeared": set(), "rosterStatus": {}, "rosterSide": {}, "rosterIds": {}, "substitutedOut": set(),
+               "batStats": {}, "pitchStats": {}, "teamScores": {},
                "homeRuns": [], "gameInfo": {}, "games": len(games),
                "allScheduledFinal": all(g["final"] for g in games), "allGamesFinal": True}
     for g in games:
@@ -270,6 +294,17 @@ def poll_slate(day, fetcher=fetch_json):
                 holders = snap["slotHolders"][info["side"]].get(info["slot"], [])
                 if holders and max(h["orderFull"] for h in holders) > info["orderFull"]:
                     results["substitutedOut"].add(norm)
+        results["batStats"].update(snap.get("batStats") or {})
+        results["pitchStats"].update(snap.get("pitchStats") or {})
+        for a, row in (snap.get("teamScores") or {}).items():
+            # A DOUBLEHEADER puts the same team on two games in one day, so a
+            # settled score must not be clobbered by one that hasn't started.
+            # Which game a leg means is genuinely ambiguous from the card;
+            # this only stops the score going backwards. Mirrors index.html.
+            prev = results["teamScores"].get(a)
+            if prev and prev.get("runs") is not None and row.get("runs") is None:
+                continue
+            results["teamScores"][a] = row
         results["gameInfo"][snap["gamePk"]] = snap
         if snap["status"] != "final":
             results["allGamesFinal"] = False
@@ -352,41 +387,124 @@ def hr_detail(hr):
     return {k: hr[k] for k in keep if hr.get(k) not in (None, "")}
 
 
-# Markets this recorder can actually grade. Everything else is written down
-# as "untracked" rather than guessed at.
-#
-# DELIBERATE GAP (2026-09-29): index.html grades stat props (H+R+RBI, hits,
-# RBI, runs, total bases) and game lines (moneyline, spread, total) from the
-# boxscore and linescore. This recorder does NOT yet, because it writes the
-# PERMANENT record -- a half-ported grader here would bake a wrong result into
-# history forever, which is far worse than an honest "not graded". The rule
-# from CLAUDE.md still stands and this is the outstanding half of it: porting
-# these graders is the follow-up, and until then a recorded slate carrying
-# one of those markets is complete except for those legs.
-RECORDER_MARKETS = {None, "hr", "sb"}
+# ---------------- markets beyond home runs and steals ----------------
+# Ports of index.html's MARKETS registry. The rule from CLAUDE.md applies in
+# both directions: a change to either page's grading has to be made here too,
+# and vice versa. These were added 2026-09-30, after a first pass deliberately
+# wrote "untracked" rather than risk a half-ported grader baking a wrong
+# result into the permanent record.
+MARKET_STATS = {
+    "hrr": ("hits", "runs", "rbi"), "hits": ("hits",), "rbi": ("rbi",),
+    "runs": ("runs",), "tb": ("totalBases",), "doubles": ("doubles",),
+    "hr": ("homeRuns",), "k": ("strikeOuts",),
+}
+TEAM_MARKETS = ("ml", "spread", "total")
+
+
+def leg_players(src):
+    """Every player named on a leg. A leg can name two ("Schwarber/Olson"),
+    and the bet is on their COMBINED total."""
+    players = src.get("players")
+    if isinstance(players, list) and players:
+        return players
+    return [src["player"]] if src.get("player") else []
+
+
+def leg_line(src, default=0.5):
+    line = src.get("line")
+    try:
+        return float(line) if line is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
+def grade_stat_prop(results, src, stat_keys, pitching=False):
+    """index.html's stateForStatProp(). Summed across every name on the leg."""
+    names = [normalize_name(n) for n in leg_players(src)]
+    if not names:
+        return "untracked"
+    line, under = leg_line(src), src.get("side") == "under"
+    table = results["pitchStats"] if pitching else results["batStats"]
+    total = sum(sum(table.get(n, {}).get(k) or 0 for k in stat_keys) for n in names)
+
+    # An OVER settles the moment it clears, mid-game; an UNDER can only settle
+    # at the end unless it has already busted.
+    if total > line:
+        return "miss" if under else "hit"
+    statuses = [results["inBox"].get(n) for n in names]
+    if not all(st == "final" for st in statuses if st) or not any(statuses):
+        return "live" if any(statuses) else "not_started"
+    # Final. Somebody on the leg has to have actually played, or it's void.
+    played = any(n in results["rosterStatus"] for n in names) or \
+        (pitching and any(n in results["pitchStats"] for n in names))
+    if not played:
+        return "na"
+    return "hit" if under else "miss"
+
+
+def grade_game_line(results, src):
+    """index.html's stateForMoneyline / stateForSpread / stateForTotal.
+
+    ONLY ever settled on a FINAL game: leading in the seventh is not a result,
+    and calling one early would be the worst kind of wrong in a permanent
+    record. A spread or total landing exactly on the number is a PUSH.
+    """
+    market = src.get("market")
+    row = results["teamScores"].get((src.get("team") or "").upper())
+    if not row or row.get("runs") is None or row.get("oppRuns") is None:
+        return "not_started"
+    if row.get("status") != "final":
+        return "live"
+    mine, theirs = row["runs"], row["oppRuns"]
+    if market == "ml":
+        return "hit" if mine > theirs else "miss"
+    if market == "spread":
+        try:
+            line = float(src.get("line"))
+        except (TypeError, ValueError):
+            return "untracked"
+        margin = (mine + line) - theirs
+        if margin == 0:
+            return "na"
+        return "hit" if margin > 0 else "miss"
+    combined, line = mine + theirs, leg_line(src)
+    if combined == line:
+        return "na"
+    return "hit" if (src.get("side") == "under") == (combined < line) else "miss"
+
+
+def grade_market(results, src):
+    """-> (state, php_by) for any market, mirroring stateForLeg().
+
+    An UNRECOGNISED market is "untracked", never graded as something else.
+    That is the whole safety story, here as on the page: a market nobody has
+    taught this script must not end up in the permanent record as a loss.
+    """
+    market = src.get("market")
+    if market in (None, "hr") and not src.get("players") and src.get("line") is None:
+        return grade_player(results, src.get("player") or "")   # the ordinary home run path
+    if market == "sb":
+        return grade_steal(results, src.get("player") or ""), None
+    if market in TEAM_MARKETS:
+        return grade_game_line(results, src), None
+    keys = MARKET_STATS.get(market if market else "hr")
+    if keys:
+        return grade_stat_prop(results, src, keys, pitching=(market == "k")), None
+    return "untracked", None
 
 
 def grade_leg(results, src):
     player = src.get("player") or ""
     market = src.get("market")
-    if market not in RECORDER_MARKETS:
-        # Never fall through to grade_player(): that would grade a spread or
-        # an H+R+RBI prop as though it were a home run bet.
-        leg = {"player": player, "team": src.get("team") or "",
-               "who": who_name(src.get("who")), "odds": odds_to_number(src.get("odds")),
-               "state": "untracked", "mlbId": results["rosterIds"].get(normalize_name(player)),
-               "market": market}
-        for k in ("line", "side"):
-            if src.get(k) is not None:
-                leg[k] = src[k]
-        if src.get("time"):
-            leg["time"] = src["time"]
-        return leg
-    steal = market == "sb"
-    state, php_by = (grade_steal(results, player), None) if steal else grade_player(results, player)
+    state, php_by = grade_market(results, src)
     norm = normalize_name(player)
     leg = {"player": player, "team": src.get("team") or "", "who": who_name(src.get("who")),
            "odds": odds_to_number(src.get("odds")), "state": state, "mlbId": results["rosterIds"].get(norm)}
+    # Everything the bet was ABOUT rides into the record, so a leg can be read
+    # back years later without the card it came from.
+    for k in ("market", "line", "side", "players"):
+        if src.get(k) is not None:
+            leg[k] = src[k]
     if src.get("time"):
         leg["time"] = src["time"]
     loc = results["rosterSide"].get(norm)
@@ -395,12 +513,26 @@ def grade_leg(results, src):
     credited = normalize_name(php_by) if php_by else norm
     if php_by:
         leg["php"] = php_by
-    if steal:
+    # What the leg actually counted, so a graded number is auditable rather
+    # than something the reader has to take on trust.
+    keys = MARKET_STATS.get(market) if market else None
+    if keys:
+        table = results["pitchStats"] if market == "k" else results["batStats"]
+        leg["counted"] = sum(sum(table.get(normalize_name(n), {}).get(k) or 0 for k in keys)
+                             for n in leg_players(src))
+    elif market in TEAM_MARKETS:
+        row = results["teamScores"].get((src.get("team") or "").upper())
+        if row and row.get("runs") is not None:
+            leg["score"] = f"{row['runs']}-{row['oppRuns']}"
+    if market == "sb":
         leg["market"] = "sb"
         mine = [st for st in results["steals"] if normalize_name(st["runner"]) == norm]
         if mine:
             leg["steals"] = [{k: st[k] for k in ("base", "caught", "inning", "half", "pitcher") if st.get(k) not in (None, "")} for st in mine]
-    elif state == "hit":
+    elif state == "hit" and market in (None, "hr"):
+        # Statcast detail belongs to a HOME RUN leg. Without the market check
+        # this fired for ANY hit leg, so a cashed spread carried a list of
+        # somebody else's home runs into the permanent record.
         leg["homeRuns"] = [hr_detail(hr) for hr in results["homeRuns"] if normalize_name(hr["batter"]) == credited]
     return leg
 

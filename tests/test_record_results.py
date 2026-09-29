@@ -287,6 +287,121 @@ with tempfile.TemporaryDirectory() as tmp:
           sum(1 for l in site_legs if l.get("market") == "sb") == 7 and not any(l.get("dist") for l in site_legs if l.get("market") == "sb"))
     check("H11 a steal bet is never checked against MLB's HOME RUN log", "2026-09-18" not in ih.pick_days(merged["parlays"], "Swiped One"))
 
+# ---------------- J. the other markets, graded the same way the page does ----
+# Until 2026-09-30 this script wrote "untracked" for every market beyond home
+# runs and steals -- deliberately, because a half-ported grader bakes a wrong
+# answer into the PERMANENT record. These are the ports, and what they must
+# agree with is index.html: the rule in CLAUDE.md runs both ways.
+
+def statline(pid, name, order=None, pa=3, **stats):
+    pl = player(pid, name, order, pa)
+    pl["stats"]["batting"].update({k: v for k, v in stats.items() if k != "strikeOuts"})
+    if "strikeOuts" in stats:
+        pl["stats"]["pitching"] = {"strikeOuts": stats["strikeOuts"]}
+    return pl
+
+
+def market_feed(state="Final", away_runs=5, home_runs_=2):
+    f = feed(state,
+             away=[statline(30, "Two Hits", 100, 3, hits=2, runs=1, rbi=0, totalBases=3, doubles=1, homeRuns=0),
+                   statline(31, "One Hit", 200, 3, hits=1, runs=0, rbi=0, totalBases=1, doubles=0, homeRuns=0),
+                   statline(32, "Never Batted", None, 0),
+                   statline(33, "The Arm", None, 0, strikeOuts=7)],
+             home=[statline(34, "Home Bat", 100, 4, hits=1, runs=1, rbi=2, totalBases=2, doubles=0, homeRuns=1)],
+             plays=[])
+    f["liveData"]["linescore"] = {"teams": {"away": {"runs": away_runs}, "home": {"runs": home_runs_}}}
+    return f
+
+
+def market_fetcher(game1):
+    def fetcher(url):
+        if "/schedule" in url:
+            st = game1["gameData"]["status"]["abstractGameState"]
+            return {"dates": [{"games": [{"gamePk": 1, "status": {"abstractGameState": st}}]}]}
+        if "/game/1/" in url:
+            return game1
+        raise AssertionError("unexpected url " + url)
+    return fetcher
+
+
+R = rr.poll_slate("2026-09-18", market_fetcher(market_feed()))
+
+
+def st(**leg):
+    leg.setdefault("team", "AAA")
+    return rr.grade_market(R, leg)[0]
+
+
+check("J1 an over clears on the summed batting line",
+      st(player="Two Hits", market="hrr", line=1.5) == "hit", st(player="Two Hits", market="hrr", line=1.5))
+check("J2 an over that didn't get there is a miss once the game is final",
+      st(player="One Hit", market="hrr", line=1.5) == "miss")
+check("J3 an under grades the other way, and busts when exceeded",
+      st(player="One Hit", market="hrr", line=1.5, side="under") == "hit"
+      and st(player="Two Hits", market="hrr", line=1.5, side="under") == "miss")
+check("J4 a prop on someone who never batted is VOID, not a loss",
+      st(player="Never Batted", market="hits", line=0.5) == "na",
+      st(player="Never Batted", market="hits", line=0.5))
+check("J5 each market reads its own column",
+      st(player="Two Hits", market="hits", line=1.5) == "hit"
+      and st(player="Two Hits", market="rbi", line=0.5) == "miss"
+      and st(player="Two Hits", market="tb", line=2.5) == "hit"
+      and st(player="Two Hits", market="doubles", line=0.5) == "hit")
+check("J6 a combined leg sums across BOTH players",
+      st(player="Two Hits", players=["Two Hits", "One Hit"], market="hits", line=2.5) == "hit"
+      and st(player="Two Hits", players=["Two Hits", "One Hit"], market="hits", line=3.5) == "miss",
+      st(player="Two Hits", players=["Two Hits", "One Hit"], market="hits", line=2.5))
+check("J7 a pitcher prop reads the PITCHING line",
+      st(player="The Arm", market="k", line=6.5) == "hit"
+      and st(player="The Arm", market="k", line=7.5) == "miss")
+
+# --- game lines ---
+check("J8 a moneyline reads the final score from either side",
+      st(team="AAA", market="ml") == "hit" and st(team="HHH", market="ml") == "miss")
+check("J9 spreads cover, fail and push",
+      st(team="AAA", market="spread", line=-1.5) == "hit"
+      and st(team="AAA", market="spread", line=-3.5) == "miss"
+      and st(team="AAA", market="spread", line=-3) == "na")
+check("J10 totals grade over/under and push on the number",
+      st(team="AAA", market="total", line=6.5) == "hit"
+      and st(team="AAA", market="total", line=8.5) == "miss"
+      and st(team="AAA", market="total", line=7) == "na")
+
+# --- the guarantees that matter most in a PERMANENT record ---
+LIVE = rr.poll_slate("2026-09-18", market_fetcher(market_feed(state="Live")))
+check("J11 a game line is NOT settled while the game is live, however lopsided",
+      rr.grade_market(LIVE, {"team": "AAA", "market": "ml"})[0] == "live"
+      and rr.grade_market(LIVE, {"team": "AAA", "market": "spread", "line": -1.5})[0] == "live",
+      rr.grade_market(LIVE, {"team": "AAA", "market": "ml"})[0])
+check("J12 an UNRECOGNISED market is untracked, never graded as something else",
+      st(player="Two Hits", market="inning runs", line=1.5) == "untracked"
+      and st(player="Two Hits", market="strikeouts by the catcher") == "untracked")
+check("J13 a leg with no market at all is still the ordinary home run path",
+      rr.grade_market(R, {"player": "Home Bat", "team": "HHH"})[0]
+      == rr.grade_player(R, "Home Bat")[0])
+
+# Statcast detail belongs to a HOME RUN leg only: without that check a cashed
+# spread carried somebody's home runs into the record.
+spread_leg = rr.grade_leg(R, {"player": "", "team": "AAA", "market": "spread", "line": -1.5,
+                              "who": "Ann", "odds": "-110"})
+check("J14 a cashed game line records no homeRuns list",
+      spread_leg["state"] == "hit" and "homeRuns" not in spread_leg, sorted(spread_leg))
+check("J15 ...and records the score it was graded from, so it's auditable",
+      spread_leg.get("score") == "5-2", spread_leg.get("score"))
+prop_leg = rr.grade_leg(R, {"player": "Two Hits", "team": "AAA", "market": "hits", "line": 1.5,
+                            "who": "Ann", "odds": "+120"})
+check("J16 a prop records what it actually counted",
+      prop_leg.get("counted") == 2 and prop_leg["state"] == "hit", prop_leg)
+check("J17 the leg keeps its market, line and side for reading back later",
+      prop_leg.get("market") == "hits" and prop_leg.get("line") == 1.5, prop_leg)
+
+# A bet carrying an untracked leg can go DEAD but must never go HIT.
+out, _ = rr.evaluate_ticket(5.0, 100.0, [("hit", 200), ("untracked", None)])
+check("J18 a bet with an untracked leg is 'partial', never a recorded win", out == "partial", out)
+out2, _ = rr.evaluate_ticket(5.0, 100.0, [("miss", 200), ("untracked", None)])
+check("J19 ...but a miss anywhere still kills it, which is certain", out2 == "dead", out2)
+
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

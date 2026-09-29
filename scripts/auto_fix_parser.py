@@ -141,14 +141,33 @@ anything:
    rejected or crashed on.
 
 Respond with EXACTLY this structure and nothing else -- no markdown fences,
-no commentary outside the two sections:
+no commentary outside the sections. Send EDITS, not the whole file:
 
 <<<SUMMARY>>>
 One or two sentences: what shape the new template is, and what you changed.
-<<<FILE>>>
-<the COMPLETE new file content, from its first line to its last -- the
- whole file, not a diff, not an excerpt>
+<<<EDIT>>>
+<<<<<<< SEARCH
+<text copied EXACTLY from the current file, including indentation>
+=======
+<what it should become>
+>>>>>>> REPLACE
+<<<EDIT>>>
+<<<<<<< SEARCH
+<another exact snippet>
+=======
+<its replacement>
+>>>>>>> REPLACE
 <<<END>>>
+
+Rules for the SEARCH text, which are enforced and will fail the attempt:
+- It must appear EXACTLY ONCE in the current file, byte for byte. Copy it;
+  don't retype it from memory. Include enough surrounding lines to be unique.
+- Don't use line numbers, "...", or any abbreviation. Every character between
+  the markers is matched literally.
+- To ADD something new, SEARCH for a nearby unique line and REPLACE it with
+  itself plus your addition.
+- Use as many <<<EDIT>>> blocks as you need. They are applied in order, each
+  against the result of the last.
 """
 
 
@@ -239,6 +258,54 @@ def call_claude(prompt, api_key, fetcher=None):
               "truncated. Raise max_tokens, or stop asking for the whole file.",
               file=sys.stderr)
     return "".join(b.get("text", "") for b in data.get("content", []))
+
+
+EDIT_RE = re.compile(
+    r"<<<EDIT>>>\s*<<<<<<< SEARCH\n(.*?)\n?=======\n(.*?)\n?>>>>>>> REPLACE",
+    re.DOTALL)
+
+
+def apply_edits(original, response_text):
+    """Apply the model's search/replace blocks to `original`.
+
+    -> (new_source, count) or raises ValueError with a reason.
+
+    Search/replace rather than a unified diff on purpose: a diff carries line
+    numbers and fuzzy context, both of which a model gets wrong in ways that
+    still APPLY -- silently landing a change in the wrong place. An exact
+    string that must occur exactly once either matches or doesn't, and a
+    mismatch is detectable, which is the property that matters when the thing
+    being edited is the parser for live money data.
+
+    Nothing is applied unless EVERY block matches: a half-applied patch is
+    worse than none, because the revert is what keeps a failed attempt safe.
+    """
+    blocks = EDIT_RE.findall(response_text)
+    if not blocks:
+        raise ValueError("no <<<EDIT>>> blocks in the response")
+    out = original
+    for i, (search, replace) in enumerate(blocks, 1):
+        if not search.strip():
+            raise ValueError(f"edit {i}: empty SEARCH block")
+        n = out.count(search)
+        if n == 0:
+            head = search.strip().splitlines()[0][:70] if search.strip() else ""
+            raise ValueError(f"edit {i}: SEARCH text not found in the file (starts {head!r})")
+        if n > 1:
+            head = search.strip().splitlines()[0][:70]
+            raise ValueError(f"edit {i}: SEARCH text appears {n} times, so the target is "
+                             f"ambiguous -- needs more surrounding context (starts {head!r})")
+        out = out.replace(search, replace, 1)
+    if out == original:
+        raise ValueError("the edits left the file unchanged")
+    return out, len(blocks)
+
+
+def extract_summary(response_text):
+    """The summary line, which both response shapes carry."""
+    m = re.search(r"<<<SUMMARY>>>(.*?)(?:<<<EDIT>>>|<<<FILE>>>|<<<END>>>)",
+                  response_text, re.DOTALL)
+    return m.group(1).strip() if m else ""
 
 
 def extract_file_and_summary(response_text):
@@ -384,9 +451,24 @@ def attempt_fix(sport, incoming_path, parser_path, api_key, retry_feedback=None,
         # that dies here takes the whole repair attempt down with it.
         return False, f"TRANSPORT: Claude API call failed: {e}"
 
-    summary, new_source = extract_file_and_summary(response)
-    if new_source is None:
-        return False, "the model's response didn't match the required <<<SUMMARY>>>/<<<FILE>>> shape"
+    summary = extract_summary(response)
+    # EDITS are the primary path. Asking for the whole file back cost more
+    # every time a template was added -- parse_picks.py reached 1101 lines /
+    # ~16k output tokens, and the last two real incidents both failed with a
+    # truncated response and no closing marker. A patch is proportional to the
+    # CHANGE, so it stops growing with the file.
+    try:
+        new_source, n_edits = apply_edits(original, response)
+        detail_prefix = f"{n_edits} edit(s)"
+    except ValueError as e:
+        # A whole file is still accepted if that's what came back: older
+        # behaviour, and for a small parser it's a perfectly good answer.
+        _, whole = extract_file_and_summary(response)
+        if whole is None:
+            return False, f"couldn't read the model's response as edits ({e}) or as a whole file"
+        new_source, detail_prefix = whole, "a whole-file rewrite"
+    if not summary:
+        summary = detail_prefix
 
     write(parser_path, new_source)
 

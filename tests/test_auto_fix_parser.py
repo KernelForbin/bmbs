@@ -394,6 +394,103 @@ check("F2 the archived fixture is named for its sport and lands under tests/fixt
 full_dest.unlink()
 
 
+# ---------------- I. edits, not the whole file ----------------
+# Asking for the WHOLE file back cost more every time a template was added:
+# parse_picks.py reached 1101 lines / ~16k output tokens, and the last two
+# real incidents (2026-09-26, 2026-09-29) both failed four times over with a
+# truncated response and no closing marker. A patch is proportional to the
+# CHANGE, so it stops growing with the file.
+#
+# Search/replace rather than a unified diff ON PURPOSE: a diff carries line
+# numbers and fuzzy context, both of which a model gets wrong in ways that
+# still APPLY -- silently landing a change in the wrong place. An exact string
+# that must occur exactly once either matches or it doesn't.
+
+SRC = "alpha\nbeta\ngamma\nbeta\ndelta\n"
+
+
+def edits(*pairs, summary="did a thing"):
+    body = "".join(
+        f"<<<EDIT>>>\n<<<<<<< SEARCH\n{a}\n=======\n{b}\n>>>>>>> REPLACE\n" for a, b in pairs)
+    return f"<<<SUMMARY>>>\n{summary}\n{body}<<<END>>>"
+
+
+out, n = afp.apply_edits(SRC, edits(("gamma", "GAMMA")))
+check("I1 a single exact edit applies", out == "alpha\nbeta\nGAMMA\nbeta\ndelta\n" and n == 1, repr(out))
+
+out, n = afp.apply_edits(SRC, edits(("alpha", "ALPHA"), ("delta", "DELTA")))
+check("I2 several edits apply in order", out == "ALPHA\nbeta\ngamma\nbeta\nDELTA\n" and n == 2, repr(out))
+
+# Adding something new is a replace-with-itself-plus.
+out, _ = afp.apply_edits(SRC, edits(("gamma", "gamma\nNEW LINE")))
+check("I3 an insertion is expressed as replace-with-itself-plus",
+      "gamma\nNEW LINE\n" in out, repr(out))
+
+
+def fails(response, why):
+    try:
+        afp.apply_edits(SRC, response)
+        return False
+    except ValueError as e:
+        return why in str(e)
+
+
+check("I4 a SEARCH that matches NOTHING is refused, not guessed at",
+      fails(edits(("nonexistent", "x")), "not found"))
+check("I5 a SEARCH that matches TWICE is refused as ambiguous -- silently "
+      "editing the wrong one is the failure mode a diff would have",
+      fails(edits(("beta", "BETA")), "appears 2 times"))
+check("I6 a response with no edit blocks at all is refused",
+      fails("<<<SUMMARY>>>\nnothing here\n<<<END>>>", "no <<<EDIT>>>"))
+check("I7 edits that change nothing are refused", fails(edits(("gamma", "gamma")), "unchanged"))
+
+# NOTHING is applied unless EVERY block matches: a half-applied patch would
+# survive the revert-on-failure guarantee only by accident.
+try:
+    afp.apply_edits(SRC, edits(("alpha", "ALPHA"), ("nonexistent", "x")))
+    check("I8 a failing block aborts the whole patch", False, "no error raised")
+except ValueError:
+    check("I8 a failing block aborts the whole patch -- nothing is half-applied", True)
+
+# The summary is read from either shape.
+check("I9 the summary is read out of an edits response",
+      afp.extract_summary(edits(("gamma", "G"), summary="new template")) == "new template",
+      afp.extract_summary(edits(("gamma", "G"), summary="new template")))
+
+# --- end to end through attempt_fix, which is what actually ships -------
+parser_i, incoming_i = with_tmp_files(ORIGINAL_SOURCE, "some upload")
+_first = ORIGINAL_SOURCE.splitlines()[0]
+_resp = ("<<<SUMMARY>>>\npatched\n<<<EDIT>>>\n<<<<<<< SEARCH\n"
+         + _first + "\n=======\n" + _first + "\n# added by the fixer\n>>>>>>> REPLACE\n<<<END>>>")
+afp.run_full_suite, afp.verify_fix = lambda: (True, ""), lambda a, b: (True, "")
+ok, detail = afp.attempt_fix("baseball", str(incoming_i), str(parser_i), "k",
+                             fetcher=fetcher_returning(_resp))
+check("I10 attempt_fix applies an edits response end to end", ok is True, detail)
+check("I11 ...and the patch is really in the file",
+      "# added by the fixer" in parser_i.read_text(encoding="utf-8"))
+
+# A response that is neither readable as edits nor as a whole file fails
+# safely, leaving the parser byte-for-byte original.
+parser_j, incoming_j = with_tmp_files(ORIGINAL_SOURCE, "some upload")
+ok, detail = afp.attempt_fix("baseball", str(incoming_j), str(parser_j), "k",
+                             fetcher=fetcher_returning("<<<SUMMARY>>>\nhi\n<<<END>>>"))
+check("I12 an unreadable response fails without touching the file",
+      ok is False and parser_j.read_text(encoding="utf-8") == ORIGINAL_SOURCE, detail)
+check("I13 ...and says it could read it as neither edits nor a whole file",
+      "edits" in detail and "whole file" in detail, detail)
+
+# The whole-file envelope still works: a small parser may well come back that
+# way, and the older behaviour shouldn't break.
+parser_k, incoming_k = with_tmp_files(ORIGINAL_SOURCE, "some upload")
+ok, _ = afp.attempt_fix("baseball", str(incoming_k), str(parser_k), "k",
+                        fetcher=fetcher_returning(
+                            "<<<SUMMARY>>>\nrewrote it\n<<<FILE>>>\nprint('new')\n<<<END>>>"))
+check("I14 a whole-file response is still accepted as a fallback",
+      ok is True and parser_k.read_text(encoding="utf-8").strip() == "print('new')")
+
+afp.run_full_suite, afp.verify_fix = old_suite, old_verify
+
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

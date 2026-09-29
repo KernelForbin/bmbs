@@ -291,6 +291,18 @@
   .mkt-tag.prop { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
   .mkt-tag.line { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
   .mkt-tag.unknown { color:var(--muted); background:transparent; border:1px dashed var(--panel-line); }
+  /* Two new Live Bet Tracker tiles. Deliberately calmer than AT BAT: a
+     pitcher's strikeout count and a game line both move on a much slower
+     clock than a live at-bat, and shouting them would crowd out the tile
+     you actually need to look at right now. */
+  .ab-tile.mound { border-color:rgba(255,255,255,0.16); }
+  .ab-tile.mound .ab-tag { color:var(--text-dim); }
+  .ab-tile.game { border-color:rgba(255,255,255,0.12); }
+  .ab-tile.game .ab-tag { color:var(--text-dim); }
+  /* Progress toward a counting bet's line. Turns green once it's there --
+     an over settles the moment it clears, so the tile shouldn't wait. */
+  .ab-prog { color:var(--text-dim); }
+  .ab-prog.done { color:var(--hit); font-weight:600; }
   .gameday-link { display:inline-block; font-size:10px; color:var(--green); margin-top:3px; text-decoration:underline; }
   .leg-right { flex:none; text-align:right; }
   .leg-odds { font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:var(--amber); }
@@ -2498,10 +2510,48 @@ function zoneGridHtml(zone) {
 // Normalized names whose home run matters to this slate: anyone actually
 // picked, plus any substitute whose HR is currently crediting one of our
 // legs under Pinch Hit Protection.
-// Which markets get a tile in the Live Bet Tracker. Everything else is shown
-// on its card and counted, just not given live at-bat context -- see the note
-// at the add() call site.
-const LIVE_TILE_MARKETS = new Set(["hr", "sb"]);
+// Which markets earn a tile in the Live Bet Tracker, and what KIND of tile.
+// A market only belongs here if watching it live actually tells you something:
+//   bat    -- he's a hitter and the bet moves when he bats, so the whole
+//             batting-order machinery (at the plate / due up / outs) applies
+//   base   -- a steal, which is about standing on a base rather than batting
+//   mound  -- a pitcher prop: no batting order, but a strikeout count that
+//             climbs while his side is in the field
+//   game   -- a game line, which has no player at all but does have a live
+//             score and a number it has to beat
+// Anything NOT here is deliberately absent rather than forgotten: an
+// inning-specific total can't be followed from a final score, so a tile could
+// only ever show a number that means nothing.
+const LIVE_TILE_KIND = {
+  hr: "bat", sb: "base", hrr: "bat", hits: "bat", rbi: "bat", runs: "bat",
+  tb: "bat", doubles: "bat", k: "mound", ml: "game", spread: "game", total: "game",
+};
+function liveTileKind(leg) { return LIVE_TILE_KIND[legMarket(leg)] || null; }
+
+// The stat columns a market counts, so a tile can show progress toward the
+// line. Mirrors the MARKETS registry's graders -- change one, change the
+// other, which is why they sit next to each other here.
+const MARKET_STATS = {
+  hrr: ["hits", "runs", "rbi"], hits: ["hits"], rbi: ["rbi"], runs: ["runs"],
+  tb: ["totalBases"], doubles: ["doubles"], hr: ["homeRuns"], k: ["strikeOuts"],
+};
+
+// "2 of 3 total bases" -- where a counting bet actually stands right now.
+// Returns null for a market with nothing to count (a plain home run or steal
+// bet is "at least one" and the tile already says everything).
+function labProgress(entry) {
+  const keys = MARKET_STATS[entry.market];
+  if (!keys || entry.line === null || entry.line === undefined) return null;
+  const pitching = entry.market === "k";
+  const src = pitching ? RESULTS.pitchStats : RESULTS.batStats;
+  const have = (entry.names || []).reduce((sum, n) => {
+    const row = src && src.get(normalizeName(n));
+    return sum + (row ? keys.reduce((a, k) => a + (row[k] || 0), 0) : 0);
+  }, 0);
+  const need = Math.floor(entry.line) + 1;          // over 1.5 needs 2
+  const label = (MARKETS[entry.market] && MARKETS[entry.market].label || "").toLowerCase();
+  return { have, need, text: `${have} of ${need} ${label || "so far"}`.trim(), done: have >= need };
+}
 
 function relevantHrNames() {
   const set = new Set();
@@ -2654,33 +2704,49 @@ const LAB_PA_RESULTS = new Set([
 // leave nothing to show -- the panel says why.)
 function labEligiblePicks() {
   const picks = new Map();
-  function add(player, odds, rawWho, iron, market) {
+  function add(player, odds, rawWho, iron, market, leg) {
     const norm = normalizeName(player);
     let pick = picks.get(norm);
-    if (!pick) { pick = { norm, player, odds: [], oddsSb: [], whos: [], iron: false, hr: false, sb: false }; picks.set(norm, pick); }
+    if (!pick) {
+      pick = { norm, player, odds: [], oddsSb: [], whos: [], iron: false, hr: false, sb: false,
+               entries: [], kinds: new Set() };
+      picks.set(norm, pick);
+    }
     const list = market === "sb" ? pick.oddsSb : pick.odds;
-    pick[market === "sb" ? "sb" : "hr"] = true;
+    // hr/sb keep their own flags so every existing tile reads exactly as it
+    // did; a prop is neither, and must not be filed as a home run bet.
+    if (market === "hr" || market === "sb") pick[market] = true;
     if (odds && !list.includes(odds)) list.push(odds);
+    const kind = liveTileKind(leg || { market });
+    if (kind) pick.kinds.add(kind);
+    pick.entries.push({
+      market, line: leg && leg.line !== undefined ? leg.line : null,
+      side: (leg && leg.side) || "over", odds,
+      names: leg ? legPlayers(leg) : [player], team: (leg && leg.team) || "", kind,
+    });
     const who = whoDisplayName(rawWho);
     if (who && !pick.whos.includes(who)) pick.whos.push(who);
     if (iron) pick.iron = true;
   }
+
+  // A leg can name two players ("Schwarber/Olson 1+ Total Homers"); BOTH earn
+  // a tile, because either one batting moves the same bet.
+  function addLeg(leg, odds, rawWho, iron) {
+    const kind = liveTileKind(leg);
+    if (!kind) return;
+    if (kind === "game") { add(leg.team || "", odds, rawWho, iron, legMarket(leg), leg); return; }
+    legPlayers(leg).forEach(name => add(name, odds, rawWho, iron, legMarket(leg), leg));
+  }
   EVALUATED.forEach(({ tk, states, evalRes }) => {
     if (!isOpenOutcome(evalRes.outcome) || !ticketMatchesFilter(evalRes)) return;
     tk.legs.forEach((leg, i) => {
-      // The Live Bet Tracker is home-run and steal tiles only. The other
-      // markets are deliberately left out for now (the user deferred live
-      // tracking for them): a tile is at-bat / on-base context, which means
-      // nothing for a game line, and bucketing an H+R+RBI pick into the HR
-      // list would mislabel its odds.
-      if (states[i] === "live" && LIVE_TILE_MARKETS.has(legMarket(leg)) && legPassesFilters(states[i], leg.who)) add(leg.player, leg.odds, leg.who, isIronLeg(evalRes, states[i]), legMarket(leg));
+      if (states[i] === "live" && legPassesFilters(states[i], leg.who)) addLeg(leg, leg.odds, leg.who, isIronLeg(evalRes, states[i]));
     });
   });
   EVALUATED_SINGLES.forEach(({ s, state, outcome, iron }) => {
     if (state !== "live" || outcome !== "live") return;
-    if (!LIVE_TILE_MARKETS.has(legMarket(s))) return;   // see the parlay side
     if (!ticketMatchesFilter({ outcome, iron }) || !legPassesFilters(state, s.who)) return;
-    add(s.player, s.odds, s.who, iron, legMarket(s));
+    addLeg(s, s.odds, s.who, iron);
   });
   return picks;
 }
@@ -2771,12 +2837,79 @@ function labOddsText(odds) {
   return nums.length ? `${fmtOdds(nums[0])} to ${fmtOdds(nums[nums.length - 1])}` : odds[0];
 }
 
-// A home-run-only pick reads exactly as it always has; a steal price is labelled.
+// A home-run-only pick reads exactly as it always has; a steal price is
+// labelled; anything else is labelled with its own market. A leg with no
+// price at all (some cards only price the ticket) contributes a label and no
+// number rather than being dropped -- the bet is still worth watching.
 function labOddsHtml(pick) {
   const hr = pick.odds && pick.odds.length ? escapeHtml(labOddsText(pick.odds)) : "";
   const sb = pick.oddsSb && pick.oddsSb.length ? `<span class="ab-mkt">SB</span>${escapeHtml(labOddsText(pick.oddsSb))}` : "";
-  if (!sb) return hr;
-  return hr ? `<span class="ab-mkt" style="color:var(--text-dim)">HR</span>${hr} ${sb}` : sb;
+  const others = [];
+  const seen = new Set();
+  (pick.entries || []).forEach(e => {
+    if (e.market === "hr" || e.market === "sb") return;
+    const def = MARKETS[e.market];
+    const label = (def && def.label) || String(e.market).toUpperCase();
+    const price = e.odds ? escapeHtml(e.odds) : "";
+    const key = label + "|" + price;
+    if (seen.has(key)) return;
+    seen.add(key);
+    others.push(`<span class="ab-mkt">${escapeHtml(label)}</span>${price}`);
+  });
+  const parts = [];
+  if (hr) parts.push(sb || others.length ? `<span class="ab-mkt" style="color:var(--text-dim)">HR</span>${hr}` : hr);
+  if (sb) parts.push(sb);
+  parts.push(...others);
+  return parts.join(" ");
+}
+
+// The progress line under a tile: where every counting bet on this pick
+// actually stands. Silent for a plain home run or steal, which have nothing
+// to count -- the tile itself is the information there.
+function labProgressHtml(pick) {
+  const bits = [];
+  const seen = new Set();
+  (pick.entries || []).forEach(e => {
+    const prog = labProgress(e);
+    if (!prog || seen.has(prog.text)) return;
+    seen.add(prog.text);
+    bits.push(`<span class="${prog.done ? "ab-prog done" : "ab-prog"}">${escapeHtml(prog.text)}</span>`);
+  });
+  return bits.length ? `<div class="ab-line faint">${bits.join(" &middot; ")}</div>` : "";
+}
+
+// A PITCHER prop. No batting order to place him in -- he's on the mound
+// while his side is in the field -- so the tile is the count itself, which is
+// the thing that actually moves.
+function labMoundTile(pick, gamePk, inningLabel, gamedayLink) {
+  const prog = (pick.entries || []).map(labProgress).find(Boolean);
+  const line = prog ? `${prog.have} K &middot; needs ${prog.need}` : "On the mound";
+  return labTileShell("mound", "ON THE MOUND", pick, gamedayLink, `
+    <div class="ab-line">${escapeHtml(inningLabel || "")}</div>
+    <div class="ab-countrow"><span class="ab-count">${prog ? prog.have : "\u2013"}</span><span class="ab-pitches faint">${escapeHtml(line)}</span></div>`);
+}
+
+// A GAME LINE. No player at all: the live score is the state, and the tile
+// says plainly that nothing settles until the final -- a lead is not a win.
+function labGameTile(pick, row, inningLabel, gamedayLink) {
+  const e = (pick.entries || [])[0] || {};
+  const def = MARKETS[e.market];
+  const mine = row.runs, theirs = row.oppRuns;
+  let need = "";
+  if (e.market === "spread" && e.line !== null) {
+    const margin = (mine + Number(e.line)) - theirs;
+    need = margin > 0 ? `covering by ${margin}` : `${Math.abs(margin)} short of covering`;
+  } else if (e.market === "total" && e.line !== null) {
+    const combined = mine + theirs;
+    need = e.side === "under" ? `${combined} runs, needs under ${e.line}`
+                              : `${combined} runs, needs ${Math.floor(Number(e.line)) + 1}`;
+  } else if (e.market === "ml") {
+    need = mine > theirs ? "ahead" : mine < theirs ? "behind" : "tied";
+  }
+  return labTileShell("game", (def && def.label) || "GAME LINE", pick, gamedayLink, `
+    <div class="ab-line">${escapeHtml(inningLabel || "")}</div>
+    <div class="ab-countrow"><span class="ab-count">${mine}&ndash;${theirs}</span><span class="ab-pitches faint">${escapeHtml(need)}</span></div>
+    <div class="ab-line faint">Settles at the final.</div>`);
 }
 
 function labPitchChip(pitch) {
@@ -2810,6 +2943,15 @@ function labOutsDots(outs) {
   return `<span class="ab-outs" title="${outs} out">${[0, 1, 2].map(i => `<i class="${i < outs ? "on" : ""}"></i>`).join("")}</span>`;
 }
 
+// The inning label for a tile that has no batting context to borrow one
+// from (a pitcher, a game line). Same wording the batting tiles use.
+function labInningLabelFor(game) {
+  if (!game || !game.inning) return "";
+  const half = game.halfState === "Top" ? "Top" : game.halfState === "Bottom" ? "Bot"
+    : game.halfState === "Middle" ? "Mid" : game.halfState === "End" ? "End" : "";
+  return `${half} ${game.inning}`.trim();
+}
+
 function labTileShell(cls, tag, pick, link, inner) {
   const href = link ? ` href="${link}" target="_blank" rel="noopener"` : "";
   return `<a class="ab-tile ${cls}"${href} data-player="${escapeHtml(pick.player)}" title="${escapeHtml(pick.whos.join(", "))}">
@@ -2831,7 +2973,7 @@ function labNowTile(pick, ctx) {
   return labTileShell("now", "AT BAT", pick, ctx.gamedayLink, `
     <div class="ab-line">${where}</div>
     <div class="ab-countrow"><span class="ab-count">${ab ? ab.balls : 0}-${ab ? ab.strikes : 0}</span><span class="ab-pitches">${ab ? ab.pitches.map(labPitchChip).join("") : ""}</span></div>
-    <div class="ab-line faint">${lastLine}</div>`);
+    <div class="ab-line faint">${lastLine}</div>${labProgressHtml(pick)}`);
 }
 
 function labSoonTile(pick, ctx) {
@@ -2951,7 +3093,7 @@ function renderLiveAtBats() {
   LAB.flashes.forEach((flash, norm) => { if (flash.until <= now) LAB.flashes.delete(norm); });
 
   const tiles = [];
-  let nowCount = 0, soonCount = 0, onCount = 0;
+  let nowCount = 0, soonCount = 0, onCount = 0, moundCount = 0, gameCount = 0;
   const picksNow = labEligiblePicks();
   // A steal pick who reaches base goes straight to his on-base tile: the
   // "Single" result would only sit in front of the thing worth watching.
@@ -2964,6 +3106,30 @@ function renderLiveAtBats() {
       onCount++;
       // open base ahead first, then the hitters, then runners with nowhere to go
       tiles.push({ rank: 1, order: on.nextOpen ? 0 : 2, html: labOnBaseTile(pick, on) });
+      return;
+    }
+    // A GAME LINE has no player, so none of the batting machinery below can
+    // place it. It gets a tile whenever its game is actually under way.
+    if (pick.kinds && pick.kinds.has("game")) {
+      const row = RESULTS.teamScores && RESULTS.teamScores.get((pick.player || "").toUpperCase());
+      if (row && row.runs !== null && row.status !== "preview") {
+        gameCount++;
+        const g = RESULTS.gameInfo.get(row.gamePk) || {};
+        tiles.push({ rank: 4, order: 0, html: labGameTile(pick, row, labInningLabelFor(g), g.gamedayLink || "") });
+      }
+      return;
+    }
+    // A PITCHER prop: he's working while his side is in the FIELD, which is
+    // the opposite of everyone else here, so the batting-order path would
+    // never surface him at all.
+    if (pick.kinds && pick.kinds.has("mound") && !pick.kinds.has("bat")) {
+      const row = RESULTS.pitchStats && RESULTS.pitchStats.get(pick.norm);
+      const where = RESULTS.rosterSide && RESULTS.rosterSide.get(pick.norm);
+      if (row) {
+        moundCount++;
+        const g = (where && RESULTS.gameInfo.get(where.gamePk)) || {};
+        tiles.push({ rank: 3, order: 0, html: labMoundTile(pick, where && where.gamePk, labInningLabelFor(g), g.gamedayLink || "") });
+      }
       return;
     }
     const ctx = liveContextForPlayer(pick.player);
@@ -2984,7 +3150,11 @@ function renderLiveAtBats() {
     : `<p class="liveab-empty">${labFilterLabel()
         ? `Nobody matching <b>${escapeHtml(labFilterLabel())}</b> is at the plate${slateHasSteals() ? ", on base" : ""} or due up. Clear the filter to see everyone.`
         : `None of your picks are at the plate${slateHasSteals() ? ", on base" : ""} or due up this inning. Tiles appear here the moment one is.`}</p>`;
-  countEl.textContent = nowCount || soonCount || onCount ? [nowCount ? `${nowCount} UP` : "", onCount ? `${onCount} ON BASE` : "", soonCount ? `${soonCount} DUE` : ""].filter(Boolean).join(" \u00b7 ") : "";
+  countEl.textContent = (nowCount || soonCount || onCount || moundCount || gameCount)
+    ? [nowCount ? `${nowCount} UP` : "", onCount ? `${onCount} ON BASE` : "",
+       soonCount ? `${soonCount} DUE` : "", moundCount ? `${moundCount} PITCHING` : "",
+       gameCount ? `${gameCount} GAME LINE${gameCount === 1 ? "" : "S"}` : ""].filter(Boolean).join(" \u00b7 ")
+    : "";
   document.getElementById("liveab-sub").innerHTML = liveAbSubText(collapsed, nowCount, soonCount, onCount);
 
   let next = Infinity;

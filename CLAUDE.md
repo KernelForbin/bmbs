@@ -624,10 +624,21 @@ goes through `BETLIKE_RE` into the `note`.
   outstanding half of "change one, change the other" -- porting the graders is
   the follow-up, and until then a recorded slate carrying one of these markets
   is complete except for those legs.
-- **The Live Bet Tracker is hr/sb only** (`LIVE_TILE_MARKETS`), at the user's
-  request -- live tracking for the rest is a later decision. A tile is
-  at-bat / on-base context, which means nothing for a game line, and bucketing
-  an H+R+RBI pick into the HR odds list would mislabel its price.
+- **The Live Bet Tracker now covers every market it can actually FOLLOW**
+  (2026-09-29). `LIVE_TILE_KIND` maps a market to the KIND of tile it earns:
+  `bat` (the batting-order machinery, plus a progress line off `MARKET_STATS`
+  -- "1 of 2 hits", green once it clears), `base` (a steal), `mound` (a
+  pitcher prop: no batting order, so it would never surface otherwise), and
+  `game` (a game line, which has no player at all -- the tile carries the live
+  score and says outright that nothing settles until the final). A leg naming
+  two players puts BOTH on the wall, since either batting moves the same bet.
+  **A market absent from that table gets no tile on purpose**, not by
+  oversight: an inning-specific total can't be followed from a final score, so
+  a tile could only ever show a number that means nothing. `MARKET_STATS`
+  mirrors the registry's graders -- change one, change the other.
+  `test_live_at_bats.py` section Z covers it, and Z9 checks `liveTileKind()`
+  DIRECTLY rather than just the absence of a tile: asserting absence alone
+  passed even with the exclusion removed, which a mutation proved.
 
 **A doubleheader can clobber a settled score.** `teamScores` is keyed by
 abbreviation, so the nightcap overwrites the afternoon game. A row with real

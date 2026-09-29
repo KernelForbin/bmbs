@@ -141,7 +141,7 @@ def advance(page, seconds):
 def tiles(page):
     return page.evaluate("""() => [...document.querySelectorAll('#liveab-grid .ab-tile')].map(t => ({
         player: t.dataset.player,
-        kind: ['now', 'soon', 'result'].find(k => t.classList.contains(k)),
+        kind: ['now', 'soon', 'result', 'onbase', 'mound', 'game'].find(k => t.classList.contains(k)),
         homer: t.classList.contains('homer'),
         tag: t.querySelector('.ab-tag').textContent,
         odds: t.querySelector('.ab-odds').textContent.replace(/[^+\\d/ to]/g, '').trim(),
@@ -447,6 +447,109 @@ with sync_playwright() as p:
     check("H3 no sideways scroll on a phone", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
     check("H4 no script errors", not errors, str(errors))
     browser.close()
+
+    # A previous section closed its browser, so section Z opens its own.
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 390, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.clock.set_fixed_time(NOW)
+    page.route("**/*", handler)
+
+    # ================= Z: the other markets earn tiles too =================
+    # The Live Bet Tracker was home runs and steals only. Everything the page
+    # can actually FOLLOW live now gets a tile: a batting prop uses the same
+    # batting-order machinery and shows progress toward its line, a pitcher
+    # prop gets the count that climbs while his side is in the field, and a
+    # game line gets the score plus what it still needs. An inning-specific
+    # total gets nothing ON PURPOSE -- it can't be followed from a final
+    # score, so a tile could only ever show a number that means nothing.
+    def prop_leg(player, market, line, who="Kenny", odds=None, team="", players=None):
+        lg = {"id": f"p-{player}-{market}", "player": player, "team": team, "who": who,
+              "meta": who, "odds": odds, "time": "7:05 PM ET", "market": market}
+        if line is not None:
+            lg["line"] = line
+        if players:
+            lg["players"] = players
+        return lg
+
+    FX["feed"] = game(BASE + [play(50, "Up Now", False, COUNT_1_2, balls=1, strikes=2)],
+                      "Bottom", 1, "Up Now")
+    _box = FX["feed"]["liveData"]["boxscore"]["teams"]
+    _home = _box["home"]["players"]
+    _upnow_id = next(k for k, v in _home.items() if v["person"]["fullName"] == "Up Now")
+    _home[_upnow_id]["stats"] = {"batting": {"plateAppearances": 3, "hits": 1, "runs": 0,
+                                             "rbi": 0, "totalBases": 2, "doubles": 1, "homeRuns": 0}}
+    _home["IDP"] = {"person": {"fullName": "Ace Arm"},
+                    "stats": {"pitching": {"strikeOuts": 4}}}
+    FX["feed"]["liveData"]["linescore"]["teams"] = {"away": {"runs": 2}, "home": {"runs": 5}}
+
+    TICKETS["windows"][0]["tickets"] = [
+        card(1, [prop_leg("Up Now", "hits", 1.5), prop_leg("On Deck", "tb", 2.5)]),
+        card(2, [prop_leg("Ace Arm", "k", 5.5), prop_leg("", "spread", -1.5, team="NYY")]),
+        card(3, [prop_leg("Inning Bet", "inning runs", 1.5), prop_leg("In Hole", "hits", 0.5)]),
+    ]
+    TICKETS["singles"] = []
+    page.goto("http://bmbs.test/index.html")
+    boot(page)
+    poll(page)
+    tl = {t["player"]: t for t in tiles(page)}
+
+    up = tl.get("Up Now")
+    check("Z1 a batting prop gets the ordinary AT BAT tile", bool(up) and up["kind"] == "now", sorted(tl))
+    check("Z2 ...and shows progress toward its line", bool(up) and "1 of 2 hits" in up["text"], up and up["text"])
+    check("Z3 the market is named, not left looking like a home run bet",
+          bool(up) and "HITS" in up["text"], up and up["text"])
+
+    arm = tl.get("Ace Arm")
+    check("Z4 a pitcher prop gets its own ON THE MOUND tile -- the batting "
+          "order would never have surfaced him at all", bool(arm) and arm["kind"] == "mound", sorted(tl))
+    check("Z5 ...showing the strikeout count and what it needs",
+          bool(arm) and "needs 6" in arm["text"], arm and arm["text"])
+
+    gl = tl.get("NYY")
+    check("Z6 a game line gets a tile even though it has no player at all",
+          bool(gl) and gl["kind"] == "game", sorted(tl))
+    check("Z7 ...with the live score and what it still needs",
+          bool(gl) and "5" in (gl["count"] or "") and "cover" in gl["text"], gl and gl["text"])
+    check("Z8 ...and says plainly that nothing settles until the final",
+          bool(gl) and "Settles at the final" in gl["text"], gl and gl["text"])
+
+    # Checked on the CONTRACT, not just the absence of a tile: an untrackable
+    # market can fail to produce one for several reasons, and only this says
+    # the market is genuinely excluded. (Asserting absence alone passed even
+    # with the exclusion removed -- a mutation proved it.)
+    check("Z9 an inning-specific total is excluded from tiles outright: it "
+          "can't be followed from a final score, so a number would mean nothing",
+          page.evaluate("liveTileKind({market: 'inning runs'})") is None
+          and page.evaluate("liveTileKind({market: 'strikeouts'})") is None,
+          page.evaluate("[liveTileKind({market:'inning runs'}), liveTileKind({market:'hits'})]"))
+    check("Z9b ...and the known markets each map to the right KIND of tile",
+          page.evaluate("['hr','sb','hits','k','spread'].map(m => liveTileKind({market: m}))")
+          == ["bat", "base", "bat", "mound", "game"],
+          page.evaluate("['hr','sb','hits','k','spread'].map(m => liveTileKind({market: m}))"))
+    check("Z9c and no tile appeared for it", "Inning Bet" not in tl, sorted(tl))
+
+    pill = page.evaluate("document.getElementById('liveab-count').textContent")
+    check("Z10 the header pill counts pitching and game lines alongside the rest",
+          "PITCHING" in pill and "GAME LINE" in pill, pill)
+
+    # A COMBINED leg names two players, and BOTH earn a tile: either one
+    # batting moves the same bet.
+    TICKETS["windows"][0]["tickets"] = [
+        card(1, [prop_leg("Up Now", "hr", 0.5, players=["Up Now", "On Deck"]),
+                 prop_leg("In Hole", "hits", 0.5)]),
+    ]
+    page.goto("http://bmbs.test/index.html")
+    boot(page)
+    poll(page)
+    names = {t["player"] for t in tiles(page)}
+    check("Z11 both players on a combined leg get their own tile",
+          {"Up Now", "On Deck"} <= names, sorted(names))
+
+    check("Z12 no JS errors across the new tiles", not errors, errors)
+    browser.close()
+
 
 print()
 if failures:

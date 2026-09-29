@@ -2847,7 +2847,7 @@ function labOddsText(odds) {
 // labelled; anything else is labelled with its own market. A leg with no
 // price at all (some cards only price the ticket) contributes a label and no
 // number rather than being dropped -- the bet is still worth watching.
-function labOddsHtml(pick) {
+function labOddsHtml(pick, tag) {
   const hr = pick.odds && pick.odds.length ? escapeHtml(labOddsText(pick.odds)) : "";
   const sb = pick.oddsSb && pick.oddsSb.length ? `<span class="ab-mkt">SB</span>${escapeHtml(labOddsText(pick.oddsSb))}` : "";
   const others = [];
@@ -2856,6 +2856,11 @@ function labOddsHtml(pick) {
     if (e.market === "hr" || e.market === "sb") return;
     const def = MARKETS[e.market];
     const label = (def && def.label) || String(e.market).toUpperCase();
+    if (tag && label === tag) {
+      // The tile's own tag already says it; repeating it reads as "SPREADSPREAD".
+      if (e.odds) others.push(escapeHtml(e.odds));
+      return;
+    }
     const price = e.odds ? escapeHtml(e.odds) : "";
     const key = label + "|" + price;
     if (seen.has(key)) return;
@@ -2960,8 +2965,10 @@ function labInningLabelFor(game) {
 
 function labTileShell(cls, tag, pick, link, inner) {
   const href = link ? ` href="${link}" target="_blank" rel="noopener"` : "";
+  // The tag is passed through so the odds line can skip a market chip that
+  // just repeats it -- a game-line tile tagged SPREAD read "SPREADSPREAD".
   return `<a class="ab-tile ${cls}"${href} data-player="${escapeHtml(pick.player)}" title="${escapeHtml(pick.whos.join(", "))}">
-    <div class="ab-top"><span class="ab-tag">${tag}</span><span class="ab-odds">${labOddsHtml(pick)}${pick.iron ? ironMark() : ""}</span></div>
+    <div class="ab-top"><span class="ab-tag">${tag}</span><span class="ab-odds">${labOddsHtml(pick, tag)}${pick.iron ? ironMark() : ""}</span></div>
     <div class="ab-name">${escapeHtml(pick.player)}</div>${inner}</a>`;
 }
 

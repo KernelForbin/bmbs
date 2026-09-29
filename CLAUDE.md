@@ -1709,6 +1709,27 @@ was found by that one incident. Read it before touching any of this.
   the fix's own comment quotes the bad command to explain it -- the same trap
   `FEED_FIELDS`' extractor hit, and it caught F6 on its first run.
 
+**The fixer asks for EDITS, not the whole file** (2026-10-01). It used to
+regenerate `parse_picks.py` in full, so the response grew with the file: at
+1101 lines / ~16k output tokens both real incidents since (2026-09-26 and
+2026-09-29, four attempts each) came back truncated with no closing marker,
+reported only as "didn't match the required shape". A patch is proportional to
+the CHANGE, so the cost stops rising every time a template is added.
+
+**Search/replace, never a unified diff.** A diff carries line numbers and
+fuzzy context, both of which a model gets wrong in ways that still APPLY --
+silently landing an edit in the wrong place. An exact string required to occur
+exactly once either matches or it doesn't. `apply_edits()` refuses a SEARCH
+that matches nothing, refuses one that matches more than once (editing "the
+first one" IS the silent-wrong-place failure), applies nothing unless every
+block matches, and refuses a no-op. A whole-file response is still accepted as
+a fallback, since a smaller parser may well answer that way.
+
+Verified against the real API on a synthetic template, through the real
+workflow on a branch: `stop_reason=end_turn`, **1662 output tokens against
+~16,000 for a rewrite**, resolved on attempt 1, +51 surgical lines.
+`test_auto_fix_parser.py` section I covers it; four mutations caught.
+
 **Needs `ANTHROPIC_API_KEY` (a GitHub Actions secret) to actually run.**
 Without it, `auto_fix_parser.py` short-circuits to `resolved=no` on the
 first line -- a parse failure still gets the "investigating" Discord

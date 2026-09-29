@@ -1249,7 +1249,10 @@ def parse(text, team_by_name, canonical_by_norm):
         for ci, card in enumerate(section["tickets"]):
             legs = []
             for li, leg in enumerate(card["_legs"]):
-                meta = f"{leg['team']} &middot; {leg['who']}" if leg["team"] else leg["who"]
+                # Join only the parts that exist. A card that names no bettor
+                # (the 2026-09-29 single-game card) otherwise rendered
+                # "PHI &middot; " with a dangling separator on every leg.
+                meta = " &middot; ".join(x for x in (leg["team"], leg["who"]) if x)
                 legs.append({
                     "id": f"p{si}-c{ci}-l{li}",
                     "player": leg["player"],

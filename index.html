@@ -1415,7 +1415,8 @@ const MARKETS = {
   runs:   { label: "RUNS",        subject: "player", grade: leg => stateForStatProp(leg, ["runs"]) },
   tb:     { label: "TOTAL BASES", subject: "player", grade: leg => stateForStatProp(leg, ["totalBases"]) },
   doubles: { label: "DOUBLES",   subject: "player", grade: leg => stateForStatProp(leg, ["doubles"]) },
-  k:      { label: "STRIKEOUTS", subject: "player", grade: leg => stateForStatProp(leg, ["strikeOuts"], true) },
+  k:      { label: "STRIKEOUTS", subject: "player", pitching: true,
+            grade: leg => stateForStatProp(leg, ["strikeOuts"], true) },
   ml:     { label: "MONEYLINE",   subject: "team",   grade: leg => stateForMoneyline(leg) },
   spread: { label: "SPREAD",      subject: "team",   grade: leg => stateForSpread(leg) },
   total:  { label: "TOTAL",       subject: "game",   grade: leg => stateForTotal(leg) },
@@ -1805,6 +1806,17 @@ function playerStatusLine(playerName, state, market, team) {
   if (state === "not_started") return statusLineHtml(schedText || "Game hasn't started yet.");
   // live: his game is on and he's still gradeable
   if (schedText) return statusLineHtml(schedText);
+  // A PITCHER prop has no batting-order slot, so the batting wording below is
+  // wrong about him: "not in the lineup yet" is true of the lineup and false
+  // about the bet. Read his pitching line instead.
+  const pitchRow = RESULTS.pitchStats && RESULTS.pitchStats.get(norm);
+  if (pitchRow) {
+    const k = pitchRow.strikeOuts || 0;
+    return statusLineHtml(`On the mound &mdash; ${k} strikeout${k === 1 ? "" : "s"} so far.`);
+  }
+  if (MARKETS[market] && MARKETS[market].pitching) {
+    return statusLineHtml("Game on &mdash; hasn't taken the mound yet.");
+  }
   if (RESULTS.rosterSide && RESULTS.rosterSide.has(norm)) return statusLineHtml("In the game &mdash; waiting on the live feed.");
   return statusLineHtml("Game on &mdash; not in the lineup yet.");
 }

@@ -2009,7 +2009,10 @@ function lineText(leg) {
   const n = Number(leg.line);
   if (!Number.isFinite(n)) return "";
   if (legMarket(leg) === "spread") return ` ${n > 0 ? "+" : ""}${n}`;
-  return ` ${legSide(leg) === "under" ? "U" : "O"}${n}`;
+  // Spelled out, not "O1.5"/"U8.5": a single letter jammed against a number
+  // is genuinely hard to read at tag size, and this is the part of the tag
+  // that says which way the bet goes.
+  return ` ${legSide(leg) === "under" ? "UNDER" : "OVER"} ${n}`;
 }
 
 // The always-on line for a market whose subject is a team or a game. Same

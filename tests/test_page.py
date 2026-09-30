@@ -1994,6 +1994,19 @@ with sync_playwright() as p:
     assert pit(market="win", line=0.5) == "hit", "the winning pitcher has wins=1"
     assert pit(market="win", line=0.5, player="Two Total") in ("miss", "na", "live"),         "a hitter is not credited a pitcher's win"
     print("AB9 OK: a pitcher's win grades off his decision, and isn't a hitter's")
+
+    # The tag spells the direction out. "O1.5" / "U8.5" -- a single letter
+    # jammed against a number -- is hard to read at tag size, and the
+    # direction is the part that says which way the bet goes.
+    lt = lambda **kw: page.evaluate("a => lineText(a)", kw)
+    assert lt(market="hits", line=1.5) == " OVER 1.5", repr(lt(market="hits", line=1.5))
+    assert lt(market="total", line=8.5, side="under") == " UNDER 8.5"
+    print("AB10 OK: a line reads OVER / UNDER, not O / U")
+    # A SPREAD keeps its sign -- "+1.5" and "-1.5" are how a run line is
+    # written everywhere, and spelling that one out would read wrong.
+    assert lt(market="spread", line=-1.5) == " -1.5"
+    assert lt(market="spread", line=1.5) == " +1.5"
+    print("AB11 OK: a spread still shows its sign rather than a word")
     assert not errors, errors
     browser.close()
 

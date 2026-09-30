@@ -1,6 +1,6 @@
 {
   "date": "2026-09-30",
-  "note": "&#9888; 10 legs can't be tracked live &mdash; they show on the card but won't be graded: &ldquo;Mex Fried ER (mex fried)&rdquo; and 9 more",
+  "note": "",
   "windows": [
     {
       "title": "Parlay Cards",
@@ -15,13 +15,13 @@
           "legs": [
             {
               "id": "p0-c0-l0",
-              "player": "Mex Fried ER",
-              "team": "",
+              "player": "Max Fried",
+              "team": "NYY",
               "who": "",
-              "meta": "",
+              "meta": "NYY &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
-              "market": "mex fried",
+              "time": "8:00 PM ET",
+              "market": "er",
               "line": 1.5
             },
             {
@@ -37,29 +37,26 @@
             },
             {
               "id": "p0-c0-l2",
-              "player": "Sean Burke ER",
-              "team": "",
+              "player": "Sean Burke",
+              "team": "CWS",
               "who": "",
-              "meta": "",
+              "meta": "CWS &middot; 5:00 PM ET",
               "odds": null,
-              "time": "",
-              "market": "sean burke",
+              "time": "5:00 PM ET",
+              "market": "er",
               "line": 1.5
             },
             {
               "id": "p0-c0-l3",
-              "player": "White Sox",
-              "team": "",
+              "player": "",
+              "team": "CWS",
               "who": "",
-              "meta": "",
+              "meta": "CWS &middot; 5:00 PM ET",
               "odds": null,
-              "time": "",
-              "market": "astros",
+              "time": "5:00 PM ET",
+              "market": "total",
               "line": 7.5,
-              "players": [
-                "White Sox",
-                "Astros"
-              ]
+              "opponent": "HOU"
             }
           ]
         },
@@ -84,13 +81,13 @@
             },
             {
               "id": "p0-c1-l1",
-              "player": "Miguel Vargas +Runs+RBIs",
-              "team": "",
+              "player": "Miguel Vargas",
+              "team": "CWS",
               "who": "",
-              "meta": "",
+              "meta": "CWS &middot; 5:00 PM ET",
               "odds": null,
-              "time": "",
-              "market": "hits",
+              "time": "5:00 PM ET",
+              "market": "hrr",
               "line": 2.5
             },
             {
@@ -116,13 +113,13 @@
           "legs": [
             {
               "id": "p0-c2-l0",
-              "player": "Max Fried to Get the Win",
-              "team": "",
+              "player": "Max Fried",
+              "team": "NYY",
               "who": "",
-              "meta": "",
+              "meta": "NYY &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
-              "market": "unknown"
+              "time": "8:00 PM ET",
+              "market": "win"
             },
             {
               "id": "p0-c2-l1",
@@ -137,13 +134,13 @@
             },
             {
               "id": "p0-c2-l2",
-              "player": "Philles",
-              "team": "",
+              "player": "",
+              "team": "PHI",
               "who": "",
-              "meta": "",
+              "meta": "PHI &middot; 2:00 PM ET",
               "odds": null,
-              "time": "",
-              "market": "runs",
+              "time": "2:00 PM ET",
+              "market": "total",
               "line": 5.5
             }
           ]
@@ -169,13 +166,13 @@
             },
             {
               "id": "p0-c3-l1",
-              "player": "Ben Rice +Runs+RbIs",
-              "team": "",
+              "player": "Ben Rice",
+              "team": "NYY",
               "who": "",
-              "meta": "",
+              "meta": "NYY &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
-              "market": "hits",
+              "time": "8:00 PM ET",
+              "market": "hrr",
               "line": 2.5
             }
           ]
@@ -190,12 +187,12 @@
           "legs": [
             {
               "id": "p0-c4-l0",
-              "player": "Luis Garcia",
-              "team": "",
+              "player": "Luis García Jr.",
+              "team": "NYY",
               "who": "",
-              "meta": "",
+              "meta": "NYY &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "8:00 PM ET",
               "line": 0.5
             },
             {
@@ -220,12 +217,12 @@
           "legs": [
             {
               "id": "p0-c5-l0",
-              "player": "Michael Harris",
-              "team": "",
+              "player": "Michael Harris II",
+              "team": "ATL",
               "who": "",
-              "meta": "",
+              "meta": "ATL &middot; 2:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "2:00 PM ET",
               "market": "tb",
               "line": 2.5
             },
@@ -292,12 +289,12 @@
             },
             {
               "id": "p0-c7-l1",
-              "player": "Luis Garica",
-              "team": "",
+              "player": "Luis García Jr.",
+              "team": "NYY",
               "who": "",
-              "meta": "",
+              "meta": "NYY &middot; 8:00 PM ET",
               "odds": null,
-              "time": "",
+              "time": "8:00 PM ET",
               "market": "rbi",
               "line": 0.5
             }

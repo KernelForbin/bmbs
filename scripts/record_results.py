@@ -218,7 +218,9 @@ def game_snapshot(game_pk, feed):
                                    ("hits", "runs", "rbi", "totalBases", "doubles", "triples", "homeRuns")}
             pitching = stats.get("pitching") or {}
             if "strikeOuts" in pitching:
-                pitch_stats[norm] = {"strikeOuts": pitching.get("strikeOuts") or 0}
+                pitch_stats[norm] = {"strikeOuts": pitching.get("strikeOuts") or 0,
+                                     "earnedRuns": pitching.get("earnedRuns") or 0,
+                                     "wins": pitching.get("wins") or 0}
             if "plateAppearances" in batting:
                 # a home run bet needs a plate appearance: a pinch runner or late
                 # defensive sub who never batted is void at the books, same as the bench
@@ -407,6 +409,7 @@ MARKET_STATS = {
     "hrr": ("hits", "runs", "rbi"), "hits": ("hits",), "rbi": ("rbi",),
     "runs": ("runs",), "tb": ("totalBases",), "doubles": ("doubles",),
     "hr": ("homeRuns",), "k": ("strikeOuts",),
+    "er": ("earnedRuns",), "win": ("wins",),
 }
 TEAM_MARKETS = ("ml", "spread", "total", "f5")
 
@@ -521,7 +524,7 @@ def grade_market(results, src):
         return grade_game_line(results, src), None
     keys = MARKET_STATS.get(market if market else "hr")
     if keys:
-        return grade_stat_prop(results, src, keys, pitching=(market == "k")), None
+        return grade_stat_prop(results, src, keys, pitching=(market in ("k", "er", "win"))), None
     return "untracked", None
 
 

@@ -821,5 +821,82 @@ assert pp.fill_missing_times(w2, [], "2026-09-29", boom) == 0
 assert w2[0]["tickets"][0]["legs"][0]["time"] == ""
 print("OK: an unreachable schedule leaves times blank and the slate still posts")
 
+# --- 17. pitcher markets, a two-team total, and names the card got wrong.
+# The 2026-09-30 card, where six legs came out ungradeable for six different
+# reasons -- each one a gap this section now pins.
+pitch_text = (REPO / "tests" / "fixtures" / "discord_pitcher_markets.txt").read_text(encoding="utf-8")
+pi_windows, pi_singles, _ = pp.parse(pitch_text, team_by_name, canon)
+pi_legs = [l for w in pi_windows for c in w["tickets"] for l in c["legs"]] + list(pi_singles)
+
+
+def pleg(name_fragment):
+    return next(l for l in pi_legs if name_fragment.lower() in (l.get("player") or "").lower())
+
+
+# EARNED RUNS, off the pitching line. The alias sits ahead of "runs" in the
+# table because "earned runs" contains that word -- the same ordering trap
+# "Home Runs" hit.
+er = pleg("Max Fried")
+# side is omitted when it's the default "over" -- a home-run-only card's
+# tickets.json stays byte-for-byte what it was, and that rule holds here too.
+assert er["market"] == "er" and er["line"] == 1.5 and er.get("side", "over") == "over", er
+print("OK: 'Over 1.5 ER' is an earned-runs prop, not a runs prop")
+
+# "Mex Fried" is a typo for Max Fried. Fuzzy-matched against SUFFIX-STRIPPED
+# names, because a trailing " jr" drags an otherwise-obvious match under the
+# cutoff for reasons that have nothing to do with the typo.
+assert er["player"] == "Max Fried" and er["team"] == "NYY", er
+print("OK: a misspelt pitcher still resolves")
+
+# A PITCHER's win is not a team moneyline: "Yankees to win" stays ml, while
+# "Max Fried to Get the Win" is a decision on the pitcher.
+win = next(l for l in pi_legs if l.get("market") == "win")
+assert win["player"] == "Max Fried" and win["team"] == "NYY", win
+assert pp.detect_market("Yankees to win the game")[0] == "ml", "a team moneyline is untouched"
+# Pinned on detect_market() too, not just the card's own table: both carry
+# these markets, and a mutation proved that removing one alone changed
+# nothing, so neither was actually under test.
+assert pp.detect_market("Over 1.5 ER")[0] == "er"
+assert pp.detect_market("earned runs allowed")[0] == "er"
+assert pp.detect_market("to get the win")[0] == "win"
+assert pp.detect_market("2+ Runs")[0] == "runs", "plain runs still beats nothing"
+print("OK: a pitcher's win is its own market, distinct from a moneyline")
+
+# Two TEAMS joined by "/" is the GAME total -- the combined-player splitter
+# would otherwise read them as two people.
+tot = next(l for l in pi_legs if l.get("market") == "total" and l.get("opponent"))
+assert (tot["team"], tot["opponent"], tot["line"]) == ("CWS", "HOU", 7.5), tot
+assert tot["player"] == "", "a game total has no player"
+print("OK: 'White Sox/Astros Over 7.5' is one game total, not two players")
+
+# A misspelt TEAM resolves too: an exact-match-only lookup turned an ordinary
+# team total into an ungradeable leg.
+phi = next(l for l in pi_legs if l.get("market") == "total" and l["team"] == "PHI")
+assert phi["line"] == 5.5, phi
+print("OK: a misspelt team ('Philles') still resolves")
+
+# "3+ Hits+Runs+RBIs" must beat the bare `hits` alias.
+hrr = pleg("Miguel Vargas")
+assert hrr["market"] == "hrr" and hrr["line"] == 2.5, hrr
+print("OK: 'Hits+Runs+RBIs' is the combined market, not plain hits")
+
+# A full name the roster stores WITH a suffix: "Michael Harris" is an exact
+# first-and-last match once the suffix is set aside, where the surname alone
+# is ambiguous six ways.
+assert pleg("Michael Harris")["player"] == "Michael Harris II"
+assert pleg("Luis Garc")["team"], "Luis Garcia resolves despite the suffix"
+print("OK: a name stored with a generational suffix matches without one")
+
+# Every leg on this card resolves to a subject the page can grade.
+TEAM_SUBJECT = {"ml", "spread", "total", "f5"}
+unresolved = [l for l in pi_legs if not l.get("team")]
+assert not unresolved, [l.get("player") for l in unresolved]
+print(f"OK: all {len(pi_legs)} legs on the 2026-09-30 card resolve")
+
+for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text, emoji_text,
+                     parlay_text, tracker_text, emdash_text, props_text, team_text):
+    pp.parse(fixture_text, team_by_name, canon)
+print("OK: pitcher markets (ER, win), two-team totals, and misspelt names")
+
 
 print("\nALL PARSER TESTS PASSED")

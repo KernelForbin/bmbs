@@ -1978,6 +1978,22 @@ with sync_playwright() as p:
     assert f5(line=3.5, side="under", opponent="CHC") == "untracked"
     assert f5(line=3.5, side="under", opponent="BOS") == "hit", "the real opponent grades"
     print("AB7 OK: a matchup the schedule contradicts is refused, not guessed at")
+
+    # Earned runs and a pitcher's win, both off the PITCHING line. Reading
+    # either from the batting line would silently grade against the wrong
+    # numbers, which a mutation showed nothing was checking.
+    box = FX["feeds"][1]["liveData"]["boxscore"]["teams"]["home"]["players"]
+    box["IDP"] = {"person": {"fullName": "Ace Arm"},
+                  "stats": {"pitching": {"strikeOuts": 7, "earnedRuns": 2, "wins": 1}}}
+    poll(page)
+    pit = lambda **kw: page.evaluate("a => stateForLeg(a)",
+                                     dict({"player": "Ace Arm", "team": "NYY"}, **kw))
+    assert pit(market="er", line=1.5, side="over") == "hit", "2 earned runs clears over 1.5"
+    assert pit(market="er", line=1.5, side="under") == "miss", "...and busts an under"
+    print("AB8 OK: earned runs grade off the pitching line")
+    assert pit(market="win", line=0.5) == "hit", "the winning pitcher has wins=1"
+    assert pit(market="win", line=0.5, player="Two Total") in ("miss", "na", "live"),         "a hitter is not credited a pitcher's win"
+    print("AB9 OK: a pitcher's win grades off his decision, and isn't a hitter's")
     assert not errors, errors
     browser.close()
 

@@ -819,7 +819,7 @@ const FEED_FIELDS = [
   // couldn't be graded; the linescore carries every inning, so it can.
   "innings", "num",
   // pitcher strikeouts, for a "5+ Strikeouts" leg
-  "pitching", "strikeOuts",
+  "pitching", "strikeOuts", "earnedRuns", "wins",
 ].join(",");
 
 async function getGameSnapshot(gamePk) {
@@ -1016,7 +1016,9 @@ async function getGameSnapshot(gamePk) {
       const batting = (p.stats && p.stats.batting) || null;
       const pitching = (p.stats && p.stats.pitching) || null;
       if (pitching && typeof pitching.strikeOuts === "number") {
-        pitchStats.set(norm, { strikeOuts: pitching.strikeOuts || 0 });
+        pitchStats.set(norm, { strikeOuts: pitching.strikeOuts || 0,
+                               earnedRuns: pitching.earnedRuns || 0,
+                               wins: pitching.wins || 0 });
       }
       if (batting) {
         // The raw batting line, for stat props (H+R+RBI, hits, RBI, runs,
@@ -1454,6 +1456,14 @@ const MARKETS = {
   doubles: { label: "DOUBLES",   subject: "player", grade: leg => stateForStatProp(leg, ["doubles"]) },
   k:      { label: "STRIKEOUTS", subject: "player", pitching: true,
             grade: leg => stateForStatProp(leg, ["strikeOuts"], true) },
+  // Earned runs charged to a pitcher, and whether he got the decision. Both
+  // off the boxscore's pitching line, which was already being fetched for
+  // strikeouts. A win has no line -- "wins" is 0 until the game is final and
+  // 1 for exactly one pitcher after it, so the ordinary over-0.5 shape fits.
+  er:     { label: "EARNED RUNS", subject: "player", pitching: true,
+            grade: leg => stateForStatProp(leg, ["earnedRuns"], true) },
+  win:    { label: "WIN",         subject: "player", pitching: true,
+            grade: leg => stateForStatProp(leg, ["wins"], true) },
   ml:     { label: "MONEYLINE",   subject: "team",   grade: leg => stateForMoneyline(leg) },
   spread: { label: "SPREAD",      subject: "team",   grade: leg => stateForSpread(leg) },
   total:  { label: "TOTAL",       subject: "game",   grade: leg => stateForTotal(leg) },
@@ -2580,7 +2590,8 @@ function zoneGridHtml(zone) {
 // only ever show a number that means nothing.
 const LIVE_TILE_KIND = {
   hr: "bat", sb: "base", hrr: "bat", hits: "bat", rbi: "bat", runs: "bat",
-  tb: "bat", doubles: "bat", k: "mound", ml: "game", spread: "game", total: "game",
+  tb: "bat", doubles: "bat", k: "mound", er: "mound", win: "mound",
+  ml: "game", spread: "game", total: "game", f5: "game",
 };
 function liveTileKind(leg) { return LIVE_TILE_KIND[legMarket(leg)] || null; }
 
@@ -2590,6 +2601,7 @@ function liveTileKind(leg) { return LIVE_TILE_KIND[legMarket(leg)] || null; }
 const MARKET_STATS = {
   hrr: ["hits", "runs", "rbi"], hits: ["hits"], rbi: ["rbi"], runs: ["runs"],
   tb: ["totalBases"], doubles: ["doubles"], hr: ["homeRuns"], k: ["strikeOuts"],
+  er: ["earnedRuns"], win: ["wins"],
 };
 
 // "2 of 3 total bases" -- where a counting bet actually stands right now.

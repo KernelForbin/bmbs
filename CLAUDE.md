@@ -605,6 +605,30 @@ score use the same words):
   because the first fixture only had a finished game. A spread or total landing
   exactly on the number is a PUSH -> `na`.
 
+**Pitcher markets: `er` (earned runs) and `win`** (2026-09-30), both off the
+boxscore's pitching line, which was already being fetched for strikeouts. A
+win has no line -- `wins` is 0 until the game is final and 1 for exactly one
+pitcher after it -- so the ordinary over-0.5 shape fits. `er` and `win` sit
+AHEAD of `runs` in both alias tables: "earned runs" contains that word, the
+same ordering trap "Home Runs" hit. A pitcher's win is deliberately NOT a
+moneyline: only the explicit phrasings ("to get the win") map to `win`, so
+"Yankees to win" stays `ml`.
+
+**Names the card gets wrong now resolve, three ways** -- and each was a real
+leg that came out ungradeable:
+- a FULL name minus its generational suffix ("Michael Harris" -> Michael
+  Harris II), because the roster stores the suffix and the surname alone is
+  ambiguous six ways. First AND last matching, so it's not a guess.
+- a typo, fuzzy at resolve_player()'s 0.82 cutoff, matched against
+  SUFFIX-STRIPPED names: "Luis Garica" scores below the cutoff against "luis
+  garcia jr" purely because of the " jr", which has nothing to do with the
+  typo.
+- a misspelt TEAM ("Philles"), same cutoff, and only when unambiguous.
+
+**Two teams joined by "/" or "+" is the GAME total**, checked before the
+combined-PLAYER split -- "White Sox/Astros Over 7.5" is one number for the
+game, and the splitter would otherwise read them as two people.
+
 **A "first N innings" total IS gradeable** (`f5`, 2026-09-29). I claimed for
 a while that it wasn't -- "the page reads a final score, not a per-inning
 one" -- and never checked. `linescore.innings[]` carries every inning for both

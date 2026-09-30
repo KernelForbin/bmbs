@@ -362,6 +362,12 @@ N_PLUS_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*\+", re.IGNORECASE)
 # The market words this card uses, checked before the generic table because
 # "Total Homers" must not be read as a game TOTAL.
 CARD_MARKET_WORDS = [
+    # hrr BEFORE hits: "3+ Hits+Runs+RBIs" otherwise matches the bare `hits`
+    # alias and grades as a hits prop. er/win BEFORE runs, for the same
+    # reason "Home Runs" has to beat "Runs".
+    ("hrr",    r"h\s*\+\s*r\s*\+\s*rbi|hits?\s*\+\s*runs?\s*\+\s*rbis?"),
+    ("er",     r"\bER\b|earned\s+runs?"),
+    ("win",    r"to\s+get\s+the\s+win|\bpitcher\s+win\b|\bfor\s+the\s+win\b"),
     ("hr",     r"total\s+homers?|home\s+runs?\b|\bhr\b"),
     ("tb",     r"total\s+bases\b"),
     ("k",      r"strikeouts?\b|\bks?\b"),
@@ -415,6 +421,52 @@ def nickname_map():
     return _NICKNAMES
 
 
+SUFFIX_WORDS = ("jr", "sr", "ii", "iii", "iv", "v")
+_SUFFIXLESS = {}
+
+
+def _strip_suffix(norm):
+    parts = [w for w in norm.split() if w not in SUFFIX_WORDS]
+    return " ".join(parts) or norm
+
+
+def _suffixless_names(team_by_name):
+    """normalized full name WITHOUT a generational suffix -> [(full, abbr)].
+
+    Cached on the roster's identity: it's rebuilt only when a different roster
+    is handed in, which in practice means once.
+    """
+    key = id(team_by_name)
+    if _SUFFIXLESS.get("_key") != key:
+        built = {}
+        for full, abbr in team_by_name.items():
+            built.setdefault(_strip_suffix(full), []).append((full, abbr))
+        _SUFFIXLESS.clear()
+        _SUFFIXLESS["_key"] = key
+        _SUFFIXLESS["map"] = built
+    return _SUFFIXLESS["map"]
+
+
+def team_abbr_for(text, words):
+    """A team word -> abbreviation, tolerating a typo.
+
+    Cards misspell team names ("Philles"), and an exact-match-only lookup
+    silently turns a perfectly ordinary team total into an ungradeable leg.
+    Fuzzy at the same 0.82 cutoff resolve_player() uses, and only when it is
+    UNAMBIGUOUS -- two teams equally close means no answer, not a guess.
+    """
+    key = normalize_name(text)
+    if not key:
+        return None
+    if key in words:
+        return words[key]
+    close = difflib.get_close_matches(key, list(words), n=2, cutoff=0.82)
+    if len(close) == 1 or (len(close) == 2 and words[close[0]] == words[close[1]]):
+        print(f"NOTE: read team {text!r} as {close[0]!r} ({words[close[0]]}).", file=sys.stderr)
+        return words[close[0]]
+    return None
+
+
 def resolve_in_teams(name, teams, roster=None):
     """A surname (or full name) resolved against only the teams the card named.
 
@@ -452,10 +504,35 @@ def resolve_in_teams(name, teams, roster=None):
         full_norm = normalize_name(nick)
         return canon.get(full_norm, nick), team_by_name.get(full_norm, "")
 
+    # A FULL name minus its generational suffix. The roster stores "michael
+    # harris ii" and "luis garcia jr", so a card writing the plain name misses
+    # the exact lookup and then falls to a surname that is ambiguous six ways.
+    # First AND last name matching is not a guess -- it only becomes one if two
+    # players share both, which is checked.
+    base = _suffixless_names(team_by_name)
+    hit = base.get(_strip_suffix(norm))
+    if hit and len(hit) == 1 and (not teams or hit[0][1] in teams):
+        full, abbr = hit[0]
+        return canon.get(full, name), abbr
+
     candidates = [c for c in by_surname.get(key, []) if not teams or c[1] in teams]
     if len(candidates) == 1:
         full, abbr = candidates[0]
         return canon.get(full, name), abbr
+    if not candidates:
+        # A typo in the name itself ("Luis Garica"). Same 0.82 cutoff
+        # resolve_player() uses, and only when a single roster name is that
+        # close -- two equally-near names means no answer, not a pick.
+        # Matched against SUFFIX-STRIPPED names: "luis garica" scores below
+        # the cutoff against "luis garcia jr" purely because of the " jr",
+        # which has nothing to do with the typo being corrected.
+        pool = {k: v for k, v in base.items()
+                if not teams or any(ab in teams for _, ab in v)}
+        near = difflib.get_close_matches(_strip_suffix(norm), list(pool), n=2, cutoff=0.82)
+        if len(near) == 1 and len(pool[near[0]]) == 1:
+            full, abbr = pool[near[0]][0]
+            print(f"NOTE: read {name!r} as {canon.get(full, full)!r}.", file=sys.stderr)
+            return canon.get(full, name), abbr
     if len(candidates) > 1:
         where = f"on {'/'.join(sorted(teams))}" if teams else "league-wide"
         print(f"NOTE: '{name}' matches {len(candidates)} players {where} -- "
@@ -544,6 +621,17 @@ def read_prop_leg(text, teams, roster=None):
             if key == market:
                 cleaned_text = rx.sub(" ", cleaned_text, count=1)
                 break
+        # The card's own market table matched, so detect_market() never ran --
+        # and with it went the over/under scan. Without this the line was
+        # dropped AND "Over 1.5" stayed glued to the player's name, which then
+        # resolved to nobody ("Mex Fried Over 1.5").
+        if line is None:
+            ou_here = OVER_UNDER_RE.search(cleaned_text)
+            if ou_here:
+                raw_side = (ou_here.group(1) or ou_here.group(2) or "o").lower()
+                side = "under" if raw_side.startswith("u") else "over"
+                line = float(ou_here.group(3))
+                cleaned_text = OVER_UNDER_RE.sub(" ", cleaned_text, count=1)
     if n_plus:
         cleaned_text = N_PLUS_RE.sub(" ", cleaned_text, count=1)
     cleaned_text = re.sub(r"\s{2,}", " ", cleaned_text).strip(" -|:")
@@ -571,9 +659,9 @@ def read_prop_leg(text, teams, roster=None):
     if normalize_name(cleaned_text) not in words:
         stripped = re.sub(r"\b(?:total|totals|team|game)\b", " ", cleaned_text, flags=re.IGNORECASE)
         stripped = re.sub(r"\s{2,}", " ", stripped).strip()
-        if normalize_name(stripped) in words:
+        if stripped and team_abbr_for(stripped, words):
             cleaned_text = stripped
-    team_abbr = words.get(normalize_name(cleaned_text))
+    team_abbr = team_abbr_for(cleaned_text, words)
     # "White Sox over 5.5 Total Runs" is a TEAM total, not a player's runs
     # prop -- the leftover text names a team, so the counting alias that
     # matched ("runs") belongs to the game, not a batter.
@@ -593,6 +681,20 @@ def read_prop_leg(text, teams, roster=None):
         if line is not None:
             leg["line"] = line
         return leg
+
+    # Two TEAMS joined by "/" or "+" is the GAME total -- "White Sox/Astros
+    # Over 7.5" is one number for the whole game, not a bet on two teams. It
+    # has to be checked before the combined-PLAYER split below, which would
+    # otherwise read them as two people.
+    sides = [x.strip() for x in re.split(r"\s*[/+]\s*", cleaned_text) if x.strip()]
+    if len(sides) == 2 and line is not None:
+        pair = [team_abbr_for(x, words) for x in sides]
+        if all(pair):
+            leg.update({"player": "", "team": pair[0], "opponent": pair[1], "market": "total",
+                        "line": line})
+            if side and side != "over":
+                leg["side"] = side
+            return leg
 
     # One or two players, "/"-separated.
     names = [n.strip() for n in re.split(r"\s*/\s*", cleaned_text) if n.strip()]
@@ -653,6 +755,12 @@ SB_MARK_RE = re.compile(
 # owns. Add new markets in specificity order, never alphabetically.
 MARKET_ALIASES = [
     ("hrr",     r"h\s*\+\s*r\s*\+\s*rbi|hits?\s*\+\s*runs?\s*\+\s*rbis?"),
+    # BEFORE "runs": "earned runs" contains the word, and an alias table is
+    # read in order. Same trap "Home Runs" hit.
+    ("er",      r"\bER\b|earned\s+runs?"),
+    # A PITCHER's win, which is not the same bet as a team moneyline. Only the
+    # explicit phrasings, so "Yankees to win" stays a moneyline.
+    ("win",     r"to\s+get\s+the\s+win|\bpitcher\s+win\b|\bfor\s+the\s+win\b"),
     ("hr",      r"home\s+runs?|total\s+homers?|\bhr\b|to\s+go\s+deep"),
     ("tb",      r"total\s+bases|tot\s*bases|\bTB\b"),
     ("sb",      r"\bsb\b|stolen\s+bases?|steals?"),
@@ -1682,7 +1790,7 @@ def main():
     # unresolved and the note was empty. The page already says it per-leg;
     # this is what puts it where the group actually looks.
     KNOWN = {"hr", "sb", "hrr", "hits", "rbi", "runs", "tb", "doubles", "k",
-             "ml", "spread", "total", "f5"}
+             "ml", "spread", "total", "f5", "er", "win"}
     ungradeable = []
     for win in windows:
         for card_ in win["tickets"]:

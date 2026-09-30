@@ -1605,8 +1605,15 @@ checks that specifically, fully offline (a fake fetcher, never a real request).
 **The success path.** `parse-picks.yml` and `parse-football-picks.yml`'s
 commit step sets a `committed` output (`yes` only on a genuine new slate,
 never a no-op rerun), and a step gated on `committed == 'yes'` calls
-`notify_discord.py success` right after -- one plain "✅ live on bmbs.bet"
-message, no AI involved, nothing to investigate. Deterministic and safe by
+`notify_discord.py success` right after -- no AI involved, nothing to
+investigate. It says the picks **are now LIVE** and **@ mentions whoever
+uploaded the card** (2026-09-30). Both matter: the BOT's own push
+confirmation already promises the parser "should update within about a
+minute", which is a promise rather than a fact, and it pings nobody. This
+message is the fact, its Discord timestamp is when it actually happened, and
+the mention is what makes the uploader see it. The uploader id comes from
+`[discord:<id>]` in the commit message -- see the auto-fix path below for why
+that route exists and what happens when it's absent. Deterministic and safe by
 construction.
 
 **The failure path: `.github/workflows/auto-fix-parse-failure.yml`.**

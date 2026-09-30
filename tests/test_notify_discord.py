@@ -45,9 +45,13 @@ baseball_payload = {
 }
 p = write_tmp("baseball", baseball_payload)
 msg = nd.summarize(p, "baseball")
+# "are now LIVE" rather than "are live": the BOT's own push confirmation
+# already says the parser "should update within about a minute", which is a
+# promise. This message is the fact, and its Discord timestamp is what tells
+# the group when it actually happened.
 check("A1 baseball: card + single + leg counts, singular single",
-      msg == "✅ Baseball picks for 2026-09-20 are live on https://bmbs.bet/ — "
-             "2 parlay cards and 1 single (5 legs).", msg)
+      msg == "✅ Baseball picks for 2026-09-20 are now LIVE on https://bmbs.bet/ — "
+             "2 parlay cards and 1 single (5 legs). Tracking has started.", msg)
 p.unlink()
 
 football_payload = {
@@ -57,16 +61,16 @@ football_payload = {
 p = write_tmp("football", football_payload)
 msg = nd.summarize(p, "football")
 check("A2 football: a date RANGE when endDate differs from date, no singles clause",
-      msg == "✅ Football picks for 2026-09-21 to 2026-09-22 are live on https://bmbs.bet/football/ — "
-             "1 parlay card (2 legs).", msg)
+      msg == "✅ Football picks for 2026-09-21 to 2026-09-22 are now LIVE on https://bmbs.bet/football/ — "
+             "1 parlay card (2 legs). Tracking has started.", msg)
 p.unlink()
 
 same_day_payload = {"date": "2026-09-20", "endDate": "2026-09-20", "windows": [], "singles": [{}, {}]}
 p = write_tmp("football_sameday", same_day_payload)
 msg = nd.summarize(p, "football")
 check("A3 football: endDate == date collapses to one date, plural singles, no cards clause",
-      msg == "✅ Football picks for 2026-09-20 are live on https://bmbs.bet/football/ — "
-             "2 singles (0 legs).", msg)
+      msg == "✅ Football picks for 2026-09-20 are now LIVE on https://bmbs.bet/football/ — "
+             "2 singles (0 legs). Tracking has started.", msg)
 p.unlink()
 
 empty_payload = {"date": "2026-09-20", "windows": [], "singles": []}
@@ -228,6 +232,19 @@ sys.argv = ["notify_discord.py", "success", "--tickets", str(p), "--sport", "bas
 nd.main()
 check("D3 'success' subcommand posts the summarize()'d message",
       cli_calls[-1][0] == "post" and "Baseball picks for 2026-09-20" in cli_calls[-1][1], cli_calls[-1])
+
+# The ORDINARY success has to reach the uploader too -- a mutation showed
+# nothing was checking that this subcommand passed the mention on at all, so
+# it could have been dropped on the floor and every test still passed.
+sys.argv = ["notify_discord.py", "success", "--tickets", str(p), "--sport", "baseball",
+            "--mention", "99887766"]
+nd.main()
+check("D3b 'success --mention' reaches post_message, so the uploader is pinged",
+      cli_calls[-1][2] == "99887766", cli_calls[-1])
+sys.argv = ["notify_discord.py", "success", "--tickets", str(p), "--sport", "baseball"]
+nd.main()
+check("D3c ...and with no --mention it posts without one",
+      cli_calls[-1][2] is None, cli_calls[-1])
 p.unlink()
 
 print()

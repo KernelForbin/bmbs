@@ -333,6 +333,22 @@ check("G5 the opening message says an automatic fix is being attempted",
 check("G6 an unresolved run says a human is needed now, not just 'couldn't parse'",
       "needs a human look now" in af_text)
 
+# The ORDINARY success -- a card that parsed first time -- reports the same
+# way. The bot's own push confirmation only promises the parser "should
+# update within about a minute"; this is the message that says it actually
+# happened, and it has to reach the person who posted the file.
+for wf_name, tickets in (("parse-picks.yml", "data/tickets.json"),
+                         ("parse-football-picks.yml", "data/football/tickets.json")):
+    body = (WORKFLOWS / wf_name).read_text(encoding="utf-8")
+    check(f"G7 {wf_name}'s success ping @ mentions the uploader",
+          "--mention \"${{ steps.who.outputs.uploader }}\"" in body, wf_name)
+    check(f"G8 {wf_name} reads that id out of the commit the bot wrote",
+          "discord:[0-9]+" in body and "github.event.head_commit.message" in body, wf_name)
+
+nd_src = (SCRIPTS / "notify_discord.py").read_text(encoding="utf-8")
+check("G9 the success message says the picks are LIVE now, not that they should be soon",
+      "are now LIVE on" in nd_src and "Tracking has started" in nd_src)
+
 
 print()
 if failures:

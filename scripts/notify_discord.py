@@ -111,7 +111,12 @@ def summarize(tickets_path, sport):
     if singles:
         bits.append(f"{singles} single{'s' if singles != 1 else ''}")
     detail = " and ".join(bits) if bits else "no bets"
-    return f"✅ {label} for {span} are live on {SITE_URL[sport]} — {detail} ({legs} legs)."
+    # "are live NOW" on purpose. The bot's own push confirmation already says
+    # the parser "should update within about a minute", which is a promise
+    # rather than a fact -- this message is the fact, and its Discord
+    # timestamp is what tells the group when it actually happened.
+    return (f"\u2705 {label} for {span} are now LIVE on {SITE_URL[sport]} "
+            f"\u2014 {detail} ({legs} legs). Tracking has started.")
 
 
 def main():

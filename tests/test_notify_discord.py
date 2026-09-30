@@ -93,7 +93,18 @@ calls.clear()
 mid = nd.post_message("hello world", fetcher=fake_fetcher)
 check("B1 post_message hits '?wait=true' so Discord returns the message id", calls[0][0].endswith("?wait=true"))
 check("B2 post_message sends the text as {'content': ...} via POST",
-      calls[0][1] == {"content": "hello world"} and calls[0][2] == "POST")
+      calls[0][1]["content"] == "hello world" and calls[0][2] == "POST")
+# allowed_mentions is set EXPLICITLY, not left to the webhook default: a
+# webhook parses everything in the content, so a card containing "@everyone"
+# could otherwise ping the whole server. Naming `users` means only a real
+# user mention resolves.
+check("B2b post_message pins allowed_mentions to users only",
+      calls[0][1].get("allowed_mentions") == {"parse": ["users"]}, calls[0][1])
+
+calls.clear()
+nd.post_message("it's live", fetcher=fake_fetcher, mention="42")
+check("B2c a mention is prefixed as <@id> so the uploader actually gets pinged",
+      calls[0][1]["content"] == "<@42> it's live", calls[0][1])
 check("B3 post_message returns the id from the response", mid == "999888777", mid)
 
 calls.clear()
@@ -185,12 +196,26 @@ check("C8 ...and it isn't Python's default, which is the one Cloudflare blocks",
 # ---------------- D. the CLI wires each subcommand to the right function ----------------
 
 cli_calls = []
-nd.post_message = lambda text, fetcher=nd._request: (cli_calls.append(("post", text)), "111")[1]
+nd.post_message = lambda text, fetcher=nd._request, mention=None: (
+    cli_calls.append(("post", text, mention)), "111")[1]
 nd.edit_message = lambda mid, text, fetcher=nd._request: cli_calls.append(("edit", mid, text))
 
 sys.argv = ["notify_discord.py", "post", "--text", "hi there"]
 nd.main()
-check("D1 'post' subcommand calls post_message with the given text", cli_calls[-1] == ("post", "hi there"), cli_calls)
+check("D1 'post' subcommand calls post_message with the given text",
+      cli_calls[-1] == ("post", "hi there", None), cli_calls)
+
+# The @ mention is the point of the new flow: an EDIT to an older message
+# changes no timestamp and pings nobody, so there was no way to tell when a
+# card actually went live.
+sys.argv = ["notify_discord.py", "post", "--text", "fixed", "--mention", "12345"]
+nd.main()
+check("D1b 'post --mention' passes the user id through",
+      cli_calls[-1] == ("post", "fixed", "12345"), cli_calls)
+sys.argv = ["notify_discord.py", "post", "--text", "fixed", "--mention", "  "]
+nd.main()
+check("D1c a blank mention posts without one, rather than an empty <@>",
+      cli_calls[-1] == ("post", "fixed", None), cli_calls)
 
 sys.argv = ["notify_discord.py", "edit", "--id", "55", "--text", "updated"]
 nd.main()

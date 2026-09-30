@@ -53,6 +53,20 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Work out who uploaded the card
+        id: who
+        env:
+          HEAD_MSG: ${{ github.event.workflow_run.head_commit.message }}
+        run: |
+          # The Discord bot writes "[discord:<id>]" into the commit message,
+          # because a USERNAME can't be mentioned -- Discord needs the id --
+          # and the commit is the only channel between the bot and a workflow.
+          # Absent (a web-editor upload, or a bot that hasn't been restarted
+          # since this was added) simply means no mention.
+          ID=$(printf '%s' "$HEAD_MSG" | grep -oE 'discord:[0-9]+' | head -1 | cut -d: -f2 || true)
+          echo "uploader=$ID" >> "$GITHUB_OUTPUT"
+          echo "Uploader id: ${ID:-(none)}"
+
       - name: Determine which sport failed
         id: sport
         env:
@@ -77,15 +91,13 @@ jobs:
       # On 2026-09-22 a 403 here killed the job at step 4 of 8: the picks were
       # never repaired AND the group got no message at all. A status ping is
       # decoration; it must never be able to veto the actual work.
-      - name: Post "investigating" status to Discord
-        id: notify
+      - name: Tell Discord the fix is under way
         continue-on-error: true
         env:
           DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
           SPORT: ${{ steps.sport.outputs.sport }}
         run: |
-          MSG_ID=$(python scripts/notify_discord.py post --text "⚠️ ${SPORT} picks upload had a parsing error -- investigating automatically now.")
-          echo "message_id=$MSG_ID" >> "$GITHUB_OUTPUT"
+          python scripts/notify_discord.py post --text "⏳ Working on the ${SPORT} card — it didn't parse on the first pass, so I'm attempting an automatic fix now. I'll post an update here shortly."
 
       - name: Install test dependencies
         run: |
@@ -132,12 +144,12 @@ jobs:
           echo "Failed to push after retries." >&2
           exit 1
 
-      - name: Edit the Discord status with the outcome
+      - name: Post the outcome as a NEW Discord message
         if: always()
         continue-on-error: true
         env:
           DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
-          MESSAGE_ID: ${{ steps.notify.outputs.message_id }}
+          UPLOADER: ${{ steps.who.outputs.uploader }}
           SPORT: ${{ steps.sport.outputs.sport }}
           RESOLVED: ${{ steps.fix.outputs.resolved }}
           # steps.commit.outcome is 'skipped' (not 'success') whenever the
@@ -151,7 +163,7 @@ jobs:
           REASON: ${{ steps.fix.outputs.reason }}
         run: |
           if [ "$RESOLVED" = "yes" ] && [ "$COMMIT_OUTCOME" = "success" ]; then
-            TEXT="✅ Fixed automatically -- ${SPORT} picks are live on bmbs.bet."
+            TEXT="✅ Fixed automatically — your ${SPORT} card is parsed and live on bmbs.bet."
           elif [ "$RESOLVED" = "yes" ]; then
             TEXT="⚠️ Found a fix for the ${SPORT} upload but couldn't push it -- needs a look. Check the Actions tab."
           elif [ "$REASON" = "transport" ]; then
@@ -165,10 +177,9 @@ jobs:
           elif [ "$REASON" = "nokey" ]; then
             TEXT="⚠️ The ${SPORT} upload needs a look -- the automatic fixer isn't configured (no API key)."
           else
-            TEXT="❌ Couldn't parse this ${SPORT} upload automatically -- needs a look. Check the Actions tab for details."
+            TEXT="❌ Couldn't fix the ${SPORT} card automatically after several attempts — it needs a human look now. The full error is in the Actions tab."
           fi
-          if [ -n "$MESSAGE_ID" ]; then
-            python scripts/notify_discord.py edit --id "$MESSAGE_ID" --text "$TEXT"
-          else
-            python scripts/notify_discord.py post --text "$TEXT"
-          fi
+          # A NEW message, never an edit. Editing the earlier one changes no
+          # timestamp and pings nobody, so there was no way to tell WHEN a
+          # card went live -- which is the whole reason this reports back.
+          python scripts/notify_discord.py post --text "$TEXT" --mention "$UPLOADER"

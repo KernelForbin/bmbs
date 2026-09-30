@@ -71,9 +71,23 @@ def _request(url, payload, method):
         raise NotifyFailed(f"{type(e).__name__}") from None
 
 
-def post_message(text, fetcher=_request):
-    """Post a fresh message, return its id (so it can be edited later)."""
-    return fetcher(webhook_url() + "?wait=true", {"content": text}, "POST")["id"]
+def post_message(text, fetcher=_request, mention=None):
+    """Post a fresh message, return its id.
+
+    `mention` is a Discord USER ID. It's prefixed as <@id> so the person who
+    uploaded the card actually gets a notification, which is the point: an
+    edit to an older message changes no timestamp and pings nobody, so there
+    was no way to tell WHEN a card went live.
+
+    allowed_mentions is set explicitly rather than relied on. A webhook's
+    default is to parse everything in the content, so a card that happened to
+    contain "@everyone" could otherwise ping the whole server; naming `users`
+    means only a real user mention resolves.
+    """
+    payload = {"content": text, "allowed_mentions": {"parse": ["users"]}}
+    if mention:
+        payload["content"] = f"<@{mention}> {text}"
+    return fetcher(webhook_url() + "?wait=true", payload, "POST")["id"]
 
 
 def edit_message(message_id, text, fetcher=_request):
@@ -107,9 +121,13 @@ def main():
     s = sub.add_parser("success")
     s.add_argument("--tickets", required=True)
     s.add_argument("--sport", required=True, choices=["baseball", "football"])
+    s.add_argument("--mention", default="", help="Discord user id to @, if known.")
 
     p = sub.add_parser("post")
     p.add_argument("--text", required=True)
+    p.add_argument("--mention", default="",
+                   help="Discord user id to @ -- the person who uploaded the card. "
+                        "Absent or blank simply posts without one.")
 
     e = sub.add_parser("edit")
     e.add_argument("--id", required=True)
@@ -125,9 +143,10 @@ def main():
     # The workflow steps also carry continue-on-error as a second layer.
     try:
         if args.cmd == "success":
-            post_message(summarize(args.tickets, args.sport))
+            post_message(summarize(args.tickets, args.sport),
+                         mention=(args.mention or "").strip() or None)
         elif args.cmd == "post":
-            print(post_message(args.text))
+            print(post_message(args.text, mention=(args.mention or "").strip() or None))
         elif args.cmd == "edit":
             edit_message(args.id, args.text)
     except NotifyFailed as e:

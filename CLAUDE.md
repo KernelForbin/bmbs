@@ -1652,7 +1652,24 @@ decides whether to trust:
    pattern every other workflow here already uses) does the actual commit
    and push, so the highest-risk decision logic can't also invent a novel
    way to corrupt the commit history.
-6. Edits the original Discord message to its final state: fixed and live,
+6. Posts the outcome as a **NEW** message (2026-09-30), never an edit, and
+   **@ mentions whoever uploaded the card**. An edit changes no timestamp and
+   pings nobody, so there was no way to tell WHEN a card went live -- which is
+   the whole reason it reports back. The opening message says work is under
+   way ("attempting an automatic fix now, I'll update shortly") rather than
+   announcing a failure and leaving it there.
+
+   **A username can't be mentioned -- Discord needs the ID** -- and the commit
+   message is the only channel between the bot and a GitHub Action, so
+   `bot.py` writes `[discord:<id>]` into it and the workflow greps it back
+   out. Absent (a web-editor upload, or a bot that hasn't been RESTARTED since
+   this shipped -- see the bot's entry above) simply means no mention, not a
+   failure. `notify_discord.py` pins `allowed_mentions` to `users` explicitly:
+   a webhook parses everything in the content by default, so a card containing
+   "@everyone" could otherwise ping the whole server.
+   `test_workflow_yaml.py` section G pins all of it.
+
+   The old behaviour, for reference -- it edited the original message to: fixed and live,
    found-a-fix-but-couldn't-push-it (checked separately -- `resolved: yes`
    is NOT enough on its own to claim success; the commit step's own outcome
    is checked too), or couldn't-resolve-it-automatically.

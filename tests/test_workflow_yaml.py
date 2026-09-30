@@ -308,6 +308,32 @@ for wf_name in ("parse-picks.yml", "parse-football-picks.yml", "import-history.y
     check(f"F7 {wf_name} still rebases onto main (it only ever runs there)",
           "git pull --rebase origin main" in body)
 
+# ---- G. how the auto-fixer reports back -------------------------------
+# It used to post "investigating" and then EDIT that message with the result.
+# An edit changes no timestamp and pings nobody, so there was no way to tell
+# WHEN a card actually went live -- which is the whole reason it reports back.
+check("G1 the outcome is posted as a NEW message, never an edit",
+      "notify_discord.py post --text \"$TEXT\"" in af_text
+      and "notify_discord.py edit" not in af_text)
+check("G2 ...and @ mentions whoever uploaded the card, so they get an alert",
+      '--mention \"$UPLOADER\"' in af_text)
+
+# A username can't be mentioned -- Discord needs the id -- and the commit
+# message is the only channel between the bot and a workflow.
+check("G3 the uploader's id is read out of the commit message the bot wrote",
+      "discord:[0-9]+" in af_text and "head_commit.message" in af_text)
+bot_src = (REPO / "discord-bot" / "bot.py").read_text(encoding="utf-8")
+check("G4 ...and the bot actually writes it there",
+      "[discord:{author_id}]" in bot_src and "author_id=str(author.id)" in bot_src)
+
+# The opening message says work is UNDER WAY rather than announcing a failure
+# and leaving it there.
+check("G5 the opening message says an automatic fix is being attempted",
+      "attempting an automatic fix" in af_text and "investigating automatically" not in af_text)
+check("G6 an unresolved run says a human is needed now, not just 'couldn't parse'",
+      "needs a human look now" in af_text)
+
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

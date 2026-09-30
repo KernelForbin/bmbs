@@ -85,7 +85,8 @@ def _github_headers() -> dict:
     }
 
 
-def push_incoming_picks(text: str, author_name: str, file_path: str, sport: str) -> str:
+def push_incoming_picks(text: str, author_name: str, file_path: str, sport: str,
+                        author_id: str = "") -> str:
     """Commit `text` as the new `file_path` on GITHUB_BRANCH.
 
     Returns the commit URL on success. Raises requests.HTTPError on failure.
@@ -94,7 +95,14 @@ def push_incoming_picks(text: str, author_name: str, file_path: str, sport: str)
 
     get_resp = requests.get(url, headers=_github_headers(), params={"ref": GITHUB_BRANCH}, timeout=15)
     payload = {
-        "message": f"Picks upload ({sport}) from {author_name} via Discord bot",
+        # The Discord USER ID rides along in the commit message so the
+        # workflows can @ the person who uploaded when they report back. A
+        # username can't be mentioned -- Discord needs the id -- and this is
+        # the only channel between the bot and a GitHub Action. The format is
+        # parsed by auto-fix-parse-failure.yml; keep the brackets.
+        "message": (f"Picks upload ({sport}) from {author_name}"
+                    + (f" [discord:{author_id}]" if author_id else "")
+                    + " via Discord bot"),
         "content": base64.b64encode(text.encode("utf-8")).decode("ascii"),
         "branch": GITHUB_BRANCH,
     }
@@ -142,7 +150,8 @@ async def _confirm_and_push(
         return
 
     try:
-        commit_url = push_incoming_picks(text, str(author), route["path"], route["sport"])
+        commit_url = push_incoming_picks(text, str(author), route["path"], route["sport"],
+                                         author_id=str(author.id))
     except requests.HTTPError as exc:
         await channel.send(f"❌ Push failed: `{exc}`")
         return

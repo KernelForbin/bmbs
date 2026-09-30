@@ -1,6 +1,6 @@
 {
   "firstSlate": "2026-08-11",
-  "lastSlate": "2026-09-26",
+  "lastSlate": "2026-09-29",
   "oddsFrom": "2026-08-20",
   "recordedFrom": "2026-09-18",
   "parlays": [
@@ -416,7 +416,15 @@
     {"date":"2026-09-26","set":1,"src":"site","legs":[{"bettor":"Joe","pick":"Chourio","odds":450,"status":"miss","name":"Jackson Chourio","team":"MIL"},{"bettor":"Bailey","pick":"Jordan Walker","odds":450,"status":"miss","team":"STL"}],"name":"Card 7","book":"Memo","stake":6.0,"payout":136.48,"returned":0.0},
     {"date":"2026-09-26","set":1,"src":"site","legs":[{"bettor":"Noid","pick":"Angel Martínez","odds":680,"status":"miss","team":"CLE"},{"bettor":"Bailey","pick":"Bryce Harper","odds":600,"status":"miss","team":"PHI"}],"name":"Card 8","book":"Memo","stake":6.0,"payout":311.04,"returned":0.0},
     {"date":"2026-09-26","set":1,"src":"site","legs":[{"bettor":"Bailey","pick":"Machado","odds":450,"status":"hit","name":"Manny Machado","team":"SD","dist":351},{"bettor":"Noid","pick":"Nolan Arenado","odds":560,"status":"miss","team":"AZ"}],"name":"Card 9","book":"Memo","stake":6.0,"payout":160.44,"returned":0.0},
-    {"date":"2026-09-26","set":1,"src":"site","legs":[{"bettor":"Memo","pick":"Isaac Paredes","odds":450,"status":"hit","team":"HOU","dist":374},{"bettor":"Kevin","pick":"Freddie Freeman","odds":600,"status":"dnp","team":"LAD"}],"name":"Card 10","book":"Memo","stake":6.0,"payout":267.3,"returned":33.0,"won":33.0}
+    {"date":"2026-09-26","set":1,"src":"site","legs":[{"bettor":"Memo","pick":"Isaac Paredes","odds":450,"status":"hit","team":"HOU","dist":374},{"bettor":"Kevin","pick":"Freddie Freeman","odds":600,"status":"dnp","team":"LAD"}],"name":"Card 10","book":"Memo","stake":6.0,"payout":267.3,"returned":33.0,"won":33.0},
+    {"date":"2026-09-29","set":1,"src":"site","legs":[{"bettor":"","pick":"Yordan","odds":null,"status":"miss","name":"Yordan Alvarez","team":"HOU"},{"bettor":"","pick":"","odds":null,"status":"pending","team":"BOS"},{"bettor":"","pick":"","odds":null,"status":"miss","team":"CHC"}],"name":"Ticket 1","stake":7.0,"payout":65.18,"returned":0.0},
+    {"date":"2026-09-29","set":1,"src":"site","legs":[{"bettor":"","pick":"","odds":null,"status":"hit","team":"CWS"},{"bettor":"","pick":"","odds":null,"status":"hit","team":"NYY"},{"bettor":"","pick":"Carson Kelly","odds":null,"status":"miss","team":"CHC"}],"name":"Ticket 2","stake":7.0,"payout":120.56,"returned":0.0},
+    {"date":"2026-09-29","set":1,"src":"site","legs":[{"bettor":"","pick":"Jose Altuve","odds":null,"status":"miss","team":"HOU"},{"bettor":"","pick":"George Lombard Jr.","odds":null,"status":"hit","team":"NYY"},{"bettor":"","pick":"Dansby Swanson","odds":null,"status":"miss","team":"CHC"}],"name":"Ticket 3","stake":7.0,"payout":318.99,"returned":0.0},
+    {"date":"2026-09-29","set":1,"src":"site","legs":[{"bettor":"","pick":"","odds":null,"status":"hit","team":"CWS"},{"bettor":"","pick":"Machado","odds":null,"status":"hit","name":"Manny Machado","team":"SD","dist":391}],"name":"Ticket 4","stake":7.0,"payout":115.01,"returned":115.01,"won":115.01},
+    {"date":"2026-09-29","set":1,"src":"site","legs":[{"bettor":"","pick":"Vargas","odds":null,"status":"miss","name":"Miguel Vargas","team":"CWS"},{"bettor":"","pick":"George Lombard Jr.","odds":null,"status":"miss","team":"NYY"}],"name":"Ticket 5","stake":7.0,"payout":138.52,"returned":0.0},
+    {"date":"2026-09-29","set":1,"src":"site","legs":[{"bettor":"","pick":"Ceddanne Rafaela","odds":null,"status":"miss","team":"BOS"},{"bettor":"","pick":"PCA","odds":null,"status":"miss","name":"Pete Crow-Armstrong","team":"CHC"}],"name":"Ticket 6","stake":7.0,"payout":129.67,"returned":0.0},
+    {"date":"2026-09-29","set":1,"src":"site","legs":[{"bettor":"","pick":"Kyle Teel","odds":null,"status":"miss","team":"CWS"},{"bettor":"","pick":"Yordan","odds":null,"status":"miss","name":"Yordan Alvarez","team":"HOU"}],"name":"Ticket 7","stake":7.0,"payout":156.82,"returned":0.0},
+    {"date":"2026-09-29","set":1,"src":"site","legs":[{"bettor":"","pick":"George Lombard Jr.","odds":null,"status":"miss","team":"NYY"}],"kind":"single","stake":7.0,"payout":91.0,"returned":0.0}
   ],
   "gotAway": {"minPicks": 5, "checkedPickDays": 631, "agreeingPickDays": 630, "players": [
     {"pick":"Abrams","name":"CJ Abrams","picks":11,"pickedDays":10,"pickedDayHits":2,"freeDays":16,"freeDayHits":2,"gotAway":["2026-09-06","2026-09-20"]},
@@ -452,7 +460,7 @@
     {"pick":"Julio","name":"Julio Rodríguez","picks":9,"pickedDays":9,"pickedDayHits":1,"freeDays":24,"freeDayHits":3,"gotAway":["2026-08-24","2026-09-10","2026-09-24"]},
     {"pick":"Lindor","name":"Francisco Lindor","picks":16,"pickedDays":16,"pickedDayHits":1,"freeDays":15,"freeDayHits":4,"gotAway":["2026-08-25","2026-09-01","2026-09-09","2026-09-12"]},
     {"pick":"Lowe","name":"Brandon Lowe","picks":8,"pickedDays":7,"pickedDayHits":1,"freeDays":22,"freeDayHits":7,"gotAway":["2026-08-19","2026-09-01","2026-09-15","2026-09-16","2026-09-18","2026-09-19","2026-09-23"]},
-    {"pick":"Machado","name":"Manny Machado","picks":11,"pickedDays":11,"pickedDayHits":3,"freeDays":19,"freeDayHits":3,"gotAway":["2026-09-05","2026-09-06","2026-09-23"]},
+    {"pick":"Machado","name":"Manny Machado","picks":12,"pickedDays":11,"pickedDayHits":3,"freeDays":19,"freeDayHits":3,"gotAway":["2026-09-05","2026-09-06","2026-09-23"]},
     {"pick":"Marte","name":"Ketel Marte","picks":7,"pickedDays":7,"pickedDayHits":2,"freeDays":15,"freeDayHits":0,"gotAway":[]},
     {"pick":"McCarthy","name":"Jake McCarthy","picks":8,"pickedDays":8,"pickedDayHits":0,"freeDays":24,"freeDayHits":1,"gotAway":["2026-09-06"]},
     {"pick":"Moniak","name":"Mickey Moniak","picks":8,"pickedDays":8,"pickedDayHits":3,"freeDays":19,"freeDayHits":1,"gotAway":["2026-09-22"]},
@@ -462,7 +470,7 @@
     {"pick":"Okamoto","name":"Kazuma Okamoto","picks":6,"pickedDays":6,"pickedDayHits":2,"freeDays":23,"freeDayHits":3,"gotAway":["2026-08-18","2026-08-20","2026-09-11"]},
     {"pick":"Olson","name":"Matt Olson","picks":23,"pickedDays":23,"pickedDayHits":5,"freeDays":10,"freeDayHits":1,"gotAway":["2026-08-16"]},
     {"pick":"Oneil Cruz","name":"Oneil Cruz","picks":7,"pickedDays":7,"pickedDayHits":1,"freeDays":19,"freeDayHits":5,"gotAway":["2026-08-18","2026-08-21","2026-08-25","2026-09-10","2026-09-20"]},
-    {"pick":"PCA","name":"Pete Crow-Armstrong","picks":22,"pickedDays":22,"pickedDayHits":8,"freeDays":10,"freeDayHits":3,"gotAway":["2026-08-16","2026-08-18","2026-08-21"]},
+    {"pick":"PCA","name":"Pete Crow-Armstrong","picks":23,"pickedDays":22,"pickedDayHits":8,"freeDays":10,"freeDayHits":3,"gotAway":["2026-08-16","2026-08-18","2026-08-21"]},
     {"pick":"Rice","name":"Ben Rice","picks":18,"pickedDays":18,"pickedDayHits":5,"freeDays":13,"freeDayHits":2,"gotAway":["2026-08-16","2026-09-23"]},
     {"pick":"Schwarber","name":"Kyle Schwarber","picks":15,"pickedDays":15,"pickedDayHits":4,"freeDays":17,"freeDayHits":5,"gotAway":["2026-08-13","2026-08-22","2026-08-26","2026-09-05","2026-09-09"]},
     {"pick":"Seager","name":"Corey Seager","picks":8,"pickedDays":8,"pickedDayHits":1,"freeDays":24,"freeDayHits":5,"gotAway":["2026-08-20","2026-09-03","2026-09-06","2026-09-09","2026-09-24"]},
@@ -474,10 +482,10 @@
     {"pick":"Tatis","name":"Fernando Tatis Jr.","picks":14,"pickedDays":14,"pickedDayHits":5,"freeDays":17,"freeDayHits":5,"gotAway":["2026-08-11","2026-09-06","2026-09-12","2026-09-19","2026-09-20"]},
     {"pick":"Teoscar","name":"Teoscar Hernández","picks":5,"pickedDays":5,"pickedDayHits":0,"freeDays":26,"freeDayHits":3,"gotAway":["2026-09-07","2026-09-14","2026-09-15"]},
     {"pick":"Trout","name":"Mike Trout","picks":10,"pickedDays":10,"pickedDayHits":0,"freeDays":23,"freeDayHits":2,"gotAway":["2026-09-11","2026-09-23"]},
-    {"pick":"Vargas","name":"Miguel Vargas","picks":12,"pickedDays":12,"pickedDayHits":2,"freeDays":21,"freeDayHits":5,"gotAway":["2026-08-11","2026-08-16","2026-08-21","2026-09-14","2026-09-19"]},
+    {"pick":"Vargas","name":"Miguel Vargas","picks":13,"pickedDays":12,"pickedDayHits":2,"freeDays":21,"freeDayHits":5,"gotAway":["2026-08-11","2026-08-16","2026-08-21","2026-09-14","2026-09-19"]},
     {"pick":"Wilson Contreras","name":"Willson Contreras","picks":8,"pickedDays":7,"pickedDayHits":1,"freeDays":5,"freeDayHits":2,"gotAway":["2026-08-12","2026-08-21"]},
     {"pick":"Wilyer Abreu","name":"Wilyer Abreu","picks":6,"pickedDays":6,"pickedDayHits":1,"freeDays":23,"freeDayHits":1,"gotAway":["2026-08-11"]},
     {"pick":"Witt Jr","name":"Bobby Witt Jr.","picks":10,"pickedDays":10,"pickedDayHits":2,"freeDays":21,"freeDayHits":2,"gotAway":["2026-08-16","2026-09-09"]},
-    {"pick":"Yordan","name":"Yordan Alvarez","picks":15,"pickedDays":13,"pickedDayHits":2,"freeDays":17,"freeDayHits":2,"gotAway":["2026-09-22","2026-09-26"]}
+    {"pick":"Yordan","name":"Yordan Alvarez","picks":17,"pickedDays":13,"pickedDayHits":2,"freeDays":17,"freeDayHits":2,"gotAway":["2026-09-22","2026-09-26"]}
   ]}
 }

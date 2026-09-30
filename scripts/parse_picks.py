@@ -343,6 +343,19 @@ PAYS_FOOT_RE = re.compile(
     r"^\W*\s*\$?([\d,.]+)\s*pays\s*\$?([\d,.]+)\s*$", re.IGNORECASE)
 # A bullet leg with no odds and free-form market text.
 BULLET_PROP_RE = re.compile(r"^[*\-\u2022\u00b7]\s*(.+?)\s*$")
+# ---- eleventh template variant (first seen 2026-10-01): same bare "Ticket N"
+# shape as the tenth template, but the legs carry NO bullet character at all
+# -- just the free-form market text on its own line -- and the footer omits
+# the "$" entirely ("8.50 pays 105.79" rather than "$8.50 pays $105.79"):
+#     Ticket 1
+#     Mex Fried Over 1.5 ER
+#     Alec Bohm RBI 1+
+#     8.50 pays 105.79
+# PAYS_FOOT_RE already tolerates a missing "$" (its "$?" groups), so only the
+# leg line needed a fallback. Tried AFTER BULLET_PROP_RE so a bulleted card's
+# lines are still claimed by that pattern first; this one excludes anything
+# that looks like a ticket/game/footer line so it can never eat one of those.
+BARE_PROP_LINE_RE = re.compile(r"^(?!\s*$)(.+?)\s*$")
 # "1+ Total Homers" / "4+ Total Bases" / "2+ Hits" / "5+ Strikeouts".
 # "N+" means at least N, which is an over on N-0.5.
 N_PLUS_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*\+", re.IGNORECASE)
@@ -1310,6 +1323,14 @@ def parse(text, team_by_name, canonical_by_norm):
                 if leg:
                     current_prop["_legs"].append(leg)
                 continue
+            if (not BARE_TICKET_RE.match(original) and not PLAIN_TICKET_RE.match(original)
+                    and not GAME_HEADER_RE.match(original)):
+                bare_line = BARE_PROP_LINE_RE.match(original)
+                if bare_line:
+                    leg = read_prop_leg(bare_line.group(1), prop_teams)
+                    if leg:
+                        current_prop["_legs"].append(leg)
+                    continue
 
         plain_start = PLAIN_PARLAY_START_RE.match(line)
         if plain_start:

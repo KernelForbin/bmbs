@@ -1,88 +1,101 @@
 {
-  "date": "2026-09-29",
-  "note": "&#9888; 1 leg can't be tracked live &mdash; it shows on the card but won't be graded: &ldquo;BOS f5 — BOS played NYY, not CHC&rdquo;",
+  "date": "2026-09-30",
+  "note": "&#9888; 10 legs can't be tracked live &mdash; they show on the card but won't be graded: &ldquo;Mex Fried ER (mex fried)&rdquo; and 9 more",
   "windows": [
     {
       "title": "Parlay Cards",
       "tickets": [
         {
           "name": "Ticket 1",
-          "sub": "3-Leg",
-          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$65.18</b>",
-          "stake": 7.0,
+          "sub": "4-Leg",
+          "foot": "<b>$8.50</b> bet &middot; Potential payout <b>$105.79</b>",
+          "stake": 8.5,
           "book": "",
-          "payout": 65.18,
+          "payout": 105.79,
           "legs": [
             {
               "id": "p0-c0-l0",
-              "player": "Yordan Alvarez",
-              "team": "HOU",
+              "player": "Mex Fried ER",
+              "team": "",
               "who": "",
-              "meta": "HOU &middot; 5:00 PM ET",
+              "meta": "",
               "odds": null,
-              "time": "5:00 PM ET",
+              "time": "",
+              "market": "mex fried",
+              "line": 1.5
+            },
+            {
+              "id": "p0-c0-l1",
+              "player": "Alec Bohm",
+              "team": "PHI",
+              "who": "",
+              "meta": "PHI &middot; 2:00 PM ET",
+              "odds": null,
+              "time": "2:00 PM ET",
               "market": "rbi",
               "line": 0.5
             },
             {
-              "id": "p0-c0-l1",
-              "player": "",
-              "team": "BOS",
+              "id": "p0-c0-l2",
+              "player": "Sean Burke ER",
+              "team": "",
               "who": "",
-              "meta": "BOS &middot; 8:00 PM ET",
+              "meta": "",
               "odds": null,
-              "time": "8:00 PM ET",
-              "market": "f5",
-              "line": 3.5,
-              "side": "under",
-              "opponent": "CHC",
-              "innings": 5,
-              "mismatch": "BOS played NYY, not CHC"
+              "time": "",
+              "market": "sean burke",
+              "line": 1.5
             },
             {
-              "id": "p0-c0-l2",
-              "player": "",
-              "team": "CHC",
+              "id": "p0-c0-l3",
+              "player": "White Sox",
+              "team": "",
               "who": "",
-              "meta": "CHC &middot; 10:00 PM ET",
+              "meta": "",
               "odds": null,
-              "time": "10:00 PM ET",
-              "market": "ml"
+              "time": "",
+              "market": "astros",
+              "line": 7.5,
+              "players": [
+                "White Sox",
+                "Astros"
+              ]
             }
           ]
         },
         {
           "name": "Ticket 2",
           "sub": "3-Leg",
-          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$120.56</b>",
-          "stake": 7.0,
+          "foot": "<b>$8.50</b> bet &middot; Potential payout <b>$301.83</b>",
+          "stake": 8.5,
           "book": "",
-          "payout": 120.56,
+          "payout": 301.83,
           "legs": [
             {
               "id": "p0-c1-l0",
-              "player": "",
-              "team": "CWS",
-              "who": "",
-              "meta": "CWS &middot; 5:00 PM ET",
-              "odds": null,
-              "time": "5:00 PM ET",
-              "market": "ml"
-            },
-            {
-              "id": "p0-c1-l1",
-              "player": "",
+              "player": "George Lombard Jr.",
               "team": "NYY",
               "who": "",
               "meta": "NYY &middot; 8:00 PM ET",
               "odds": null,
               "time": "8:00 PM ET",
-              "market": "spread",
-              "line": -1.5
+              "market": "tb",
+              "line": 1.5
+            },
+            {
+              "id": "p0-c1-l1",
+              "player": "Miguel Vargas +Runs+RBIs",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": null,
+              "time": "",
+              "market": "hits",
+              "line": 2.5
             },
             {
               "id": "p0-c1-l2",
-              "player": "Carson Kelly",
+              "player": "Nico Hoerner",
               "team": "CHC",
               "who": "",
               "meta": "CHC &middot; 10:00 PM ET",
@@ -96,102 +109,103 @@
         {
           "name": "Ticket 3",
           "sub": "3-Leg",
-          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$318.99</b>",
-          "stake": 7.0,
+          "foot": "<b>$8.50</b> bet &middot; Potential payout <b>$382.20</b>",
+          "stake": 8.5,
           "book": "",
-          "payout": 318.99,
+          "payout": 382.2,
           "legs": [
             {
               "id": "p0-c2-l0",
-              "player": "Jose Altuve",
-              "team": "HOU",
+              "player": "Max Fried to Get the Win",
+              "team": "",
               "who": "",
-              "meta": "HOU &middot; 5:00 PM ET",
+              "meta": "",
               "odds": null,
-              "time": "5:00 PM ET",
-              "market": "hits",
-              "line": 1.5
+              "time": "",
+              "market": "unknown"
             },
             {
               "id": "p0-c2-l1",
-              "player": "George Lombard Jr.",
-              "team": "NYY",
+              "player": "Fernando Tatis Jr.",
+              "team": "SD",
               "who": "",
-              "meta": "NYY &middot; 8:00 PM ET",
+              "meta": "SD &middot; 10:00 PM ET",
               "odds": null,
-              "time": "8:00 PM ET",
-              "market": "runs",
+              "time": "10:00 PM ET",
+              "market": "sb",
               "line": 0.5
             },
             {
               "id": "p0-c2-l2",
-              "player": "Dansby Swanson",
-              "team": "CHC",
+              "player": "Philles",
+              "team": "",
               "who": "",
-              "meta": "CHC &middot; 10:00 PM ET",
+              "meta": "",
               "odds": null,
-              "time": "10:00 PM ET",
-              "market": "rbi",
-              "line": 0.5
+              "time": "",
+              "market": "runs",
+              "line": 5.5
             }
           ]
         },
         {
           "name": "Ticket 4",
           "sub": "2-Leg",
-          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$115.01</b>",
-          "stake": 7.0,
+          "foot": "<b>$8.50</b> bet &middot; Potential payout <b>$223.32</b>",
+          "stake": 8.5,
           "book": "",
-          "payout": 115.01,
+          "payout": 223.32,
           "legs": [
             {
               "id": "p0-c3-l0",
-              "player": "",
-              "team": "CWS",
+              "player": "Trea Turner",
+              "team": "PHI",
               "who": "",
-              "meta": "CWS &middot; 5:00 PM ET",
+              "meta": "PHI &middot; 2:00 PM ET",
               "odds": null,
-              "time": "5:00 PM ET",
-              "market": "total",
-              "line": 5.5
+              "time": "2:00 PM ET",
+              "market": "sb",
+              "line": 0.5
             },
             {
               "id": "p0-c3-l1",
-              "player": "Manny Machado",
-              "team": "SD",
+              "player": "Ben Rice +Runs+RbIs",
+              "team": "",
               "who": "",
-              "meta": "SD &middot; 10:00 PM ET",
+              "meta": "",
               "odds": null,
-              "time": "10:00 PM ET"
+              "time": "",
+              "market": "hits",
+              "line": 2.5
             }
           ]
         },
         {
           "name": "Ticket 5",
           "sub": "2-Leg",
-          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$138.52</b>",
-          "stake": 7.0,
+          "foot": "<b>$8.50</b> bet &middot; Potential payout <b>$262.20</b>",
+          "stake": 8.5,
           "book": "",
-          "payout": 138.52,
+          "payout": 262.2,
           "legs": [
             {
               "id": "p0-c4-l0",
-              "player": "Miguel Vargas",
-              "team": "CWS",
+              "player": "Luis Garcia",
+              "team": "",
               "who": "",
-              "meta": "CWS &middot; 5:00 PM ET",
+              "meta": "",
               "odds": null,
-              "time": "5:00 PM ET"
+              "time": "",
+              "line": 0.5
             },
             {
               "id": "p0-c4-l1",
-              "player": "George Lombard Jr.",
-              "team": "NYY",
+              "player": "Seiya Suzuki",
+              "team": "CHC",
               "who": "",
-              "meta": "NYY &middot; 8:00 PM ET",
+              "meta": "CHC &middot; 10:00 PM ET",
               "odds": null,
-              "time": "8:00 PM ET",
-              "market": "rbi",
+              "time": "10:00 PM ET",
               "line": 0.5
             }
           ]
@@ -199,64 +213,93 @@
         {
           "name": "Ticket 6",
           "sub": "2-Leg",
-          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$129.67</b>",
-          "stake": 7.0,
+          "foot": "<b>$8.50</b> bet &middot; Potential payout <b>$231.71</b>",
+          "stake": 8.5,
           "book": "",
-          "payout": 129.67,
+          "payout": 231.71,
           "legs": [
             {
               "id": "p0-c5-l0",
-              "player": "Ceddanne Rafaela",
-              "team": "BOS",
+              "player": "Michael Harris",
+              "team": "",
               "who": "",
-              "meta": "BOS &middot; 8:00 PM ET",
+              "meta": "",
               "odds": null,
-              "time": "8:00 PM ET",
+              "time": "",
               "market": "tb",
-              "line": 1.5
+              "line": 2.5
             },
             {
               "id": "p0-c5-l1",
-              "player": "Pete Crow-Armstrong",
-              "team": "CHC",
+              "player": "Munetaka Murakami",
+              "team": "CWS",
               "who": "",
-              "meta": "CHC &middot; 10:00 PM ET",
+              "meta": "CWS &middot; 5:00 PM ET",
               "odds": null,
-              "time": "10:00 PM ET",
-              "market": "tb",
-              "line": 4.5
+              "time": "5:00 PM ET",
+              "line": 0.5
             }
           ]
         },
         {
           "name": "Ticket 7",
           "sub": "2-Leg",
-          "foot": "<b>$7.00</b> bet &middot; Potential payout <b>$156.82</b>",
-          "stake": 7.0,
+          "foot": "<b>$8.50</b> bet &middot; Potential payout <b>$224.91</b>",
+          "stake": 8.5,
           "book": "",
-          "payout": 156.82,
+          "payout": 224.91,
           "legs": [
             {
               "id": "p0-c6-l0",
-              "player": "Kyle Teel",
+              "player": "Bryce Harper",
+              "team": "PHI",
+              "who": "",
+              "meta": "PHI &middot; 2:00 PM ET",
+              "odds": null,
+              "time": "2:00 PM ET"
+            },
+            {
+              "id": "p0-c6-l1",
+              "player": "Sam Antonacci",
               "team": "CWS",
               "who": "",
               "meta": "CWS &middot; 5:00 PM ET",
               "odds": null,
               "time": "5:00 PM ET",
-              "market": "tb",
-              "line": 2.5
-            },
+              "market": "sb",
+              "line": 0.5
+            }
+          ]
+        },
+        {
+          "name": "Ticket 8",
+          "sub": "2-Leg",
+          "foot": "<b>$8.50</b> bet &middot; Potential payout <b>$160.23</b>",
+          "stake": 8.5,
+          "book": "",
+          "payout": 160.23,
+          "legs": [
             {
-              "id": "p0-c6-l1",
-              "player": "Yordan Alvarez",
+              "id": "p0-c7-l0",
+              "player": "Jeremy Peña",
               "team": "HOU",
               "who": "",
               "meta": "HOU &middot; 5:00 PM ET",
               "odds": null,
               "time": "5:00 PM ET",
-              "market": "runs",
-              "line": 1.5
+              "market": "sb",
+              "line": 0.5
+            },
+            {
+              "id": "p0-c7-l1",
+              "player": "Luis Garica",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": null,
+              "time": "",
+              "market": "rbi",
+              "line": 0.5
             }
           ]
         }
@@ -267,13 +310,28 @@
     {
       "id": "single-0",
       "who": "",
+      "player": "Drake Baldwin",
+      "team": "ATL",
+      "meta": "2:00 PM ET &middot; $8.50 bet",
+      "odds": null,
+      "stake": 8.5,
+      "payout": 119.0,
+      "pp": "PP $119.00",
+      "market": "runs",
+      "line": 1.5,
+      "time": "2:00 PM ET"
+    },
+    {
+      "id": "single-1",
+      "who": "",
       "player": "George Lombard Jr.",
       "team": "NYY",
-      "meta": "8:00 PM ET &middot; $7.00 bet",
+      "meta": "8:00 PM ET &middot; $8.50 bet",
       "odds": null,
-      "stake": 7.0,
-      "payout": 91.0,
-      "pp": "PP $91.00",
+      "stake": 8.5,
+      "payout": 96.9,
+      "pp": "PP $96.90",
+      "line": 0.5,
       "time": "8:00 PM ET"
     }
   ]

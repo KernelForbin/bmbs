@@ -398,6 +398,30 @@ CARD_MARKET_RE = [(k, re.compile(pat, re.IGNORECASE)) for k, pat in CARD_MARKET_
 # exactly that pattern already used by the eighth-and-earlier templates.
 BARE_TICKET_RE = re.compile(r"^Ticket\s*#?\s*(\d+)\s*$", re.IGNORECASE)
 
+# ---- twelfth raw-text template (first seen 2026-10-03): a bare "Ticket N"
+# header (same trigger as the tenth template, BARE_TICKET_RE) but the legs
+# use a plain hyphen bullet with a colon separator, mix in non-baseball props
+# (NHL anytime goals, NFL anytime TDs/receiving yards/points) alongside real
+# MLB props, and the footer is "Stake: 8.50 | Pays: 108.48" -- or, on a card
+# that only gives a combined number, "Stake/Pays: 210":
+#     Ticket 1
+#     - Tage Thompson: Anytime Goal
+#     - Phillies/Braves: Over 8.5 Runs
+#     - Pat Freiermuth: 30+ Receiving Yards
+#     Stake: 8.50 | Pays: 108.48
+# Reuses read_prop_leg() with no team restriction, same as the tenth template
+# (this card never names two MLB teams either, and when it DOES name two
+# teams -- "Phillies/Braves: Over 8.5 Runs" -- that's a generic team-total
+# leg read_prop_leg() already handles). A non-baseball prop (hockey goal,
+# football TD/yards/points) has no market alias here and simply comes through
+# with an "unknown" market, same as any other leg nothing in MARKET_ALIASES
+# recognises -- shown on the page, not graded, not dropped.
+HYPHEN_TICKET_LEG_RE = re.compile(r"^-\s*(.+?)\s*:\s*(.+?)\s*$")
+TICKET_STAKE_PAYS_RE = re.compile(
+    r"^Stake:\s*\$?([\d,.]+)\s*\|\s*Pays:\s*\$?([\d,.]+)\s*$", re.IGNORECASE)
+TICKET_STAKE_PAYS_COMBINED_RE = re.compile(
+    r"^Stake/Pays:\s*\$?([\d,.]+)\s*$", re.IGNORECASE)
+
 
 _NICKNAMES = None
 
@@ -1424,6 +1448,27 @@ def parse(text, team_by_name, canonical_by_norm):
                 current_prop["_stake"] = clean_num(stake)
                 current_prop["_pp"] = clean_num(pp)
                 flush_prop()
+                continue
+            stake_pays = TICKET_STAKE_PAYS_RE.match(original)
+            if stake_pays:
+                stake, pp = stake_pays.groups()
+                current_prop["_stake"] = clean_num(stake)
+                current_prop["_pp"] = clean_num(pp)
+                flush_prop()
+                continue
+            stake_pays_combined = TICKET_STAKE_PAYS_COMBINED_RE.match(original)
+            if stake_pays_combined:
+                combined = clean_num(stake_pays_combined.group(1))
+                current_prop["_stake"] = combined
+                current_prop["_pp"] = combined
+                flush_prop()
+                continue
+            hyphen_leg = HYPHEN_TICKET_LEG_RE.match(original)
+            if hyphen_leg:
+                subject, desc = hyphen_leg.groups()
+                leg = read_prop_leg(f"{subject} {desc}", prop_teams)
+                if leg:
+                    current_prop["_legs"].append(leg)
                 continue
             bullet = BULLET_PROP_RE.match(original)
             if bullet:

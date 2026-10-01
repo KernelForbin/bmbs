@@ -56,6 +56,15 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   day's raw picks text here (via GitHub's web editor, no terminal needed)
   and commits. That triggers `.github/workflows/parse-picks.yml`, which
   runs `scripts/parse_picks.py` against it and regenerates `tickets.json`.
+  **Re-posting an IDENTICAL card is a no-op, and the bot now says so**
+  (2026-09-30). GitHub's Contents API happily creates an EMPTY commit when
+  the content matches, and `parse-picks.yml` triggers on a CHANGE to this
+  path -- so nothing fired: no parse, no Discord message, while the bot had
+  already promised "the parser should update within about a minute".
+  `push_incoming_picks()` compares the existing content first and returns
+  None, and the caller reports it instead. `test_discord_bot.py` E1-E5 and
+  B9-B11 cover both halves; a mutation showed the user-facing half was
+  initially untested.
   Also written by the Discord intake bot (`discord-bot/`, runs on the
   user's own always-on Windows machine): a friend uploads a `.txt` in a
   Discord channel, confirms with a reaction, and the bot commits it here

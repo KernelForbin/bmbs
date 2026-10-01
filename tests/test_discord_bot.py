@@ -205,6 +205,31 @@ except requests.HTTPError:
 BASEBALL_ROUTE = bot.ROUTES["baseball"]
 
 
+async def confirm_flow_noop():
+    """An identical re-upload: the user has to be TOLD, not promised an
+    update that can't happen. On 2026-09-30 this path produced an empty
+    commit, triggered no workflow, and the bot still said the parser would
+    update within about a minute."""
+    same = "Ticket 1\nAlec Bohm RBI 1+\n"
+    import base64 as b64
+    reset_gh(FakeResponse(200, {"sha": "s1",
+                                "content": b64.b64encode(same.encode()).decode("ascii")}),
+             FakeResponse(201, {"commit": {"html_url": "should-not-happen"}}))
+    channel = FakeChannel()
+    author = FakeUser(1, "memo")
+    task = asyncio.create_task(
+        bot._confirm_and_push(channel, author, same, "baseball_card.txt", BASEBALL_ROUTE))
+    await asyncio.sleep(0.05)
+    bot.client.dispatch("reaction_add", FakeReaction(channel.prompts[0].id, "\u2705"), author)
+    await task
+    check("B9 an identical re-upload makes no commit at all", len(GH["put"]) == 0, GH["put"])
+    check("B10 ...and the bot SAYS so, instead of promising the parser will update",
+          "nothing to push" in channel.sent[-1] and "won't re-run" in channel.sent[-1],
+          channel.sent[-1])
+    check("B11 ...and still addresses the person who posted it",
+          author.mention in channel.sent[-1], channel.sent[-1])
+
+
 async def confirm_flow_ok():
     reset_gh(FakeResponse(404), FakeResponse(201, {"commit": {"html_url": "https://github.com/x/y/commit/ok1"}}))
     channel = FakeChannel()
@@ -235,6 +260,7 @@ async def confirm_flow_ok():
 
 
 with_loop(confirm_flow_ok)
+with_loop(confirm_flow_noop)
 
 
 async def discard_flow():
@@ -375,6 +401,40 @@ reset_gh(FakeResponse(404), FakeResponse(201, {"commit": {"html_url": "https://x
 msg = FakeMessage(FakeUser(19), FakeChannel(), [FakeAttachment("notes.pdf"), FakeAttachment("baseball_ok.txt", b"Card 1\n")])
 with_loop(lambda: full_on_message_then_discard(msg))
 check("C11 the first .txt attachment is used even if it isn't the first attachment overall", "baseball_ok.txt" in msg.channel.sent[0], msg.channel.sent)
+
+# ================= E. an identical re-upload is a no-op, and says so ==========
+# Re-posting the SAME card on 2026-09-30 produced an EMPTY commit. Because
+# parse-picks.yml triggers on a change to data/incoming_picks.txt, nothing
+# fired -- no parse, no Discord message -- while the bot had already promised
+# "the parser should update within about a minute". The bot now checks.
+import base64 as _b64  # noqa: E402
+
+SAME = "Ticket 1\nAlec Bohm RBI 1+\n"
+existing = {"sha": "deadbeef", "content": _b64.b64encode(SAME.encode("utf-8")).decode("ascii")}
+
+reset_gh(FakeResponse(200, existing), FakeResponse(201, {"commit": {"html_url": "nope"}}))
+out = bot.push_incoming_picks(SAME, "kenny", "data/incoming_picks.txt", "baseball (home runs)")
+check("E1 identical content returns None instead of a commit url", out is None, out)
+check("E2 ...and no PUT is made, so no empty commit is created", GH["put"] == [], GH["put"])
+
+# A REAL change still pushes, with the existing sha so it replaces rather
+# than conflicts.
+reset_gh(FakeResponse(200, existing),
+         FakeResponse(201, {"commit": {"html_url": "https://github.com/x/y/commit/new"}}))
+out = bot.push_incoming_picks(SAME + "Ticket 2\n", "kenny", "data/incoming_picks.txt",
+                              "baseball (home runs)")
+check("E3 changed content still pushes", out == "https://github.com/x/y/commit/new", out)
+check("E4 ...carrying the existing sha, so it replaces rather than conflicts",
+      GH["put"][0][1]["json"].get("sha") == "deadbeef", GH["put"])
+
+# Content that isn't valid UTF-8 base64 must not crash the comparison -- it
+# falls through and pushes, which is the safe direction.
+reset_gh(FakeResponse(200, {"sha": "x", "content": "!!!not base64!!!"}),
+         FakeResponse(201, {"commit": {"html_url": "https://github.com/x/y/commit/z"}}))
+out = bot.push_incoming_picks("anything", "kenny", "data/incoming_picks.txt", "baseball (home runs)")
+check("E5 unreadable existing content falls through to a push, not a crash",
+      out == "https://github.com/x/y/commit/z", out)
+
 
 print()
 if failures:

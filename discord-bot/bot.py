@@ -89,7 +89,17 @@ def push_incoming_picks(text: str, author_name: str, file_path: str, sport: str,
                         author_id: str = "") -> str:
     """Commit `text` as the new `file_path` on GITHUB_BRANCH.
 
-    Returns the commit URL on success. Raises requests.HTTPError on failure.
+    Returns the commit URL, or None when the file ALREADY has exactly this
+    content and there is nothing to push.
+
+    That case is not hypothetical and it used to fail silently: re-posting an
+    identical card on 2026-09-30 produced an EMPTY commit, and because
+    parse-picks.yml triggers on a change to data/incoming_picks.txt, the
+    workflow never fired -- no parse, no Discord message -- while the bot had
+    already announced "the parser should update within about a minute". The
+    caller reports this honestly instead.
+
+    Raises requests.HTTPError on a genuine failure.
     """
     url = f"{GITHUB_API_BASE}/repos/{GITHUB_REPO}/contents/{file_path}"
 
@@ -108,7 +118,16 @@ def push_incoming_picks(text: str, author_name: str, file_path: str, sport: str,
     }
     if get_resp.status_code != 404:   # 404 = first upload for this sport: create rather than replace
         get_resp.raise_for_status()
-        payload["sha"] = get_resp.json()["sha"]
+        existing = get_resp.json()
+        payload["sha"] = existing["sha"]
+        # Byte-for-byte identical -> GitHub makes an empty commit, which
+        # changes no path and so triggers nothing. Say so rather than push it.
+        try:
+            current = base64.b64decode(existing.get("content") or "").decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            current = None
+        if current is not None and current == text:
+            return None
 
     put_resp = requests.put(url, headers=_github_headers(), json=payload, timeout=15)
     put_resp.raise_for_status()
@@ -152,6 +171,14 @@ async def _confirm_and_push(
     try:
         commit_url = push_incoming_picks(text, str(author), route["path"], route["sport"],
                                          author_id=str(author.id))
+        if commit_url is None:
+            await channel.send(
+                f"\u2139\ufe0f {author.mention} that's byte-for-byte what's already in "
+                f"`{route['path']}`, so there's nothing to push and the parser won't re-run.\n"
+                f"If the card changed, re-export it; if you want to force a re-parse of the "
+                f"same text, say so and it can be kicked off manually."
+            )
+            return
     except requests.HTTPError as exc:
         await channel.send(f"❌ Push failed: `{exc}`")
         return

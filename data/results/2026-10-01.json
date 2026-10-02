@@ -1,0 +1,562 @@
+{
+ "sport": "baseball",
+ "date": "2026-10-01",
+ "complete": false,
+ "ticketsHash": "21d4a9a949461068",
+ "summary": {
+  "games": 1,
+  "parlays": 12,
+  "parlaysCashed": 0,
+  "singles": 0,
+  "singlesCashed": 0,
+  "legs": 27,
+  "legsHit": 2,
+  "legsVoid": 0,
+  "staked": 298.5,
+  "returned": 0.0,
+  "ourHomeRuns": 2,
+  "leagueHomeRuns": 3,
+  "ourSteals": 0,
+  "leagueSteals": 0
+ },
+ "note": "&#9888; 13 legs can't be tracked live &mdash; they show on the card but won't be graded: &ldquo;Tage Thompson Anytime Goal (unknown)&rdquo; and 12 more",
+ "parlays": [
+  {
+   "name": "Ticket 1",
+   "window": "Parlay Cards",
+   "sub": "3-Leg",
+   "book": "",
+   "stake": 8.5,
+   "payout": 108.48,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Tage Thompson Anytime Goal",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown"
+    },
+    {
+     "player": "",
+     "team": "PHI",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": null,
+     "market": "total",
+     "line": 8.5,
+     "time": "8:00 PM ET",
+     "score": "2-6"
+    },
+    {
+     "player": "Pat Freiermuth Receiving Yards",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown",
+     "line": 29.5
+    }
+   ]
+  },
+  {
+   "name": "Ticket 2",
+   "window": "Parlay Cards",
+   "sub": "4-Leg",
+   "book": "",
+   "stake": 8.5,
+   "payout": 307.59,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Browns +2.5",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "not_started",
+     "mlbId": null,
+     "market": "spread",
+     "line": 2.5
+    },
+    {
+     "player": "Sabres -1.5",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "not_started",
+     "mlbId": null,
+     "market": "spread",
+     "line": -1.5
+    },
+    {
+     "player": "Mauricio Dubón",
+     "team": "ATL",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": 643289,
+     "market": "tb",
+     "line": 1.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL",
+     "counted": 0
+    },
+    {
+     "player": "Fannin Receiving Yards",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown",
+     "line": 49.5
+    }
+   ]
+  },
+  {
+   "name": "Ticket 3",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 8.5,
+   "payout": 242.08,
+   "outcome": "partial",
+   "returned": null,
+   "legs": [
+    {
+     "player": "Ozzie Albies",
+     "team": "ATL",
+     "who": "",
+     "odds": null,
+     "state": "hit",
+     "mlbId": 645277,
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL",
+     "homeRuns": [
+      {
+       "inning": 4,
+       "half": "bottom",
+       "pitcher": "Zack Wheeler",
+       "pitchHand": "R",
+       "distance": 419.0,
+       "exitVelo": 106.0,
+       "launchAngle": 32.0,
+       "trajectory": "fly_ball",
+       "pitchType": "Four-Seam Fastball",
+       "pitchVelo": 96.5,
+       "zone": 8,
+       "venue": "Truist Park"
+      }
+     ]
+    },
+    {
+     "player": "DK Metcalf Anytime TD",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown"
+    }
+   ]
+  },
+  {
+   "name": "Ticket 4",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 8.5,
+   "payout": 265.88,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Trea Turner",
+     "team": "PHI",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": 607208,
+     "market": "sb",
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL"
+    },
+    {
+     "player": "KC Concepcion Anytime TD",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown"
+    }
+   ]
+  },
+  {
+   "name": "Ticket 5",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 8.5,
+   "payout": 215.05,
+   "outcome": "partial",
+   "returned": null,
+   "legs": [
+    {
+     "player": "Matt Olson",
+     "team": "ATL",
+     "who": "",
+     "odds": null,
+     "state": "hit",
+     "mlbId": 621566,
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL",
+     "homeRuns": [
+      {
+       "inning": 7,
+       "half": "bottom",
+       "pitcher": "Jonathan Bowlan",
+       "pitchHand": "R",
+       "distance": 416.0,
+       "exitVelo": 107.2,
+       "launchAngle": 26.0,
+       "trajectory": "fly_ball",
+       "pitchType": "Changeup",
+       "pitchVelo": 92.1,
+       "zone": 8,
+       "venue": "Truist Park"
+      }
+     ]
+    },
+    {
+     "player": "Jaylen Warren First TD",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown"
+    }
+   ]
+  },
+  {
+   "name": "Ticket 6",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 8.5,
+   "payout": 300.39,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Jack Quinn Points",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown",
+     "line": 1.5
+    },
+    {
+     "player": "Drake Baldwin",
+     "team": "ATL",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": 686948,
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL"
+    }
+   ]
+  },
+  {
+   "name": "Ticket 7",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 8.5,
+   "payout": 174.25,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Kyle Schwarber",
+     "team": "PHI",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": 656941,
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL"
+    },
+    {
+     "player": "Deshaun Watson Anytime TD",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown"
+    }
+   ]
+  },
+  {
+   "name": "Ticket 8",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 210.0,
+   "payout": 210.0,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Zach Benson Points",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown",
+     "line": 1.5
+    },
+    {
+     "player": "Drake Baldwin",
+     "team": "ATL",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": 686948,
+     "market": "rbi",
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL",
+     "counted": 0
+    }
+   ]
+  },
+  {
+   "name": "Ticket 9",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 8.5,
+   "payout": 225.68,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Bryce Harper",
+     "team": "PHI",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": 547180,
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL"
+    },
+    {
+     "player": "Pat Freiermuth Anytime TD",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown"
+    }
+   ]
+  },
+  {
+   "name": "Ticket 10",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 8.5,
+   "payout": 220.76,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Konsta Helenius Anytime Goal",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown"
+    },
+    {
+     "player": "Ronald Acuña Jr.",
+     "team": "ATL",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": 660670,
+     "market": "sb",
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL"
+    }
+   ]
+  },
+  {
+   "name": "Ticket 11",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 6.0,
+   "payout": 252.0,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Austin Riley",
+     "team": "ATL",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": 663586,
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL"
+    },
+    {
+     "player": "Quinshon Judkins First TD",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown"
+    }
+   ]
+  },
+  {
+   "name": "Ticket 12",
+   "window": "Parlay Cards",
+   "sub": "2-Leg",
+   "book": "",
+   "stake": 6.0,
+   "payout": 262.5,
+   "outcome": "dead",
+   "returned": 0.0,
+   "legs": [
+    {
+     "player": "Bryson Stott",
+     "team": "PHI",
+     "who": "",
+     "odds": null,
+     "state": "miss",
+     "mlbId": 681082,
+     "market": "sb",
+     "line": 0.5,
+     "time": "8:00 PM ET",
+     "game": "PHI @ ATL"
+    },
+    {
+     "player": "Browns",
+     "team": "",
+     "who": "",
+     "odds": null,
+     "state": "untracked",
+     "mlbId": null,
+     "market": "unknown",
+     "players": [
+      "Browns",
+      "Steelers Yes one 2pt conversion"
+     ]
+    }
+   ]
+  }
+ ],
+ "singles": [],
+ "homeRuns": [
+  {
+   "id": "849844-7",
+   "time": "2026-10-02T00:31:48.803Z",
+   "batter": "Michael Harris II",
+   "batterId": 671739,
+   "batSide": "L",
+   "team": "ATL",
+   "pitcher": "Aaron Nola",
+   "pitchHand": "R",
+   "inning": 1,
+   "half": "bottom",
+   "venue": "Truist Park",
+   "wind": "5 mph, L To R",
+   "temp": "84",
+   "condition": "Partly Cloudy",
+   "exitVelo": 100.5,
+   "launchAngle": 25.0,
+   "distance": 387.0,
+   "trajectory": "fly_ball",
+   "pitchType": "Sinker",
+   "pitchVelo": 93.5,
+   "zone": 14,
+   "gamePk": 849844
+  },
+  {
+   "id": "849844-30",
+   "time": "2026-10-02T01:29:57.155Z",
+   "batter": "Ozzie Albies",
+   "batterId": 645277,
+   "batSide": "L",
+   "team": "ATL",
+   "pitcher": "Zack Wheeler",
+   "pitchHand": "R",
+   "inning": 4,
+   "half": "bottom",
+   "venue": "Truist Park",
+   "wind": "5 mph, L To R",
+   "temp": "84",
+   "condition": "Partly Cloudy",
+   "exitVelo": 106.0,
+   "launchAngle": 32.0,
+   "distance": 419.0,
+   "trajectory": "fly_ball",
+   "pitchType": "Four-Seam Fastball",
+   "pitchVelo": 96.5,
+   "zone": 8,
+   "gamePk": 849844
+  },
+  {
+   "id": "849844-55",
+   "time": "2026-10-02T02:27:21.740Z",
+   "batter": "Matt Olson",
+   "batterId": 621566,
+   "batSide": "L",
+   "team": "ATL",
+   "pitcher": "Jonathan Bowlan",
+   "pitchHand": "R",
+   "inning": 7,
+   "half": "bottom",
+   "venue": "Truist Park",
+   "wind": "5 mph, L To R",
+   "temp": "84",
+   "condition": "Partly Cloudy",
+   "exitVelo": 107.2,
+   "launchAngle": 26.0,
+   "distance": 416.0,
+   "trajectory": "fly_ball",
+   "pitchType": "Changeup",
+   "pitchVelo": 92.1,
+   "zone": 8,
+   "gamePk": 849844
+  }
+ ],
+ "steals": []
+}

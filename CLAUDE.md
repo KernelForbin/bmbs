@@ -607,6 +607,69 @@ notification controls next to frozen, archived results is misleading. This
 is visibility only: the saved settings and Today's actual notifications are
 completely unaffected by which tab happens to be on screen.
 
+## Notification bell (all three pages)
+
+Added 2026-10-04. A bell top-right of each page's header, with a red badge
+counting what hit since you last looked. Tapping it opens the list and clears
+the badge. Each page keeps its own (`bmbs.bell`, `bmbs.fb.bell`,
+`bmbs.all.bell`). `tests/test_bell.py` covers all three; fifteen mutations
+caught.
+
+**Two kinds of entry, and a leg that cashes a bet produces BOTH** -- the user's
+rule. The leg entry is about the leg: who, what hit, his odds and bettor, and
+every bet he is on. The bet entry is about the bet: legs, stake, payout,
+bettor, and EVERY leg on it, not just the one that finished it. That is the
+deliberate opposite of the cash overlay, which upgrades one card rather than
+adding a second. A single is one leg and one bet, so it gets both too.
+
+**One thing that happened is one leg entry**, however many bets carry him.
+Aaron Judge homering with three cards on him is one entry listing the three,
+not three entries. Keyed on sport + player + what was bet, so his home run and
+his total-bases leg are still separate.
+
+**It BACKFILLS, the opposite of the alerts' flood guard, on purpose** (the
+user's choice). The overlay must never replay an afternoon at you; a log you
+open when you like should let you catch up. So the first scan after a page
+load logs everything already hit -- labelled **"Earlier"**, because this
+browser only knows when it NOTICED those, not when they happened. Anything
+found on a later scan gets a clock time, which with 10-second polling is
+close to when it really happened. Times pass `timeZone` (see the sync-line
+note above) -- `test_bell.py` G1 pins it from a Pacific browser, because this
+machine is on Eastern and an un-zoned format passes here.
+
+**It follows `SLATES.today || SLATES.yesterday`, never today alone.** Scanning
+only today meant a slate that had finished -- rolled to Yesterday, Today empty
+-- logged nothing, so opening the page the morning after showed an empty bell,
+the commonest time to want to catch up. A QUEUED slate is never scanned: it
+hasn't started. The log resets when the slate's date changes, and survives a
+refresh in between.
+
+**`bellWithToday()` swaps the slate's own results in**, like `betsCashedBy()`
+does, so the bell is about that slate while another tab is showing. On the
+combined page that means BOTH leagues: `NFL.swap()` as well as `RESULTS`. Note
+the same `const savedNfl = NFL.swap(slate.nfl)` line appears in the two alert
+helpers too -- a mutation aimed at the bell's copy first hit
+`betsCashedBy`'s instead and looked like a missing test.
+
+**Every class it uses is `bell-` prefixed, and that is load-bearing.** Leg
+entries first had the class `leg` -- the ticket-row class -- and the page's
+own `.leg:first-of-type { padding-top: 0 }` reached the first notification.
+Only rendering it showed that; `test_bell.py` B5c now measures the spacing
+and B5d fails on any non-`bell-` class in its markup.
+
+It sits in the header as its LAST child, absolutely positioned. Wrapping the
+`<h1>` would have put a new element first, and `test_page.py` T1 pins the
+header's first three children.
+
+**THE COMBINED PAGE USED TO SHARE THE MLB PAGE'S STORAGE.** All three pages are
+one origin, so they share `localStorage`, and `all/index.html` was assembled
+from `index.html` with its `bmbs.*` keys intact -- so switching sound on in
+NFL+MLB switched it on in MLB, and collapsing cards on one collapsed them on
+both. Football has always had `bmbs.fb.*` for exactly this reason. Every key
+the combined page writes is now `bmbs.all.*`; `test_bell.py` E10 fails on any
+`bmbs.` key there that isn't. **A new key on any page needs its own
+namespace** -- `bmbs.` (MLB), `bmbs.fb.` (NFL), `bmbs.all.` (NFL+MLB).
+
 ## Bet markets: a registry, not a list of special cases
 
 **As of 2026-09-29 markets are a REGISTRY** (`MARKETS` in `index.html`), each
@@ -1674,6 +1737,12 @@ on failure:
   drive fixture had the pick already SCORING, which makes him ineligible for a
   tile anyway, so the drive logic was never exercised and a mutation against
   it passed.
+- `tests/test_bell.py` — the notification bell on all three pages, in ONE
+  browser context, because the pages share an origin and a shared key would
+  only show up there. Backfill, the leg/bet split, one entry per event,
+  clearing on open, counting up live, surviving a refresh, resetting on a new
+  slate, the morning-after case, independence, ET from a Pacific browser, and
+  the class collision. Fifteen mutations, all caught.
 - `tests/test_football_parser.py` — football parser (both templates, negative
   odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
   roster builder, and the Discord bot's file-name routing. Fully offline.
@@ -1792,7 +1861,7 @@ on failure:
 pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py && python tests/test_steals.py
-python tests/test_combined_parser.py && python tests/test_combined_page.py
+python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py

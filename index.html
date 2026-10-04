@@ -435,6 +435,47 @@
   .sport-switch .sport:hover { color:var(--text); }
   .sport-switch .sport.active { background:var(--green-dim); color:var(--text); box-shadow:inset 0 0 0 1px var(--green); }
   .sport-switch .ico { font-size:16px; line-height:1; }
+
+  /* ---- notification bell: top-right of the header, a LAST child so the
+     header's own first three children (title, eyebrow, sync line) keep the
+     order test_page.py T1 pins ---- */
+  header { position: relative; }
+  header > h1 { padding-right: 52px; }
+  .bell-wrap { position: absolute; top: 0; right: 0; z-index: 60; }
+  .bell-btn { position: relative; width: 40px; height: 40px; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--panel-line); color: var(--text-dim);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+  .bell-btn:hover, .bell-btn[aria-expanded="true"] { color: var(--text); border-color: var(--green); }
+  .bell-btn svg { width: 20px; height: 20px; }
+  .bell-badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px;
+    padding: 0 5px; border-radius: 999px; background: var(--red); color: #fff;
+    font: 700 11px/20px 'Inter', sans-serif; text-align: center; box-sizing: border-box;
+    box-shadow: 0 0 0 2px var(--bg); }
+  .bell-badge:empty { display: none; }
+  .bell-panel { position: absolute; right: 0; top: 48px; width: min(360px, calc(100vw - 32px));
+    max-height: 70vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--panel-line);
+    border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+  .bell-panel[hidden] { display: none; }
+  .bell-head { display: flex; justify-content: space-between; align-items: baseline;
+    padding: 12px 14px 8px; border-bottom: 1px solid var(--panel-line);
+    font: 700 13px 'Oswald', sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  .bell-head .bell-count { font: 500 11px 'Inter', sans-serif; letter-spacing: 0;
+    text-transform: none; color: var(--text-faint); }
+  .bell-empty { padding: 18px 14px; color: var(--text-dim); font-size: 13px; }
+  /* bell-leg / bell-bet, NOT leg / bet: ".leg" is the ticket-row class, and
+     its ".leg:first-of-type { padding-top: 0 }" was eating the first
+     notification's padding. Everything here is bell- prefixed for that reason. */
+  .bell-item { display: flex; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--panel-line); }
+  .bell-item:last-child { border-bottom: 0; }
+  .bell-item.unread { background: var(--green-dim); }
+  .bell-ico { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px; display: flex;
+    align-items: center; justify-content: center; font-size: 14px; background: var(--bg); }
+  .bell-item.bell-bet .bell-ico { background: var(--amber); color: #1a1300; }
+  .bell-body { flex: 1 1 auto; min-width: 0; }
+  .bell-title { font-weight: 700; font-size: 14px; color: var(--text); }
+  .bell-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
+  .bell-meta { font-size: 11.5px; color: var(--text-faint); margin-top: 4px; }
+  .bell-time { flex: 0 0 auto; font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -515,6 +556,22 @@
       <div class="score-chip miss clickable" id="chip-leg-miss" onclick="toggleLegFilter('miss')"><div class="num" id="count-leg-miss">0</div><div class="lbl">MISSED</div></div>
       <div class="score-chip na clickable" id="chip-leg-na" onclick="toggleLegFilter('na')"><div class="num" id="count-leg-na">0</div><div class="lbl">N/A</div></div>
     </div>
+    </div>
+  
+    <div class="bell-wrap" id="bell-wrap">
+      <button type="button" class="bell-btn" id="bell-btn" aria-label="Notifications"
+              aria-haspopup="true" aria-expanded="false" onclick="toggleBell(event)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="bell-badge" id="bell-badge"></span>
+      </button>
+      <div class="bell-panel" id="bell-panel" hidden role="dialog" aria-label="Notifications">
+        <div class="bell-head"><span>Notifications</span><span class="bell-count" id="bell-count"></span></div>
+        <div id="bell-list"></div>
+      </div>
     </div>
   </header>
 
@@ -3806,6 +3863,7 @@ async function pollAndRender() {
       `<div class="err">Couldn't refresh just now (${e.message}). Will retry automatically.</div>`;
   }
   checkForBombs();
+  bellScan();
   applyActiveTab();
   render();
   trackLiveAtBats();   // needs the EVALUATED arrays render() just rebuilt
@@ -3842,8 +3900,262 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") pollOnce();
 });
 
+
+const BELL_KEY = "bmbs.bell";
+function bellReady(slate) { return !!(slate.results && slate.results.ready); }
+function bellLegState(leg) { return stateForLeg(leg); }
+function bellWhat(leg) {
+  const m = legMarket(leg);
+  const def = marketDef(leg);
+  const base = def && def.label ? def.label : (m === "hr" ? "Home run" : String(m).toUpperCase());
+  return (base + lineText(leg)).trim();
+}
+function bellWithToday(slate, fn) {
+  const saved = RESULTS;
+  RESULTS = slate.results;
+  try { fn(); } finally { RESULTS = saved; }
+}
+
+// ---------------- notification bell ----------------
+// A log of what has HIT on today's slate: every leg that lands, and every
+// bet that cashes, each as its own entry. A leg that cashes a bet produces
+// BOTH -- the leg entry is about the leg, the bet entry is about the bet
+// (its stake, payout, every leg on it) rather than restating the leg that
+// finished it. That is the deliberate difference from the cash overlay,
+// which upgrades one card instead of adding a second.
+//
+// It BACKFILLS, by the user's choice (2026-10-04): open the page late and
+// everything already hit on this slate is there, unread. That is the
+// opposite of the overlay's flood guard, on purpose -- the overlay must not
+// replay an afternoon at you, but a log you can open when you like should
+// let you catch up. Anything found on the first scan after the page loads is
+// labelled "Earlier" rather than given a clock time, because this browser
+// only knows when it NOTICED it, not when it happened.
+//
+// Survives a refresh, and resets when a slate with a new date starts, so
+// yesterday's cashes never pile onto today's badge.
+let BELL = { date: null, items: [], seen: [] };
+let bellFirstScan = true;
+
+function bellLoad() {
+  try {
+    const raw = localStorage.getItem(BELL_KEY);
+    const v = raw ? JSON.parse(raw) : null;
+    if (v && Array.isArray(v.items) && Array.isArray(v.seen)) BELL = v;
+  } catch (e) { /* private window or cleared storage: start empty */ }
+}
+function bellSave() {
+  try { localStorage.setItem(BELL_KEY, JSON.stringify(BELL)); } catch (e) { /* not fatal */ }
+}
+
+// Card names and bet subs are prebuilt HTML ("Card 1 &middot; Title"). Kept
+// as plain text in storage, then escaped on the way out, so nothing read back
+// from localStorage is ever handed to innerHTML as markup.
+function bellPlain(html) {
+  const el = document.createElement("textarea");
+  el.innerHTML = String(html || "").replace(/<[^>]*>/g, "");
+  return el.value.trim();
+}
+function bellMoney(n) {
+  return typeof n === "number" && isFinite(n) ? "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "";
+}
+function bellOdds(o) {
+  const s = String(o == null ? "" : o).trim();
+  return s && /^[+-]?\d/.test(s) ? (/^[+-]/.test(s) ? s : "+" + s) : "";
+}
+
+function bellScan() {
+  // The live slate, or failing that the most recent finished one. Scanning
+  // only SLATES.today meant a slate that had already finished -- every game
+  // final, rolled onto the Yesterday tab -- logged nothing at all, so opening
+  // the page the morning after showed an empty bell. Backfill means catching
+  // up on what you missed, and that is the commonest time to want it. A
+  // QUEUED slate is never this: it hasn't started, and takes over only once
+  // it becomes today.
+  const slate = SLATES.today || SLATES.yesterday;
+  if (!slate || !slate.tickets) return;
+  const date = slate.tickets.date;
+  if (BELL.date !== date) {
+    // A new slate: start the log again. Done before the readiness check, so
+    // a fresh card never inherits a stale badge while its first poll runs.
+    BELL = { date, items: [], seen: [] };
+    bellSave();
+  }
+  if (!bellReady(slate)) return;
+
+  const have = new Map(BELL.items.map(i => [i.id, i]));
+  const now = Date.now();
+  const early = bellFirstScan;
+  let changed = false;
+
+  bellWithToday(slate, () => {
+    // ---- legs: ONE entry per thing that happened, however many bets it is
+    // on. Aaron Judge homering is one event even when three cards carry him;
+    // the entry lists all three rather than announcing it three times.
+    const legEvents = new Map();
+    const noteLeg = (leg, betName) => {
+      const who = (Array.isArray(leg.players) && leg.players.length > 1)
+        ? leg.players.join(", ") : (leg.player || leg.team || "");
+      const what = bellWhat(leg);
+      const key = "leg:" + (leg.sport || "") + ":" + bellPlain(who).toLowerCase() + ":" + what.toLowerCase();
+      let ev = legEvents.get(key);
+      if (!ev) {
+        ev = { id: key, kind: "leg", who: bellPlain(who), what, team: leg.team || "",
+               odds: bellOdds(leg.odds), bettor: bellPlain(leg.who || ""), bets: [] };
+        legEvents.set(key, ev);
+      }
+      const b = bellPlain(betName);
+      if (b && !ev.bets.includes(b)) ev.bets.push(b);
+    };
+    const bets = [];
+
+    (slate.tickets.windows || []).forEach((w, wi) => (w.tickets || []).forEach((tk, ti) => {
+      const legs = tk.legs || [];
+      const states = legs.map(bellLegState);
+      legs.forEach((leg, li) => { if (states[li] === "hit") noteLeg(leg, tk.name); });
+      const res = evaluateTicket(tk, states);
+      if (res.outcome === "hit") {
+        bets.push({ id: "bet:p:" + wi + ":" + ti + ":" + bellPlain(tk.name).toLowerCase(),
+                    kind: "bet", name: bellPlain(tk.name), sub: bellPlain(tk.sub),
+                    legs: legs.length, stake: tk.stake, payout: res.adjustedPayout || tk.payout,
+                    book: bellPlain(tk.book || ""),
+                    on: legs.map(l => bellPlain((Array.isArray(l.players) && l.players.length > 1)
+                                                ? l.players.join(", ") : (l.player || l.team || "")))
+                             .filter(Boolean) });
+      }
+    }));
+
+    (slate.tickets.singles || []).forEach((sg, si) => {
+      const state = bellLegState(sg);
+      if (state !== "hit") return;
+      // A single is one leg AND one bet, so it earns both entries -- the
+      // same rule as a leg that finishes a parlay.
+      noteLeg(sg, "Single");
+      if (singleOutcome(state) === "hit") {
+        bets.push({ id: "bet:s:" + si + ":" + bellPlain(sg.player).toLowerCase(),
+                    kind: "bet", name: "Single", sub: bellPlain(sg.player), legs: 1,
+                    stake: sg.stake, payout: sg.payout, book: bellPlain(sg.who || ""),
+                    on: [bellPlain(sg.player)] });
+      }
+    });
+
+    const fresh = [...legEvents.values(), ...bets];
+    fresh.forEach(item => {
+      const prior = have.get(item.id);
+      if (prior) {
+        // Already logged: keep its time and read state, but let a leg pick up
+        // a bet it turned out to be on as well.
+        if (item.kind === "leg" && item.bets.length !== (prior.bets || []).length) {
+          prior.bets = item.bets; changed = true;
+        }
+        return;
+      }
+      item.at = now;
+      item.early = early;
+      BELL.items.push(item);
+      changed = true;
+    });
+  });
+
+  bellFirstScan = false;
+  if (changed) bellSave();
+  bellRender();
+}
+
+function bellUnread() {
+  const seen = new Set(BELL.seen);
+  return BELL.items.filter(i => !seen.has(i.id)).length;
+}
+
+function bellTime(item) {
+  if (item.early) return "Earlier";
+  // timeZone is required: the whole site talks in ET, and without it this
+  // formats the VISITOR's clock under an ET label -- the sync-line bug.
+  return new Date(item.at).toLocaleTimeString("en-US",
+    { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+}
+
+function bellItemHtml(item, unread) {
+  if (item.kind === "bet") {
+    const legs = item.legs === 1 ? "Single" : `${item.legs}-leg parlay`;
+    const money = [item.stake != null ? bellMoney(item.stake) + " bet" : "",
+                   item.payout != null ? "paid " + bellMoney(item.payout) : ""].filter(Boolean).join(" \u00b7 ");
+    return `<div class="bell-item bell-bet${unread ? " unread" : ""}" data-id="${escapeHtml(item.id)}">
+      <div class="bell-ico">&#128176;</div>
+      <div class="bell-body">
+        <div class="bell-title">${escapeHtml(item.name)} cashed</div>
+        <div class="bell-sub">${escapeHtml(legs)}${money ? " \u00b7 " + escapeHtml(money) : ""}</div>
+        <div class="bell-meta">${item.book ? "Bet by " + escapeHtml(item.book) + " \u00b7 " : ""}${escapeHtml((item.on || []).join(" + "))}</div>
+      </div>
+      <div class="bell-time">${escapeHtml(bellTime(item))}</div>
+    </div>`;
+  }
+  const meta = [item.team, item.odds, item.bettor].filter(Boolean).join(" \u00b7 ");
+  const on = (item.bets || []).length ? "On " + item.bets.join(", ") : "";
+  return `<div class="bell-item bell-leg${unread ? " unread" : ""}" data-id="${escapeHtml(item.id)}">
+    <div class="bell-ico">&#10003;</div>
+    <div class="bell-body">
+      <div class="bell-title">${escapeHtml(item.who)}</div>
+      <div class="bell-sub">${escapeHtml(item.what)} hit</div>
+      <div class="bell-meta">${escapeHtml([meta, on].filter(Boolean).join(" \u00b7 "))}</div>
+    </div>
+    <div class="bell-time">${escapeHtml(bellTime(item))}</div>
+  </div>`;
+}
+
+function bellRender() {
+  const badge = document.getElementById("bell-badge");
+  if (!badge) return;
+  const n = bellUnread();
+  badge.textContent = n > 99 ? "99+" : (n > 0 ? String(n) : "");
+  document.getElementById("bell-btn").setAttribute("aria-label",
+    n ? `Notifications, ${n} new` : "Notifications");
+  const panel = document.getElementById("bell-panel");
+  if (panel.hidden) return;   // the list is only built when someone is looking at it
+  const seen = new Set(BELL.seen);
+  const items = BELL.items.slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  document.getElementById("bell-count").textContent =
+    items.length ? `${items.length} this slate` : "";
+  document.getElementById("bell-list").innerHTML = items.length
+    ? items.map(i => bellItemHtml(i, !seen.has(i.id))).join("")
+    : `<div class="bell-empty">Nothing yet. Legs that hit and bets that cash show up here.</div>`;
+}
+
+// Opening the panel is what clears the badge -- the user's rule. The list is
+// drawn with the CURRENT unread marks first, so what is new on this visit is
+// still highlighted, and only then is everything marked seen.
+function toggleBell(ev) {
+  if (ev) ev.stopPropagation();
+  const panel = document.getElementById("bell-panel");
+  const btn = document.getElementById("bell-btn");
+  const opening = panel.hidden;
+  panel.hidden = !opening;
+  btn.setAttribute("aria-expanded", String(opening));
+  if (opening) {
+    bellRender();
+    BELL.seen = BELL.items.map(i => i.id);
+    bellSave();
+    const badge = document.getElementById("bell-badge");
+    badge.textContent = "";
+    btn.setAttribute("aria-label", "Notifications");
+  }
+}
+
+// A tap anywhere else closes it, the way every dropdown on a phone does.
+document.addEventListener("click", e => {
+  const wrap = document.getElementById("bell-wrap");
+  const panel = document.getElementById("bell-panel");
+  if (!wrap || !panel || panel.hidden) return;
+  if (!wrap.contains(e.target)) {
+    panel.hidden = true;
+    document.getElementById("bell-btn").setAttribute("aria-expanded", "false");
+  }
+});
+
 async function init() {
   initNotifPrefs();
+  bellLoad();
+  bellRender();
   initFilterHandlers();
   loadCardsOpen();
   if (lsGet(LS_LIVEAB) === "1") document.getElementById("liveab-section").classList.remove("collapsed");

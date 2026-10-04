@@ -1,7 +1,7 @@
 {
   "date": "2026-10-04",
   "endDate": "2026-10-04",
-  "note": "'Barelon Allen' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Keon Coleman 15+' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Jeremiyah Love 80+ Yards' could be MLB or NFL (nothing on the line says which sport)",
+  "note": "'Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs   Combined' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Jaxson Smith-Njigba Most Sunday' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Lions/Panthers Each team to score all four quarters' is not on the NFL roster -- check the spelling, it can't be graded as typed",
   "sports": [
     "mlb",
     "nfl"
@@ -20,26 +20,28 @@
           "legs": [
             {
               "id": "p0-c0-l0",
-              "player": "Barelon Allen",
-              "team": "",
+              "player": "Braelon Allen",
+              "team": "NYJ",
               "who": "",
-              "meta": "",
+              "meta": "NYJ",
               "odds": "+130",
               "time": "",
               "market": "td",
-              "sport": "nfl"
+              "sport": "nfl",
+              "athleteId": "4685247"
             },
             {
               "id": "p0-c0-l1",
-              "player": "Keon Coleman Receiving Yards",
-              "team": "",
+              "player": "Keon Coleman",
+              "team": "BUF",
               "who": "",
-              "meta": "",
+              "meta": "BUF",
               "odds": "+106",
               "time": "",
-              "market": "unknown",
+              "market": "rec_yds",
               "line": 14.5,
-              "sport": "mlb"
+              "sport": "nfl",
+              "athleteId": "4635008"
             },
             {
               "id": "p0-c0-l2",
@@ -90,9 +92,9 @@
             {
               "id": "p0-c1-l2",
               "player": "Mookie Betts",
-              "team": "",
+              "team": "LAD",
               "who": "",
-              "meta": "",
+              "meta": "LAD",
               "odds": "+145",
               "time": "",
               "market": "tb",
@@ -169,15 +171,16 @@
             },
             {
               "id": "p0-c3-l1",
-              "player": "Jeremiyah Love Yards",
-              "team": "",
+              "player": "Jeremiyah Love",
+              "team": "ARI",
               "who": "",
-              "meta": "",
+              "meta": "ARI",
               "odds": "+154",
               "time": "",
-              "market": "unknown",
+              "market": "yards",
               "line": 79.5,
-              "sport": "mlb"
+              "sport": "nfl",
+              "athleteId": "4870808"
             },
             {
               "id": "p0-c3-l2",
@@ -249,39 +252,42 @@
           "legs": [
             {
               "id": "p0-c5-l0",
-              "player": "Josh Allen Passing Touchdowns",
-              "team": "",
+              "player": "Josh Allen",
+              "team": "BUF",
               "who": "",
-              "meta": "",
+              "meta": "BUF",
               "odds": "+235",
               "time": "",
-              "market": "unknown",
+              "market": "pass_tds",
               "line": 2.5,
-              "sport": "mlb"
+              "sport": "nfl",
+              "athleteId": "3918298"
             },
             {
               "id": "p0-c5-l1",
-              "player": "Derrick Henry Touchdowns",
-              "team": "",
+              "player": "Derrick Henry",
+              "team": "BAL",
               "who": "",
-              "meta": "",
+              "meta": "BAL",
               "odds": "+240",
               "time": "",
-              "market": "unknown",
+              "market": "td_count",
               "line": 1.5,
-              "sport": "mlb"
+              "sport": "nfl",
+              "athleteId": "3043078"
             },
             {
               "id": "p0-c5-l2",
-              "player": "Justin Herbert Passing Touchdowns",
-              "team": "",
+              "player": "Justin Herbert",
+              "team": "LAC",
               "who": "",
-              "meta": "",
+              "meta": "LAC",
               "odds": "+210",
               "time": "",
-              "market": "unknown",
+              "market": "pass_tds",
               "line": 1.5,
-              "sport": "mlb"
+              "sport": "nfl",
+              "athleteId": "4038941"
             }
           ]
         },
@@ -359,15 +365,15 @@
           "legs": [
             {
               "id": "p0-c8-l0",
-              "player": "Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs Combined TDs",
+              "player": "Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs   Combined",
               "team": "",
               "who": "",
               "meta": "",
               "odds": "+210",
               "time": "",
-              "market": "unknown",
+              "market": "td_count",
               "line": 3.5,
-              "sport": "mlb"
+              "sport": "nfl"
             },
             {
               "id": "p0-c8-l1",
@@ -407,27 +413,27 @@
             },
             {
               "id": "p0-c9-l1",
-              "player": "Dione Walker (Bills) Sack",
-              "team": "",
+              "player": "Dione Walker (Bills)",
+              "team": "BUF",
               "who": "",
-              "meta": "",
+              "meta": "BUF",
               "odds": "+308",
               "time": "",
-              "market": "unknown",
+              "market": "sacks",
               "line": 0.5,
-              "sport": "mlb"
+              "sport": "nfl"
             },
             {
               "id": "p0-c9-l2",
-              "player": "David Bailey (Jets) Sack",
-              "team": "",
+              "player": "David Bailey (Jets)",
+              "team": "NYJ",
               "who": "",
-              "meta": "",
+              "meta": "NYJ",
               "odds": "+249",
               "time": "",
-              "market": "unknown",
+              "market": "sacks",
               "line": 0.5,
-              "sport": "mlb"
+              "sport": "nfl"
             }
           ]
         }

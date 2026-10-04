@@ -1,7 +1,7 @@
 {
   "date": "2026-10-04",
   "endDate": "2026-10-04",
-  "note": "'Dione Walker (Bills)' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'David Bailey (Jets)' is not on the NFL roster -- check the spelling, it can't be graded as typed",
+  "note": "",
   "sports": [
     "mlb",
     "nfl"
@@ -427,7 +427,7 @@
             },
             {
               "id": "p0-c9-l1",
-              "player": "Dione Walker (Bills)",
+              "player": "Deone Walker",
               "team": "BUF",
               "who": "",
               "meta": "BUF",
@@ -435,11 +435,12 @@
               "time": "",
               "market": "sacks",
               "line": 0.5,
-              "sport": "nfl"
+              "sport": "nfl",
+              "athleteId": "4831989"
             },
             {
               "id": "p0-c9-l2",
-              "player": "David Bailey (Jets)",
+              "player": "David Bailey",
               "team": "NYJ",
               "who": "",
               "meta": "NYJ",
@@ -447,7 +448,8 @@
               "time": "",
               "market": "sacks",
               "line": 0.5,
-              "sport": "nfl"
+              "sport": "nfl",
+              "athleteId": "4685248"
             }
           ]
         }

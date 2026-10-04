@@ -561,6 +561,37 @@ with sync_playwright() as p:
           and "Statcast" not in (page.inner_text("#hrlog-list .hr-row.open") or ""),
           page.query_selector("#hrlog-list .hr-row.open") is not None)
     check("H10 no JavaScript errors", not errors, errors[:3])
+
+    # ---- the always-on status line under each pick ----
+    # Every pick carries one, always: "" on screen is indistinguishable from
+    # the page having no idea. A football pick used to get BASEBALL's line --
+    # "Game on -- not in the lineup yet." -- which was on screen under a man
+    # whose team was first and goal on the twelve. Found by looking at the
+    # rendered page, not by a test.
+    legs = page.eval_on_selector_all(
+        ".leg-live-context, .leg-status",
+        "els => els.map(e => e.textContent.replace(/\\s+/g, ' ').trim())")
+    joined = " || ".join(legs)
+    check("L1 a football pick's status line is football's, not the lineup card's",
+          "not in the lineup" not in joined, joined[:200])
+    check("L2 ...and it says where the ball actually is",
+          any("RED ZONE" in t and "NYG 12" in t for t in legs), legs[:6])
+    check("L3 a baseball pick still gets the batting-order line",
+          any("batting" in t and "AB left" in t for t in legs), legs[:6])
+    # Kelce's drive ended at H4b, so his side is now kicking off -- on defense.
+    # He gets no TILE for that (H4b), but his leg still has to say something,
+    # and it must not be anything that reads like he can score on this play.
+    check("L3b a pick whose side is on defense is told so plainly",
+          any("on defense" in t for t in legs), legs[:6])
+
+    # The colour key is the one thing on the page whose entire job is saying
+    # what the colours mean, and it read "Home run" on a card half of which
+    # was football.
+    check("L4 the colour key names both sports on a mixed card",
+          page.inner_text("#legend-hit").lower() == "home run / touchdown",
+          page.inner_text("#legend-hit"))
+    check("L5 ...and the miss swatch stops saying 'no HR'",
+          "HR" not in page.inner_text("#legend-miss"), page.inner_text("#legend-miss"))
     browser.close()
 
 # ---------- I. alerts fire for whichever sport scored ----------
@@ -733,6 +764,9 @@ with sync_playwright() as p:
     check("K1b ...and it is flagged as cashing the bet it just completed",
           page.evaluate("window.CASHED") is True, page.evaluate("window.CASHED"))
     check("K2 no JavaScript errors", not errors, errors[:3])
+    check("K3 an all-football card's colour key says touchdown and nothing about home runs",
+          page.inner_text("#legend-hit").lower() == "touchdown",
+          page.inner_text("#legend-hit"))
     browser.close()
 
 print()

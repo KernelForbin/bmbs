@@ -2550,12 +2550,46 @@ function playerStatusLine(playerName, state, market, team) {
 // sense when both are true -- no point flagging "batting now" on a leg
 // that's already resolved, or on a parlay that's already dead from
 // another leg missing. Returns "" when there's nothing to show.
+// A football pick's own always-on line. Same contract as playerStatusLine:
+// there is ALWAYS something, because "" on screen is indistinguishable from
+// the page having no idea -- and a hit is the one state that says nothing,
+// since the green check already did.
+function nflStatusLine(leg, state) {
+  if (state === "hit") return "";
+  const line = txt => `<div class="leg-live-context">${txt}</div>`;
+  if (state === "na") return statusLineHtml("On the roster but never got in the game &mdash; void / refunded.");
+
+  const ctx = NFL.context(leg);
+  if (!ctx || ctx.status === "preview") return statusLineHtml("Game hasn't started yet.");
+  if (ctx.status === "final") {
+    return statusLineHtml(ctx.statLine
+      ? `Game final &mdash; no touchdown (${escapeHtml(ctx.statLine)}).`
+      : "Game final &mdash; no touchdown.");
+  }
+
+  const where = `${escapeHtml(ctx.score || "")}${ctx.clockLabel ? ` &middot; ${escapeHtml(ctx.clockLabel)}` : ""}`;
+  const stat = ctx.statLine ? ` &middot; ${escapeHtml(ctx.statLine)}` : "";
+  if (ctx.onOffense) {
+    const tag = ctx.redZone ? "RED ZONE" : "ON OFFENSE";
+    const cls = ctx.redZone ? "now rz" : "now";
+    return line(`<span class="leg-action-tag ${cls}">${tag}</span> ${escapeHtml(ctx.downDistance || "Ball on offense")} &middot; ${where}${stat}`);
+  }
+  if (ctx.takingFieldSoon) {
+    return line(`<span class="leg-action-tag soon">TAKING THE FIELD SOON</span> ${where}${stat}`);
+  }
+  // His side is on defense. Said plainly rather than left blank, and
+  // deliberately NOT given a tag -- green anywhere here would claim he can
+  // score on a play his team doesn't have the ball for.
+  return statusLineHtml(`Game on &mdash; his side is on defense. ${where}${stat}`);
+}
+
 function liveContextHtml(playerName, state, betIsOpen, market, team, leg) {
   // Markets whose subject is a TEAM or a GAME have no player, so none of the
   // batting-order machinery below applies. They get their own plain line.
   const def = MARKETS[market];
   if (def && def.subject !== "player") return gameLineStatusLine(state, market, team, leg);
   if (state === "untracked") return playerStatusLine(playerName, state, market, team);
+  if (leg && leg.sport === "nfl") return nflStatusLine(leg, state);
   if (market === "sb") return stealContextHtml(playerName, state, betIsOpen, team);
   const norm = normalizeName(playerName);
   const ownHit = RESULTS.hitNames && RESULTS.hitNames.has(norm);
@@ -4113,9 +4147,17 @@ function computeAll() {
   const bettorCountEl = document.getElementById("bettor-count");
   if (bettorCountEl) bettorCountEl.textContent = rows.length ? `${rows.length} ${rows.length === 1 ? "BETTOR" : "BETTORS"}` : "";
 
-  const mixed = slateHasSteals();
-  document.getElementById("legend-hit").textContent = mixed ? "Home run / steal" : "Home run";
-  document.getElementById("legend-miss").textContent = mixed ? "Game final, missed" : "Game final, no HR";
+  const legs = [];
+  (TICKETS && TICKETS.windows || []).forEach(w => (w.tickets || []).forEach(t => legs.push(...(t.legs || []))));
+  (TICKETS && TICKETS.singles || []).forEach(x => legs.push(x));
+  const hasNfl = legs.some(l => l.sport === "nfl");
+  const hasMlb = legs.some(l => l.sport !== "nfl");
+  const words = [];
+  if (hasMlb) words.push(slateHasSteals() ? "Home run / steal" : "Home run");
+  if (hasNfl) words.push("touchdown");
+  document.getElementById("legend-hit").textContent = words.join(" / ") || "Home run";
+  document.getElementById("legend-miss").textContent =
+    (hasNfl || slateHasSteals()) ? "Game final, missed" : "Game final, no HR";
 
   // Parser warnings only. The old "Auto-tracked against live MLB results."
   // copy was dropped as redundant with the LIVE FROM MLB eyebrow, but a real

@@ -1050,12 +1050,19 @@ function liveContextForPlayer(playerName) {
   // case where our own drive just ended -- we're kicking off, not taking the
   // field -- which is what `!myDriveOpen` rules out.
   const takingFieldSoon = hasPossession && !onOffense && !myDriveOpen;
+  // The OTHER side has the ball and their drive is live -- the same three
+  // conditions as onOffense, mirrored. It matters only to a defensive prop: a
+  // sack can happen on exactly these snaps and no others, which is the
+  // inverse of every other pick on this wall.
+  const oppHasBall = !!(drive && team && drive.team && drive.team !== team);
+  const onDefense = oppHasBall && (!drive.driveTeam || drive.driveTeam === drive.team) && !drive.driveOver;
   return {
     gamePk: game.gamePk, status: game.status, team,
     opponent: ["away", "home"].map(s => game.teams[s]).filter(t => t && t.abbr !== team).map(t => t.abbr)[0] || "",
     clockLabel: periodLabel(game),
     score: `${game.teams.away.abbr} ${game.teams.away.score}, ${game.teams.home.abbr} ${game.teams.home.score}`,
-    onOffense, takingFieldSoon, redZone: onOffense && drive.redZone,
+    onOffense, takingFieldSoon, onDefense, redZone: onOffense && drive.redZone,
+    oppDownDistance: onDefense ? drive.downDistance : "",
     downDistance: onOffense ? drive.downDistance : "", yardsToEndzone: onOffense ? drive.yardsToEndzone : null,
     driveDescription: onOffense ? drive.description : "", lastPlay: (drive && drive.lastPlay) || "",
     line, statLine: statLineText(line), link: espnGameUrl(game.gamePk)
@@ -1157,7 +1164,19 @@ function drvOddsText(odds) {
 }
 
 function drvFootLine(ctx, pick) {
-  return [ctx.statLine, pick.whos.join(", ")].filter(Boolean).map(escapeHtml).join(" &middot; ");
+  // Progress toward the line comes FIRST when there is one -- "2 of 3
+  // passing TDs" is the thing the person holding that bet is watching for.
+  return [pick.progress, ctx.statLine, pick.whos.join(", ")]
+    .filter(Boolean).map(escapeHtml).join(" &middot; ");
+}
+
+// A defensive pick, while the other side has the ball. Shows THEIR down and
+// distance, because that is the snap he can make the play on.
+function drvDefenseTile(pick, ctx) {
+  return drvTileShell("now", "ON DEFENSE", pick, ctx.link, `
+    <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}</div>
+    <div class="ab-countrow"><span class="ab-count drv-down">${escapeHtml(ctx.oppDownDistance || "Opponent has the ball")}</span></div>
+    <div class="ab-line faint">${drvFootLine(ctx, pick)}</div>`);
 }
 
 function drvTileShell(cls, tag, pick, link, inner) {
@@ -1333,6 +1352,7 @@ return {
   rowHtml: tdRowHtml, detailHtml: tdDetailHtml,
   toggleRow(id) { if (TD_EXPANDED.has(id)) TD_EXPANDED.delete(id); else TD_EXPANDED.add(id); },
   ballTile: drvBallTile, waitTile: drvWaitTile, resultTile: drvResultTile,
+  defenseTile: drvDefenseTile,
   oddsText: drvOddsText, gameUrl: espnGameUrl,
   norm(name) { return normalizeName(name); },
 
@@ -3563,15 +3583,41 @@ function zoneGridHtml(zone) {
 // inning-specific total can't be followed from a final score, so a tile could
 // only ever show a number that means nothing.
 const LIVE_TILE_KIND = {
-  // NFL. Only an anytime-TD leg earns a tile: a yardage prop cannot be
-  // followed from what ESPN publishes live, so a tile could only ever show a
-  // number that means nothing -- the same reason an inning-specific total
-  // gets none on the baseball side.
-  td: "drive",
+  // NFL. Every prop the page can GRADE live it can also follow live -- the
+  // numbers come off the same boxscore. This used to be anytime-TD only, on
+  // the reasoning that a yardage prop "can't be followed from what ESPN
+  // publishes live"; that stopped being true when these were wired up for
+  // grading, and the exclusion outlived its reason. A passing-TD leg never
+  // appeared at all, at 0 thrown or at 2.
+  td: "drive", td_count: "drive", pass_tds: "drive", pass_yds: "drive",
+  rec_yds: "drive", rush_yds: "drive", receptions: "drive", most_rec_yds: "drive",
+  // A sack happens while his side DEFENDS, which is the inverse of every
+  // other pick here -- so it gets its own kind, and a tile on those snaps.
+  sacks: "defense",
   hr: "bat", sb: "base", hrr: "bat", hits: "bat", rbi: "bat", runs: "bat",
   tb: "bat", doubles: "bat", k: "mound", er: "mound", win: "mound",
   ml: "game", spread: "game", total: "game", f5: "game",
 };
+// What a football prop counts, and what to call it on a tile.
+const NFL_PROGRESS = {
+  pass_tds: ["passTd", "passing TDs"], pass_yds: ["passYds", "pass yds"],
+  rec_yds: ["recYds", "rec yds"], rush_yds: ["rushYds", "rush yds"],
+  receptions: ["rec", "catches"], td_count: ["td", "TDs"], sacks: ["sacks", "sacks"],
+};
+// "2 of 3 passing TDs". Over 2.5 needs 3, so the target is floor(line) + 1.
+// Skipped for a leg naming several players: this tile is ONE of them, and
+// his own count against a combined line would read as further from cashing
+// than the bet really is.
+function nflProgress(pick, dctx) {
+  if (!dctx || !dctx.line) return "";
+  return (pick.entries || []).map(e => {
+    const spec = NFL_PROGRESS[e.market];
+    if (!spec || (e.names && e.names.length > 1)) return "";
+    const line = (e.line === null || e.line === undefined) ? 0.5 : Number(e.line);
+    return `${dctx.line[spec[0]] || 0} of ${Math.floor(line) + 1} ${spec[1]}`;
+  }).filter(Boolean).join(" \u00b7 ");
+}
+
 function liveTileKind(leg) { return LIVE_TILE_KIND[legMarket(leg)] || null; }
 
 // The stat columns a market counts, so a tile can show progress toward the
@@ -4204,17 +4250,23 @@ function renderLiveAtBats() {
     // score, an open drive alone is stale right after a punt, and a finished
     // drive still named as current IS the kickoff window -- the NFL engine's
     // own liveContextForPlayer checks all three.
-    if (pick.kinds && pick.kinds.has("drive")) {
+    if (pick.kinds && (pick.kinds.has("drive") || pick.kinds.has("defense"))) {
       const dctx = NFL.context(pick);
-      if (dctx && dctx.status === "live") {
+      // A copy, so the progress line rides along to the tile without being
+      // left on a pick object that is rebuilt every render anyway.
+      const tp = Object.assign({}, pick, { progress: nflProgress(pick, dctx) });
+      if (dctx && dctx.status === "live" && pick.kinds.has("defense") && dctx.onDefense) {
+        nowCount++;
+        tiles.push({ rank: 2, order: 50, html: NFL.defenseTile(tp, dctx) });
+      } else if (dctx && dctx.status === "live" && pick.kinds.has("drive")) {
         if (dctx.onOffense) {
           nowCount++;
           tiles.push({ rank: dctx.redZone ? 1 : 2,                       // closest to the goal line first
                        order: dctx.yardsToEndzone === null ? 99 : dctx.yardsToEndzone,
-                       html: NFL.ballTile(pick, dctx) });
+                       html: NFL.ballTile(tp, dctx) });
         } else if (dctx.takingFieldSoon) {
           soonCount++;
-          tiles.push({ rank: 3, order: 0, html: NFL.waitTile(pick, dctx) });
+          tiles.push({ rank: 3, order: 0, html: NFL.waitTile(tp, dctx) });
         }
         // Nothing at all while his defence is on the field. Baseball has
         // never shown a tile for a player whose side isn't batting, and a

@@ -1019,6 +1019,52 @@ with sync_playwright() as p:
     check("P12 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
+# ---------- Q. every followable football prop is on the tracker ----------
+# Only anytime-TD legs had a tile, on reasoning that stopped being true once
+# these props were graded off the live boxscore. A passing-TD leg never
+# showed at all -- not at 0 thrown, not at 2 -- which is what the user saw.
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [
+                     card(50, [nfl_leg_m(1, "Pass Guy", "PHI", "pass_tds", 2.5, "31")]),
+                     card(51, [nfl_leg_m(2, "Rush Guy", "NYG", "sacks", 0.5, "32")]),
+                     # Same market, wrong side of the ball right now.
+                     card(52, [nfl_leg_m(3, "Phi Rusher", "PHI", "sacks", 0.5, "33")]),
+                 ]}], "singles": []}
+FX["mlb_sched"][DAY] = {"dates": []}
+FX["espn_events"] = {"9001": espn_event("9001", "in", (14, 10))}
+# PHI have the ball at the NYG 12. Their QB has thrown 2 of the 3 he needs;
+# NYG's pass rusher is on the field for exactly these snaps; PHI's own
+# rusher is on the sideline while his offense is out there.
+FX["espn_summaries"]["9001"] = espn_summary(
+    "9001", "in", {"PHI": [("31", "Pass Guy", "passing", (2, 1)),
+                           ("33", "Phi Rusher", "defensive", (3, 2, 0))],
+                   "NYG": [("32", "Rush Guy", "defensive", (4, 3, 0))]},
+    (14, 10), current=espn_drive("d1", "PHI", 12, "1st & 10 at NYG 12"))
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("toggleLiveAb()")
+    page.wait_for_timeout(200)
+    tiles = page.eval_on_selector_all(
+        "#liveab-grid .ab-tile",
+        "els => Object.fromEntries(els.map(e => [e.querySelector('.ab-name').textContent.trim(), "
+        "{tag: e.querySelector('.ab-tag').textContent.trim(), text: e.textContent.replace(/\\s+/g, ' ')}]))")
+    pg = tiles.get("Pass Guy", {})
+    check("Q1 a passing-TD pick gets a tile while his offense has the ball",
+          bool(pg), sorted(tiles))
+    check("Q2 ...showing how close he is: 2 of 3 passing TDs",
+          "2 of 3 passing TDs" in pg.get("text", ""), pg.get("text", "")[:160])
+    rg = tiles.get("Rush Guy", {})
+    check("Q3 a SACK pick gets a tile while his side is on DEFENSE -- the inverse "
+          "of every other pick, because that is when a sack can happen",
+          rg.get("tag") == "ON DEFENSE", tiles)
+    check("Q4 ...showing the snap he can make the play on",
+          "NYG 12" in rg.get("text", ""), rg.get("text", "")[:160])
+    check("Q5 a sack pick whose OFFENSE has the ball gets no tile -- he is on the sideline",
+          "Phi Rusher" not in tiles, sorted(tiles))
+    check("Q6 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

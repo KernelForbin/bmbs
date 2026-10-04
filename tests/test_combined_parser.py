@@ -317,15 +317,17 @@ check("M7 a one-touchdown leg IS still anytime, with no line",
       by.get("Braelon Allen", {}).get("market") == "td"
       and by.get("Braelon Allen", {}).get("line") is None, by.get("Braelon Allen"))
 
-# The name keeps its "(Bills)" annotation, which is how the team got
-# resolved at all -- he isn't on the roster, so the parenthetical is the only
-# thing that says which side he plays for. Asserted as it really is rather
-# than as it would look tidiest.
-check("M8 a sack prop is named rather than left unknown",
-      by.get("Dione Walker (Bills)", {}).get("market") == "sacks", sorted(by))
-check("M8b ...and the parenthetical team is what resolves him",
-      by.get("Dione Walker (Bills)", {}).get("team") == "BUF",
-      by.get("Dione Walker (Bills)"))
+# These two used to assert that the name KEPT its "(Bills)", on the stated
+# belief that "he isn't on the roster, so the parenthetical is the only thing
+# that says which side he plays for". That belief was wrong: Deone Walker is
+# on the roster, BUF. The card misspelt him "Dione" AND bracketed his team,
+# and the bracket alone was enough to stop the match. The test was pinning the
+# bug. See M30-M33 for the bracket handling itself.
+check("M8 a sack prop is named rather than left unknown, under his real name",
+      by.get("Deone Walker", {}).get("market") == "sacks", sorted(by))
+check("M8b ...resolved to the roster, team and athlete id together",
+      by.get("Deone Walker", {}).get("team") == "BUF"
+      and by.get("Deone Walker", {}).get("athleteId"), by.get("Deone Walker"))
 check("M9 a bare 'Yards' is a yardage prop on the right sport, not an unknown "
       "BASEBALL market -- the card doesn't say which kind and neither do we",
       by.get("Jeremiyah Love", {}).get("market") == "yards"
@@ -452,6 +454,39 @@ check("M28 ...with the day and the boost stripped off the name, so he resolves",
 check("M29 an ordinary receiving-yards leg on the same ticket is unaffected",
       ml.get("Keon Coleman", {}).get("market") == "rec_yds"
       and ml.get("Keon Coleman", {}).get("line") == 14.5, ml.get("Keon Coleman"))
+
+# "David Bailey (Jets)" -- the team in brackets after the name. Bailey is on
+# the roster, NYJ, exact; with "(Jets)" left on the string he matched nothing,
+# and the card was flagged as misspelt when it wasn't. "Dione" is a real typo
+# for Deone Walker, and the "(Bills)" is what keeps the fuzzy match honest.
+PAREN = (
+    "Ticket 1\n"
+    "Dione Walker (Bills) Sack +308\n"
+    "David Bailey (Jets) Sack +249\n"
+    "Stake: 4.00 | Pays: 40.00\n"
+)
+out9 = cp.build(PAREN, MLB, NFL, NOW, no_network)
+pb = {l["player"]: l for w in out9["windows"] for t in w["tickets"] for l in t["legs"]}
+check("M30 a bracketed team comes off the name, so a rostered player resolves",
+      "David Bailey" in pb and pb["David Bailey"].get("athleteId"), sorted(pb))
+check("M31 ...and with no false 'not on the roster' warning about him",
+      "Bailey" not in (out9["note"] or ""), out9["note"])
+check("M32 a typo is corrected within the team the card named",
+      pb.get("Deone Walker", {}).get("team") == "BUF"
+      and pb.get("Deone Walker", {}).get("athleteId"), sorted(pb))
+# The guard itself, directly: a misspelt name whose ONLY close match plays for
+# a different team than the one written is not that player.
+GUARD = (
+    "Ticket 1\n"
+    "Dione Walker (Ravens) Sack +308\n"
+    "David Bailey (Jets) Sack +249\n"
+    "Stake: 4.00 | Pays: 40.00\n"
+)
+out10 = cp.build(GUARD, MLB, NFL, NOW, no_network)
+gb = [l for w in out10["windows"] for t in w["tickets"] for l in t["legs"]]
+check("M33 a fuzzy match is refused when he plays for a different team than the "
+      "card says -- Deone Walker is BUF, not BAL",
+      not any(l["player"] == "Deone Walker" for l in gb), [(l["player"], l.get("team")) for l in gb])
 
 check("M12 an unsigned trailing price is still read as the price",
       by.get("Mookie Betts", {}).get("odds") == "+145", by.get("Mookie Betts"))

@@ -1097,10 +1097,29 @@ different question confidently and wrongly.
 
 **The Live Bet Tracker carries both sports on one wall.** A football pick has
 no batting order, no base and no inning, so every path in `renderLiveAtBats`
-skipped it until `LIVE_TILE_KIND` gained `td: "drive"`. Green means what it
+skipped it until `LIVE_TILE_KIND` gained a `drive` kind. Green means what it
 means on the football page and nothing looser -- possession AND an open drive
-AND that drive not already over. Nothing at all while his defence is on the
-field, matching baseball.
+AND that drive not already over.
+
+**Every football prop the page can GRADE live, it can also FOLLOW live** -- the
+numbers come off the same boxscore. This was anytime-TD only for a while, on
+the reasoning that a yardage prop "can't be followed from what ESPN publishes
+live"; that stopped being true when those props were wired up for grading,
+and the exclusion outlived its reason. A Josh Allen passing-TD leg never
+appeared at all, at 0 thrown or at 2 -- the user asked whether it would show
+once he was one away, and the honest answer was that it never would. The
+tile carries PROGRESS first ("2 of 3 passing TDs", from `nflProgress()`),
+skipped for a leg naming several players because one man's count against a
+combined line reads further from cashing than the bet is.
+
+**Sacks are the inverse case and have their own `defense` kind.** A sack can
+only happen while his side DEFENDS, so his tile shows on exactly the snaps
+every other pick's doesn't, labelled ON DEFENSE with the OPPONENT's down and
+distance. `onDefense` mirrors `onOffense`'s three conditions for the other
+side. This is not the ON DEFENSE tile the user had removed from the football
+page -- that one was on anytime-TD picks, who cannot score from defense; a
+pass rusher can only cash from it. `test_combined_page.py` Q pins both, plus
+a sack pick whose own offense is out there getting nothing.
 
 **The Home Run Log is the Scoring Log here**: home runs and touchdowns
 interleaved by timestamp, each keeping its own row builder and detail panel,

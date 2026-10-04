@@ -110,6 +110,10 @@ WHEN_TAIL_RE = re.compile(
     r"|tonight|today|boosted|bonus)\b\s*$", re.IGNORECASE)
 
 
+# "(Jets)" / "(Bills)" -- a team in brackets at the END of a name.
+PAREN_TEAM_RE = re.compile(r"\s*\(([^()]{2,30})\)\s*$")
+
+
 def strip_when(text):
     """Trailing day-of-week / boost words, repeatedly: "... Sunday Boosted"."""
     prev = None
@@ -366,6 +370,19 @@ def scan_card(text, mlb, nfl):
             line_val = float(qty.group(0).rstrip("+ ").strip()) - 0.5
             side_val = side_val or "over"
         cleaned = strip_when(QTY_RE.sub(" ", cleaned).strip(" -:|·"))
+        # "David Bailey (Jets)" -- a TEAM in brackets after the name. Left on,
+        # it is part of the string being looked up, so a player who is plainly
+        # on the roster (Bailey is, NYJ, exact) matched nothing; the leg only
+        # got a team at all by reading the word "Jets", with no player and no
+        # athlete id behind it. Taken off, and kept as a hint the match has to
+        # agree with.
+        paren_team = None
+        pm = PAREN_TEAM_RE.search(cleaned)
+        if pm:
+            paren_team = (nfl_team_in(pm.group(1))
+                          or mlb_team_in(pm.group(1), mlb.get("abbr_by_team_word") or {}))
+            if paren_team:
+                cleaned = cleaned[:pm.start()].strip()
         rec = {"sport": sport, "market": market, "line": line_val,
                "side": side_val, "name": cleaned, "why": why}
         # A TEAM subject, not a player: "Braves Over 3.5 Runs" is the Braves'
@@ -480,7 +497,14 @@ def scan_card(text, mlb, nfl):
             # with a blank team, which on the page is a leg that can never
             # grade a hit OR a miss.
             if norm not in nfl["team_by_name"]:
-                near = difflib.get_close_matches(norm, nfl["team_by_name"].keys(), n=2, cutoff=0.82)
+                # When the card named his team, only that team's players are
+                # candidates. "Dione Walker" is 0.92 from Deone Walker (BUF)
+                # and 0.815 from Devontez Walker (BAL) -- a hair under the
+                # cutoff today, and one roster rebuild from going ambiguous.
+                # The "(Bills)" the card wrote settles it either way.
+                pool = ([k for k, v in nfl["team_by_name"].items() if v == paren_team]
+                        if paren_team else nfl["team_by_name"].keys())
+                near = difflib.get_close_matches(norm, pool, n=2, cutoff=0.82)
                 if len(near) == 1:
                     print(f"NOTE: read {cleaned!r} as "
                           f"{nfl['canonical_name_by_norm'].get(near[0], near[0])!r}.", file=sys.stderr)

@@ -86,13 +86,19 @@ def mlb_feed(abstract, roster, hrs=(), inning=None, state="Top", outs=1, batter=
 
 
 # ---------------- ESPN fixtures ----------------
-TEAM_ID = {"PHI": "21", "NYG": "19", "KC": "12", "DEN": "7"}
-NFL_GAMES = {"9001": ("PHI", "NYG"), "9002": ("KC", "DEN")}
+TEAM_ID = {"PHI": "21", "NYG": "19", "KC": "12", "DEN": "7", "LAR": "14", "SEA": "26"}
+NFL_GAMES = {"9001": ("PHI", "NYG"), "9002": ("KC", "DEN"), "9003": ("LAR", "SEA")}
+# 9003 exists only for section O. Every earlier section builds its scoreboard
+# from MAIN_GAMES, because an event with no summary fixture makes the route
+# handler raise and the page never finishes its first poll.
+MAIN_GAMES = ("9001", "9002")
 LABELS = {"rushing": ["CAR", "YDS", "AVG", "TD", "LONG"],
-          "receiving": ["REC", "YDS", "AVG", "TD", "LONG", "TGTS"]}
+          "receiving": ["REC", "YDS", "AVG", "TD", "LONG", "TGTS"],
+          # Real labels, read off a finished game -- SACKS sits third.
+          "defensive": ["TOT", "SOLO", "SACKS", "TFL", "PD", "QB HTS", "TD"]}
 
 
-def espn_event(gid, state, score=(0, 0)):
+def espn_event(gid, state, score=(0, 0), quarters=None):
     away, home = NFL_GAMES[gid]
     return {"id": gid, "date": f"{DAY}T17:00Z",
             "status": {"period": 4, "displayClock": "2:00",
@@ -100,9 +106,12 @@ def espn_event(gid, state, score=(0, 0)):
                                 "shortDetail": {"pre": "1:00 PM", "in": "2:00 - Q4", "post": "Final"}[state]}},
             "competitions": [{"competitors": [
                 {"id": TEAM_ID[away], "homeAway": "away", "score": str(score[0]),
-                 "team": {"abbreviation": away}},
+                 "team": {"abbreviation": away},
+                 # Per-quarter points, exactly as ESPN ships them.
+                 "linescores": [{"displayValue": str(q)} for q in (quarters or [None, None])[0] or []]},
                 {"id": TEAM_ID[home], "homeAway": "home", "score": str(score[1]),
-                 "team": {"abbreviation": home}}]}]}
+                 "team": {"abbreviation": home},
+                 "linescores": [{"displayValue": str(q)} for q in (quarters or [None, None])[1] or []]}]}]}
 
 
 def espn_scoring(play_id, team, kind, text, period, clock, away_score, home_score):
@@ -130,16 +139,20 @@ def espn_drive(drive_id, team, to_go, down_text, result=None, possession=None):
     return d
 
 
-def espn_summary(gid, state, lines, score=(0, 0), plays=(), current=None):
-    ev = espn_event(gid, state, score)
+def espn_summary(gid, state, lines, score=(0, 0), plays=(), current=None, quarters=None):
+    ev = espn_event(gid, state, score, quarters)
     comp = ev["competitions"][0]
     comp["status"] = ev["status"]
     players = []
     for team, rows in lines.items():
         cats = {}
         for aid, name, cat, vals in rows:
-            stats = ([str(vals[0]), str(vals[1]), "0.0", str(vals[2]), "0"] if cat == "rushing"
-                     else [str(vals[0]), str(vals[1]), "0.0", str(vals[2]), "0", str(vals[3])])
+            if cat == "rushing":
+                stats = [str(vals[0]), str(vals[1]), "0.0", str(vals[2]), "0"]
+            elif cat == "defensive":            # (tackles, solo, sacks)
+                stats = [str(vals[0]), str(vals[1]), str(vals[2]), "0", "0", "0", "0"]
+            else:
+                stats = [str(vals[0]), str(vals[1]), "0.0", str(vals[2]), "0", str(vals[3])]
             cats.setdefault(cat, []).append(
                 {"athlete": {"id": aid, "displayName": name}, "stats": stats})
         players.append({"team": {"abbreviation": team},
@@ -275,7 +288,7 @@ FX["mlb_sched"][DAY] = mlb_schedule(DAY, [(5001, "Final", ["NYY", "BOS"]),
 FX["mlb_feeds"][5001] = mlb_feed("Final", ["Aaron Judge"] + [f"NY{i}" for i in range(8)],
                                  hrs=["Aaron Judge"])
 FX["mlb_feeds"][5002] = mlb_feed("Final", ["Juan Soto"] + [f"NM{i}" for i in range(8)])
-FX["espn_events"] = {g: espn_event(g, "post", (21, 17)) for g in NFL_GAMES}
+FX["espn_events"] = {g: espn_event(g, "post", (21, 17)) for g in MAIN_GAMES}
 # Barkley scored; Kelce caught passes but no touchdown.
 FX["espn_summaries"]["9001"] = espn_summary(
     "9001", "post", {"PHI": [("1", "Saquon Barkley", "rushing", (18, 92, 1))]}, (21, 17))
@@ -345,7 +358,7 @@ with sync_playwright() as p:
 # baseball slate must not move the card to Yesterday while its football game
 # is still being played. Getting this wrong yanks a live card off the tab
 # mid-game -- the exact failure a clock-based rollover caused once before.
-FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in NFL_GAMES}
+FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in MAIN_GAMES}
 FX["espn_summaries"]["9001"] = espn_summary(
     "9001", "in", {"PHI": [("1", "Saquon Barkley", "rushing", (12, 60, 0))]}, (14, 10))
 FX["espn_summaries"]["9002"] = espn_summary(
@@ -388,7 +401,7 @@ with sync_playwright() as p:
 # results.noGames, and the sync line prints that verbatim as the headline for
 # a finished slate -- true, but the wrong thing to say about a card that was
 # football all along.
-FX["espn_events"] = {g: espn_event(g, "post", (24, 20)) for g in NFL_GAMES}
+FX["espn_events"] = {g: espn_event(g, "post", (24, 20)) for g in MAIN_GAMES}
 FX["espn_summaries"]["9001"] = espn_summary(
     "9001", "post", {"PHI": [("1", "Saquon Barkley", "rushing", (18, 92, 1))]}, (24, 20))
 FX["espn_summaries"]["9002"] = espn_summary(
@@ -412,7 +425,7 @@ with sync_playwright() as p:
 FX["tickets"] = TICKETS
 FX["mlb_sched"][DAY] = mlb_schedule(DAY, [(5001, "Final", ["NYY", "BOS"]),
                                           (5002, "Final", ["NYM", "ATL"])])
-FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in NFL_GAMES}
+FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in MAIN_GAMES}
 FX["espn_summaries"]["9001"] = espn_summary(
     "9001", "in", {"PHI": [("1", "Saquon Barkley", "rushing", (12, 60, 0))]}, (14, 10))
 FX["espn_summaries"]["9002"] = espn_summary(
@@ -447,7 +460,7 @@ FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["mlb"],
 FX["mlb_sched"][DAY] = mlb_schedule(DAY, [(5001, "Final", ["NYY", "BOS"]),
                                           (5002, "Final", ["NYM", "ATL"])])
 # ESPN still has live games today. Nothing on this card is in them.
-FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in NFL_GAMES}
+FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in MAIN_GAMES}
 SEEN.clear()
 
 with sync_playwright() as p:
@@ -475,7 +488,7 @@ FX["mlb_feeds"][5001] = mlb_feed("Live", ["Aaron Judge"] + [f"NY{i}" for i in ra
 # current batter or it places nobody.
 FX["mlb_feeds"][5002] = mlb_feed("Live", ["NM0", "Juan Soto"] + [f"NM{i}" for i in range(1, 8)],
                                  inning=5, state="Top", outs=1, batter="NM0")
-FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in NFL_GAMES}
+FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in MAIN_GAMES}
 # Barkley has NOT scored and his side has the ball inside the 20 -- a tile he
 # can score from. Kelce has not scored either and KC's drive has just ENDED,
 # which ESPN keeps on drives.current right through the following kickoff:
@@ -614,7 +627,7 @@ FX["mlb_feeds"][5001] = mlb_feed("Live", ["Aaron Judge"] + [f"NY{i}" for i in ra
                                  inning=5, state="Top", outs=1, batter="Aaron Judge")
 FX["mlb_feeds"][5002] = mlb_feed("Live", ["NM0", "Juan Soto"] + [f"NM{i}" for i in range(1, 8)],
                                  inning=5, state="Top", outs=1, batter="NM0")
-FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in NFL_GAMES}
+FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in MAIN_GAMES}
 FX["espn_summaries"]["9001"] = espn_summary(
     "9001", "in", {"PHI": [("1", "Saquon Barkley", "rushing", (12, 60, 0))]}, (14, 10),
     current=espn_drive("d1", "PHI", 12, "1st & 10 at NYG 12"))
@@ -818,6 +831,84 @@ with sync_playwright() as p:
     check("N5 none of them fell through to untracked",
           "untracked" not in ls.values(), ls)
     check("N6 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
+# ---------- O. the three football markets that were untracked ----------
+# All three were called untrackable and none of them was. ESPN publishes
+# sacks in the DEFENSIVE boxscore category and per-quarter points as
+# competitors[].linescores -- both checked against a real finished game
+# before any of this was written.
+def nfl_leg_m(i, player, team, market, line, aid="", players=None, teams=None):
+    leg = {"id": f"O{i}", "player": player, "team": team, "athleteId": aid,
+           "who": "Memo", "meta": team, "odds": "+308", "time": "1:00 PM ET",
+           "sport": "nfl", "market": market}
+    if line is not None:
+        leg["line"] = line
+    if players:
+        leg["players"] = players
+    if teams:
+        leg["teams"] = teams
+    return leg
+
+
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [
+                     card(30, [nfl_leg_m(1, "Sack Guy", "PHI", "sacks", 0.5, "11")]),
+                     card(31, [nfl_leg_m(2, "No Sack", "PHI", "sacks", 0.5, "12")]),
+                     # One bet on three men's combined touchdowns: 2 + 1 + 1 = 4
+                     card(32, [nfl_leg_m(3, "A, B, C", "PHI", "td_count", 3.5, "",
+                                         players=["Three A", "Three B", "Three C"])]),
+                     card(33, [nfl_leg_m(4, "PHI + NYG", "PHI", "quarters", None,
+                                         teams=["PHI", "NYG"])]),
+                     card(34, [nfl_leg_m(5, "KC + DEN", "KC", "quarters", None,
+                                         teams=["KC", "DEN"])]),
+                     # Still being played, and LAR have already been blanked
+                     # in a quarter that finished. It can never come good, so
+                     # it must settle now rather than waiting for the whistle.
+                     card(35, [nfl_leg_m(6, "LAR + SEA", "LAR", "quarters", None,
+                                         teams=["LAR", "SEA"])]),
+                 ]}], "singles": []}
+FX["mlb_sched"][DAY] = {"dates": []}
+FX["espn_events"] = {g: espn_event(g, "post", (24, 20)) for g in MAIN_GAMES}
+FX["espn_events"]["9003"] = espn_event("9003", "in", (10, 14))
+# LAR were blanked in the SECOND quarter and the third is still being played,
+# so the bet is already dead with a quarter left to go.
+FX["espn_summaries"]["9003"] = espn_summary(
+    "9003", "in", {"LAR": [("20", "Ram Guy", "rushing", (5, 20, 0))]},
+    (10, 14), quarters=[[7, 0, 3], [7, 7, 0]])
+# PHI and NYG both score in all four. DENVER blanks the second quarter.
+FX["espn_summaries"]["9001"] = espn_summary(
+    "9001", "post", {"PHI": [("11", "Sack Guy", "defensive", (5, 4, 1)),
+                             ("12", "No Sack", "defensive", (6, 5, 0)),
+                             ("13", "Three A", "rushing", (12, 60, 2)),
+                             ("14", "Three B", "rushing", (8, 40, 1)),
+                             ("15", "Three C", "receiving", (4, 30, 1, 5))]},
+    (24, 20), quarters=[[7, 3, 7, 7], [3, 7, 3, 7]])
+FX["espn_summaries"]["9002"] = espn_summary(
+    "9002", "post", {"KC": [("2", "Travis Kelce", "receiving", (6, 71, 0, 8))]},
+    (24, 20), quarters=[[7, 7, 3, 10], [3, 0, 3, 7]])
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("activateTab('yesterday')")
+    page.wait_for_timeout(200)
+    ls = leg_states(page)
+    check("O1 a sack prop over 0.5 settles as a HIT when he got one",
+          ls.get("O1") == "hit", ls)
+    check("O2 ...and a miss when he didn't, once the game is final",
+          ls.get("O2") == "miss", ls)
+    check("O3 a combined touchdown leg ADDS all three players (2+1+1 beats 3.5)",
+          ls.get("O3") == "hit", ls)
+    check("O4 'each team all four quarters' hits when both teams did",
+          ls.get("O4") == "hit", ls)
+    check("O5 ...and misses when one of them was blanked in a quarter",
+          ls.get("O5") == "miss", ls)
+    check("O5b ...and it fails EARLY, on a quarter already played, rather than "
+          "sitting live until the whistle on a bet that cannot come good",
+          ls.get("O6") == "miss", ls)
+    check("O6 none of them fell through to untracked",
+          "untracked" not in ls.values(), ls)
+    check("O7 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
 print()

@@ -107,9 +107,17 @@ NFL_MARKET_ALIASES = [
     # touchdown does not cash an anytime-TD bet on the man who threw it --
     # the same exclusion football/index.html makes when it sums its TD
     # columns and deliberately leaves passing out.
+    # BEFORE td: "each team to score all four quarters" contains neither
+    # word, but it must not fall through to the generic yardage/unknown rows
+    # either. Graded off ESPN's per-quarter linescores.
+    ("quarters",       r"all\s+four\s+quarters|every\s+quarter|all\s*4\s*quarters"),
     ("pass_tds",       r"passing\s+(?:td|touchdown)s?"),
+    # "combined" rides along with the market word on purpose. Left behind it
+    # stays glued to the LAST name in the list -- "Jahmry Gibbs Combined" --
+    # which then resolves to nobody and silently drops that player from a
+    # three-man bet.
     ("td",             r"anytime\s*(?:td|touchdown)|to\s+score\s+a?\s*(?:td|touchdown)"
-                       r"|\btouchdowns?\b|\btds?\b"),
+                       r"|combined\s*(?:td|touchdown)s?|\btouchdowns?\b|\btds?\b"),
     ("sacks",          r"\bsacks?\b"),
     ("rec_yds",        r"receiving\s+yards?|\brec\s+yds?\b"),
     ("rush_yds",       r"rushing\s+yards?|\brush\s+yds?\b"),
@@ -374,7 +382,76 @@ def scan_card(text, mlb, nfl):
             canon, team = mlb_parser.resolve_player(
                 cleaned, mlb["team_by_name"], mlb["canonical_name_by_norm"])
             rec["name"], rec["team"] = canon, team
+        if sport == "nfl" and market == "quarters":
+            # Two TEAMS, not a player. Both have to be graded -- "each team"
+            # is the whole bet -- so taking whichever one resolved first
+            # would answer half the question and call it an answer.
+            abbrs = []
+            for part in re.split(r"\s*(?:/|\+|,|\band\b|&)\s*", cleaned):
+                ab = nfl_team_in(part)
+                if ab and ab not in abbrs:
+                    abbrs.append(ab)
+            rec["teams"] = abbrs
+            rec["team"] = abbrs[0] if abbrs else ""
+            rec["is_team"] = True
+            if len(abbrs) < 2:
+                warnings.append(f"{cleaned!r} names {len(abbrs)} team(s), not two -- "
+                                f"an each-team bet can't be graded from one")
+            found[(mlb_parser.normalize_name(cleaned), market)] = rec
+            found.setdefault(mlb_parser.normalize_name(candidate), rec)
+            found.setdefault(mlb_parser.normalize_name(cleaned), rec)
+            # parse_picks reads "Lions/Panthers ..." as a two-team line and
+            # keeps only the FIRST name, so index each part on its own or the
+            # leg it produces matches nothing this pass worked out.
+            for part in re.split(r"\s*(?:/|\+|,|\band\b|&)\s*", cleaned):
+                if part.strip():
+                    found.setdefault(mlb_parser.normalize_name(part), rec)
+            continue
+
         if sport == "nfl":
+            # A leg can name SEVERAL players -- "Amon-Ra St. Brown, Chubba
+            # Hubbard, Jahmry Gibbs Combined" is one bet on their total, the
+            # same shape a combined baseball prop has. Split before resolving,
+            # or the whole string is looked up as one impossible name.
+            parts = [p for p in re.split(r"\s*(?:,|\+|&|\band\b)\s*", cleaned) if p.strip()]
+            if len(parts) > 1:
+                names, teams, ids = [], [], []
+                for part in parts:
+                    pn = nfl_parser.norm_key(part)
+                    if pn not in nfl["team_by_name"]:
+                        near = difflib.get_close_matches(pn, nfl["team_by_name"].keys(),
+                                                         n=2, cutoff=0.82)
+                        if len(near) == 1:
+                            pn = near[0]
+                    if pn in nfl["team_by_name"]:
+                        names.append(nfl["canonical_name_by_norm"].get(pn, part))
+                        teams.append(nfl["team_by_name"][pn])
+                        ids.append(nfl.get("id_by_norm", {}).get(pn, ""))
+                # ALL of them, or none. A combined bet on three players
+                # graded off the two that happened to resolve is not a
+                # partial answer, it is a WRONG one -- the line was set for
+                # three. Falling through leaves it untracked, which is the
+                # honest outcome.
+                if len(names) != len(parts):
+                    warnings.append(f"{cleaned!r} names {len(parts)} players but only "
+                                    f"{len(names)} resolve -- left untracked rather than "
+                                    f"graded off part of the bet")
+                elif len(names) > 1:
+                    rec["players"], rec["name"] = names, ", ".join(names)
+                    rec["team"] = teams[0]
+                    rec["athleteIds"] = ids
+                    rec["is_player"] = True
+                    found[(mlb_parser.normalize_name(cleaned), market or "hr")] = rec
+                    found.setdefault(mlb_parser.normalize_name(candidate), rec)
+                    found.setdefault(mlb_parser.normalize_name(cleaned), rec)
+                    # ...and with only the QUANTITY removed. parse_picks
+                    # strips "4+" as the line but keeps "Combined TDs" in the
+                    # name, which is neither of the spellings above.
+                    nq = QTY_RE.sub(" ", candidate)
+                    if nq != candidate:
+                        found.setdefault(mlb_parser.normalize_name(nq), rec)
+                    continue
+
             norm = nfl_parser.norm_key(cleaned)
             # A typo in the name gets the same treatment baseball's already
             # had: difflib at resolve_player()'s 0.82 cutoff, and only when a
@@ -491,6 +568,12 @@ def apply_sports(windows, singles, found):
         rewrite = rec["sport"] == "nfl" or (rec["market"] and not leg.get("team"))
         if not rewrite:
             return
+        if rec.get("players"):
+            leg["players"] = rec["players"]
+        if rec.get("teams"):
+            leg["teams"] = rec["teams"]
+        if rec.get("athleteIds"):
+            leg["athleteIds"] = rec["athleteIds"]
         leg["player"] = rec["name"]
         if rec.get("team"):
             leg["team"] = rec["team"]

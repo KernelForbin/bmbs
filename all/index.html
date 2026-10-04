@@ -714,7 +714,12 @@ async function getGameSnapshot(game) {
   const teamsById = new Map();
   const teams = {};
   (comp.competitors || []).forEach(c => {
-    const t = { id: String(c.id), abbr: (c.team && c.team.abbreviation) || "", side: c.homeAway, score: c.score || "0", possession: c.possession === true };
+    // Per-QUARTER points, which ESPN publishes as competitors[].linescores
+    // -- ["7","3","10","7"]. Checked against a real finished game. A quarter
+    // only appears once it has been played, so the length is also how far
+    // the game has got, and overtime simply adds a fifth entry.
+    const t = { id: String(c.id), abbr: (c.team && c.team.abbreviation) || "", side: c.homeAway, score: c.score || "0", possession: c.possession === true,
+                quarters: (c.linescores || []).map(q => Number(q.displayValue != null ? q.displayValue : q.value) || 0) };
     teamsById.set(t.id, t);
     teams[c.homeAway] = t;
   });
@@ -732,7 +737,7 @@ async function getGameSnapshot(game) {
         const id = String(a.id);
         let line = lines.get(id);
         if (!line) {
-          line = { id, name: a.displayName || "", norm: normalizeName(a.displayName || ""), team: abbr, car: 0, rushYds: 0, rec: 0, recYds: 0, tgts: 0, td: 0 };
+          line = { id, name: a.displayName || "", norm: normalizeName(a.displayName || ""), team: abbr, car: 0, rushYds: 0, rec: 0, recYds: 0, tgts: 0, td: 0, sacks: 0 };
           lines.set(id, line);
         }
         const stats = row.stats || [];
@@ -741,6 +746,10 @@ async function getGameSnapshot(game) {
           line.rec = statNum(stats, statIndex(cat.labels, "REC")); line.recYds = statNum(stats, statIndex(cat.labels, "YDS"));
           line.tgts = statNum(stats, statIndex(cat.labels, "TGTS"));
         }
+        // Sacks live in the DEFENSIVE category, labelled "SACKS", and come
+        // as halves when two players share one -- so it is a float, not a
+        // count. Verified against a real finished game, not assumed.
+        if (cat.name === "defensive") line.sacks = statNum(stats, statIndex(cat.labels, "SACKS"));
         if (TD_CATEGORIES.includes(cat.name)) line.td += statNum(stats, tdIdx);
       });
     });
@@ -1219,7 +1228,16 @@ function nowET() {
 function slateShim(tickets) {
   // Only the NFL legs. picksOf() would otherwise hand ESPN a list of
   // baseball players to look for, and slateDates() needs the span.
-  const legsOf = t => (t.legs || []).filter(l => l.sport === "nfl");
+  // One leg can name SEVERAL players ("A, B, C Combined TDs"). picksOf()
+  // reads leg.player, so without splitting them here none of the three is
+  // ever registered, no game is found for any of them, and the bet sits at
+  // "not started" for ever.
+  const expand = l => (Array.isArray(l.players) && l.players.length > 1)
+    ? l.players.map((p, i) => Object.assign({}, l, {
+        player: p, athleteId: (l.athleteIds || [])[i] || "", players: null }))
+    : [l];
+  const legsOf = t => (t.legs || []).filter(l => l.sport === "nfl")
+    .reduce((out, l) => out.concat(expand(l)), []);
   return {
     date: tickets.date,
     endDate: tickets.endDate || tickets.date,
@@ -1248,7 +1266,30 @@ return {
   toggleRow(id) { if (TD_EXPANDED.has(id)) TD_EXPANDED.delete(id); else TD_EXPANDED.add(id); },
   ballTile: drvBallTile, waitTile: drvWaitTile, resultTile: drvResultTile,
   oddsText: drvOddsText, gameUrl: espnGameUrl,
-  norm(name) { return normalizeName(name); }
+  norm(name) { return normalizeName(name); },
+
+  // ---- counted stats, for markets the host grades itself ----
+  // -> { value, status } for one player's stat, or null when his game can't
+  // be found at all. `status` is the GAME's, because an over can settle the
+  // moment it clears while an under has to wait for the whistle.
+  stat(playerName, key) {
+    const game = gameForPick(playerName);
+    if (!game) return null;
+    const line = lineForPick(playerName);
+    return { value: line ? (line[key] || 0) : 0, status: game.status,
+             played: !!line };
+  },
+  // -> { quarters: [7,3,10,7], status } for a team, or null. A quarter only
+  // appears once it has been played, so the length is how far the game has
+  // got; overtime simply adds a fifth entry.
+  quarters(teamAbbr) {
+    const pk = RESULTS.gameByTeam && RESULTS.gameByTeam.get((teamAbbr || "").toUpperCase());
+    const game = pk && RESULTS.gameInfo && RESULTS.gameInfo.get(pk);
+    if (!game) return null;
+    const side = ["away", "home"].map(s => game.teams && game.teams[s])
+      .filter(Boolean).find(t => t.abbr === (teamAbbr || "").toUpperCase());
+    return side ? { quarters: side.quarters || [], status: game.status } : null;
+  }
 };
 })();
 
@@ -2076,6 +2117,21 @@ const MARKETS = {
   // leg say what it actually is instead of "not tracked".
   td:     { label: "Anytime TD",      subject: "player", sport: "nfl",
             grade: leg => NFL.state(leg) },
+  // Counted football stats. ESPN publishes both -- sacks in the DEFENSIVE
+  // boxscore category, touchdowns in the TD column already being summed --
+  // so these grade the same way a baseball stat prop does: an over settles
+  // the moment it clears, an under can only settle at the whistle unless it
+  // has already busted.
+  sacks:     { label: "Sacks",          subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "sacks") },
+  // "2+ Touchdowns", and the combined form naming several players -- their
+  // touchdowns are ADDED, exactly as a combined baseball prop sums its names.
+  td_count:  { label: "Touchdowns",     subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "td") },
+  // "Each team to score all four quarters", which needs the per-quarter
+  // linescore for BOTH named teams.
+  quarters:  { label: "All 4 Quarters", subject: "team",   sport: "nfl",
+               grade: leg => stateForAllQuarters(leg) },
   rec_yds:   { label: "Receiving Yds",  subject: "player", sport: "nfl", grade: () => "untracked" },
   rush_yds:  { label: "Rushing Yds",    subject: "player", sport: "nfl", grade: () => "untracked" },
   pass_yds:  { label: "Passing Yds",    subject: "player", sport: "nfl", grade: () => "untracked" },
@@ -2134,6 +2190,15 @@ function legPlayers(leg) {
   if (!leg) return [];
   if (Array.isArray(leg.players) && leg.players.length) return leg.players;
   return leg.player ? [leg.player] : [];
+}
+
+// The teams a leg is about. Most name one (`team`); a few name two, like
+// "Lions + Panthers each team to score all four quarters", and then BOTH
+// have to be graded rather than whichever one happened to resolve.
+function legTeams(leg) {
+  if (!leg) return [];
+  if (Array.isArray(leg.teams) && leg.teams.length) return leg.teams;
+  return [leg.team, leg.opponent].filter(Boolean);
 }
 
 // What this leg is ABOUT, for display. A player prop names the player; a game
@@ -2250,6 +2315,50 @@ function stateForPartial(leg) {
   if (done < through) return row.status === "final" ? (under ? "hit" : "miss") : "live";
   if (soFar === line) return "na";                        // exact push
   return under ? "hit" : "miss";
+}
+
+// A counted football stat, summed across EVERY name on the leg -- the
+// combined form ("Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs Combined
+// TDs over 3.5") is one bet on three players' total, the same shape a
+// combined baseball prop already has.
+function stateForNflStat(leg, key) {
+  const names = legPlayers(leg);
+  if (!names.length) return "untracked";
+  const rows = names.map(n => NFL.stat(n, key));
+  if (rows.some(r => !r)) return "not_started";       // a game we can't find yet
+  const total = rows.reduce((sum, r) => sum + r.value, 0);
+  const line = legLine(leg);
+  const over = legSide(leg) !== "under";
+  // Settles the moment it clears, whichever side the bet is on.
+  if (total > line) return over ? "hit" : "miss";
+  // Everyone's game has to be over before a shortfall is final -- on a
+  // combined leg that is several different games.
+  if (!rows.every(r => r.status === "final")) return "live";
+  // Nobody got on the field at all: a refund, not a loss, the same rule a
+  // rostered-but-never-batted baseball leg gets.
+  if (!rows.some(r => r.played)) return "na";
+  return over ? "miss" : "hit";
+}
+
+// "Lions + Panthers each team to score all four quarters." Both teams, all
+// four. It can only FAIL early -- one scoreless completed quarter settles it
+// -- and can only succeed once four quarters have actually been played.
+function stateForAllQuarters(leg) {
+  const teams = legTeams(leg);
+  if (teams.length < 2) return "untracked";
+  const rows = teams.map(t => NFL.quarters(t));
+  if (rows.some(r => !r)) return "not_started";
+  for (const r of rows) {
+    // A quarter that has been PLAYED and scored nothing kills it outright,
+    // whatever happens in the rest of the game.
+    const played = r.status === "final" ? r.quarters.length
+                                        : Math.max(0, r.quarters.length - 1);
+    for (let i = 0; i < Math.min(played, 4); i++) {
+      if (!r.quarters[i]) return "miss";
+    }
+  }
+  if (!rows.every(r => r.status === "final")) return "live";
+  return rows.every(r => r.quarters.slice(0, 4).every(q => q > 0)) ? "hit" : "miss";
 }
 
 // A TEAM's own total. Unlike the game total it can settle EARLY, exactly as a

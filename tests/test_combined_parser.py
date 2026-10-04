@@ -392,6 +392,45 @@ check("M20 ...keeping the line it was set at", braves.get("line") == 3.5, braves
 check("M21 a real player on the same ticket is unaffected",
       tb_legs.get("Aaron Judge", {}).get("team") == "NYY", tb_legs.get("Aaron Judge"))
 
+# A combined bet names several players and the line is set for ALL of them.
+# Grading it off however many happened to resolve is not a partial answer,
+# it is a wrong one -- a 3.5 line judged on two men's touchdowns.
+# TWO legs, because parse_picks reads nothing at all from a ONE-leg ticket of
+# this shape -- and an empty list makes "no leg has players" vacuously true.
+# That is exactly how the first version of this check passed while proving
+# nothing, which M22a now makes impossible.
+PARTIAL = (
+    "Ticket 1\n"
+    "Amon-Ra St. Brown, Chubba Hubbard, Zzqq Noperson 4+ Combined TDs +210\n"
+    "Brice Turan 2+ Doubles +490\n"
+    "Stake: 8.00 | Pays: 146.32\n"
+)
+out6 = cp.build(PARTIAL, MLB, NFL, NOW, no_network)
+pl = [l for w in out6["windows"] for t in w["tickets"] for l in t["legs"]]
+check("M22a the fixture actually parsed, so the check below means something",
+      len(pl) == 2, [l["player"] for l in pl])
+check("M22 a combined leg with an unresolvable name is NOT graded off the rest",
+      all(not l.get("players") for l in pl), [(l["player"], l.get("players")) for l in pl])
+check("M23 ...and says so in the note rather than going quiet",
+      "only" in (out6["note"] or "") and "resolve" in (out6["note"] or ""), out6["note"])
+
+# All three resolving IS the tracked case, typos and all.
+WHOLE = (
+    "Ticket 1\n"
+    "Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs 4+ Combined TDs +210\n"
+    "Brice Turan 2+ Doubles +490\n"
+    "Stake: 8.00 | Pays: 146.32\n"
+)
+out7 = cp.build(WHOLE, MLB, NFL, NOW, no_network)
+wl = [l for w in out7["windows"] for t in w["tickets"] for l in t["legs"]][0]
+check("M24 all three resolving gives one leg naming all three",
+      len(wl.get("players") or []) == 3, wl.get("players"))
+check("M25 ...with the misspelt two corrected",
+      wl.get("players") == ["Amon-Ra St. Brown", "Chuba Hubbard", "Jahmyr Gibbs"],
+      wl.get("players"))
+check("M26 ...counted, not anytime, at the line the card set",
+      wl.get("market") == "td_count" and wl.get("line") == 3.5, wl)
+
 check("M12 an unsigned trailing price is still read as the price",
       by.get("Mookie Betts", {}).get("odds") == "+145", by.get("Mookie Betts"))
 check("M13 ...and the leg still resolves its team",

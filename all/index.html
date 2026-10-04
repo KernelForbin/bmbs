@@ -737,7 +737,7 @@ async function getGameSnapshot(game) {
         const id = String(a.id);
         let line = lines.get(id);
         if (!line) {
-          line = { id, name: a.displayName || "", norm: normalizeName(a.displayName || ""), team: abbr, car: 0, rushYds: 0, rec: 0, recYds: 0, tgts: 0, td: 0, sacks: 0, passTd: 0 };
+          line = { id, name: a.displayName || "", norm: normalizeName(a.displayName || ""), team: abbr, car: 0, rushYds: 0, rec: 0, recYds: 0, tgts: 0, td: 0, sacks: 0, passTd: 0, passYds: 0 };
           lines.set(id, line);
         }
         const stats = row.stats || [];
@@ -757,7 +757,10 @@ async function getGameSnapshot(game) {
         if (cat.name === "defensive") line.sacks = statNum(stats, statIndex(cat.labels, "SACKS"));
         // Touchdowns THROWN, which is a different bet from scoring one --
         // and the reason passing is excluded from the TD sum below.
-        if (cat.name === "passing") line.passTd = statNum(stats, tdIdx);
+        if (cat.name === "passing") {
+          line.passTd = statNum(stats, tdIdx);
+          line.passYds = statNum(stats, statIndex(cat.labels, "YDS"));
+        }
         if (TD_CATEGORIES.includes(cat.name)) line.td += statNum(stats, tdIdx);
       });
     });
@@ -1286,6 +1289,25 @@ return {
     const line = lineForPick(playerName);
     return { value: line ? (line[key] || 0) : 0, status: game.status,
              played: !!line };
+  },
+  // The best figure for `key` across EVERY game on the slate, and who holds
+  // it. For a "most on the day" market, which is won against the whole field
+  // rather than against a number.
+  leaders(key) {
+    let best = -1;
+    const holders = new Set();
+    let allFinal = true;
+    (RESULTS.gameInfo || new Map()).forEach(g => {
+      // A game still to kick off can always overtake whoever leads now, so
+      // one unfinished game anywhere means nothing is settled.
+      if (g.status !== "final") allFinal = false;
+      (g.lines || new Map()).forEach(l => {
+        const v = l[key] || 0;
+        if (v > best) { best = v; holders.clear(); holders.add(l.norm); }
+        else if (v === best && v > 0) holders.add(l.norm);
+      });
+    });
+    return { best, holders, allFinal };
   },
   // -> { quarters: [7,3,10,7], status } for a team, or null. A quarter only
   // appears once it has been played, so the length is how far the game has
@@ -2144,10 +2166,19 @@ const MARKETS = {
   // to do with the anytime market -- a thrown one never cashes the passer.
   pass_tds:  { label: "Passing TDs",    subject: "player", sport: "nfl",
                grade: leg => stateForNflStat(leg, "passTd") },
-  rec_yds:   { label: "Receiving Yds",  subject: "player", sport: "nfl", grade: () => "untracked" },
-  rush_yds:  { label: "Rushing Yds",    subject: "player", sport: "nfl", grade: () => "untracked" },
-  pass_yds:  { label: "Passing Yds",    subject: "player", sport: "nfl", grade: () => "untracked" },
-  receptions:{ label: "Receptions",     subject: "player", sport: "nfl", grade: () => "untracked" },
+  rec_yds:   { label: "Receiving Yds",  subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "recYds") },
+  rush_yds:  { label: "Rushing Yds",    subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "rushYds") },
+  // "Most receiving yards on Sunday" -- not a line to beat but a field to
+  // win, so it is settled by comparing every receiver in every game on the
+  // slate, and only once they have ALL finished.
+  most_rec_yds: { label: "Most Rec Yds", subject: "player", sport: "nfl",
+                  grade: leg => stateForMostInLeague(leg, "recYds") },
+  pass_yds:  { label: "Passing Yds",    subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "passYds") },
+  receptions:{ label: "Receptions",     subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "rec") },
 
   // A home run leg is still graded from the play-by-play -- that's what makes
   // it resolve the INSTANT the ball lands, and what Pinch Hit Protection hangs
@@ -2349,6 +2380,23 @@ function stateForNflStat(leg, key) {
   // rostered-but-never-batted baseball leg gets.
   if (!rows.some(r => r.played)) return "na";
   return over ? "miss" : "hit";
+}
+
+// "Most receiving yards on Sunday." Won against the whole field, not against
+// a number, so it cannot be settled until every game on the slate is final --
+// a late kickoff can always overtake whoever led at four o'clock.
+function stateForMostInLeague(leg, key) {
+  const names = legPlayers(leg);
+  if (names.length !== 1) return "untracked";
+  const info = NFL.leaders(key);
+  if (!info || info.best < 0) return "not_started";
+  if (!info.allFinal) return "live";
+  if (!info.holders.size) return "na";
+  if (!info.holders.has(NFL.norm(names[0]))) return "miss";
+  // A tie is dead-heat territory and books settle it differently -- some
+  // reduce the payout, some void. Refunding is the honest answer rather than
+  // picking one of those and presenting it as the result.
+  return info.holders.size > 1 ? "na" : "hit";
 }
 
 // "Lions + Panthers each team to score all four quarters." Both teams, all

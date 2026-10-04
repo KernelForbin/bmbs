@@ -431,6 +431,28 @@ check("M25 ...with the misspelt two corrected",
 check("M26 ...counted, not anytime, at the line the card set",
       wl.get("market") == "td_count" and wl.get("line") == 3.5, wl)
 
+# "Most Receiving Yards" is a different bet from a receiving-yards LINE --
+# won against the whole field rather than against a number -- and its text
+# contains the other market's, so the order of the alias table decides it.
+# The trailing "Sunday" and "Boosted" belong to neither the name nor the
+# market, and left on the name nothing resolves.
+MOST = (
+    "Ticket 1\n"
+    "Jaxson Smith-Njigba Most Receiving Yards Sunday +1200 Boosted\n"
+    "Keon Coleman 15+ Receiving Yards +106\n"
+    "Stake: 8.00 | Pays: 146.32\n"
+)
+out8 = cp.build(MOST, MLB, NFL, NOW, no_network)
+ml = {l["player"]: l for w in out8["windows"] for t in w["tickets"] for l in t["legs"]}
+check("M27 'most receiving yards' is its own market, not a yardage line",
+      ml.get("Jaxon Smith-Njigba", {}).get("market") == "most_rec_yds", sorted(ml))
+check("M28 ...with the day and the boost stripped off the name, so he resolves",
+      ml.get("Jaxon Smith-Njigba", {}).get("team") == "SEA",
+      ml.get("Jaxon Smith-Njigba"))
+check("M29 an ordinary receiving-yards leg on the same ticket is unaffected",
+      ml.get("Keon Coleman", {}).get("market") == "rec_yds"
+      and ml.get("Keon Coleman", {}).get("line") == 14.5, ml.get("Keon Coleman"))
+
 check("M12 an unsigned trailing price is still read as the price",
       by.get("Mookie Betts", {}).get("odds") == "+145", by.get("Mookie Betts"))
 check("M13 ...and the leg still resolves its team",

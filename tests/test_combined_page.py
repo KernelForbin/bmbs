@@ -198,10 +198,14 @@ TICKETS = {
         # scores, so this must grade HIT -- which it can only do if each leg
         # was graded off its own league's data.
         card(3, [mlb_leg(5, "Aaron Judge", "NYY"), nfl_leg(6, "Saquon Barkley", "PHI", "1")]),
-        # Same shape, but the football leg is a yardage prop nothing can
-        # follow. A hit baseball leg must NOT be allowed to cash it.
+        # Same shape, but the football leg names a market nothing follows.
+        # A hit baseball leg must NOT be allowed to cash it.
         card(4, [mlb_leg(7, "Aaron Judge", "NYY"),
-                 nfl_leg(8, "Travis Kelce", "KC", "2", market="rec_yds")]),
+                 # A market word no registry entry claims -- which is what
+                 # this check is really about, and stays true however many
+                 # real markets get added later. Using a named-but-ungraded
+                 # one made it stale the moment that market was implemented.
+                 nfl_leg(8, "Travis Kelce", "KC", "2", market="longest_reception")]),
     ]}],
     # No "market" on this one, on purpose. A market-less leg means the
     # SPORT's default bet -- a home run for baseball, an anytime touchdown
@@ -928,6 +932,91 @@ with sync_playwright() as p:
     check("O6 none of them fell through to untracked",
           "untracked" not in ls.values(), ls)
     check("O7 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
+# ---------- P. yardage, and winning against the whole field ----------
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [
+                     card(40, [nfl_leg_m(1, "Big Catch", "PHI", "rec_yds", 14.5, "21")]),
+                     card(41, [nfl_leg_m(2, "Small Catch", "PHI", "rec_yds", 99.5, "22")]),
+                     card(42, [nfl_leg_m(3, "Big Run", "PHI", "rush_yds", 79.5, "23")]),
+                     # The slate leader is in the OTHER game on purpose. Our
+                     # 120-yard man leads his own, and loses the field to a
+                     # 150 elsewhere -- so "compare the whole slate" and
+                     # "compare his own game" give opposite answers here.
+                     card(43, [nfl_leg_m(4, "Big Catch", "PHI", "most_rec_yds", None, "21")]),
+                     card(44, [nfl_leg_m(5, "Mid Catch", "KC", "most_rec_yds", None, "24")]),
+                 ]}], "singles": []}
+FX["mlb_sched"][DAY] = {"dates": []}
+FX["espn_events"] = {g: espn_event(g, "post", (24, 20)) for g in MAIN_GAMES}
+FX["espn_summaries"]["9001"] = espn_summary(
+    "9001", "post", {"PHI": [("21", "Big Catch", "receiving", (6, 120, 0, 9)),
+                             ("22", "Small Catch", "receiving", (2, 18, 0, 3)),
+                             ("23", "Big Run", "rushing", (18, 95, 0))]}, (24, 20))
+FX["espn_summaries"]["9002"] = espn_summary(
+    "9002", "post", {"KC": [("24", "Mid Catch", "receiving", (5, 150, 0, 7))]}, (24, 20))
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("activateTab('yesterday')")
+    page.wait_for_timeout(200)
+    ls = leg_states(page)
+    check("P1 receiving yards over the line is a hit", ls.get("O1") == "hit", ls)
+    check("P2 ...and under it a miss", ls.get("O2") == "miss", ls)
+    check("P3 rushing yards grade off the rushing line", ls.get("O3") == "hit", ls)
+    check("P4 leading your OWN game is not enough -- 120 loses to a 150 elsewhere",
+          ls.get("O4") == "miss", ls)
+    check("P5 ...and the slate leader wins it from the other game",
+          ls.get("O5") == "hit", ls)
+    # Checked DIRECTLY, not just through the two leg states above: those stay
+    # correct even if the comparison only ever looked at one game, because the
+    # leader happens to be in the first one. The point of this market is that
+    # it spans the whole slate.
+    lead = page.evaluate("""() => {
+        const r = NFL.leaders("recYds");
+        return { best: r.best, holders: [...r.holders], allFinal: r.allFinal };
+    }""")
+    check("P5b the field spans EVERY game on the slate, not just the pick's own",
+          lead["best"] == 150 and lead["holders"] == ["mid catch"], lead)
+    check("P6 nothing fell through to untracked", "untracked" not in ls.values(), ls)
+    check("P7 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
+# It cannot settle while ANY game is unfinished -- a late kickoff can always
+# overtake whoever led at four o'clock, which is the whole reason this market
+# waits rather than answering early like a yardage line does.
+FX["espn_events"]["9002"] = espn_event("9002", "in", (14, 10))
+FX["espn_summaries"]["9002"] = espn_summary(
+    "9002", "in", {"KC": [("24", "Mid Catch", "receiving", (5, 80, 0, 7))]}, (14, 10))
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    ls = leg_states(page)
+    check("P8 the field is not settled while one game is still being played",
+          ls.get("O4") == "live", ls)
+    check("P9 ...while an ordinary yardage prop settles as soon as it clears",
+          ls.get("O1") == "hit", ls)
+    check("P10 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
+# A dead heat. Books settle it several ways -- some reduce the payout, some
+# void -- so it is refunded rather than being called for one of them.
+FX["espn_events"]["9002"] = espn_event("9002", "post", (24, 20))
+FX["espn_summaries"]["9002"] = espn_summary(
+    "9002", "post", {"KC": [("24", "Mid Catch", "receiving", (6, 120, 0, 9))]}, (24, 20))
+FX["espn_summaries"]["9001"] = espn_summary(
+    "9001", "post", {"PHI": [("21", "Big Catch", "receiving", (6, 120, 0, 9)),
+                             ("22", "Small Catch", "receiving", (2, 18, 0, 3)),
+                             ("23", "Big Run", "rushing", (18, 95, 0))]}, (24, 20))
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("activateTab('yesterday')")
+    page.wait_for_timeout(200)
+    ls = leg_states(page)
+    check("P11 a tie for the lead is refunded, not awarded to one of them",
+          ls.get("O4") == "na" and ls.get("O5") == "na", ls)
+    check("P12 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
 print()

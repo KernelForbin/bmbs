@@ -102,6 +102,22 @@ NFL_WORDS = re.compile(r"\b(?:nfl|football)\b", re.IGNORECASE)
 # parse_picks reads as the line (3+ means over 2.5) and strips from the name.
 QTY_RE = re.compile(r"\b\d+(?:\.\d+)?\s*\+")
 
+# A WHEN hanging off the end of a market -- "Most Receiving Yards Sunday",
+# "Anytime TD Tonight". It belongs to neither the name nor the market, and
+# left on the name it stops the player resolving at all.
+WHEN_TAIL_RE = re.compile(
+    r"\s*\b(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday"
+    r"|tonight|today|boosted|bonus)\b\s*$", re.IGNORECASE)
+
+
+def strip_when(text):
+    """Trailing day-of-week / boost words, repeatedly: "... Sunday Boosted"."""
+    prev = None
+    while prev != text:
+        prev = text
+        text = WHEN_TAIL_RE.sub("", text).strip()
+    return text
+
 NFL_MARKET_ALIASES = [
     # BEFORE "td": "3+ Passing Touchdowns" contains the word, and a passing
     # touchdown does not cash an anytime-TD bet on the man who threw it --
@@ -119,6 +135,10 @@ NFL_MARKET_ALIASES = [
     ("td",             r"anytime\s*(?:td|touchdown)|to\s+score\s+a?\s*(?:td|touchdown)"
                        r"|combined\s*(?:td|touchdown)s?|\btouchdowns?\b|\btds?\b"),
     ("sacks",          r"\bsacks?\b"),
+    # BEFORE rec_yds, which its text contains. "Most receiving yards" is won
+    # against the whole field rather than against a number, so it is a
+    # different bet settled a different way.
+    ("most_rec_yds",   r"most\s+receiving\s+yards?"),
     ("rec_yds",        r"receiving\s+yards?|\brec\s+yds?\b"),
     ("rush_yds",       r"rushing\s+yards?|\brush\s+yds?\b"),
     ("pass_yds",       r"passing\s+yards?|\bpass\s+yds?\b"),
@@ -345,7 +365,7 @@ def scan_card(text, mlb, nfl):
         if qty and line_val is None:
             line_val = float(qty.group(0).rstrip("+ ").strip()) - 0.5
             side_val = side_val or "over"
-        cleaned = QTY_RE.sub(" ", cleaned).strip(" -:|·")
+        cleaned = strip_when(QTY_RE.sub(" ", cleaned).strip(" -:|·"))
         rec = {"sport": sport, "market": market, "line": line_val,
                "side": side_val, "name": cleaned, "why": why}
         # A TEAM subject, not a player: "Braves Over 3.5 Runs" is the Braves'
@@ -497,9 +517,14 @@ def scan_card(text, mlb, nfl):
         # pass never had. Every football prop on the first real card was
         # sported correctly here and then lost on that mismatch, surfacing as
         # UNKNOWN on the page.
-        no_qty = QTY_RE.sub(" ", candidate)
-        if no_qty != candidate:
-            found.setdefault(mlb_parser.normalize_name(no_qty), rec)
+        for variant in (QTY_RE.sub(" ", candidate), strip_when(candidate),
+                        strip_when(QTY_RE.sub(" ", candidate)),
+                        # The WHOLE line, price and all: a one-leg ticket
+                        # becomes a SINGLE, and that path keeps the raw text
+                        # as the player's name rather than stripping anything.
+                        line.strip()):
+            if variant != candidate:
+                found.setdefault(mlb_parser.normalize_name(variant), rec)
         if not odds and tail is None:
             # On a priceless line the colon is the only thing separating the
             # subject from the bet, and parse_picks keeps the two JOINED when

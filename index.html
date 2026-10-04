@@ -2067,7 +2067,10 @@ function stealsBy(norm) {
 function marketTag(market, leg) {
   if (!market) return "";
   if (market === "hr") {
-    return ` <span class="mkt-tag hr" title="Home run bet">HOME RUN${leg ? lineText(leg) : ""}</span>`;
+    // Over 0.5 is just "a home run" -- the tag already says that. The line
+    // is shown only when it asks for more (two or more) or for an under.
+    const plain = leg && Number(leg.line) === 0.5 && legSide(leg) === "over";
+    return ` <span class="mkt-tag hr" title="Home run bet">HOME RUN${leg && !plain ? lineText(leg) : ""}</span>`;
   }
   const def = MARKETS[market];
   const line = leg ? lineText(leg) : "";

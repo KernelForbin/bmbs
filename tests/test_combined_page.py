@@ -324,6 +324,10 @@ with sync_playwright() as p:
           bool(tags) and all(tags.values()), tags)
     check("A1c ...a home run leg as HOME RUN, a touchdown leg as Anytime TD",
           tags.get("Aaron Judge") == "HOME RUN" and "Anytime TD" in tags.values(), tags)
+    check("A1d a home run bet over 0.5 is just HOME RUN; 2+ keeps its line",
+          page.evaluate("[marketTag('hr', {line: 0.5}), marketTag('hr', {line: 1.5}), marketTag('hr', {})]"
+                        ".map(h => h.replace(/<[^>]+>/g, '').trim())") == ["HOME RUN", "HOME RUN OVER 1.5", "HOME RUN"],
+          page.evaluate("[marketTag('hr', {line: 0.5}), marketTag('hr', {line: 1.5})]"))
     check("A2 the NFL engine is reachable and sealed",
           page.evaluate("typeof NFL === 'object' && typeof NFL.state === 'function'"))
     check("A3 the MLB page's own normalizeName still keeps suffixes "

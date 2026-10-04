@@ -553,14 +553,14 @@
 
   <div class="hrlog-section collapsed" id="hrlog-section">
     <div class="hrlog-head" onclick="toggleHrLog()">
-      <p class="hrlog-title">Home Run Log <span class="head-count" id="hrlog-count"></span></p>
+      <p class="hrlog-title">Scoring Log <span class="head-count" id="hrlog-count"></span></p>
       <span class="hrlog-chevron">&#9660;</span>
     </div>
-    <p class="hrlog-sub" id="hrlog-sub">Tap to expand &mdash; see every home run hit today, or just your picks.</p>
+    <p class="hrlog-sub" id="hrlog-sub">Tap to expand &mdash; every home run and touchdown today, or just your picks.</p>
     <div class="hrlog-body">
       <div class="hrlog-filter">
         <button type="button" id="hrlog-btn-picks" onclick="setHrFilter('picks')">OUR PICKS</button>
-        <button type="button" id="hrlog-btn-all" onclick="setHrFilter('all')">ALL HOME RUNS</button>
+        <button type="button" id="hrlog-btn-all" onclick="setHrFilter('all')">EVERYTHING</button>
       </div>
       <div id="hrlog-list"></div>
     </div>
@@ -1242,6 +1242,7 @@ return {
   context(leg) { return liveContextForPlayer(leg.player); },
   scoring() { return RESULTS.touchdowns || []; },
   rowHtml: tdRowHtml, detailHtml: tdDetailHtml,
+  toggleRow(id) { if (TD_EXPANDED.has(id)) TD_EXPANDED.delete(id); else TD_EXPANDED.add(id); },
   ballTile: drvBallTile, waitTile: drvWaitTile, resultTile: drvResultTile,
   oddsText: drvOddsText, gameUrl: espnGameUrl,
   norm(name) { return normalizeName(name); }
@@ -2013,7 +2014,7 @@ async function pollSlate(tickets) {
   homeRuns.sort((a, b) => String(b.time).localeCompare(String(a.time))); // newest first, across games
   const results = { hitNames, sbNames, appeared, inBox, rosterStatus, rosterSide, substitutedOut, homeRuns, gameInfo, teamState, batStats, pitchStats, teamScores, allGamesFinal: allFinal, ready: true, noGames: false };
   const anyFetchFailed = snapshots.some(s => !s);
-  return { results, done: allScheduledFinal || pastSafetyValve(date), settled: allScheduledFinal && !anyFetchFailed };
+  return { results, done: allScheduledFinal || pastSafetyValve(days[days.length - 1]), settled: allScheduledFinal && !anyFetchFailed };
 }
 
 // five possible states: hit, miss, na, live (game started, no HR yet), not_started
@@ -3236,6 +3237,11 @@ function zoneGridHtml(zone) {
 // inning-specific total can't be followed from a final score, so a tile could
 // only ever show a number that means nothing.
 const LIVE_TILE_KIND = {
+  // NFL. Only an anytime-TD leg earns a tile: a yardage prop cannot be
+  // followed from what ESPN publishes live, so a tile could only ever show a
+  // number that means nothing -- the same reason an inning-specific total
+  // gets none on the baseball side.
+  td: "drive",
   hr: "bat", sb: "base", hrr: "bat", hits: "bat", rbi: "bat", runs: "bat",
   tb: "bat", doubles: "bat", k: "mound", er: "mound", win: "mound",
   ml: "game", spread: "game", total: "game", f5: "game",
@@ -3324,31 +3330,67 @@ function hrRowHtml(hr, isOurs) {
   </div>`;
 }
 
+// Home runs and touchdowns in one list, newest first. Both carry an ISO
+// timestamp, so they sort against each other directly.
+function scoringPlays() {
+  const hrs = ((RESULTS && RESULTS.homeRuns) || []).map(h => ({ nfl: false, at: h.time || "", row: h }));
+  const tds = (NFL.scoring() || []).map(t => ({ nfl: true, at: t.time || "", row: t }));
+  return hrs.concat(tds).sort((a, b) => (b.at || "").localeCompare(a.at || ""));
+}
+
+// A touchdown row's own onclick names toggleTdRow, which lives INSIDE the NFL
+// module. The host has to carry a shim: an inline handler is resolved against
+// window when the row is clicked, long after the closure that could have
+// supplied it has gone.
+function toggleTdRow(id) { NFL.toggleRow(id); renderHrLog(); }
+
+function scoringIsOurs(entry, relevant, nflNames) {
+  return entry.nfl ? nflNames.has(NFL.norm(entry.row.scorer))
+                   : relevant.has(normalizeName(entry.row.batter));
+}
+
+// This slate's football picks, normalized. Uses the NFL engine's normalizer,
+// which strips generational suffixes -- ESPN writes "Marvin Harrison Jr." and
+// the card does not. Using the host's would mark his touchdown as somebody
+// else's.
+function nflPickNames() {
+  const set = new Set();
+  if (!TICKETS) return set;
+  const add = l => { if (l && l.sport === "nfl" && l.player) set.add(NFL.norm(l.player)); };
+  (TICKETS.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(add)));
+  (TICKETS.singles || []).forEach(add);
+  return set;
+}
+
 function renderHrLog() {
   const list = document.getElementById("hrlog-list");
   if (!list) return;
   document.getElementById("hrlog-btn-picks").classList.toggle("active", HR_FILTER === "picks");
   document.getElementById("hrlog-btn-all").classList.toggle("active", HR_FILTER === "all");
 
-  const all = (RESULTS && RESULTS.homeRuns) || [];
+  const all = scoringPlays();
   const relevant = relevantHrNames();
-  const ourCount = all.filter(hr => relevant.has(normalizeName(hr.batter))).length;
+  const nflNames = nflPickNames();
+  const ourCount = all.filter(e => scoringIsOurs(e, relevant, nflNames)).length;
   const countEl = document.getElementById("hrlog-count");
   // Share of the day's home runs that came off a bat we picked. Plain
   // ours/total -- no attempt to weight by how many legs named him.
   const pct = all.length ? Math.round((ourCount / all.length) * 100) : 0;
   if (countEl) countEl.textContent = all.length ? `${ourCount} OURS · ${all.length} TOTAL · ${pct}%` : "";
 
-  const rows = HR_FILTER === "picks" ? all.filter(hr => relevant.has(normalizeName(hr.batter))) : all;
+  const rows = HR_FILTER === "picks" ? all.filter(e => scoringIsOurs(e, relevant, nflNames)) : all;
 
   if (rows.length === 0) {
     const msg = all.length === 0
-      ? "No home runs hit yet."
-      : "None of this slate's picks have gone deep yet &mdash; switch to <b>All Home Runs</b> to see the rest of the league.";
+      ? "Nothing has been scored yet."
+      : "None of this slate's picks have scored yet &mdash; switch to <b>Everything</b> to see the rest of both leagues.";
     list.innerHTML = `<p class="hr-empty">${msg}</p>`;
     return;
   }
-  list.innerHTML = rows.map(hr => hrRowHtml(hr, relevant.has(normalizeName(hr.batter)))).join("");
+  list.innerHTML = rows.map(e => {
+    const ours = scoringIsOurs(e, relevant, nflNames);
+    return e.nfl ? NFL.rowHtml(e.row, ours) : hrRowHtml(e.row, ours);
+  }).join("");
 }
 
 function toggleHrRow(id) {
@@ -3365,8 +3407,8 @@ function hrLogSubText() {
   const collapsed = document.getElementById("hrlog-section").classList.contains("collapsed");
   const day = ACTIVE_TAB === "today" ? "today" : "that day";
   return collapsed
-    ? `Tap to expand &mdash; see every home run hit ${day}, or just your picks.`
-    : "Newest first. Tap any home run for the full Statcast detail.";
+    ? `Tap to expand &mdash; every home run and touchdown ${day}, or just your picks.`
+    : "Newest first. Tap any score for the full detail.";
 }
 
 function toggleHrLog() {
@@ -3828,6 +3870,30 @@ function renderLiveAtBats() {
       onCount++;
       // open base ahead first, then the hitters, then runners with nowhere to go
       tiles.push({ rank: 1, order: on.nextOpen ? 0 : 2, html: labOnBaseTile(pick, on) });
+      return;
+    }
+    // AN NFL PICK. Green here means what it means on the football page and
+    // nothing looser: his side has the ball, their drive is open, and that
+    // drive has not already ended. Possession alone is stale right after a
+    // score, an open drive alone is stale right after a punt, and a finished
+    // drive still named as current IS the kickoff window -- the NFL engine's
+    // own liveContextForPlayer checks all three.
+    if (pick.kinds && pick.kinds.has("drive")) {
+      const dctx = NFL.context(pick);
+      if (dctx && dctx.status === "live") {
+        if (dctx.onOffense) {
+          nowCount++;
+          tiles.push({ rank: dctx.redZone ? 1 : 2,                       // closest to the goal line first
+                       order: dctx.yardsToEndzone === null ? 99 : dctx.yardsToEndzone,
+                       html: NFL.ballTile(pick, dctx) });
+        } else if (dctx.takingFieldSoon) {
+          soonCount++;
+          tiles.push({ rank: 3, order: 0, html: NFL.waitTile(pick, dctx) });
+        }
+        // Nothing at all while his defence is on the field. Baseball has
+        // never shown a tile for a player whose side isn't batting, and a
+        // tile he cannot score from is noise.
+      }
       return;
     }
     // A GAME LINE has no player, so none of the batting machinery below can

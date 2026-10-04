@@ -47,20 +47,33 @@ def mlb_schedule(date, games):
     return {"dates": [{"date": date, "games": out}]}
 
 
-def mlb_feed(abstract, roster, hrs=()):
+def mlb_feed(abstract, roster, hrs=(), inning=None, state="Top", outs=1, batter=""):
     sides = {"away": {}, "home": {}}
     for i, n in enumerate(roster):
         side = "away" if i < 9 else "home"
         sides[side][f"ID{i}"] = {"person": {"fullName": n}, "battingOrder": f"{(i % 9) + 1}00",
                                  "stats": {"batting": {"plateAppearances": 3}}}
+    plays = [{"result": {"eventType": "home_run"}, "about": {"isTopInning": True},
+              "matchup": {"batter": {"fullName": n}}} for n in hrs]
+    if inning and batter:
+        # The lineup slot "due up next" is worked out by walking play-by-play
+        # BACKWARDS for the last batter on that side. With no plays at all
+        # there is no last batter, nextUpSlot stays null, and every pick in
+        # the game silently earns no tile -- which looks exactly like the
+        # panel being broken.
+        plays.append({"result": {"eventType": "field_out"},
+                      "about": {"isTopInning": state in ("Top", "End")},
+                      "matchup": {"batter": {"fullName": batter}}})
     return {"gameData": {"status": {"abstractGameState": abstract,
                                     "codedGameState": {"Final": "F", "Live": "I"}[abstract]}},
-            "liveData": {"plays": {"allPlays": [
-                {"result": {"eventType": "home_run"}, "about": {"isTopInning": True},
-                 "matchup": {"batter": {"fullName": n}}} for n in hrs]},
+            "liveData": {"plays": {"allPlays": plays},
                 "boxscore": {"teams": {"away": {"players": sides["away"]},
                                        "home": {"players": sides["home"]}}},
-                "linescore": {}}}
+                # A live game needs a real linescore or there is no inning,
+                # no half and nobody at the plate -- so battingContextFor()
+                # returns null and the pick silently earns no tile.
+                "linescore": ({"currentInning": inning, "inningState": state, "outs": outs,
+                               "offense": {"batter": {"fullName": batter}}} if inning else {})}}
 
 
 # ---------------- ESPN fixtures ----------------
@@ -83,7 +96,32 @@ def espn_event(gid, state, score=(0, 0)):
                  "team": {"abbreviation": home}}]}]}
 
 
-def espn_summary(gid, state, lines, score=(0, 0)):
+def espn_scoring(play_id, team, kind, text, period, clock, away_score, home_score):
+    return {"id": play_id, "type": {"text": kind}, "text": text,
+            "period": {"number": period}, "clock": {"value": 300.0, "displayValue": clock},
+            "team": {"abbreviation": team}, "awayScore": away_score, "homeScore": home_score}
+
+
+def espn_drive(drive_id, team, to_go, down_text, result=None, possession=None):
+    """`team` owns the drive object. `possession` (default: the same team) is
+    who the last play left the ball with -- the two differ for a real window
+    after a punt or turnover, because a drive only appears once its first play
+    posts. `result` set means the drive has ENDED, which ESPN keeps on
+    drives.current right through the kickoff that follows."""
+    holder = possession or team
+    d = {"id": drive_id, "team": {"abbreviation": team}, "description": "6 plays, 55 yards",
+         "isScore": False,
+         "plays": [{"id": f"{drive_id}-p", "text": "last play",
+                    "wallclock": f"{DAY}T19:30:00Z",
+                    "end": {"team": {"id": TEAM_ID[holder]}, "yardsToEndzone": to_go,
+                            "downDistanceText": down_text,
+                            "shortDownDistanceText": down_text.split(" at ")[0]}}]}
+    if result:
+        d["displayResult"] = result
+    return d
+
+
+def espn_summary(gid, state, lines, score=(0, 0), plays=(), current=None):
     ev = espn_event(gid, state, score)
     comp = ev["competitions"][0]
     comp["status"] = ev["status"]
@@ -98,8 +136,11 @@ def espn_summary(gid, state, lines, score=(0, 0)):
         players.append({"team": {"abbreviation": team},
                         "statistics": [{"name": c, "labels": LABELS[c], "athletes": a}
                                        for c, a in cats.items()]})
-    return {"header": {"competitions": [comp]},
-            "boxscore": {"players": players}, "scoringPlays": [], "drives": {"previous": []}}
+    drives = {"previous": []}
+    if current:
+        drives["current"] = current
+    return {"header": {"competitions": [comp]}, "boxscore": {"players": players},
+            "scoringPlays": list(plays), "drives": drives}
 
 
 # ---------------- the slate ----------------
@@ -409,6 +450,117 @@ with sync_playwright() as p:
           page.evaluate("SLATES.today === null && SLATES.yesterday !== null"),
           page.evaluate("JSON.stringify({today: !!SLATES.today, yd: !!SLATES.yesterday})"))
     check("G3 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
+# ---------- H. the live panel and the log carry both sports ----------
+# A football pick has no batting order, no base and no inning, so without its
+# own branch every path in renderLiveAtBats skips it and the panel silently
+# shows a baseball-only view of a two-sport card.
+FX["tickets"] = TICKETS
+FX["mlb_sched"][DAY] = mlb_schedule(DAY, [(5001, "Live", ["NYY", "BOS"]),
+                                          (5002, "Live", ["NYM", "ATL"])])
+FX["mlb_feeds"][5001] = mlb_feed("Live", ["Aaron Judge"] + [f"NY{i}" for i in range(8)],
+                                 hrs=["Aaron Judge"])
+# Soto bats second for the away side with one out in the top of the 5th, so
+# he is genuinely due up -- the batting machinery has to have an inning and a
+# current batter or it places nobody.
+FX["mlb_feeds"][5002] = mlb_feed("Live", ["NM0", "Juan Soto"] + [f"NM{i}" for i in range(1, 8)],
+                                 inning=5, state="Top", outs=1, batter="NM0")
+FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in NFL_GAMES}
+# Barkley has NOT scored and his side has the ball inside the 20 -- a tile he
+# can score from. Kelce has not scored either and KC's drive has just ENDED,
+# which ESPN keeps on drives.current right through the following kickoff:
+# the window that used to read green and say "ball on offense" while his team
+# was actually kicking off.
+#
+# Both picks are deliberately still LIVE. A pick who has already scored is
+# ineligible for a tile anyway, so scoring one here would make the
+# drive-ended check pass without ever exercising the drive logic.
+FX["espn_summaries"]["9001"] = espn_summary(
+    "9001", "in", {"PHI": [("1", "Saquon Barkley", "rushing", (12, 60, 0)),
+                           ("99", "Dallas Goedert", "receiving", (3, 28, 1, 4))]}, (14, 10),
+    plays=[espn_scoring("sp1", "PHI", "Receiving Touchdown",
+                        "Dallas Goedert 7 Yd pass from Jalen Hurts", 3, "7:12", 14, 10)],
+    current=espn_drive("d1", "PHI", 12, "1st & 10 at NYG 12"))
+# Kelce's side has just taken the ball back -- possession is KC's, but the
+# drive object still open is DENVER'S, because a drive only appears once its
+# first play posts. Measured on live games at 65s, 82s and 179s: several polls
+# wide, a real state rather than a flicker.
+FX["espn_summaries"]["9002"] = espn_summary(
+    "9002", "in", {"KC": [("2", "Travis Kelce", "receiving", (4, 40, 0, 5))]}, (14, 10),
+    current=espn_drive("d2", "DEN", 70, "3rd & 8 at DEN 30", possession="KC"))
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("toggleLiveAb()")   # the panel is collapsed by default
+    page.wait_for_timeout(200)
+    tiles = page.eval_on_selector_all(
+        "#liveab-grid .ab-tile",
+        "els => els.map(e => ({name: e.querySelector('.ab-name').textContent.trim(), "
+        "tag: e.querySelector('.ab-tag').textContent.trim()}))")
+    by_name = {t["name"]: t["tag"] for t in tiles}
+    check("H1 a football pick gets a tile in the Live Bet Tracker at all",
+          "Saquon Barkley" in by_name, tiles)
+    check("H2 ...and inside the 20 it reads RED ZONE",
+          by_name.get("Saquon Barkley") == "RED ZONE", by_name)
+    check("H3 a baseball pick still gets his own tile on the same wall",
+          any(n in by_name for n in ("Aaron Judge", "Juan Soto")), by_name)
+    # Possession is his but the drive object open is still the other team's.
+    # Green here would claim he can score on a play his side has not snapped
+    # yet, so it has to be the grey tile -- and it has to be a tile, because
+    # his bet is very much still live.
+    check("H4 a pick whose side has the ball but no drive open yet "
+          "is TAKING THE FIELD SOON, not on offense",
+          by_name.get("Travis Kelce") == "TAKING THE FIELD SOON", by_name)
+
+    # Now his drive ENDS -- a punt. ESPN keeps naming KC on drives.current
+    # right through the kickoff that follows, so possession plus an open
+    # drive both still say yes. Only driveOver says otherwise, and without it
+    # he sits there green reading "ball on offense" while his team kicks off.
+    FX["espn_summaries"]["9002"] = espn_summary(
+        "9002", "in", {"KC": [("2", "Travis Kelce", "receiving", (4, 40, 0, 5))]}, (14, 10),
+        current=espn_drive("d3", "KC", 70, "3rd & 8 at KC 30", result="Punt"))
+    page.evaluate("SLATE_POLLS.clear()")   # the slate is cached per poll; force a re-read
+    poll(page)
+    after = page.eval_on_selector_all(
+        "#liveab-grid .ab-tile",
+        "els => Object.fromEntries(els.map(e => [e.querySelector('.ab-name').textContent.trim(), "
+        "e.querySelector('.ab-tag').textContent.trim()]))")
+    check("H4b ...and once that drive is OVER he is not shown on offense at all",
+          after.get("Travis Kelce") not in ("ON OFFENSE", "RED ZONE"), after)
+
+    # ---- the scoring log ----
+    # On EVERYTHING, because the touchdown here was scored by a tight end
+    # nobody picked -- which is exactly what that filter is for.
+    page.evaluate("toggleHrLog(); setHrFilter('all')")
+    page.wait_for_timeout(200)
+    rows = page.eval_on_selector_all(
+        "#hrlog-list .hr-row .hr-batter", "els => els.map(e => e.textContent.trim())")
+    check("H5 the log lists a touchdown and a home run together",
+          "Dallas Goedert" in rows and "Aaron Judge" in rows, rows)
+    check("H6 the count pill counts across both sports",
+          page.inner_text("#hrlog-count") == "1 OURS · 2 TOTAL · 50%",
+          page.inner_text("#hrlog-count"))
+    check("H6b ...and marks only the pick's own score as ours",
+          page.eval_on_selector_all(
+              "#hrlog-list .hr-row.ours .hr-batter", "els => els.map(e => e.textContent.trim())")
+          == ["Aaron Judge"],
+          page.eval_on_selector_all("#hrlog-list .hr-row.ours .hr-batter",
+                                    "els => els.map(e => e.textContent.trim())"))
+    check("H7 the panel is named for both sports",
+          "Scoring Log" in page.inner_text(".hrlog-title"), page.inner_text(".hrlog-title"))
+    # The row's own onclick names toggleTdRow, which lives inside the module;
+    # an inline handler is resolved against window when CLICKED, so the host
+    # needs a shim or every touchdown row throws on tap.
+    check("H8 a touchdown row can actually be expanded",
+          page.evaluate("typeof toggleTdRow === 'function'"))
+    page.evaluate("toggleTdRow('sp1')")
+    page.wait_for_timeout(150)
+    check("H9 ...and expanding it shows the touchdown's detail, not a home run's",
+          page.query_selector("#hrlog-list .hr-row.open") is not None
+          and "Statcast" not in (page.inner_text("#hrlog-list .hr-row.open") or ""),
+          page.query_selector("#hrlog-list .hr-row.open") is not None)
+    check("H10 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
 print()

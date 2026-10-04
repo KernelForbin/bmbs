@@ -46,12 +46,12 @@
             {
               "id": "p0-c0-l2",
               "player": "Braves",
-              "team": "",
+              "team": "ATL",
               "who": "",
-              "meta": "",
+              "meta": "ATL",
               "odds": "+118",
               "time": "",
-              "market": "runs",
+              "market": "team_total",
               "line": 3.5,
               "sport": "mlb"
             }

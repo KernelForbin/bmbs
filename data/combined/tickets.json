@@ -1,7 +1,7 @@
 {
   "date": "2026-10-04",
   "endDate": "2026-10-04",
-  "note": "'Jaxson Smith-Njigba Most Sunday' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Dione Walker (Bills)' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'David Bailey (Jets)' is not on the NFL roster -- check the spelling, it can't be graded as typed",
+  "note": "'Dione Walker (Bills)' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'David Bailey (Jets)' is not on the NFL roster -- check the spelling, it can't be graded as typed",
   "sports": [
     "mlb",
     "nfl"
@@ -177,7 +177,7 @@
               "meta": "ARI",
               "odds": "+154",
               "time": "",
-              "market": "yards",
+              "market": "rush_yds",
               "line": 79.5,
               "sport": "nfl",
               "athleteId": "4870808"
@@ -458,15 +458,16 @@
     {
       "id": "single-0",
       "who": "",
-      "player": "Jaxson Smith-Njigba Most Receiving Yards Sunday +1200 Boosted",
-      "team": "",
-      "meta": "$4.00 bet",
+      "player": "Jaxon Smith-Njigba",
+      "team": "SEA",
+      "meta": "SEA",
       "odds": null,
       "stake": 4.0,
       "payout": 52.0,
       "pp": "PP $52.00",
-      "market": "unknown",
-      "sport": "mlb"
+      "market": "most_rec_yds",
+      "sport": "nfl",
+      "athleteId": "4430878"
     }
   ]
 }

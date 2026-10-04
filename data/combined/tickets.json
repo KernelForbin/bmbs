@@ -1,0 +1,452 @@
+{
+  "date": "2026-10-04",
+  "endDate": "2026-10-04",
+  "note": "'Barelon Allen' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Keon Coleman 15+' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Jeremiyah Love 80+ Yards' could be MLB or NFL (nothing on the line says which sport)",
+  "sports": [
+    "mlb",
+    "nfl"
+  ],
+  "windows": [
+    {
+      "title": "Parlay Cards",
+      "tickets": [
+        {
+          "name": "Ticket 1",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$81.87</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 81.87,
+          "legs": [
+            {
+              "id": "p0-c0-l0",
+              "player": "Barelon Allen",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+130",
+              "time": "",
+              "market": "td",
+              "sport": "nfl"
+            },
+            {
+              "id": "p0-c0-l1",
+              "player": "Keon Coleman Receiving Yards",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+106",
+              "time": "",
+              "market": "unknown",
+              "line": 14.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c0-l2",
+              "player": "Braves",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+118",
+              "time": "",
+              "market": "runs",
+              "line": 3.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 2",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$115.15</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 115.15,
+          "legs": [
+            {
+              "id": "p0-c1-l0",
+              "player": "Zay Flowers",
+              "team": "BAL",
+              "who": "",
+              "meta": "BAL",
+              "odds": "+135",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4429615"
+            },
+            {
+              "id": "p0-c1-l1",
+              "player": "Puka Nacua",
+              "team": "LAR",
+              "who": "",
+              "meta": "LAR",
+              "odds": "+150",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4426515"
+            },
+            {
+              "id": "p0-c1-l2",
+              "player": "Mookie Betts",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+145",
+              "time": "",
+              "market": "tb",
+              "line": 1.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 3",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$132.50</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 132.5,
+          "legs": [
+            {
+              "id": "p0-c2-l0",
+              "player": "Dalton Kincaid",
+              "team": "BUF",
+              "who": "",
+              "meta": "BUF",
+              "odds": "+160",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4385690"
+            },
+            {
+              "id": "p0-c2-l1",
+              "player": "Parker Washington",
+              "team": "JAX",
+              "who": "",
+              "meta": "JAX",
+              "odds": "+145",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4432620"
+            },
+            {
+              "id": "p0-c2-l2",
+              "player": "Fernado Tatis",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+160",
+              "time": "",
+              "market": "hrr",
+              "line": 2.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 4",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$126.19</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 126.19,
+          "legs": [
+            {
+              "id": "p0-c3-l0",
+              "player": "Christian Watson",
+              "team": "GB",
+              "who": "",
+              "meta": "GB",
+              "odds": "+170",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4248528"
+            },
+            {
+              "id": "p0-c3-l1",
+              "player": "Jeremiyah Love Yards",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+154",
+              "time": "",
+              "market": "unknown",
+              "line": 79.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c3-l2",
+              "player": "Manny Machado",
+              "team": "SD",
+              "who": "",
+              "meta": "SD",
+              "odds": "+130",
+              "time": "",
+              "market": "tb",
+              "line": 1.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 5",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$159.00</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 159.0,
+          "legs": [
+            {
+              "id": "p0-c4-l0",
+              "player": "DJ Moore",
+              "team": "BUF",
+              "who": "",
+              "meta": "BUF",
+              "odds": "+150",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "3915416"
+            },
+            {
+              "id": "p0-c4-l1",
+              "player": "Luther Burden III",
+              "team": "CHI",
+              "who": "",
+              "meta": "CHI",
+              "odds": "+200",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4685278"
+            },
+            {
+              "id": "p0-c4-l2",
+              "player": "Matt Olson",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": null,
+              "time": "",
+              "market": "tb",
+              "line": 1.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 6",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$282.47</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 282.47,
+          "legs": [
+            {
+              "id": "p0-c5-l0",
+              "player": "Josh Allen Passing Touchdowns",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+235",
+              "time": "",
+              "market": "unknown",
+              "line": 2.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c5-l1",
+              "player": "Derrick Henry Touchdowns",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+240",
+              "time": "",
+              "market": "unknown",
+              "line": 1.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c5-l2",
+              "player": "Justin Herbert Passing Touchdowns",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+210",
+              "time": "",
+              "market": "unknown",
+              "line": 1.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 7",
+          "sub": "2-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$255.36</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 255.36,
+          "legs": [
+            {
+              "id": "p0-c6-l0",
+              "player": "Jake Bauers",
+              "team": "MIL",
+              "who": "",
+              "meta": "MIL",
+              "odds": "+460",
+              "time": "",
+              "line": 0.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c6-l1",
+              "player": "Austin Riley",
+              "team": "ATL",
+              "who": "",
+              "meta": "ATL",
+              "odds": "+470",
+              "time": "",
+              "line": 0.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 8",
+          "sub": "2-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$182.00</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 182.0,
+          "legs": [
+            {
+              "id": "p0-c7-l0",
+              "player": "Fernado Tatis",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+411",
+              "time": "",
+              "line": 0.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c7-l1",
+              "player": "Shohei Ohtani",
+              "team": "LAD",
+              "who": "",
+              "meta": "LAD",
+              "odds": "+344",
+              "time": "",
+              "line": 0.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 9",
+          "sub": "2-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$146.32</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 146.32,
+          "legs": [
+            {
+              "id": "p0-c8-l0",
+              "player": "Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs Combined TDs",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+210",
+              "time": "",
+              "market": "unknown",
+              "line": 3.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c8-l1",
+              "player": "Brice Turan",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+490",
+              "time": "",
+              "market": "doubles",
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 11",
+          "sub": "3-Leg",
+          "foot": "<b>$4.00</b> bet &middot; Potential payout <b>$510.64</b>",
+          "stake": 4.0,
+          "book": "",
+          "payout": 510.64,
+          "legs": [
+            {
+              "id": "p0-c9-l0",
+              "player": "Lions",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+500",
+              "time": "",
+              "market": "unknown",
+              "players": [
+                "Lions",
+                "Panthers Each team to score all four quarters"
+              ],
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c9-l1",
+              "player": "Dione Walker (Bills) Sack",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+308",
+              "time": "",
+              "market": "unknown",
+              "line": 0.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c9-l2",
+              "player": "David Bailey (Jets) Sack",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": "+249",
+              "time": "",
+              "market": "unknown",
+              "line": 0.5,
+              "sport": "mlb"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "singles": [
+    {
+      "id": "single-0",
+      "who": "",
+      "player": "Jaxson Smith-Njigba Most Receiving Yards Sunday +1200 Boosted",
+      "team": "",
+      "meta": "$4.00 bet",
+      "odds": null,
+      "stake": 4.0,
+      "payout": 52.0,
+      "pp": "PP $52.00",
+      "market": "unknown",
+      "sport": "mlb"
+    }
+  ]
+}

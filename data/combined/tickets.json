@@ -1,6 +1,6 @@
 {
   "date": "2026-10-04",
-  "endDate": "2026-10-04",
+  "endDate": "2026-10-11",
   "note": "",
   "sports": [
     "mlb",
@@ -450,6 +450,112 @@
               "line": 0.5,
               "sport": "nfl",
               "athleteId": "4685248"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 12",
+          "sub": "8-Leg",
+          "foot": "<b>$9.88</b> bet by Kenny &middot; Potential payout <b>$84.00</b>",
+          "stake": 9.88,
+          "book": "Kenny",
+          "payout": 84.0,
+          "legs": [
+            {
+              "id": "p0-c10-l0",
+              "player": "Lions",
+              "team": "DET",
+              "who": "Kenny",
+              "meta": "DET &middot; Kenny",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 1
+            },
+            {
+              "id": "p0-c10-l1",
+              "player": "Panthers",
+              "team": "CAR",
+              "who": "Kenny",
+              "meta": "CAR &middot; Kenny",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 1
+            },
+            {
+              "id": "p0-c10-l2",
+              "player": "Lions",
+              "team": "DET",
+              "who": "Kenny",
+              "meta": "DET &middot; Kenny",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 2
+            },
+            {
+              "id": "p0-c10-l3",
+              "player": "Panthers",
+              "team": "CAR",
+              "who": "Kenny",
+              "meta": "CAR &middot; Kenny",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 2
+            },
+            {
+              "id": "p0-c10-l4",
+              "player": "Lions",
+              "team": "DET",
+              "who": "Kenny",
+              "meta": "DET &middot; Kenny",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 3
+            },
+            {
+              "id": "p0-c10-l5",
+              "player": "Panthers",
+              "team": "CAR",
+              "who": "Kenny",
+              "meta": "CAR &middot; Kenny",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 3
+            },
+            {
+              "id": "p0-c10-l6",
+              "player": "Lions",
+              "team": "DET",
+              "who": "Kenny",
+              "meta": "DET &middot; Kenny",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 4
+            },
+            {
+              "id": "p0-c10-l7",
+              "player": "Panthers",
+              "team": "CAR",
+              "who": "Kenny",
+              "meta": "CAR &middot; Kenny",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 4
             }
           ]
         }

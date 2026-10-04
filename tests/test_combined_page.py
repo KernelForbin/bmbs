@@ -318,6 +318,12 @@ with sync_playwright() as p:
     # strips generational suffixes for ESPN and must not for MLB -- so the
     # football half lives in a closure. If that broke, it breaks loudly here.
     check("A1 the page loads with no JavaScript errors", not errors, errors[:3])
+    tags = dict(page.evaluate("""() => [...document.querySelectorAll('.leg-player, .single-player')]
+        .map(e => [e.firstChild.textContent.trim(), (e.querySelector('.mkt-tag') || {}).textContent || ''])"""))
+    check("A1b every leg row says what it is going for, in either sport",
+          bool(tags) and all(tags.values()), tags)
+    check("A1c ...a home run leg as HOME RUN, a touchdown leg as Anytime TD",
+          tags.get("Aaron Judge") == "HOME RUN" and "Anytime TD" in tags.values(), tags)
     check("A2 the NFL engine is reachable and sealed",
           page.evaluate("typeof NFL === 'object' && typeof NFL.state === 'function'"))
     check("A3 the MLB page's own normalizeName still keeps suffixes "

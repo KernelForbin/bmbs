@@ -247,6 +247,10 @@ with sync_playwright() as p:
     page.evaluate("clearInterval(pollTimer)")
     expand_cards(page)
     poll(page)
+    tags = page.evaluate("""() => [...document.querySelectorAll('.leg-player, .single-player')]
+        .map(e => [e.firstChild.textContent.trim(), (e.querySelector('.mkt-tag') || {}).textContent || ''])""")
+    check("A0 every leg row says what it is going for: ANYTIME TD",
+          bool(tags) and all(t == "ANYTIME TD" for _, t in tags), str(tags))
     check("A1 football page never calls MLB", not any("mlb.com" in u or "statsapi" in u for u in SEEN))
     check("A2 football page never reads the baseball tickets files",
           not any(re.search(r"/data/tickets(-previous)?\.json", u) for u in SEEN), str([u for u in SEEN if "tickets" in u]))

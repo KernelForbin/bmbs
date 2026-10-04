@@ -629,6 +629,14 @@ is one event told twice); a home run's own tile is left alone. The tile
 changes whatever the overlay toggle says -- the tracker is the page, not a
 notification. `test_live_at_bats.py` AA and `test_combined_page.py` S.
 
+**Every leg row on a card names its market** (2026-10-04, the user's call).
+`marketTag()` used to return nothing for a home run, as the default -- fair
+when cards were home runs only, wrong once one card held hits props, game
+lines and touchdowns: "Austin Riley" alone no longer said what he had to do.
+Home runs are tagged HOME RUN (plus any line), the NFL page tags every leg
+ANYTIME TD, and the combined page uppercases its tags because the NFL labels
+are mixed case. `test_page.py` T2, `test_football.py` A0, combined A1b/A1c.
+
 **`alertSlate()`: the slate rolls over on the SAME poll as its last play.**
 When the last game on a card goes final, `refreshEverything()` moves the slate
 to `SLATES.yesterday` before alerts are checked -- and `checkForBombs()` read

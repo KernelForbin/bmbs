@@ -1522,6 +1522,13 @@ with sync_playwright() as p:
         return !!l && !!f && (l.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0; }"""), \
         "the colour key must sit above the footer, not after it"
     print("T1 OK: title -> LIVE FROM MLB -> last-updated, and the colour key sits above the footer")
+    # Every leg names what it is going for, home runs included -- a bare
+    # "Austin Riley" stopped saying that once cards mixed markets (2026-10-04).
+    tags = page.evaluate("""() => [...document.querySelectorAll('.leg-player, .single-player')]
+        .map(e => [e.firstChild.textContent.trim(), (e.querySelector('.mkt-tag') || {}).textContent || ''])""")
+    assert tags and all(t for _, t in tags), f"every leg row needs a market tag: {tags}"
+    assert all(t == "HOME RUN" for _, t in tags), f"this slate is all home runs: {tags}"
+    print("T2 OK: every leg row says what it is going for -- HOME RUN on a home run bet")
     assert not errors, errors
     browser.close()
 

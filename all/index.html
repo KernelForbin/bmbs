@@ -282,13 +282,14 @@
   .leg-action-tag.steal { background:var(--steal-dim); color:var(--steal); border:1px solid var(--steal); }
   .leg-live-context.leg-status { color:var(--text-faint); }
   .leg-live-context.steal-credit { color:var(--green); }
-  .mkt-tag { font-family:'Inter',sans-serif; font-size:9px; font-weight:700; letter-spacing:.07em; border-radius:4px; padding:1px 5px; vertical-align:2px; }
+  .mkt-tag { font-family:'Inter',sans-serif; font-size:9px; font-weight:700; letter-spacing:.07em; border-radius:4px; padding:1px 5px; vertical-align:2px; text-transform:uppercase; }  /* NFL labels are mixed case, MLB's capitals */
   .mkt-tag.sb { color:var(--steal); background:var(--steal-dim); border:1px solid var(--steal); }
   /* A player stat prop and a game line read as distinct kinds of bet, and an
      UNKNOWN market is deliberately the dimmest of the three -- it is shown so
      nothing is hidden, but it is not being graded and shouldn't look like it
      carries the same weight as a pick the page is actually tracking. */
   .mkt-tag.prop { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
+  .mkt-tag.hr { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
   .mkt-tag.line { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
   .mkt-tag.unknown { color:var(--muted); background:transparent; border:1px dashed var(--panel-line); }
   /* Two new Live Bet Tracker tiles. Deliberately calmer than AT BAT: a
@@ -2953,12 +2954,19 @@ function stealsBy(norm) {
   return out;
 }
 
-// The tag beside a pick. Home runs get none -- they're the default and a tag
-// on every leg would be noise. An unknown market still gets one, reading the
-// market name as the card wrote it, so nothing is ever displayed as though it
-// were a home run bet just because the page doesn't recognise it.
+// The tag beside a pick, naming what it is going for. EVERY leg gets one,
+// home runs included. They used to get none, as the default -- a fair call
+// when cards were home runs only, and wrong once one card could hold hits
+// props, game lines and touchdowns: "Austin Riley" on its own no longer said
+// what he had to do (the user's call, 2026-10-04). An unknown market still
+// gets one, reading the market name as the card wrote it, so nothing is ever
+// displayed as though it were a home run bet just because the page doesn't
+// recognise it.
 function marketTag(market, leg) {
-  if (!market || market === "hr") return "";
+  if (!market) return "";
+  if (market === "hr") {
+    return ` <span class="mkt-tag hr" title="Home run bet">HOME RUN${leg ? lineText(leg) : ""}</span>`;
+  }
   const def = MARKETS[market];
   const line = leg ? lineText(leg) : "";
   if (!def) {

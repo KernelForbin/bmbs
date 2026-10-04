@@ -1,0 +1,247 @@
+"""
+scripts/parse_combined_picks.py -- the MLB + NFL card (sports_*.txt).
+
+Fully offline: reads only checked-in fixtures and the two committed rosters,
+writes only to a temp dir, and the NFL schedule lookup is given a fetcher that
+raises so nothing reaches ESPN.
+
+    python tests/test_combined_parser.py
+"""
+import json
+import sys
+import tempfile
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO / "scripts"))
+import parse_combined_picks as cp   # noqa: E402
+
+failures = []
+
+
+def check(name, cond, detail=""):
+    print(("PASS  " if cond else "FAIL  ") + name + (f"  [{detail}]" if detail and not cond else ""))
+    if not cond:
+        failures.append(name)
+
+
+def no_network(_url):
+    raise RuntimeError("the tests never reach ESPN")
+
+
+NOW = datetime(2026, 10, 4, 11, 0, tzinfo=ZoneInfo("America/New_York"))
+CARD = (REPO / "tests" / "fixtures" / "sports_combined_format.txt").read_text(encoding="utf-8")
+MLB, NFL = cp.load_rosters()
+OUT = cp.build(CARD, MLB, NFL, NOW, no_network)
+
+LEGS = [l for w in OUT["windows"] for t in w["tickets"] for l in t["legs"]]
+ALL = LEGS + OUT["singles"]
+BY = {}
+for _l in ALL:
+    BY.setdefault((_l["player"], _l.get("market")), _l)
+
+
+# ================= A. the card parses, and every leg knows its sport ========
+check("A1 five tickets and three singles",
+      sum(len(w["tickets"]) for w in OUT["windows"]) == 5 and len(OUT["singles"]) == 3,
+      f'{sum(len(w["tickets"]) for w in OUT["windows"])}/{len(OUT["singles"])}')
+check("A2 every leg carries a sport", all(l.get("sport") in ("mlb", "nfl") for l in ALL),
+      [l.get("sport") for l in ALL])
+check("A3 the split is 7 MLB / 7 NFL",
+      sum(1 for l in ALL if l["sport"] == "mlb") == 7
+      and sum(1 for l in ALL if l["sport"] == "nfl") == 7,
+      [(l["player"], l["sport"]) for l in ALL])
+check("A4 both sports are declared on the slate", OUT["sports"] == ["mlb", "nfl"], OUT["sports"])
+check("A5 nothing was dropped or flagged ambiguous", OUT["note"] == "", OUT["note"])
+
+
+# ================= B. a parlay may hold both sports =========================
+# The headline feature. Ticket 4 is one MLB leg + one NFL leg; ticket 5 is
+# three legs across both. evaluate_ticket on the page grades each leg by its
+# own sport, so this file only has to prove the data says so.
+mixed = OUT["windows"][0]["tickets"][3]
+three = OUT["windows"][0]["tickets"][4]
+check("B1 a two-leg parlay spans MLB and NFL",
+      sorted(l["sport"] for l in mixed["legs"]) == ["mlb", "nfl"],
+      [(l["player"], l["sport"]) for l in mixed["legs"]])
+check("B2 ...and keeps its stake and payout", mixed["stake"] == 6.0 and mixed["payout"] == 208.80,
+      (mixed.get("stake"), mixed.get("payout")))
+check("B3 a three-leg parlay spans both too",
+      sorted(l["sport"] for l in three["legs"]) == ["mlb", "nfl", "nfl"],
+      [(l["player"], l["sport"]) for l in three["legs"]])
+
+
+# ================= C. the collision ========================================
+# Five names sit on BOTH rosters and Jose Ramirez is one of them -- a star at
+# each. The fixture puts both of him in the SAME parlay on purpose. Getting
+# this wrong doesn't throw: it grades a touchdown bet off a boxscore batting
+# line, silently, forever. The sport is decided from the leg's own market word
+# first and its team second, never from the name.
+nfl_jose = [l for l in three["legs"] if l["sport"] == "nfl" and "Ramirez" in l["player"]]
+mlb_jose = [l for l in three["legs"] if l["sport"] == "mlb"]
+check("C1 the NFL Jose Ramirez is New England, graded as a touchdown",
+      len(nfl_jose) == 1 and nfl_jose[0]["team"] == "NE" and nfl_jose[0]["market"] == "td",
+      nfl_jose)
+check("C2 the MLB Jose Ramirez is Cleveland, graded as a home run",
+      len(mlb_jose) == 1 and mlb_jose[0]["team"] == "CLE" and "market" not in mlb_jose[0],
+      mlb_jose)
+check("C3 ...and they are two different people, not one leg twice",
+      len({l["id"] for l in three["legs"]}) == 3, [l["id"] for l in three["legs"]])
+
+
+# ================= D. NFL legs are gradeable by the football page ===========
+# The page matches by ESPN athlete id FIRST and name+team second, so a leg
+# without an id is a leg that can only ever be graded by the weaker path.
+nfl_legs = [l for l in ALL if l["sport"] == "nfl"]
+check("D1 every NFL leg carries an ESPN athlete id",
+      all(l.get("athleteId") for l in nfl_legs),
+      [(l["player"], l.get("athleteId")) for l in nfl_legs])
+check("D2 every NFL leg carries a team", all(l.get("team") for l in nfl_legs),
+      [(l["player"], l.get("team")) for l in nfl_legs])
+check("D3 an NFL leg naming no market is an anytime touchdown",
+      BY[("Saquon Barkley", "td")]["sport"] == "nfl")
+check("D4 ...and the team came off the roster, not the opponent in the matchup",
+      BY[("Saquon Barkley", "td")]["team"] == "PHI",
+      BY[("Saquon Barkley", "td")]["team"])
+
+
+# ================= E. markets glued to the player name ======================
+# parse_picks resolves the player BEFORE it knows a market phrase was stuck to
+# the name, so "Max Fried Strikeouts Over 5.5" misses the roster entirely and
+# comes back as typed with a BLANK team -- the Tatis Jr. failure mode, a leg
+# that can never resolve a hit or a miss.
+fried = BY.get(("Max Fried", "k"))
+check("E1 an MLB prop's market phrase is stripped off the player name", fried is not None,
+      sorted(k[0] for k in BY))
+check("E2 ...and the player then resolves to a real team",
+      fried and fried["team"] == "NYY", fried)
+check("E3 ...keeping the line and the side", fried and fried["line"] == 5.5
+      and fried.get("side") in (None, "over"), fried)
+check("E4 the same works for an NFL prop",
+      BY.get(("Travis Kelce", "rec_yds")) is not None, sorted(k for k in BY))
+
+# An NFL market the page cannot follow must be reported AS ITSELF. Falling
+# back to "td" would grade a receiving-yards bet as a touchdown bet -- a
+# different question, answered confidently and wrongly. Untracked is the safe
+# answer and the whole reason "accept anything" works.
+check("E5 an ungradeable NFL prop keeps its own market, it does not become a TD",
+      BY[("Travis Kelce", "rec_yds")]["market"] == "rec_yds")
+check("E6 ...and the same player's TD leg is still a TD",
+      BY[("Travis Kelce", "td")]["market"] == "td")
+
+
+# ================= F. how the sport is decided, directly ====================
+# Checked through decide_sport rather than only through the fixture, because
+# the fixture can pass while the ORDER of the evidence is wrong -- and the
+# order is the whole design.
+hint_cases = [
+    ("a market word outranks everything", "Jose Ramirez", "td", "", "", "mlb", "nfl"),
+    ("an MLB market word does too", "Jose Ramirez", "k", "", "", "nfl", "mlb"),
+    ("a name on one roster only", "Aaron Judge", None, "", "", None, "mlb"),
+    ("a name on the other roster only", "Saquon Barkley", None, "", "", None, "nfl"),
+    ("a shared name falls to the team", "Jose Ramirez", None, "Cleveland Guardians", "", None, "mlb"),
+    ("...and the other way", "Jose Ramirez", None, "New England Patriots", "", None, "nfl"),
+    ("the heading is the last resort", "Jose Ramirez", None, "", "", "nfl", "nfl"),
+]
+for label, name, mkt, rest, head, hint, want in hint_cases:
+    got, _why = cp.decide_sport(name, mkt, rest, head, MLB, NFL, hint)
+    check(f"F{hint_cases.index((label, name, mkt, rest, head, hint, want)) + 1} {label}",
+          got == want, f"{name!r}/{mkt!r} rest={rest!r} hint={hint!r} -> {got!r}, wanted {want!r}")
+
+check("F8 a name on neither roster with nothing else to go on is ambiguous, not a guess",
+      cp.decide_sport("Nobody Atall", None, "", "", MLB, NFL, None)[0] is None)
+
+# The team is read from the text AFTER the price, never from the player's own
+# name. Plenty of surnames and first names ARE team words -- Buffalo, Jackson,
+# Carolina, Phoenix -- and scanning the name finds a team that was never on the
+# line. Here the line names a baseball team and the PLAYER happens to contain
+# an NFL city; reading both makes the two cancel out and the leg goes
+# ambiguous instead of resolving to the team that is actually written.
+check("F9 the team is read from the line, not from the player's own name",
+      cp.decide_sport("Buffalo Smith", None, "Cleveland Guardians", "Buffalo Smith",
+                      MLB, NFL, None)[0] == "mlb",
+      cp.decide_sport("Buffalo Smith", None, "Cleveland Guardians", "Buffalo Smith",
+                      MLB, NFL, None))
+
+
+# ================= G. a heading naming BOTH sports sets no default ==========
+# A "MIXED (MLB + NFL)" heading must CLEAR the hint rather than leave the
+# previous section's. Left set, every leg under it that had no other evidence
+# would inherit whichever sport was last named -- which is exactly the kind of
+# wrong that looks right until a bet grades off the other league.
+found, warns = cp.scan_card(
+    "NFL\nParlay 1\n* Saquon Barkley (-135) — Philadelphia Eagles (Kenny) 1:00 PM\n"
+    "MIXED (MLB + NFL)\nParlay 2\n* Nobody Atall (+200) (Kenny) 1:00 PM\n",
+    MLB, NFL)
+check("G1 a leg under a MIXED heading with no other evidence is flagged, not guessed",
+      any("could be MLB or NFL" in w for w in warns), warns)
+check("G2 ...while the single-sport heading above it still worked",
+      found.get("saquon barkley", {}).get("sport") == "nfl", found.get("saquon barkley"))
+
+
+# ================= H. team words =========================================
+check("H1 an NFL city resolves", cp.nfl_team_in("New England Patriots") == "NE")
+check("H2 a bare NFL abbreviation resolves", cp.nfl_team_in("(PHI @ NYG)") in ("PHI", "NYG"))
+check("H3 an NFL nickname does not match inside a longer word",
+      cp.nfl_team_in("Bearsden Rovers") is None, cp.nfl_team_in("Bearsden Rovers"))
+check("H4 an MLB city resolves",
+      cp.mlb_team_in("Cleveland Guardians", MLB["abbr_by_team_word"]) == "CLE")
+check("H5 a line naming no team gives nothing",
+      cp.mlb_team_in("7:10 PM", MLB["abbr_by_team_word"]) is None)
+
+
+# ================= I. the slate span ========================================
+# The NFL tab holds a slate until the WEEK's last game -- Monday night even for
+# a Sunday-only card -- because a football slate IS an NFL week. A combined
+# card is not a week, and the rule the user chose for it is "every game ON THE
+# CARD", so the span must come from the picked teams only.
+check("I1 a one-day card spans one day", OUT["date"] == OUT["endDate"] == "2026-10-04",
+      (OUT["date"], OUT["endDate"]))
+check("I2 an unreachable schedule still dates the slate rather than failing",
+      cp.nfl_span({"PHI"}, ["1:00 PM ET"], NOW, no_network) == ("2026-10-04", "2026-10-04"),
+      cp.nfl_span({"PHI"}, ["1:00 PM ET"], NOW, no_network))
+check("I3 no NFL legs means no NFL lookup at all",
+      cp.nfl_span(set(), [], NOW, no_network) == (None, None))
+
+
+# ================= J. archiving ============================================
+with tempfile.TemporaryDirectory() as td:
+    out_p, prev_p = Path(td) / "tickets.json", Path(td) / "tickets-previous.json"
+    out_p.write_text(json.dumps({"date": "2026-10-03", "windows": []}), encoding="utf-8")
+    check("J1 a slate for a NEW day archives the old one",
+          cp.archive_previous_slate("2026-10-04", out_p, prev_p) is True)
+    check("J2 ...and the archive holds the old slate",
+          json.loads(prev_p.read_text(encoding="utf-8"))["date"] == "2026-10-03")
+
+    # A same-day re-upload is a CORRECTION, not a new slate. Archiving it
+    # would overwrite the real previous card with a copy of today's.
+    prev_p.write_text(json.dumps({"date": "KEEP ME"}), encoding="utf-8")
+    out_p.write_text(json.dumps({"date": "2026-10-04", "windows": []}), encoding="utf-8")
+    check("J3 a same-day re-upload does NOT archive",
+          cp.archive_previous_slate("2026-10-04", out_p, prev_p) is False)
+    check("J4 ...so the real previous slate survives it",
+          json.loads(prev_p.read_text(encoding="utf-8"))["date"] == "KEEP ME")
+
+    check("J5 nothing to archive is fine",
+          cp.archive_previous_slate("2026-10-04", Path(td) / "nope.json", prev_p) is False)
+
+
+# ================= K. the schema the page will read =========================
+check("K1 ids are unique across the whole slate",
+      len({l["id"] for l in LEGS}) == len(LEGS))
+check("K2 every leg has the fields the page needs",
+      all(all(k in l for k in ("id", "player", "team", "who", "odds", "sport")) for l in LEGS),
+      [l for l in LEGS if not all(k in l for k in ("id", "player", "team", "who", "odds", "sport"))])
+check("K3 odds are signed", all(str(l["odds"])[0] in "+-" for l in ALL),
+      [l["odds"] for l in ALL])
+check("K4 no leg carries a placeholder team or player",
+      all(l["player"] and l["player"].lower() not in ("none", "tbd") for l in ALL))
+
+
+print()
+if failures:
+    print(f"{len(failures)} FAILED: " + ", ".join(failures))
+    sys.exit(1)
+print("all combined-parser checks passed")

@@ -17,7 +17,7 @@ name: Auto-fix a Picks Parse Failure
 
 on:
   workflow_run:
-    workflows: ["Parse New Picks", "Parse New Football Picks"]
+    workflows: ["Parse New Picks", "Parse New Football Picks", "Parse New Combined Picks"]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -25,13 +25,13 @@ on:
         description: "Which sport to (re-)attempt (manual runs only)"
         required: true
         type: choice
-        options: [baseball, football]
+        options: [baseball, football, combined]
 
 permissions:
   contents: write
 
 concurrency:
-  group: ${{ (github.event.workflow_run.name == 'Parse New Football Picks' || github.event.inputs.sport == 'football') && 'parse-football-picks' || 'parse-picks' }}
+  group: ${{ (github.event.workflow_run.name == 'Parse New Combined Picks' || github.event.inputs.sport == 'combined') && 'parse-combined-picks' || (github.event.workflow_run.name == 'Parse New Football Picks' || github.event.inputs.sport == 'football') && 'parse-football-picks' || 'parse-picks' }}
   cancel-in-progress: false
 
 jobs:
@@ -73,7 +73,15 @@ jobs:
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
           DISPATCH_SPORT: ${{ github.event.inputs.sport }}
         run: |
-          if [ "$WORKFLOW_NAME" = "Parse New Football Picks" ] || [ "$DISPATCH_SPORT" = "football" ]; then
+          if [ "$WORKFLOW_NAME" = "Parse New Combined Picks" ] || [ "$DISPATCH_SPORT" = "combined" ]; then
+            echo "sport=combined" >> "$GITHUB_OUTPUT"
+            echo "incoming=data/combined/incoming_picks.txt" >> "$GITHUB_OUTPUT"
+            # PATCH the template reader; RUN the thin combined entry point.
+            echo "parser=scripts/parse_picks.py" >> "$GITHUB_OUTPUT"
+            echo "run_parser=scripts/parse_combined_picks.py" >> "$GITHUB_OUTPUT"
+            echo "tickets=data/combined/tickets.json" >> "$GITHUB_OUTPUT"
+            echo "previous=data/combined/tickets-previous.json" >> "$GITHUB_OUTPUT"
+          elif [ "$WORKFLOW_NAME" = "Parse New Football Picks" ] || [ "$DISPATCH_SPORT" = "football" ]; then
             echo "sport=football" >> "$GITHUB_OUTPUT"
             echo "incoming=data/football/incoming_picks.txt" >> "$GITHUB_OUTPUT"
             echo "parser=scripts/parse_football_picks.py" >> "$GITHUB_OUTPUT"
@@ -111,6 +119,7 @@ jobs:
           SPORT: ${{ steps.sport.outputs.sport }}
           INCOMING: ${{ steps.sport.outputs.incoming }}
           PARSER: ${{ steps.sport.outputs.parser }}
+          RUN_PARSER: ${{ steps.sport.outputs.run_parser }}
         run: python scripts/auto_fix_parser.py
 
       - name: Commit and push the automatic fix

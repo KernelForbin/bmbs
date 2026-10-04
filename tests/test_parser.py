@@ -899,4 +899,31 @@ for fixture_text in (gemini_text, md_text, ticket_text, hash_text, sb_text, emoj
 print("OK: pitcher markets (ER, win), two-team totals, and misspelt names")
 
 
+# --- 18. one unreadable footer must not take down the whole card ---
+# A real upload (2026-10-04) wrote "$8 pay 255.36" -- no "s" -- on one ticket
+# out of twelve. PAYS_FOOT_RE missed it, that card's stake stayed None, and
+# f"${None:.2f}" raised TypeError inside parse(). The run died, nothing was
+# written, and ALL TWELVE tickets were lost over one typo. That is strictly
+# worse than the silent-drop this file works so hard to avoid: the slate
+# doesn't post at all.
+assert pp.PAYS_FOOT_RE.match("$8 pay 255.36"), "a typo'd 'pay' is still a payout line"
+assert pp.PAYS_FOOT_RE.match("$8 pays 81.87"), "...and the ordinary spelling still works"
+
+NO_STAKE = """Ticket 1
+Aaron Judge 1+ Home Run +390
+Shohei Ohtani 1+ Home Run +344
+totally unreadable footer
+"""
+ns_windows, ns_singles, _ = pp.parse(NO_STAKE, team_by_name, canon)
+ns_tickets = [t for w in ns_windows for t in w["tickets"]] + list(ns_singles)
+assert ns_tickets, "a card whose footer nothing reads must still parse"
+# The stake is OMITTED from the printed foot rather than rendered as "None",
+# the same way a missing ticket OWNER is -- and `stake` itself stays null for
+# the page to read.
+foots = [t.get("foot", "") for t in ns_tickets]
+assert not any("None" in f for f in foots), foots
+assert all(t.get("stake") is None for t in ns_tickets), [t.get("stake") for t in ns_tickets]
+print("OK: an unreadable footer costs that ticket its stake, not the whole card")
+
+
 print("\nALL PARSER TESTS PASSED")

@@ -134,7 +134,7 @@ ORIGINAL_SOURCE = "def parse(): return 'old'\n"
 parser, incoming = with_tmp_files(ORIGINAL_SOURCE, "some upload")
 old_suite, old_verify = afp.run_full_suite, afp.verify_fix
 afp.run_full_suite = lambda: (True, "")
-afp.verify_fix = lambda p, i: (True, "")
+afp.verify_fix = lambda p, i, r=None: (True, "")
 ok, detail = afp.attempt_fix("baseball", incoming, parser, "fake-key", fetcher=fetcher_returning(ENVELOPE))
 check("C1 a fix that passes both gates is left in place, ok=True",
       ok and parser.read_text(encoding="utf-8") == "NEW FILE CONTENTS", (ok, detail, parser.read_text(encoding="utf-8")))
@@ -142,7 +142,7 @@ check("C1 a fix that passes both gates is left in place, ok=True",
 # C2: suite FAILS after the patch -> file reverted, ok=False
 parser, incoming = with_tmp_files(ORIGINAL_SOURCE, "some upload")
 afp.run_full_suite = lambda: (False, "test_parser.py failed")
-afp.verify_fix = lambda p, i: (True, "")  # should never even be reached
+afp.verify_fix = lambda p, i, r=None: (True, "")  # should never even be reached
 ok, detail = afp.attempt_fix("baseball", incoming, parser, "fake-key", fetcher=fetcher_returning(ENVELOPE))
 check("C2 a suite failure reverts the file to its ORIGINAL content and returns ok=False",
       not ok and parser.read_text(encoding="utf-8") == ORIGINAL_SOURCE, (ok, parser.read_text(encoding="utf-8")))
@@ -151,7 +151,7 @@ check("C2b the failure detail names what broke", "test_parser.py failed" in deta
 # C3: suite passes but the specific upload STILL doesn't parse -> reverted, ok=False
 parser, incoming = with_tmp_files(ORIGINAL_SOURCE, "some upload")
 afp.run_full_suite = lambda: (True, "")
-afp.verify_fix = lambda p, i: (False, "parser still exits 1")
+afp.verify_fix = lambda p, i, r=None: (False, "parser still exits 1")
 ok, detail = afp.attempt_fix("baseball", incoming, parser, "fake-key", fetcher=fetcher_returning(ENVELOPE))
 check("C3 the suite passing is NOT enough on its own -- if the specific upload still fails, revert",
       not ok and parser.read_text(encoding="utf-8") == ORIGINAL_SOURCE, (ok, parser.read_text(encoding="utf-8")))
@@ -177,7 +177,7 @@ check("C5 a network/API failure is caught, not raised -- ok=False, file untouche
 # whether the model was close or wildly off without an API key and a local
 # reproduction. Found the hard way on 2026-09-22.
 afp.run_full_suite = lambda: (False, "test_parser.py failed")
-afp.verify_fix = lambda p, i: (True, "")
+afp.verify_fix = lambda p, i, r=None: (True, "")
 ok, detail = afp.attempt_fix("baseball", incoming, parser, "fake-key", fetcher=fetcher_returning(ENVELOPE))
 check("C6 a suite failure reports the model's own summary of what it did",
       "the model said:" in detail, detail[:200])
@@ -213,7 +213,8 @@ def read_outputs():
 calls = []
 
 
-def fake_attempt_fix(sport, incoming, parser, api_key, retry_feedback=None, fetcher=None):
+def fake_attempt_fix(sport, incoming, parser, api_key, retry_feedback=None, fetcher=None,
+                     run_parser=None):
     calls.append(retry_feedback)
     if len(calls) == 1:
         return False, "first attempt: wrong regex"
@@ -462,7 +463,7 @@ parser_i, incoming_i = with_tmp_files(ORIGINAL_SOURCE, "some upload")
 _first = ORIGINAL_SOURCE.splitlines()[0]
 _resp = ("<<<SUMMARY>>>\npatched\n<<<EDIT>>>\n<<<<<<< SEARCH\n"
          + _first + "\n=======\n" + _first + "\n# added by the fixer\n>>>>>>> REPLACE\n<<<END>>>")
-afp.run_full_suite, afp.verify_fix = lambda: (True, ""), lambda a, b: (True, "")
+afp.run_full_suite, afp.verify_fix = lambda: (True, ""), lambda a, b, c=None: (True, "")
 ok, detail = afp.attempt_fix("baseball", str(incoming_i), str(parser_i), "k",
                              fetcher=fetcher_returning(_resp))
 check("I10 attempt_fix applies an edits response end to end", ok is True, detail)

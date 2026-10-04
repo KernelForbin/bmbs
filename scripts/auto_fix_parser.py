@@ -365,11 +365,18 @@ def run_full_suite():
     return True, ""
 
 
-def verify_fix(parser_path, incoming_path):
+def verify_fix(parser_path, incoming_path, run_parser=None):
     """Does the SPECIFIC failing upload parse now? Running this also writes
     the real tickets.json for the workflow's later commit step -- same
-    invocation the ordinary workflow itself uses, nothing special-cased."""
-    r = run([sys.executable, str(REPO / parser_path), "--file", str(REPO / incoming_path)])
+    invocation the ordinary workflow itself uses, nothing special-cased.
+
+    `run_parser` exists because for a COMBINED card the file to patch and the
+    file to run are not the same one: every card TEMPLATE is read by
+    parse_picks.py (the thing a new shape needs changed), while the entry
+    point is parse_combined_picks.py. Defaults to the patched file, which is
+    what both single-sport paths have always done."""
+    r = run([sys.executable, str(REPO / (run_parser or parser_path)),
+             "--file", str(REPO / incoming_path)])
     if r.returncode != 0:
         tail = "\n".join((r.stdout + r.stderr).splitlines()[-15:])
         return False, f"parser still exits {r.returncode} against the real upload:\n{tail}"
@@ -427,7 +434,8 @@ def patch_diff(original, proposed, limit=160):
         diff = diff[:limit] + [f"... {len(diff) - limit} more diff lines truncated ..."]
     return "\n".join(diff)
 
-def attempt_fix(sport, incoming_path, parser_path, api_key, retry_feedback=None, fetcher=None):
+def attempt_fix(sport, incoming_path, parser_path, api_key, retry_feedback=None,
+                fetcher=None, run_parser=None):
     """(ok, detail). On ok=True, the patched file is left in place (and the
     real tickets.json has been written by verify_fix's own parser run). On
     ok=False, parser_path is guaranteed to be back to its ORIGINAL content --
@@ -483,7 +491,7 @@ def attempt_fix(sport, incoming_path, parser_path, api_key, retry_feedback=None,
         write(parser_path, original)
         return False, f"the full test suite failed after the patch:\n{suite_detail}\n\n{attempted}"
 
-    fixed, fix_detail = verify_fix(parser_path, incoming_path)
+    fixed, fix_detail = verify_fix(parser_path, incoming_path, run_parser)
     if not fixed:
         write(parser_path, original)
         return False, f"{fix_detail}\n\n{attempted}"
@@ -511,6 +519,8 @@ def main():
     sport = os.environ["SPORT"]
     incoming_path = os.environ["INCOMING"]
     parser_path = os.environ["PARSER"]
+    # Optional, and only the combined sport sets it: see verify_fix().
+    run_parser = os.environ.get("RUN_PARSER") or parser_path
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         print("ANTHROPIC_API_KEY is not set", file=sys.stderr)
@@ -531,7 +541,8 @@ def main():
     transport_only = True
     for attempt in range(1, MAX_ATTEMPTS + 1):
         print(f"Attempt {attempt}/{MAX_ATTEMPTS}...")
-        ok, detail = attempt_fix(sport, incoming_path, parser_path, api_key, retry_feedback=feedback)
+        ok, detail = attempt_fix(sport, incoming_path, parser_path, api_key,
+                                 retry_feedback=feedback, run_parser=run_parser)
         if ok:
             fixture = archive_fixture(sport, incoming_path)
             print(f"Resolved: {detail}")

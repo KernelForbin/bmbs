@@ -216,17 +216,28 @@ check("E3 has a workflow_dispatch escape hatch for a manual re-run",
       "workflow_dispatch:" in af_text)
 check("E4 declares a concurrency group (can't race the parse workflow it follows)",
       re.search(r'^concurrency:\s*\n\s*group:', af_text, re.M) is not None)
-check("E5 fires off BOTH parse workflows completing, and only reacts to a FAILURE "
+check("E5 fires off ALL THREE parse workflows completing, and only reacts to a FAILURE "
       "(a successful parse already notifies Discord on its own, see section B)",
-      re.search(r'workflows:\s*\[\s*"Parse New Picks"\s*,\s*"Parse New Football Picks"\s*\]', af_text) is not None
+      re.search(r'workflows:\s*\[\s*"Parse New Picks"\s*,\s*"Parse New Football Picks"\s*,'
+                r'\s*"Parse New Combined Picks"\s*\]', af_text) is not None
       and "conclusion == 'failure'" in af_text)
+# The combined card is what proved this matters. Its parse workflow was added
+# WITHOUT being listed in that trigger, so the first real upload failed and
+# nothing investigated it -- precisely the manual intervention this pipeline
+# exists to remove.
+check("E5b ...and the combined branch patches the TEMPLATE reader while RUNNING the thin "
+      "combined entry point, which are different files",
+      re.search(r'echo "parser=scripts/parse_picks\.py"[^\n]*\n\s*'
+                r'(?:#[^\n]*\n\s*)?echo "run_parser=scripts/parse_combined_picks\.py"', af_text) is not None
+      and "RUN_PARSER:" in af_text)
 # The workflow_run trigger names above are STRING literals -- if either real
 # workflow's own `name:` ever changes, this trigger silently stops firing
 # with no error anywhere. Cross-check them against the actual files.
-check("E6 the two workflow names it listens for match the real workflows' OWN `name:` fields "
-      "(a rename of either would silently break this trigger)",
+check("E6 the three workflow names it listens for match the real workflows' OWN `name:` fields "
+      "(a rename of any of them would silently break this trigger)",
       re.match(r'^name:\s*Parse New Picks\s*$', texts["parse-picks.yml"].splitlines()[0]) is not None
-      and re.match(r'^name:\s*Parse New Football Picks\s*$', texts["parse-football-picks.yml"].splitlines()[0]) is not None)
+      and re.match(r'^name:\s*Parse New Football Picks\s*$', texts["parse-football-picks.yml"].splitlines()[0]) is not None
+      and re.match(r'^name:\s*Parse New Combined Picks\s*$', texts["parse-combined-picks.yml"].splitlines()[0]) is not None)
 
 af_run_block = commit_step_text(af_text, "Commit and push the automatic fix")
 check("E7 the commit step only runs when a fix was actually resolved -- never unconditionally",

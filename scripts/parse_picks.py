@@ -339,8 +339,11 @@ GAME_HEADER_RE = re.compile(
     r"\s*\W*\s*(\d{1,2}:\d{2}\s*[AP]M(?:\s*ET)?)?\s*$", re.IGNORECASE)
 PLAIN_TICKET_RE = re.compile(r"^Ticket\s*#\s*(\d+)\s*$", re.IGNORECASE)
 # "$5 pays $109.70"
+# "pays?" because a real card wrote "$8 pay 255.36" with no "s" -- one line
+# out of twelve on the same card, so it is a typo rather than a shape. Missing
+# it left that ticket with no stake at all.
 PAYS_FOOT_RE = re.compile(
-    r"^\W*\s*\$?([\d,.]+)\s*pays\s*\$?([\d,.]+)\s*$", re.IGNORECASE)
+    r"^\W*\s*\$?([\d,.]+)\s*pays?\s*\$?([\d,.]+)\s*$", re.IGNORECASE)
 # A bullet leg with no odds and free-form market text.
 BULLET_PROP_RE = re.compile(r"^[*\-\u2022\u00b7]\s*(.+?)\s*$")
 # ---- eleventh template variant (first seen 2026-10-01): same bare "Ticket N"
@@ -1738,7 +1741,19 @@ def parse(text, team_by_name, canonical_by_norm):
             # placeholder, and book is "" rather than None.
             book = (card["_book"] or "").strip()
             by_html = f' bet by {book}' if book else ' bet'
-            foot = (f'<b>${card["_stake"]:.2f}</b>{by_html} '
+            # A ticket whose footer no pattern read has NO stake, and
+            # f"${None:.2f}" is a TypeError that kills the whole run -- every
+            # other ticket on the card included. That is strictly worse than
+            # the silent-drop this file works so hard to avoid: the slate
+            # doesn't post at all. One card wrote "$8 pay 255.36" (no "s")
+            # and took down all twelve of its tickets.
+            #
+            # So the stake is omitted from the printed foot when it's unknown,
+            # the same way a missing OWNER is omitted rather than printed as
+            # "bet by None". `stake` itself stays null for the page to read.
+            stake_html = f'<b>${card["_stake"]:.2f}</b>{by_html}' if card["_stake"] is not None \
+                else (f'Bet by {book}' if book else 'Bet')
+            foot = (f'{stake_html} '
                     f'&middot; Potential payout <b>{payout_str}</b>')
             out_tickets.append({
                 "name": f'{card["name"]}{sub_html}{tag_html}',

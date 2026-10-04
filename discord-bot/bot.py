@@ -52,8 +52,8 @@ GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 
 # file-name prefix -> where that sport's card goes
 ROUTES = {
-    "baseball": {"path": "data/incoming_picks.txt", "sport": "baseball (home runs)", "site": "https://bmbs.bet/"},
-    "football": {"path": "data/football/incoming_picks.txt", "sport": "football (touchdowns)", "site": "https://bmbs.bet/football/"},
+    "baseball": {"path": "data/incoming_picks.txt", "sport": "MLB (home runs)", "site": "https://bmbs.bet/"},
+    "football": {"path": "data/football/incoming_picks.txt", "sport": "NFL (touchdowns)", "site": "https://bmbs.bet/football/"},
 }
 
 

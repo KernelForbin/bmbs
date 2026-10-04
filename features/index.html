@@ -74,8 +74,8 @@
   </div>
 
   <nav class="sport-switch" aria-label="Sport">
-    <button type="button" class="sport active" id="switch-baseball" onclick="showSport('baseball')"><span class="ico">&#9918;</span>Baseball</button>
-    <button type="button" class="sport" id="switch-football" onclick="showSport('football')"><span class="ico">&#127944;</span>Football</button>
+    <button type="button" class="sport active" id="switch-baseball" onclick="showSport('baseball')"><span class="ico">&#9918;</span>MLB</button>
+    <button type="button" class="sport" id="switch-football" onclick="showSport('football')"><span class="ico">&#127944;</span>NFL</button>
   </nav>
 
   <div id="baseball-content">
@@ -325,7 +325,7 @@
 
   <div id="football-content" style="display:none">
   <header class="hero">
-    <h1>What the Football Tracker Can Do</h1>
+    <h1>What the NFL Tracker Can Do</h1>
   </header>
 
   <div class="sections">
@@ -351,7 +351,7 @@
         <h2>This Week's &amp; Last Week's Picks</h2>
       </div>
       <ul>
-        <li>Football runs by the <b>NFL week</b>, not the calendar day &mdash; a card can go up days ahead (Saturday for Sunday, or earlier for a Thursday-night pick) and cover Thursday, Sunday and Monday games all at once.</li>
+        <li>The NFL tracker runs by the <b>NFL week</b>, not the calendar day &mdash; a card can go up days ahead (Saturday for Sunday, or earlier for a Thursday-night pick) and cover Thursday, Sunday and Monday games all at once.</li>
         <li><b>This Week's Picks</b> stays put through the whole week, even if every pick on the card plays Sunday &mdash; it only moves once the week's very last game (usually Monday night) goes final.</li>
         <li>Once it moves, it lands in <b>Last Week's Picks</b> with final results, and This Week waits for the next card &mdash; showing a queued heads-up if it's already uploaded but the week isn't over yet.</li>
       </ul>
@@ -532,14 +532,14 @@ function showSport(sport) {
   document.getElementById("switch-football").classList.toggle("active", !isBaseball);
 
   var backHref = isBaseball ? "/" : "/football/";
-  var backText = "← Back to " + (isBaseball ? "the live card" : "the football tracker");
+  var backText = "← Back to " + (isBaseball ? "the live card" : "the NFL tracker");
   document.getElementById("back-link").href = backHref;
   document.getElementById("back-link").textContent = backText;
   document.getElementById("footer-back").href = backHref;
   document.getElementById("footer-back").textContent = backText;
   document.getElementById("footer-source").textContent = isBaseball ? "MLB's free public live data" : "ESPN's free public NFL data";
 
-  var title = isBaseball ? "What the BMBS Tracker Can Do" : "What the Football Tracker Can Do";
+  var title = isBaseball ? "What the BMBS Tracker Can Do" : "What the NFL Tracker Can Do";
   document.getElementById("page-title").textContent = title;
 
   // Reflected in the URL (via replaceState, no reload) so the choice survives a

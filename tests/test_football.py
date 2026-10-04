@@ -257,7 +257,7 @@ with sync_playwright() as p:
           BASEBALL_SRC.count('href="/football/"') == 1 and "data/football" not in BASEBALL_SRC)
     check("A6 every ESPN call uses the browser-permitted hosts (site.api.espn.com is CORS-blocked for browsers)",
           all("site.web.api.espn.com" in u or "sports.core.api.espn.com" in u for u in SEEN if "espn" in u) and "//site.api.espn.com" not in FOOTBALL_SRC)
-    check("A7 sport switch: Football active here, Baseball links home",
+    check("A7 sport switch: NFL active here, MLB links home",
           page.get_attribute(".sport-switch .sport.active", "href") == "/football/" and page.get_attribute(".sport-switch .sport:not(.active)", "href") == "/")
     check("A8 the baseball page has the same switch, pointing here",
           'class="sport active" href="/"' in BASEBALL_SRC and 'class="sport" href="/football/"' in BASEBALL_SRC)
@@ -670,7 +670,7 @@ with sync_playwright() as p:
         .map(e => e.id || e.className || e.tagName.toLowerCase()).slice(0, 4)""")
     check("N1 title first, then the LIVE FROM ESPN eyebrow, then the sync line",
           order[:3] == ["h1", "eyebrow", "sync-line"], str(order))
-    check("N2 the title names the sport", page.inner_text("h1") == "BMBS Tracker — Football", page.inner_text("h1"))
+    check("N2 the title names the sport", page.inner_text("h1") == "BMBS Tracker — NFL", page.inner_text("h1"))
     check("N3 the sync line dropped its 'Live —' prefix",
           page.inner_text("#sync-line").startswith("Last updated"), page.inner_text("#sync-line"))
     check("N4 the Auto-tracked boilerplate is gone (no parser warning on this slate)",

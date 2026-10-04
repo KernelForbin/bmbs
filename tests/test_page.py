@@ -1515,7 +1515,7 @@ with sync_playwright() as p:
     order = page.evaluate("""() => [...document.querySelectorAll('header > *')]
         .map(e => e.id || e.className || e.tagName.toLowerCase()).slice(0, 3)""")
     assert order == ["h1", "eyebrow", "sync-line"], order
-    assert page.inner_text("h1") == "BMBS Tracker — Baseball", page.inner_text("h1")
+    assert page.inner_text("h1") == "BMBS Tracker — MLB", page.inner_text("h1")
     assert page.inner_text("#sync-line").startswith("Last updated"), page.inner_text("#sync-line")
     assert page.evaluate("() => !document.querySelector('header .legend')"), "the colour key must leave the header"
     assert page.evaluate("""() => { const l = document.querySelector('.legend'), f = document.getElementById('footer-line');

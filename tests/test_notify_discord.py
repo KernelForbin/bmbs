@@ -50,7 +50,7 @@ msg = nd.summarize(p, "baseball")
 # promise. This message is the fact, and its Discord timestamp is what tells
 # the group when it actually happened.
 check("A1 baseball: card + single + leg counts, singular single",
-      msg == "✅ Baseball picks for 2026-09-20 are now LIVE on https://bmbs.bet/ — "
+      msg == "✅ MLB picks for 2026-09-20 are now LIVE on https://bmbs.bet/ — "
              "2 parlay cards and 1 single (5 legs). Tracking has started.", msg)
 p.unlink()
 
@@ -61,7 +61,7 @@ football_payload = {
 p = write_tmp("football", football_payload)
 msg = nd.summarize(p, "football")
 check("A2 football: a date RANGE when endDate differs from date, no singles clause",
-      msg == "✅ Football picks for 2026-09-21 to 2026-09-22 are now LIVE on https://bmbs.bet/football/ — "
+      msg == "✅ NFL picks for 2026-09-21 to 2026-09-22 are now LIVE on https://bmbs.bet/football/ — "
              "1 parlay card (2 legs). Tracking has started.", msg)
 p.unlink()
 
@@ -69,7 +69,7 @@ same_day_payload = {"date": "2026-09-20", "endDate": "2026-09-20", "windows": []
 p = write_tmp("football_sameday", same_day_payload)
 msg = nd.summarize(p, "football")
 check("A3 football: endDate == date collapses to one date, plural singles, no cards clause",
-      msg == "✅ Football picks for 2026-09-20 are now LIVE on https://bmbs.bet/football/ — "
+      msg == "✅ NFL picks for 2026-09-20 are now LIVE on https://bmbs.bet/football/ — "
              "2 singles (0 legs). Tracking has started.", msg)
 p.unlink()
 
@@ -231,7 +231,7 @@ p = write_tmp("cli_success", success_payload)
 sys.argv = ["notify_discord.py", "success", "--tickets", str(p), "--sport", "baseball"]
 nd.main()
 check("D3 'success' subcommand posts the summarize()'d message",
-      cli_calls[-1][0] == "post" and "Baseball picks for 2026-09-20" in cli_calls[-1][1], cli_calls[-1])
+      cli_calls[-1][0] == "post" and "MLB picks for 2026-09-20" in cli_calls[-1][1], cli_calls[-1])
 
 # The ORDINARY success has to reach the uploader too -- a mutation showed
 # nothing was checking that this subcommand passed the mention on at all, so

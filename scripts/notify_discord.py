@@ -104,7 +104,7 @@ def summarize(tickets_path, sport):
         span = f'{data["date"]} to {data["endDate"]}'
     else:
         span = data["date"]
-    label = "Football picks" if sport == "football" else "Baseball picks"
+    label = "NFL picks" if sport == "football" else "MLB picks"
     bits = []
     if cards:
         bits.append(f"{cards} parlay card{'s' if cards != 1 else ''}")

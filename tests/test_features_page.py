@@ -85,7 +85,7 @@ with sync_playwright() as p:
     check("C3 the URL picks up ?sport=football via replaceState (no reload)",
           page.url == ORIGIN + "/features/?sport=football" and len(requests) == sum(1 for u in requests if "fonts.g" in u) + 1,
           page.url)
-    check("C4 page title switches to the football tracker", page.title() == "What the Football Tracker Can Do")
+    check("C4 page title switches to the football tracker", page.title() == "What the NFL Tracker Can Do")
     check("C5 the back link now points at the football tracker", page.get_attribute("#back-link", "href") == "/football/")
     check("C6 the footer's data-source line switches to ESPN", "ESPN" in page.inner_text("#footer-source"))
 
@@ -118,7 +118,7 @@ with sync_playwright() as p:
     check("D1 a direct load with ?sport=football opens straight to the football section",
           page.is_visible("#football-content") and not page.is_visible("#baseball-content"))
     check("D2 ...with the right switch, title and back link already set",
-          "active" in page.get_attribute("#switch-football", "class") and page.title() == "What the Football Tracker Can Do"
+          "active" in page.get_attribute("#switch-football", "class") and page.title() == "What the NFL Tracker Can Do"
           and page.get_attribute("#back-link", "href") == "/football/")
     browser.close()
 

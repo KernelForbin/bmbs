@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BMBS Tracker — Live Checklist</title>
+<title>BMBS Tracker — MLB</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -429,7 +429,7 @@
     .bomb-flash { display:none; }
   }
 
-  /* ---- sport switch: a plain link to the football tracker, which is its own page (/football/) ---- */
+  /* ---- sport switch: plain links; each tracker is its own page ---- */
   .sport-switch { display:flex; gap:4px; margin:0 0 14px; padding:4px; background:var(--panel); border:1px solid var(--panel-line); border-radius:12px; }
   .sport-switch .sport { flex:1; display:flex; align-items:center; justify-content:center; gap:7px; padding:8px 10px; border-radius:9px; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim); text-decoration:none; transition:background .15s ease, color .15s ease; }
   .sport-switch .sport:hover { color:var(--text); }
@@ -440,8 +440,8 @@
 <body>
 <div class="card">
   <nav class="sport-switch" aria-label="Sport">
-    <a class="sport active" href="/" aria-current="page"><span class="ico">&#9918;</span>Baseball</a>
-    <a class="sport" href="/football/"><span class="ico">&#127944;</span>Football</a>
+    <a class="sport active" href="/" aria-current="page"><span class="ico">&#9918;</span>MLB</a>
+    <a class="sport" href="/football/"><span class="ico">&#127944;</span>NFL</a>
   </nav>
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-today" onclick="activateTab('today')">Today's Picks<span class="tab-date" id="tab-date-today"></span></button>
@@ -449,7 +449,7 @@
   </div>
   <div class="queued-note" id="queued-note"></div>
   <header>
-    <h1>BMBS Tracker &mdash; Baseball</h1>
+    <h1>BMBS Tracker &mdash; MLB</h1>
     <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM MLB</span></p>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
     <!-- Only a parser warning lands here now. The old "Auto-tracked against

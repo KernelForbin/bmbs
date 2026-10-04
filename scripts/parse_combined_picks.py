@@ -117,6 +117,14 @@ NFL_ONLY_MARKETS = {m for m, _ in NFL_MARKET_ALIASES}
 # The first signed 2-4 digit number on a line is the price. Two digits minimum
 # so a "-1.5" run line or an "Over 5.5" total can never be read as odds.
 ODDS_RE = re.compile(r"[+-]\d{2,4}(?!\.\d)(?!\d)")
+# A leg line carrying no price at all: a bullet, the subject, a colon, then
+# what the bet is -- "- Tage Thompson: Anytime Goal". The bullet is REQUIRED
+# so an ordinary sentence containing a colon can't be read as a leg, and the
+# subject is kept short so a prose line that happens to start with a dash
+# doesn't qualify either.
+BULLET_LEG_RE = re.compile(
+    r"^\s*[-*•●▪]\s*([^:]{2,40}?)\s*:\s*(.+?)\s*$")
+
 # Leading bullet / checkbox / numbering / "Bettor:" prefix on a leg line.
 LEG_PREFIX_RE = re.compile(
     r"^\s*(?:[-*•●▪>]+\s*|\[\s*[x ]?\s*\]\s*|\d+[.)]\s*)*"
@@ -231,10 +239,11 @@ def scan_card(text, mlb, nfl):
             continue
 
         odds = ODDS_RE.search(line)
-        if not odds:
-            # No price: this is prose. A heading naming exactly ONE sport sets
-            # the default for what follows; one naming BOTH (a "MIXED" header)
-            # deliberately clears it, so every leg under it is judged alone.
+        bullet = BULLET_LEG_RE.match(line) if not odds else None
+        if not odds and not bullet:
+            # Prose. A heading naming exactly ONE sport sets the default for
+            # what follows; one naming BOTH (a "MIXED" header) deliberately
+            # clears it, so every leg under it is judged alone.
             says_mlb, says_nfl = bool(MLB_WORDS.search(line)), bool(NFL_WORDS.search(line))
             if says_mlb and says_nfl:
                 section_hint = None
@@ -244,21 +253,41 @@ def scan_card(text, mlb, nfl):
                 section_hint = "nfl"
             continue
 
-        head = line[:odds.start()]
-        rest = line[odds.end():]
+        if odds:
+            head, rest = line[:odds.start()], line[odds.end():]
+        else:
+            # A PRICELESS leg line: "- Pat Freiermuth: 30+ Receiving Yards".
+            # The twelfth template writes every leg this way, and it is the
+            # shape the group is actually sending -- mixing MLB, NFL and NHL
+            # props in one ticket. Requiring a price here meant the pre-pass
+            # saw no legs at all on such a card and every one of them silently
+            # defaulted to baseball.
+            #
+            # Over-collecting is safe: an entry is only ever USED when a leg
+            # parse_picks actually produced matches it by name.
+            head, rest = bullet.group(1), bullet.group(2) or ""
         candidate = LEG_PREFIX_RE.sub("", head).strip(" (|-:–—·")
         if not candidate:
             continue
 
-        market, cleaned = detect_nfl_market(candidate)
+        # WHERE the market is written depends on the shape. With a price, it
+        # is glued to the player name ("Max Fried Strikeouts Over 5.5") and
+        # has to be stripped back off. Without one, the line already split it
+        # out for us and the subject is just the subject. Reading the whole
+        # line in both cases would let a stray "Over 8.5" from one leg's tail
+        # land on another's.
+        market_src = candidate if odds else rest
+        market, cleaned = detect_nfl_market(market_src)
         if market is None:
-            mkey, mline, mside, mcleaned = mlb_parser.detect_market(candidate)
+            mkey, mline, mside, mcleaned = mlb_parser.detect_market(market_src)
             market, cleaned = mkey, mcleaned
             line_val, side_val = mline, mside
         else:
             # An NFL prop can still carry its own over/under ("Receiving Yards
             # Over 62.5"), and baseball's detector is the thing that reads one.
             _k, line_val, side_val, cleaned = mlb_parser.detect_market(cleaned)
+        if not odds:
+            cleaned = candidate      # the subject was never the market
 
         sport, why = decide_sport(cleaned, market, rest, head, mlb, nfl, section_hint)
         if sport is None:
@@ -281,6 +310,7 @@ def scan_card(text, mlb, nfl):
             rec["team"] = (nfl["team_by_name"].get(norm)
                            or nfl_team_in(rest) or nfl_team_in(head) or "")
             rec["athleteId"] = nfl.get("id_by_norm", {}).get(norm, "")
+            rec["is_player"] = norm in nfl["team_by_name"]
             if norm not in nfl["team_by_name"]:
                 warnings.append(f"{cleaned!r} is not on the NFL roster -- "
                                 f"check the spelling, it can't be graded as typed")
@@ -290,6 +320,13 @@ def scan_card(text, mlb, nfl):
         # name -- and for an NFL player it usually will not.
         found[mlb_parser.normalize_name(candidate)] = rec
         found.setdefault(mlb_parser.normalize_name(rec["name"]), rec)
+        if not odds:
+            # On a priceless line the colon is the only thing separating the
+            # subject from the bet, and parse_picks keeps the two JOINED when
+            # it can't resolve the name -- "Tage Thompson Anytime Goal". Index
+            # that spelling too or the post-pass finds nothing and every leg on
+            # the card quietly stays baseball.
+            found.setdefault(mlb_parser.normalize_name(f"{candidate} {market_src}"), rec)
 
     return found, warnings
 
@@ -310,9 +347,15 @@ def apply_sports(windows, singles, found):
         leg["sport"] = rec["sport"]
         if rec["market"] and rec["market"] != "hr":
             leg["market"] = rec["market"]
-        elif rec["sport"] == "nfl" and not rec["market"]:
-            # An NFL leg with no market named is an anytime touchdown, the
-            # same way a market-less baseball leg is a home run.
+        elif rec["sport"] == "nfl" and not rec["market"] and rec.get("is_player"):
+            # An NFL leg naming a PLAYER with no market is an anytime
+            # touchdown, the same way a market-less baseball leg is a home run.
+            #
+            # Only a player. "Browns: +2.5" names a TEAM and is a point
+            # spread; defaulting it to "did the Browns score a touchdown"
+            # answers a different question and answers it confidently. A team
+            # leg nothing recognises keeps its unknown market and grades
+            # untracked, which is the honest answer.
             leg["market"] = "td"
         if rec.get("line") is not None:
             leg["line"] = rec["line"]

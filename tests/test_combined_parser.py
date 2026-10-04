@@ -240,6 +240,40 @@ check("K4 no leg carries a placeholder team or player",
       all(l["player"] and l["player"].lower() not in ("none", "tbd") for l in ALL))
 
 
+# ================= L. legs with no price on them ===========================
+# The twelfth template -- the shape the group is ACTUALLY sending, landed by
+# the auto-fixer on 2026-10-03 -- writes every leg as "- Subject: Bet" with no
+# odds anywhere on the line, and mixes MLB, NFL and NHL props in one ticket.
+# The pre-pass originally keyed on the price, so on such a card it saw no legs
+# at all and every one of them quietly stayed baseball.
+PRICELESS = (
+    "Ticket 1\n"
+    "- DK Metcalf: Anytime TD\n"
+    "- Browns: +2.5\n"
+    "- Trea Turner: 2+ Total Bases\n"
+    "Stake: 8.50 | Pays: 108.48\n"
+)
+out2 = cp.build(PRICELESS, MLB, NFL, NOW, no_network)
+pl = {l["player"]: l for w in out2["windows"] for t in w["tickets"] for l in t["legs"]}
+
+check("L1 a priceless card still parses", len(pl) == 3, sorted(pl))
+check("L2 a football player with no price is found and sported",
+      pl.get("DK Metcalf", {}).get("sport") == "nfl", pl.get("DK Metcalf"))
+check("L3 ...with his anytime-TD market", pl.get("DK Metcalf", {}).get("market") == "td",
+      pl.get("DK Metcalf"))
+check("L4 a baseball leg on the same ticket stays baseball",
+      pl.get("Trea Turner", {}).get("sport") == "mlb", pl.get("Trea Turner"))
+
+# The one that matters. "Browns: +2.5" names a TEAM and is a point spread.
+# The market-less default is "anytime touchdown", which for a team would be a
+# different bet answered confidently and wrongly -- so the default applies
+# only to a name that is actually on the player roster.
+browns = pl.get("Browns", {})
+check("L5 a team spread is NOT turned into an anytime-touchdown bet",
+      browns.get("market") == "spread", browns)
+check("L6 ...and it is still recognised as football", browns.get("sport") == "nfl", browns)
+
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

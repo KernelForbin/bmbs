@@ -1159,9 +1159,20 @@ script), and the Discord bot's routing. Keep it that way:
   `sports*.txt` -> `data/combined/incoming_picks.txt` (the NFL+MLB tab),
   anything else is refused with a rename hint. It never inspects the text --
   the cards share a template, and a guess would eventually overwrite the wrong
-  sport's slate. The bot runs from this clone on the user's Windows machine
-  (Task Scheduler), so a change to `discord-bot/bot.py` does nothing until that
-  process is restarted.
+  sport's slate.
+
+  **The bot does NOT run from this clone.** It runs from a SEPARATE clone on
+  a different always-on Windows box (the "Plex box"), under Task Scheduler.
+  The dev machine's copy has no `.env`, which is the quick way to tell them
+  apart -- and assuming otherwise has twice sent someone looking for the bot
+  process on the wrong machine and concluding it wasn't running. A Claude
+  Code session here cannot reach that box; the pull and restart are done by
+  hand over there.
+
+  So a change to `discord-bot/bot.py` does nothing until that box pulls AND
+  the process is restarted -- `discord-bot/README.md` has the commands, plus
+  the cheap way to prove a restart took (upload an unroutable `.txt`; the
+  refusal lists every prefix the RUNNING code knows).
 
 **Data source: ESPN, from the visitor's browser, no backend -- but mind the host.**
 `site.api.espn.com` answers `curl` with `Access-Control-Allow-Origin: *` and

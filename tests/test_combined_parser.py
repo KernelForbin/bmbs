@@ -339,6 +339,39 @@ check("M11 ...and brings his team with him", by.get("Braelon Allen", {}).get("te
 
 # An UNSIGNED price at the end of the line ("...2+ TB 145") is still a price.
 # Missed, the pre-pass never saw that leg at all.
+# A misspelt BASEBALL name on this card shape never reached resolve_player()
+# -- parse_picks' bare-prop path has no fuzzy match, so the leg came back as
+# the raw typo with a blank team and could never grade either way. This pass
+# does resolve it; the correction just had to be filed under the spelling the
+# card used, not only the corrected one.
+TYPOS = (
+    "Ticket 1\n"
+    "Fernado Tatis 3+ H+R+RBI +160\n"
+    "Fernado Tatis 1+ Home Run +411\n"
+    "Brice Turan 2+ Doubles +490\n"
+    "Stake: 8.00 | Pays: 108.48\n"
+)
+out4 = cp.build(TYPOS, MLB, NFL, NOW, no_network)
+tl = [l for w in out4["windows"] for t in w["tickets"] for l in t["legs"]] + out4["singles"]
+
+check("M14 a misspelt baseball name is corrected",
+      any(l["player"] == "Brice Turang" and l["team"] == "MIL" for l in tl),
+      [(l["player"], l.get("team")) for l in tl])
+check("M15 ...including one whose match needs its generational suffix set aside",
+      any(l["player"] == "Fernando Tatis Jr." and l["team"] == "SD" for l in tl),
+      [(l["player"], l.get("team")) for l in tl])
+
+# THE trap. Both Tatis legs carry the same misspelt name, so a correction
+# filed under the name ALONE hands whichever record landed first to both --
+# and his home run leg starts grading as an H+R+RBI prop. Same failure as
+# Jose Ramirez one sport over: a leg graded against a bet nobody placed.
+tatis = [l for l in tl if "Tatis" in l["player"]]
+check("M16 two legs on the SAME misspelt player keep their own markets",
+      len(tatis) == 2 and {l.get("market") for l in tatis} == {"hrr", None},
+      [(l["player"], l.get("market"), l.get("line")) for l in tatis])
+check("M17 ...and their own lines", sorted(l.get("line") for l in tatis) == [0.5, 2.5],
+      [l.get("line") for l in tatis])
+
 check("M12 an unsigned trailing price is still read as the price",
       by.get("Mookie Betts", {}).get("odds") == "+145", by.get("Mookie Betts"))
 check("M13 ...and the leg still resolves its team",

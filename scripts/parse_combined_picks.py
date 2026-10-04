@@ -376,6 +376,18 @@ def scan_card(text, mlb, nfl):
         # name -- and for an NFL player it usually will not.
         found[mlb_parser.normalize_name(candidate)] = rec
         found.setdefault(mlb_parser.normalize_name(rec["name"]), rec)
+        # ...and under the name as the CARD misspelt it, before this pass
+        # resolved it. parse_picks strips the market itself but has no fuzzy
+        # match on this path, so its leg comes back as the raw typo --
+        # "Fernado Tatis". Indexing only the corrected spelling meant the
+        # correction never reached the leg that needed it.
+        #
+        # Keyed on the MARKET as well, because that name alone is not unique:
+        # the same card had "Fernado Tatis 3+ H+R+RBI" and "Fernado Tatis 1+
+        # Home Run", which collapse to one key and hand both legs whichever
+        # record landed first. That is the Jose Ramirez failure one sport
+        # over -- a leg graded against a bet nobody placed.
+        found[(mlb_parser.normalize_name(cleaned), market or "hr")] = rec
         # And WITHOUT the "N+" quantity. parse_picks reads that as the market's
         # LINE and drops it from the name, so "Keon Coleman 15+ Receiving
         # Yards" comes back as "Keon Coleman Receiving Yards" -- a key this
@@ -402,7 +414,15 @@ def apply_sports(windows, singles, found):
 
     def fix(leg):
         nonlocal touched
-        rec = found.get(mlb_parser.normalize_name(leg.get("player") or ""))
+        norm_player = mlb_parser.normalize_name(leg.get("player") or "")
+        rec = found.get(norm_player)
+        if rec is None:
+            # The name alone didn't match, so try it alongside the market
+            # parse_picks read off the same line. That pair is what separates
+            # two legs on the same player -- his H+R+RBI prop from his home
+            # run -- and it is the only key a misspelt name can be found by,
+            # since parse_picks keeps the typo as typed.
+            rec = found.get((norm_player, leg.get("market") or "hr"))
         if rec is None:
             # Nothing in the pre-pass claimed it: parse_picks resolved it
             # against the MLB roster and that stands.

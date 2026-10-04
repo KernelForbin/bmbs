@@ -218,7 +218,10 @@ check("football*.txt -> the football incoming file", route("football_week2.txt")
 check("case doesn't matter", route("Football Week 2.TXT") == "data/football/incoming_picks.txt" and route("BASEBALL.txt") == "data/incoming_picks.txt")
 check("anything else is refused -- including yesterday's naming, and a file that merely mentions a sport",
       route("home_run_parlay_card_2026-09-18.txt") is None and route("picks.txt") is None and route("my_football_card.txt") is None)
-check("the two sports can never be routed to the same file", len({r["path"] for r in bot.ROUTES.values()}) == len(bot.ROUTES))
+check("sports*.txt -> the combined incoming file", route("sports_2026-10-04.txt") == "data/combined/incoming_picks.txt")
+check("a combined card never lands on a single-sport tab's slate",
+      route("sports_2026-10-04.txt") not in ("data/incoming_picks.txt", "data/football/incoming_picks.txt"))
+check("the three sports can never be routed to the same file", len({r["path"] for r in bot.ROUTES.values()}) == len(bot.ROUTES))
 
 # ---------- 7. CLI writes only where it's told (temp copy of the repo layout) ----------
 with tempfile.TemporaryDirectory() as td:

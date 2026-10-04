@@ -29,7 +29,8 @@ import sys
 import urllib.error
 import urllib.request
 
-SITE_URL = {"baseball": "https://bmbs.bet/", "football": "https://bmbs.bet/football/"}
+SITE_URL = {"baseball": "https://bmbs.bet/", "football": "https://bmbs.bet/football/",
+            "combined": "https://bmbs.bet/all/"}
 
 
 class NotifyFailed(Exception):
@@ -100,11 +101,11 @@ def summarize(tickets_path, sport):
     cards = sum(len(w["tickets"]) for w in windows)
     legs = sum(len(c["legs"]) for w in windows for c in w["tickets"])
     singles = len(data.get("singles", []))
-    if sport == "football" and data.get("endDate") and data["endDate"] != data["date"]:
+    if sport in ("football", "combined") and data.get("endDate") and data["endDate"] != data["date"]:
         span = f'{data["date"]} to {data["endDate"]}'
     else:
         span = data["date"]
-    label = "NFL picks" if sport == "football" else "MLB picks"
+    label = {"football": "NFL picks", "combined": "MLB + NFL picks"}.get(sport, "MLB picks")
     bits = []
     if cards:
         bits.append(f"{cards} parlay card{'s' if cards != 1 else ''}")
@@ -125,7 +126,7 @@ def main():
 
     s = sub.add_parser("success")
     s.add_argument("--tickets", required=True)
-    s.add_argument("--sport", required=True, choices=["baseball", "football"])
+    s.add_argument("--sport", required=True, choices=["baseball", "football", "combined"])
     s.add_argument("--mention", default="", help="Discord user id to @, if known.")
 
     p = sub.add_parser("post")

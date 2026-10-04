@@ -54,6 +54,7 @@ GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 ROUTES = {
     "baseball": {"path": "data/incoming_picks.txt", "sport": "MLB (home runs)", "site": "https://bmbs.bet/"},
     "football": {"path": "data/football/incoming_picks.txt", "sport": "NFL (touchdowns)", "site": "https://bmbs.bet/football/"},
+    "sports": {"path": "data/combined/incoming_picks.txt", "sport": "MLB + NFL", "site": "https://bmbs.bet/all/"},
 }
 
 
@@ -218,8 +219,10 @@ async def on_message(message: discord.Message) -> None:
     if route is None:
         await message.reply(
             f"I can't tell which sport `{txt_attachment.filename}` is for, so nothing was pushed.\n"
-            f"Start the file name with **`baseball`** for a home run card or **`football`** for a touchdown card "
-            f"(e.g. `baseball_2026-09-20.txt`, `football_week2.txt`) and upload it again."
+            f"Start the file name with **`baseball`** for a home run card, **`football`** for a touchdown "
+            f"card, or **`sports`** for a combined card holding both "
+            f"(e.g. `baseball_2026-09-20.txt`, `football_week2.txt`, `sports_2026-10-04.txt`) "
+            f"and upload it again."
         )
         return
 

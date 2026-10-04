@@ -72,6 +72,7 @@ def trigger_paths(text):
 files = {
     "parse-picks.yml": WORKFLOWS / "parse-picks.yml",
     "parse-football-picks.yml": WORKFLOWS / "parse-football-picks.yml",
+    "parse-combined-picks.yml": WORKFLOWS / "parse-combined-picks.yml",
     "import-history.yml": WORKFLOWS / "import-history.yml",
 }
 texts = {}
@@ -131,6 +132,16 @@ check("B2b the notify step is properly gated on a real commit (never fires on a 
 check("B3b same gate on the football side, against the football tickets file",
       re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
                  r"--tickets data/football/tickets\.json --sport football", texts["parse-football-picks.yml"], re.S) is not None)
+check("B3c parse-combined-picks.yml parses exactly its combined script, against exactly its "
+      "combined trigger, then notifies Discord the same way",
+      parse_scripts["parse-combined-picks.yml"] ==
+      [("scripts/parse_combined_picks.py", "data/combined/incoming_picks.txt"),
+       ("scripts/notify_discord.py", "")],
+      parse_scripts["parse-combined-picks.yml"])
+check("B3d the combined notify step is gated on a real commit too",
+      re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
+                r"--tickets data/combined/tickets\.json --sport combined",
+                texts["parse-combined-picks.yml"], re.S) is not None)
 check("B4 import-history.yml runs all three of its scripts (baseball record, baseball history, football record), no --file arg needed",
       [s for s, _ in parse_scripts["import-history.yml"]] ==
       ["scripts/record_results.py", "scripts/import_history.py", "scripts/record_football_results.py"],
@@ -144,6 +155,9 @@ check("C1 parse-picks.yml triggers on exactly the file it parses",
 check("C2 parse-football-picks.yml triggers on exactly the file it parses",
       trigger_paths(texts["parse-football-picks.yml"]) == ["data/football/incoming_picks.txt"],
       trigger_paths(texts["parse-football-picks.yml"]))
+check("C2b parse-combined-picks.yml triggers on exactly the file it parses",
+      trigger_paths(texts["parse-combined-picks.yml"]) == ["data/combined/incoming_picks.txt"],
+      trigger_paths(texts["parse-combined-picks.yml"]))
 check("C3 import-history.yml is schedule/manual only -- it must NOT trigger on a picks upload (that's a race, not its job)",
       trigger_paths(texts["import-history.yml"]) == [] and "cron:" in texts["import-history.yml"])
 cron = re.search(r'cron:\s*"([^"]+)"', texts["import-history.yml"])
@@ -163,7 +177,18 @@ check("D1 parse-picks.yml only ever commits baseball's OWN tickets files, never 
 check("D2 parse-football-picks.yml only ever commits football's OWN tickets files, never baseball's",
       committed["parse-football-picks.yml"] and all(p.startswith("data/football/tickets") for p in committed["parse-football-picks.yml"]),
       committed["parse-football-picks.yml"])
-forbidden = {"data/tickets.json", "data/tickets-previous.json", "data/football/tickets.json", "data/football/tickets-previous.json"}
+check("D2b parse-combined-picks.yml only ever commits the COMBINED tickets files, "
+      "never the MLB or NFL tab's",
+      committed["parse-combined-picks.yml"]
+      and all(p.startswith("data/combined/tickets") for p in committed["parse-combined-picks.yml"]),
+      committed["parse-combined-picks.yml"])
+check("D2c ...and neither of the single-sport parsers can write the combined slate",
+      not any(p.startswith("data/combined") for p in
+              committed["parse-picks.yml"] | committed["parse-football-picks.yml"]),
+      committed["parse-picks.yml"] | committed["parse-football-picks.yml"])
+forbidden = {"data/tickets.json", "data/tickets-previous.json", "data/football/tickets.json",
+             "data/football/tickets-previous.json", "data/combined/tickets.json",
+             "data/combined/tickets-previous.json"}
 check("D3 import-history.yml NEVER commits a live tickets file -- results/history only",
       not (committed["import-history.yml"] & forbidden), committed["import-history.yml"] & forbidden)
 check("D4 import-history.yml's commits stay within its documented set (history.json, results/, football's twins)",

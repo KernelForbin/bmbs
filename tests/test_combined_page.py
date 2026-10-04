@@ -95,7 +95,10 @@ MAIN_GAMES = ("9001", "9002")
 LABELS = {"rushing": ["CAR", "YDS", "AVG", "TD", "LONG"],
           "receiving": ["REC", "YDS", "AVG", "TD", "LONG", "TGTS"],
           # Real labels, read off a finished game -- SACKS sits third.
-          "defensive": ["TOT", "SOLO", "SACKS", "TFL", "PD", "QB HTS", "TD"]}
+          "defensive": ["TOT", "SOLO", "SACKS", "TFL", "PD", "QB HTS", "TD"],
+          # Note SACKS here too, meaning sacks TAKEN -- the opposite of the
+          # defensive column of the same name.
+          "passing": ["C/ATT", "YDS", "AVG", "TD", "INT", "SACKS", "QBR", "RTG"]}
 
 
 def espn_event(gid, state, score=(0, 0), quarters=None):
@@ -151,6 +154,8 @@ def espn_summary(gid, state, lines, score=(0, 0), plays=(), current=None, quarte
                 stats = [str(vals[0]), str(vals[1]), "0.0", str(vals[2]), "0"]
             elif cat == "defensive":            # (tackles, solo, sacks)
                 stats = [str(vals[0]), str(vals[1]), str(vals[2]), "0", "0", "0", "0"]
+            elif cat == "passing":              # (td thrown, sacks TAKEN)
+                stats = ["20/30", "250", "8.3", str(vals[0]), "0", f"{vals[1]}-20", "0", "0"]
             else:
                 stats = [str(vals[0]), str(vals[1]), "0.0", str(vals[2]), "0", str(vals[3])]
             cats.setdefault(cat, []).append(
@@ -867,6 +872,11 @@ FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
                      # it must settle now rather than waiting for the whistle.
                      card(35, [nfl_leg_m(6, "LAR + SEA", "LAR", "quarters", None,
                                          teams=["LAR", "SEA"])]),
+                     # Touchdowns THROWN, which is not the anytime market --
+                     # and the passer must NOT be credited with the sacks he
+                     # took, which share the label "SACKS" one column over.
+                     card(36, [nfl_leg_m(7, "Pass Guy", "PHI", "pass_tds", 2.5, "16")]),
+                     card(37, [nfl_leg_m(8, "Pass Guy", "PHI", "sacks", 0.5, "16")]),
                  ]}], "singles": []}
 FX["mlb_sched"][DAY] = {"dates": []}
 FX["espn_events"] = {g: espn_event(g, "post", (24, 20)) for g in MAIN_GAMES}
@@ -882,7 +892,11 @@ FX["espn_summaries"]["9001"] = espn_summary(
                              ("12", "No Sack", "defensive", (6, 5, 0)),
                              ("13", "Three A", "rushing", (12, 60, 2)),
                              ("14", "Three B", "rushing", (8, 40, 1)),
-                             ("15", "Three C", "receiving", (4, 30, 1, 5))]},
+                             ("15", "Three C", "receiving", (4, 30, 1, 5)),
+                             # 3 thrown, and 4 sacks TAKEN -- the passing
+                             # line's own SACKS column, which must not reach
+                             # his sack-prop leg.
+                             ("16", "Pass Guy", "passing", (3, 4))]},
     (24, 20), quarters=[[7, 3, 7, 7], [3, 7, 3, 7]])
 FX["espn_summaries"]["9002"] = espn_summary(
     "9002", "post", {"KC": [("2", "Travis Kelce", "receiving", (6, 71, 0, 8))]},
@@ -906,6 +920,11 @@ with sync_playwright() as p:
     check("O5b ...and it fails EARLY, on a quarter already played, rather than "
           "sitting live until the whistle on a bet that cannot come good",
           ls.get("O6") == "miss", ls)
+    check("O5c passing touchdowns are graded off the passing line (3 beats 2.5)",
+          ls.get("O7") == "hit", ls)
+    check("O5d ...and the sacks he TOOK are not credited to his sack prop, "
+          "though both columns are labelled SACKS",
+          ls.get("O8") == "miss", ls)
     check("O6 none of them fell through to untracked",
           "untracked" not in ls.values(), ls)
     check("O7 no JavaScript errors", not errors, errors[:3])

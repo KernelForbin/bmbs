@@ -737,7 +737,7 @@ async function getGameSnapshot(game) {
         const id = String(a.id);
         let line = lines.get(id);
         if (!line) {
-          line = { id, name: a.displayName || "", norm: normalizeName(a.displayName || ""), team: abbr, car: 0, rushYds: 0, rec: 0, recYds: 0, tgts: 0, td: 0, sacks: 0 };
+          line = { id, name: a.displayName || "", norm: normalizeName(a.displayName || ""), team: abbr, car: 0, rushYds: 0, rec: 0, recYds: 0, tgts: 0, td: 0, sacks: 0, passTd: 0 };
           lines.set(id, line);
         }
         const stats = row.stats || [];
@@ -749,7 +749,15 @@ async function getGameSnapshot(game) {
         // Sacks live in the DEFENSIVE category, labelled "SACKS", and come
         // as halves when two players share one -- so it is a float, not a
         // count. Verified against a real finished game, not assumed.
+        //
+        // Gated on that category deliberately: the PASSING line carries a
+        // "SACKS" column too, and it means the opposite -- sacks the
+        // quarterback TOOK. Read generically, every QB would be credited
+        // with the sacks he suffered.
         if (cat.name === "defensive") line.sacks = statNum(stats, statIndex(cat.labels, "SACKS"));
+        // Touchdowns THROWN, which is a different bet from scoring one --
+        // and the reason passing is excluded from the TD sum below.
+        if (cat.name === "passing") line.passTd = statNum(stats, tdIdx);
         if (TD_CATEGORIES.includes(cat.name)) line.td += statNum(stats, tdIdx);
       });
     });
@@ -2132,11 +2140,14 @@ const MARKETS = {
   // linescore for BOTH named teams.
   quarters:  { label: "All 4 Quarters", subject: "team",   sport: "nfl",
                grade: leg => stateForAllQuarters(leg) },
+  // Touchdowns THROWN. Its own column in the passing boxscore, and nothing
+  // to do with the anytime market -- a thrown one never cashes the passer.
+  pass_tds:  { label: "Passing TDs",    subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "passTd") },
   rec_yds:   { label: "Receiving Yds",  subject: "player", sport: "nfl", grade: () => "untracked" },
   rush_yds:  { label: "Rushing Yds",    subject: "player", sport: "nfl", grade: () => "untracked" },
   pass_yds:  { label: "Passing Yds",    subject: "player", sport: "nfl", grade: () => "untracked" },
   receptions:{ label: "Receptions",     subject: "player", sport: "nfl", grade: () => "untracked" },
-  pass_tds:  { label: "Passing TDs",    subject: "player", sport: "nfl", grade: () => "untracked" },
 
   // A home run leg is still graded from the play-by-play -- that's what makes
   // it resolve the INSTANT the ball lands, and what Pinch Hit Protection hangs

@@ -494,6 +494,42 @@ check("M13 ...and the leg still resolves its team",
       by.get("Mookie Betts", {}).get("team") == "LAD", by.get("Mookie Betts"))
 
 
+# ================= N. each team to score in each quarter, as eight legs ======
+# Kenny's bet (2026-10-04): one leg per team per quarter, priced only as a
+# whole, with the owner named on the footer. The same team appears four times,
+# so each leg's quarter has to come from ITS line -- keyed on the name alone,
+# all four Lions legs would get the same quarter.
+QUARTERS8 = "Ticket 12\n" + "".join(
+    f"- {team}: Score in {q} Quarter\n"
+    for q in ("1st", "2nd", "3rd", "4th") for team in ("Lions", "Panthers")
+) + "Stake: 9.88 | Pays: 84 (Kenny)\n"
+out11 = cp.build(QUARTERS8, MLB, NFL, NOW, no_network)
+tk11 = [t for w in out11["windows"] for t in w["tickets"]]
+q8 = tk11[0]["legs"] if tk11 else []
+check("N1 eight legs, one ticket", len(tk11) == 1 and len(q8) == 8, [len(t["legs"]) for t in tk11])
+check("N2 every leg is the per-quarter market, in football",
+      all(l.get("market") == "q_score" and l.get("sport") == "nfl" for l in q8),
+      [(l.get("market"), l.get("sport")) for l in q8])
+check("N3 each leg has ITS quarter and ITS team, in card order",
+      [(l.get("team"), l.get("quarter")) for l in q8]
+      == [(t, q) for q in (1, 2, 3, 4) for t in ("DET", "CAR")],
+      [(l.get("team"), l.get("quarter")) for l in q8])
+check("N4 the owner named on the footer is the bettor on every leg and the ticket's book",
+      all(l.get("who") == "Kenny" for l in q8) and tk11[0].get("book") == "Kenny",
+      [l.get("who") for l in q8] + [tk11[0].get("book") if tk11 else None])
+check("N5 stake and payout come off the footer", tk11 and tk11[0]["stake"] == 9.88 and tk11[0]["payout"] == 84.0,
+      tk11 and (tk11[0]["stake"], tk11[0]["payout"]))
+check("N6 nothing reported as unreadable, and no team mistaken for a missing player",
+      out11["note"] == "", out11["note"])
+check("N7 a footer WITHOUT an owner still leaves the bettor blank",
+      all(l.get("who") == "" for l in [l for w in out5["windows"] for t in w["tickets"] for l in t["legs"]]),
+      [l.get("who") for w in out5["windows"] for t in w["tickets"] for l in t["legs"]])
+check("N8 the all-four-quarters wording is still its own bet, not one quarter",
+      cp.detect_nfl_market("Each team to score all four quarters")[0] == "quarters"
+      and cp.detect_nfl_market("Score in 2nd Quarter")[0] == "q_score"
+      and cp.detect_nfl_market("scores in Q3")[0] == "q_score")
+
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

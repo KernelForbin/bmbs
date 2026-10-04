@@ -130,6 +130,12 @@ NFL_MARKET_ALIASES = [
     # BEFORE td: "each team to score all four quarters" contains neither
     # word, but it must not fall through to the generic yardage/unknown rows
     # either. Graded off ESPN's per-quarter linescores.
+    # ONE team scoring in ONE named quarter -- "Lions: Score in 1st Quarter".
+    # An "each team scores every quarter" bet laid out leg by leg is eight of
+    # these. BEFORE "quarters" so a quarter that is NAMED is never read as all
+    # of them.
+    ("q_score",        r"\bscores?\s+(?:a\s+point\s+)?in\s+(?:the\s+)?(?:1st|2nd|3rd|4th|first|second|third|fourth)\s+(?:quarter|qtr)\b"
+                       r"|\bscores?\s+in\s+q[1-4]\b"),
     ("quarters",       r"all\s+four\s+quarters|every\s+quarter|all\s*4\s*quarters"),
     ("pass_tds",       r"passing\s+(?:td|touchdown)s?"),
     # "combined" rides along with the market word on purpose. Left behind it
@@ -177,6 +183,12 @@ BULLET_LEG_RE = re.compile(
 LEG_PREFIX_RE = re.compile(
     r"^\s*(?:[-*•●▪>]+\s*|\[\s*[x ]?\s*\]\s*|\d+[.)]\s*)*"
     r"(?:([A-Za-z][\w' .-]{0,20}):\s*)?")
+
+
+# Which quarter a "score in the Nth quarter" leg names.
+QUARTER_RE = re.compile(r"\b(1st|2nd|3rd|4th|first|second|third|fourth|q[1-4])\b", re.IGNORECASE)
+QUARTER_NUM = {"1st": 1, "first": 1, "q1": 1, "2nd": 2, "second": 2, "q2": 2,
+               "3rd": 3, "third": 3, "q3": 3, "4th": 4, "fourth": 4, "q4": 4}
 
 
 def detect_nfl_market(text):
@@ -419,6 +431,22 @@ def scan_card(text, mlb, nfl):
             canon, team = mlb_parser.resolve_player(
                 cleaned, mlb["team_by_name"], mlb["canonical_name_by_norm"])
             rec["name"], rec["team"] = canon, team
+        if sport == "nfl" and market == "q_score":
+            # A TEAM, not a player, and WHICH quarter. Several legs share the
+            # one team name ("Lions" four times), so the record is indexed on
+            # the leg's FULL text -- what parse_picks keeps as its player
+            # string for a market it doesn't know -- which is unique per
+            # quarter. Keyed on the name alone, all four Lions legs would get
+            # the same quarter.
+            qm = QUARTER_RE.search(market_src)
+            abbr = nfl_team_in(cleaned)
+            rec.update({"team": abbr or "", "is_team": True,
+                        "quarter": QUARTER_NUM.get(qm.group(1).lower()) if qm else None})
+            if not abbr or not rec["quarter"]:
+                warnings.append(f"{line.strip()!r} needs one team and one quarter (1st-4th) to be graded")
+            whole = f"{head} {rest}".strip() if bullet else candidate
+            found[mlb_parser.normalize_name(whole)] = rec
+            continue
         if sport == "nfl" and market == "quarters":
             # Two TEAMS, not a player. Both have to be graded -- "each team"
             # is the whole bet -- so taking whichever one resolved first
@@ -621,6 +649,8 @@ def apply_sports(windows, singles, found):
             leg["players"] = rec["players"]
         if rec.get("teams"):
             leg["teams"] = rec["teams"]
+        if rec.get("quarter"):
+            leg["quarter"] = rec["quarter"]
         if rec.get("athleteIds"):
             leg["athleteIds"] = rec["athleteIds"]
         leg["player"] = rec["name"]

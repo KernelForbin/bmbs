@@ -1201,6 +1201,41 @@ both pages). It used to print `pick.odds` -- every non-steal price -- under an
 "HR" label, so a hitter on a hits prop read "HR+390 HITS+390", live on the MLB
 page. `test_live_at_bats.py` Z13-Z15 pin it.
 
+**A team to score in ONE quarter: `q_score`** (2026-10-04, Kenny's bet). "Each
+team scores in each quarter" laid out leg by leg is EIGHT legs, one per team
+per quarter, carrying `team` and `quarter`. The user's rules, all pinned in
+`test_combined_page.py` T:
+- A leg HITS the moment that team has points in that quarter (mid-quarter),
+  and MISSES the moment the quarter ends without them -- one miss kills the bet.
+- **"The quarter ended" is read off the CLOCK, not the linescore.** ESPN's
+  `period` plus its status NAME (`STATUS_END_PERIOD` at the end of the 1st and
+  3rd, `STATUS_HALFTIME`) -> the engine's `periodOver`. Not a 0:00 clock: a
+  score can still post on an untimed down. `quarterOver()` is shared with the
+  all-four-quarters grader so the two bets can never disagree about a quarter;
+  that grader used to count linescore entries, and before kickoff it read
+  `live` (only "is every game final" was asked) -- fixed at the same time.
+- A later quarter is `not_started`, so only the CURRENT quarter's unscored legs
+  reach the tracker. Kind `team_drive`: a tile only while THAT team has the
+  ball (`NFL.teamContext()`, the team-level half split out of the player
+  context, so green means exactly what it does for a touchdown pick). A hit leg
+  drops off; a dead bet drops off entirely.
+- Seven of eight in is an Iron through the ordinary rule -- nothing special.
+- A two-team bet's row now NAMES both teams (`legSubjectName`). The all-four-
+  quarters leg read plain "DET", which looked like it only followed the Lions;
+  the grader always checked both.
+- **The fixture lied about the period.** `espn_event` hardcoded `period: 4`
+  for every live game; harmless until something read it. It now derives the
+  period from the linescores, as ESPN's own does, and can put a game at a break.
+
+**The parser side.** "- Lions: Score in 1st Quarter" (the twelfth template's
+priceless legs) maps to `q_score` in `parse_combined_picks.py`. The same team
+name appears four times, so the record is keyed on the leg's FULL text, which
+`parse_picks` keeps as the player string for a market it doesn't know; keyed on
+the name, every Lions leg would get one quarter. The twelfth template's footer
+now takes an optional owner, "Stake: 9.88 | Pays: 84 (Kenny)", which becomes
+every leg's bettor and the ticket's book -- absent, nothing changes.
+`test_combined_parser.py` N.
+
 **The Home Run Log is the Scoring Log here**: home runs and touchdowns
 interleaved by timestamp, each keeping its own row builder and detail panel,
 sharing `.hr-row`'s markup so a mixed list needed no new CSS. "Ours" marking

@@ -101,11 +101,17 @@ LABELS = {"rushing": ["CAR", "YDS", "AVG", "TD", "LONG"],
           "passing": ["C/ATT", "YDS", "AVG", "TD", "INT", "SACKS", "QBR", "RTG"]}
 
 
-def espn_event(gid, state, score=(0, 0), quarters=None):
+def espn_event(gid, state, score=(0, 0), quarters=None, period=None, break_=None):
+    """`period` is the quarter on the clock -- by default the one the
+    linescores have reached, as ESPN's own is. `break_` puts the game AT a
+    quarter break: "end" (end of the 1st or 3rd) or "half"."""
     away, home = NFL_GAMES[gid]
+    if period is None:
+        period = max([len(q or []) for q in (quarters or [])] or [0]) or 4
+    name = {"end": "STATUS_END_PERIOD", "half": "STATUS_HALFTIME"}.get(break_, "STATUS_IN_PROGRESS")
     return {"id": gid, "date": f"{DAY}T17:00Z",
-            "status": {"period": 4, "displayClock": "2:00",
-                       "type": {"state": state,
+            "status": {"period": period, "displayClock": "0:00" if break_ else "2:00",
+                       "type": {"state": state, "name": name if state == "in" else "STATUS_" + state.upper(),
                                 "shortDetail": {"pre": "1:00 PM", "in": "2:00 - Q4", "post": "Final"}[state]}},
             "competitions": [{"competitors": [
                 {"id": TEAM_ID[away], "homeAway": "away", "score": str(score[0]),
@@ -142,8 +148,8 @@ def espn_drive(drive_id, team, to_go, down_text, result=None, possession=None):
     return d
 
 
-def espn_summary(gid, state, lines, score=(0, 0), plays=(), current=None, quarters=None):
-    ev = espn_event(gid, state, score, quarters)
+def espn_summary(gid, state, lines, score=(0, 0), plays=(), current=None, quarters=None, period=None, break_=None):
+    ev = espn_event(gid, state, score, quarters, period, break_)
     comp = ev["competitions"][0]
     comp["status"] = ev["status"]
     players = []
@@ -1219,6 +1225,165 @@ with sync_playwright() as p:
           page.evaluate("[...LAB.flashes.values()].some(f => f.cleared && f.cleared.detail === '3 of 3 passing TDs')"),
           page.evaluate("[...LAB.flashes.values()].map(f => f.cleared && f.cleared.detail)"))
     check("S9 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
+# ---------- T. each team to score in each quarter, written as EIGHT legs ----------
+# Kenny's bet (2026-10-04), laid out the way the user asked: one leg per team
+# per quarter. A leg hits the moment that team scores in that quarter and
+# misses the moment the quarter ends without it -- so one scoreless quarter
+# kills the bet, and with seven legs in it is an Iron. On the tracker, a leg
+# shows only while ITS team has the ball in ITS quarter and hasn't scored.
+def q_leg(i, team, q):
+    return {"id": f"Q{i}", "player": {"PHI": "Eagles", "NYG": "Giants"}[team], "team": team,
+            "who": "Kenny", "meta": f"{team} &middot; Kenny", "odds": None, "time": "",
+            "market": "q_score", "sport": "nfl", "quarter": q}
+
+
+_t_legs = [q_leg(2 * (q - 1) + j, t, q) for q in range(1, 5) for j, t in enumerate(("PHI", "NYG"))]
+_t_all4 = nfl_leg_m(9, "Eagles/Giants Each team to score", "PHI", "quarters", None, teams=["PHI", "NYG"])
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [
+                     dict(card(90, _t_legs, payout=84.0), stake=9.88, book="Kenny"),
+                     card(91, [_t_all4]),
+                 ]}], "singles": []}
+FX["mlb_sched"][DAY] = {"dates": []}
+
+
+def t_game(state, quarters, drive_team=None, break_=None, period=None):
+    FX["espn_events"] = {"9001": espn_event("9001", state, (sum(quarters[0]), sum(quarters[1])), quarters, period, break_)}
+    FX["espn_summaries"]["9001"] = espn_summary(
+        "9001", state, {"PHI": [("40", "Somebody", "rushing", (5, 20, 0))]},
+        (sum(quarters[0]), sum(quarters[1])),
+        current=espn_drive("dq", drive_team, 30, "2nd & 6 at NYG 30") if drive_team else None,
+        quarters=quarters, period=period, break_=break_)
+
+
+def t_tiles(page):
+    return page.eval_on_selector_all(
+        "#liveab-grid .ab-tile",
+        "els => els.map(e => ({name: e.querySelector('.ab-name').textContent.trim(), "
+        "tag: e.querySelector('.ab-tag').textContent.trim(), iron: !!e.querySelector('.iron-mark'), "
+        # the waffle can't be printed on a Windows console, so it is spelled out
+        "text: e.textContent.replace(/\\s+/g, ' ').replace(/\\u{1F9C7}/gu, '[iron]').replace(/[^\\x00-\\x7F]/g, '')}))")
+
+
+def team_tiles(page):
+    """Just the per-team tiles -- the each-team-all-quarters card has its own."""
+    return [t for t in t_tiles(page) if t["name"] in ("PHI", "NYG")]
+
+
+def t_rows(page):
+    """Each Q-leg's row: [subject, tag, status line]."""
+    return page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('.leg')].map(r => {
+        const p = r.querySelector('.leg-player'); if (!p) return null;
+        const tag = (p.querySelector('.mkt-tag') || {}).textContent || '';
+        const ctx = (r.querySelector('.leg-live-context') || {}).textContent || '';
+        return [p.firstChild.textContent.trim() + ' ' + tag, ctx.replace(/\\s+/g, ' ').trim()];
+    }).filter(Boolean))""")
+
+
+def t_poll(page):
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+
+
+t_game("pre", [[], []])
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("toggleLiveAb()")
+    page.wait_for_timeout(200)
+    page.evaluate("""() => { window.FIRED = []; const real = fireLegHit;
+        fireLegHit = (slate, leg, cash) => { FIRED.push(legHitWord(leg) + ' ' + legAlertName(leg)); return real(slate, leg, cash); }; }""")
+    rows = t_rows(page)
+    check("T1 the card lists all eight legs, each naming its team and its quarter",
+          all(f"{t} Scores in Q{q}" in rows for q in range(1, 5) for t in ("PHI", "NYG")), sorted(rows))
+    check("T2 the each-team-all-quarters leg names BOTH teams on its row, not just the first",
+          "PHI + NYG All 4 Quarters" in rows, sorted(rows))
+    check("T3 before kickoff every leg is waiting", set(leg_states(page).values()) == {"not_started"}, leg_states(page))
+
+    # Q1 under way, scoreless, PHI driving.
+    t_game("in", [[0], [0]], drive_team="PHI")
+    t_poll(page)
+    ls = leg_states(page)
+    check("T4 in Q1 both Q1 legs are live and every later quarter is still waiting",
+          ls["Q0"] == "live" and ls["Q1"] == "live" and all(ls[f"Q{i}"] == "not_started" for i in range(2, 8)), ls)
+    tl = team_tiles(page)
+    check("T5 the tracker shows the team WITH THE BALL, saying what it needs",
+          [t["name"] for t in tl] == ["PHI"] and "needs a score in Q1" in tl[0]["text"]
+          and tl[0]["tag"] in ("ON OFFENSE", "RED ZONE"), tl)
+    rows = t_rows(page)
+    check("T6 the card's own line says it too", "PHI still needs to score" in rows.get("PHI Scores in Q1", "")
+          and "PHI has the ball" in rows.get("PHI Scores in Q1", ""), rows.get("PHI Scores in Q1"))
+    check("T7 ...and a later quarter says it hasn't started", "Q3 hasn't started" in rows.get("NYG Scores in Q3", ""),
+          rows.get("NYG Scores in Q3"))
+
+    # PHI score in Q1; now NYG have the ball.
+    t_game("in", [[7], [0]], drive_team="NYG")
+    t_poll(page)
+    ls = leg_states(page)
+    check("T8 PHI's Q1 leg is a HIT the moment they score -- mid-quarter, not at the end of it",
+          ls["Q0"] == "hit" and ls["Q1"] == "live", ls)
+    tl = team_tiles(page)
+    check("T9 PHI leave the wall (their Q1 leg is done) and NYG, now with the ball, take it",
+          [t["name"] for t in tl if t["tag"] != "HIT" and t["tag"] != "CASHED"] == ["NYG"], tl)
+    check("T10 the score alerted, in its own words", "SCORED IN Q1! PHI" in page.evaluate("FIRED"), page.evaluate("FIRED"))
+
+    # Still Q1, PHI have the ball back -- PHI's Q1 is already in, so no tile.
+    t_game("in", [[7], [0]], drive_team="PHI")
+    t_poll(page)
+    check("T11 a team that has already scored this quarter gets no tile while it has the ball",
+          not [t for t in t_tiles(page) if t["name"] == "PHI" and t["tag"] not in ("HIT", "CASHED")], t_tiles(page))
+
+    # End of the 1st, NYG never scored.
+    t_game("in", [[7], [0]], break_="end", period=1)
+    t_poll(page)
+    ls = leg_states(page)
+    check("T12 the quarter ending without a NYG score is a MISS at the break, not later",
+          ls["Q1"] == "miss", ls)
+    check("T13 ...which kills the whole bet", page.evaluate(
+        "EVALUATED.find(e => e.tk.name === 'Card 90').evalRes.outcome") == "dead")
+    t_game("in", [[7, 0], [0, 0]], drive_team="NYG")
+    t_poll(page)
+    check("T14 a dead bet leaves the tracker entirely, whoever has the ball",
+          not [t for t in team_tiles(page) if t["tag"] not in ("HIT", "CASHED")], team_tiles(page))
+    check("T14b a leg's HIT tile names its quarter, not a bare 'Scores in Q'",
+          all("Scores in Q1" in t["text"] for t in team_tiles(page) if t["tag"] == "HIT")
+          and any(t["tag"] == "HIT" for t in team_tiles(page)), team_tiles(page))
+    check("T15 the row says why", "Q1 ended without a NYG score" in t_rows(page).get("NYG Scores in Q1", ""),
+          t_rows(page).get("NYG Scores in Q1"))
+    check("T16 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
+# A fresh page for the long way round: every quarter scored by both, into the
+# 4th, where PHI have scored and NYG still owe one -- seven legs in.
+t_game("in", [[7, 3, 7, 3], [3, 7, 7, 0]], drive_team="NYG")
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("toggleLiveAb()")
+    page.wait_for_timeout(200)
+    ls = leg_states(page)
+    check("T17 seven legs in, NYG's Q4 the only one left", sum(v == "hit" for k, v in ls.items() if k.startswith("Q")) == 7
+          and ls["Q7"] == "live", ls)
+    ev = page.evaluate("EVALUATED.find(e => e.tk.name === 'Card 90').evalRes")
+    check("T18 that is an IRON: one team left to score in the 4th", ev["outcome"] == "live" and ev["iron"], ev)
+    tl = team_tiles(page)
+    check("T19 ...and NYG's tile carries the waffle", len(tl) == 1 and tl[0]["name"] == "NYG" and tl[0]["iron"], tl)
+
+    # Halftime with a team scoreless in the 2nd is called at the break too.
+    t_game("in", [[7, 0], [3, 7]], break_="half", period=2)
+    t_poll(page)
+    ls = leg_states(page)
+    check("T20 halftime with PHI scoreless in the 2nd: their Q2 leg is a miss right then",
+          ls["Q2"] == "miss" and ls["Q3"] == "hit", ls)
+    check("T21 the each-team-all-quarters leg agrees, at the same moment",
+          ls["O9"] == "miss", ls)
+    # ...but the SAME score mid-2nd is still live: nothing is called early.
+    t_game("in", [[7, 0], [3, 7]], drive_team="PHI")
+    t_poll(page)
+    ls = leg_states(page)
+    check("T22 mid-quarter, a team that hasn't scored YET is live, not a miss",
+          ls["Q2"] == "live" and ls["O9"] == "live", ls)
+    check("T23 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
 print()

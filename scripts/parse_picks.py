@@ -440,8 +440,13 @@ BARE_TICKET_RE = re.compile(r"^Ticket\s*#?\s*(\d+)\s*$", re.IGNORECASE)
 # with an "unknown" market, same as any other leg nothing in MARKET_ALIASES
 # recognises -- shown on the page, not graded, not dropped.
 HYPHEN_TICKET_LEG_RE = re.compile(r"^-\s*(.+?)\s*:\s*(.+?)\s*$")
+# An optional "(Owner)" at the end names who placed the ticket -- this card
+# shape names nobody otherwise, so a bet added for one person had nowhere to
+# say so: "Stake: 9.88 | Pays: 84 (Kenny)". Absent, every leg's bettor stays
+# blank exactly as before.
 TICKET_STAKE_PAYS_RE = re.compile(
-    r"^Stake:\s*\$?([\d,.]+)\s*\|\s*Pays:\s*\$?([\d,.]+)\s*$", re.IGNORECASE)
+    r"^Stake:\s*\$?([\d,.]+)\s*\|\s*Pays:\s*\$?([\d,.]+)"
+    r"(?:\s*\(\s*([A-Za-z][A-Za-z .'-]{0,30}?)\s*\))?\s*$", re.IGNORECASE)
 TICKET_STAKE_PAYS_COMBINED_RE = re.compile(
     r"^Stake/Pays:\s*\$?([\d,.]+)\s*$", re.IGNORECASE)
 
@@ -1223,14 +1228,15 @@ def parse(text, team_by_name, canonical_by_norm):
         for i, leg in enumerate(ticket["_legs"]):
             out = dict(leg)
             out["id"] = f"prop-{ticket['_num']}-{i}"
-            out["who"] = ""          # this card names no bettor at all
+            # This card names no bettor, unless its footer named an owner.
+            out["who"] = ticket.get("_who") or ""
             out["time"] = prop_time
             out["meta"] = out.get("team") or ""
             legs.append(out)
         if len(legs) == 1:
             one = legs[0]
             singles.append({
-                "who": "", "player": one.get("player", ""), "team": one.get("team", ""),
+                "who": ticket.get("_who") or "", "player": one.get("player", ""), "team": one.get("team", ""),
                 "odds": one.get("odds"), "market": one.get("market"),
                 "matchup": "", "time": prop_time,
                 "stake": ticket["_stake"], "pp": ticket["_pp"],
@@ -1238,7 +1244,7 @@ def parse(text, team_by_name, canonical_by_norm):
             })
             return
         card = {"name": f'Ticket {ticket["_num"]}', "sub": "", "tag": None,
-                "_stake": ticket["_stake"], "_book": "", "_origPayout": ticket["_pp"],
+                "_stake": ticket["_stake"], "_book": ticket.get("_who") or "", "_origPayout": ticket["_pp"],
                 "_legs": legs, "_prebuilt": True}
         ticket_window(last_header_title)["tickets"].append(card)
 
@@ -1474,9 +1480,10 @@ def parse(text, team_by_name, canonical_by_norm):
                 continue
             stake_pays = TICKET_STAKE_PAYS_RE.match(original)
             if stake_pays:
-                stake, pp = stake_pays.groups()
+                stake, pp, owner = stake_pays.groups()
                 current_prop["_stake"] = clean_num(stake)
                 current_prop["_pp"] = clean_num(pp)
+                current_prop["_who"] = (owner or "").strip()
                 flush_prop()
                 continue
             stake_pays_combined = TICKET_STAKE_PAYS_COMBINED_RE.match(original)

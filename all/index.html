@@ -943,7 +943,12 @@ async function getGameSnapshot(game) {
 
   const period = (comp.status && comp.status.period) || game.period || 0;
   const clock = (comp.status && comp.status.displayClock) || game.clock || "";
-  return { status, gamePk: game.gamePk, date: game.date, teams, period, clock, detail: type.shortDetail || game.detail || "",
+  // The quarter on the clock has ENDED -- "End of 1st", halftime -- though
+  // the next has not started, so `period` still names it. Taken from ESPN's
+  // status name rather than a 0:00 clock: a score can still post on an
+  // untimed down after the clock reads zero.
+  const periodOver = type.name === "STATUS_END_PERIOD" || type.name === "STATUS_HALFTIME";
+  return { status, gamePk: game.gamePk, date: game.date, teams, period, periodOver, clock, detail: type.shortDetail || game.detail || "",
            lines, touchdowns, tdNameTeams, drive, finishedDrives, fetchedAt: Date.now() };
 }
 
@@ -1056,6 +1061,20 @@ function liveContextForPlayer(playerName) {
   const pick = pickInfo(playerName);
   const line = lineForPick(playerName);
   const team = (line && line.team) || pick.team || "";
+  return Object.assign(teamContextIn(game, team), { line, statLine: statLineText(line) });
+}
+
+// The same thing for a TEAM rather than a player -- a "team to score in the
+// 2nd quarter" bet is followed exactly the way a player's touchdown is: is
+// his side on the field with the ball, right now.
+function liveContextForTeam(abbr) {
+  const pk = RESULTS.gameByTeam && RESULTS.gameByTeam.get((abbr || "").toUpperCase());
+  const game = pk && RESULTS.gameInfo && RESULTS.gameInfo.get(pk);
+  if (!game || game.status === "preview") return null;
+  return Object.assign(teamContextIn(game, (abbr || "").toUpperCase()), { line: null, statLine: "" });
+}
+
+function teamContextIn(game, team) {
   const drive = game.drive;
   const hasPossession = !!(drive && team && drive.team === team);
   // His side's own drive is the one ESPN currently has open.
@@ -1090,7 +1109,7 @@ function liveContextForPlayer(playerName) {
     oppDownDistance: onDefense ? drive.downDistance : "",
     downDistance: onOffense ? drive.downDistance : "", yardsToEndzone: onOffense ? drive.yardsToEndzone : null,
     driveDescription: onOffense ? drive.description : "", lastPlay: (drive && drive.lastPlay) || "",
-    line, statLine: statLineText(line), link: espnGameUrl(game.gamePk)
+    link: espnGameUrl(game.gamePk)
   };
 }
 
@@ -1373,6 +1392,7 @@ return {
   empty: emptyResults,
   state(leg) { return stateForPlayer(leg.player); },
   context(leg) { return liveContextForPlayer(leg.player); },
+  teamContext(abbr) { return liveContextForTeam(abbr); },
   scoring() { return RESULTS.touchdowns || []; },
   rowHtml: tdRowHtml, detailHtml: tdDetailHtml,
   toggleRow(id) { if (TD_EXPANDED.has(id)) TD_EXPANDED.delete(id); else TD_EXPANDED.add(id); },
@@ -1420,7 +1440,8 @@ return {
     if (!game) return null;
     const side = ["away", "home"].map(s => game.teams && game.teams[s])
       .filter(Boolean).find(t => t.abbr === (teamAbbr || "").toUpperCase());
-    return side ? { quarters: side.quarters || [], status: game.status, gamePk: game.gamePk } : null;
+    return side ? { quarters: side.quarters || [], status: game.status, gamePk: game.gamePk,
+                    period: game.period || 0, periodOver: !!game.periodOver } : null;
   }
 };
 })();
@@ -2262,6 +2283,12 @@ const MARKETS = {
                grade: leg => stateForNflStat(leg, "td") },
   // "Each team to score all four quarters", which needs the per-quarter
   // linescore for BOTH named teams.
+  // ONE team scoring in ONE quarter -- the leg an "each team scores in every
+  // quarter" bet is written as when it is laid out leg by leg (eight of
+  // them). Settled the moment that team puts points up in that quarter, or
+  // lost the moment the quarter ends without them.
+  q_score:   { label: "Scores in Q",    subject: "team",   sport: "nfl",
+               grade: leg => stateForQuarterScore(leg) },
   quarters:  { label: "All 4 Quarters", subject: "team",   sport: "nfl",
                grade: leg => stateForAllQuarters(leg) },
   // Touchdowns THROWN. Its own column in the passing boxscore, and nothing
@@ -2354,7 +2381,20 @@ function legSubjectName(leg) {
     const names = legPlayers(leg);
     return names.length > 1 ? names.join(" + ") : (names[0] || "");
   }
+  // A bet on TWO teams names both. "Each team to score all four quarters"
+  // read as plain "DET", so it looked like it was only following the Lions --
+  // the grader always checked both.
+  const teams = legTeams(leg);
+  if (teams.length > 1) return teams.join(" + ");
   return leg.team || leg.game || leg.player || "";
+}
+
+// A market's label for THIS leg: "Scores in Q2" needs the leg's quarter.
+function legMarketLabel(leg) {
+  const m = legMarket(leg);
+  const def = MARKETS[m];
+  if (m === "q_score") return `Scores in Q${leg && leg.quarter ? leg.quarter : "?"}`;
+  return def && def.label ? def.label : "";
 }
 
 // "Over 1.5" -> the leg must reach 2. A market with no line stated behaves the
@@ -2504,18 +2544,49 @@ function stateForMostInLeague(leg, key) {
 // "Lions + Panthers each team to score all four quarters." Both teams, all
 // four. It can only FAIL early -- one scoreless completed quarter settles it
 // -- and can only succeed once four quarters have actually been played.
+// Has quarter `q` (1-4) finished for this team's game? Read off the CLOCK's
+// quarter -- ESPN's period, plus whether it is at a quarter break -- rather
+// than how many linescore entries exist, so a scoreless quarter is called
+// lost at the break, not whenever the next one's first entry appears. A
+// snapshot without a period (an older fixture, a feed that dropped it) falls
+// back to the linescore: every entry before the last is a quarter played.
+function quarterOver(row, q) {
+  if (row.status === "final") return true;
+  if (row.status !== "live") return false;
+  if (!row.period) return q <= Math.max(0, row.quarters.length - 1);
+  return row.period > q || (row.period === q && row.periodOver);
+}
+// Which quarter is being played (or has just stopped), 1-4, 5+ in overtime.
+function quarterNow(row) {
+  if (!row || row.status !== "live") return 0;
+  return row.period || row.quarters.length || 0;
+}
+
+function stateForQuarterScore(leg) {
+  const q = Number(leg.quarter);
+  if (!leg.team || !(q >= 1 && q <= 4)) return "untracked";
+  const row = NFL.quarters(leg.team);
+  if (!row || row.status === "preview") return "not_started";
+  if ((row.quarters[q - 1] || 0) > 0) return "hit";
+  if (quarterOver(row, q)) return "miss";
+  // The game is on but this quarter hasn't come round yet.
+  return quarterNow(row) >= q ? "live" : "not_started";
+}
+
 function stateForAllQuarters(leg) {
   const teams = legTeams(leg);
   if (teams.length < 2) return "untracked";
   const rows = teams.map(t => NFL.quarters(t));
   if (rows.some(r => !r)) return "not_started";
+  // Before kickoff it is WAITING, not under way. Only "is every game final"
+  // was asked below, so a game not yet started fell through to "live".
+  if (rows.every(r => r.status === "preview")) return "not_started";
   for (const r of rows) {
     // A quarter that has been PLAYED and scored nothing kills it outright,
-    // whatever happens in the rest of the game.
-    const played = r.status === "final" ? r.quarters.length
-                                        : Math.max(0, r.quarters.length - 1);
-    for (let i = 0; i < Math.min(played, 4); i++) {
-      if (!r.quarters[i]) return "miss";
+    // whatever happens in the rest of the game. Same clock-based reading as
+    // the per-quarter leg, so the two bets can never disagree about a quarter.
+    for (let q = 1; q <= 4; q++) {
+      if (quarterOver(r, q) && !r.quarters[q - 1]) return "miss";
     }
   }
   if (!rows.every(r => r.status === "final")) return "live";
@@ -2976,9 +3047,10 @@ function marketTag(market, leg) {
     const raw = escapeHtml(String(market).toUpperCase().slice(0, 18));
     return ` <span class="mkt-tag unknown" title="This market isn't tracked yet -- shown, but not graded">${raw}${line}</span>`;
   }
-  if (!def.label) return "";
+  const label = leg ? legMarketLabel(leg) : def.label;
+  if (!label) return "";
   const cls = market === "sb" ? "sb" : (def.subject === "player" ? "prop" : "line");
-  return ` <span class="mkt-tag ${cls}" title="${escapeHtml(def.label)} bet">${escapeHtml(def.label)}${line}</span>`;
+  return ` <span class="mkt-tag ${cls}" title="${escapeHtml(label)} bet">${escapeHtml(label)}${line}</span>`;
 }
 
 // "O1.5" / "U8.5" / "-1.5". Only shown when the card actually stated a line:
@@ -2997,8 +3069,37 @@ function lineText(leg) {
 // The always-on line for a market whose subject is a team or a game. Same
 // contract as playerStatusLine(): it never returns "" except on a hit, where
 // the green check has already said it.
+// A FOOTBALL team bet, quarter by quarter. MLB's game-line wording ("settles
+// at the final") was wrong for both of these: they settle a quarter at a
+// time.
+function nflTeamStatusLine(state, market, leg) {
+  if (state === "hit" || !leg) return "";
+  if (state === "untracked") return statusLineHtml("This market isn't tracked yet &mdash; shown here, but not graded.");
+  const teams = legTeams(leg);
+  const rows = teams.map(t => NFL.quarters(t));
+  const row = rows[0];
+  if (!row || row.status === "preview") return statusLineHtml("Game hasn't kicked off yet.");
+  const now = quarterNow(row);
+  const nowLabel = now > 4 ? "Overtime" : `Q${now}`;
+  if (market === "q_score") {
+    const q = Number(leg.quarter), team = escapeHtml(leg.team || "");
+    if (state === "miss") return statusLineHtml(`Q${q} ended without a ${team} score.`);
+    if (state === "not_started") return statusLineHtml(`Game on (${nowLabel}) &mdash; Q${q} hasn't started yet.`);
+    const ctx = NFL.teamContext(leg.team);
+    const where = ctx && ctx.onOffense ? ` &mdash; ${team} has the ball${ctx.downDistance ? ", " + escapeHtml(ctx.downDistance) : ""}` : "";
+    return statusLineHtml(`Q${q} under way &mdash; ${team} still needs to score${where}.`);
+  }
+  // Each team to score all four quarters.
+  if (state === "miss") return statusLineHtml("A quarter ended with one of them not scoring.");
+  const owed = teams.filter((t, i) => rows[i] && !(rows[i].quarters[now - 1] > 0)).map(escapeHtml);
+  if (now > 4) return statusLineHtml("All four quarters are in.");
+  return statusLineHtml(owed.length ? `${nowLabel}: ${owed.join(" &amp; ")} still need${owed.length === 1 ? "s" : ""} to score.`
+                                    : `${nowLabel}: both have scored${now < 4 ? ` &middot; ${4 - now} to go` : ""}.`);
+}
+
 function gameLineStatusLine(state, market, team, leg) {
   if (!RESULTS.ready) return statusLineHtml("Waiting on live results&hellip;");
+  if (leg && leg.sport === "nfl" && (market === "q_score" || market === "quarters")) return nflTeamStatusLine(state, market, leg);
   if (state === "hit") return "";
   if (state === "untracked") {
     return statusLineHtml("This market isn't tracked yet &mdash; shown here, but not graded.");
@@ -3518,6 +3619,7 @@ function legAlertName(leg) {
 // What it says: "2+ HITS!", "UNDER 4.5 K!", "WON!", "ALL 4 QUARTERS!".
 function legHitWord(leg) {
   const m = legMarket(leg);
+  if (m === "q_score") return `SCORED IN Q${leg.quarter}!`;
   const def = marketDef(leg) || {};
   const label = (PROGRESS_LABEL[m] || def.label || String(m)).toUpperCase();
   const n = leg.line === null || leg.line === undefined ? NaN : Number(leg.line);
@@ -3770,6 +3872,9 @@ const LIVE_TILE_KIND = {
   // Two TEAMS and four quarters, not a player and not a final score -- so its
   // own kind, filed under the pair rather than under either team.
   quarters: "quarters",
+  // One team, one quarter: followed like a touchdown pick -- on the wall while
+  // THAT TEAM has the ball in that quarter, gone once it has scored.
+  q_score: "team_drive",
   hr: "bat", sb: "base", hrr: "bat", hits: "bat", rbi: "bat", runs: "bat",
   tb: "bat", doubles: "bat", k: "mound", er: "mound", win: "mound",
   ml: "game", spread: "game", total: "game", f5: "game",
@@ -4072,6 +4177,7 @@ function labEligiblePicks() {
       side: (leg && leg.side) || "over", odds,
       names: leg ? legPlayers(leg) : [player], team: (leg && leg.team) || "", kind,
       teams: leg ? legTeams(leg) : [],
+      quarter: leg && leg.quarter ? Number(leg.quarter) : null,
     });
     const who = whoDisplayName(rawWho);
     if (who && !pick.whos.includes(who)) pick.whos.push(who);
@@ -4087,6 +4193,7 @@ function labEligiblePicks() {
     // ONE tile for "DET + CAR", not one per team: it is one bet, and either
     // side failing to score in a quarter loses all of it.
     if (kind === "quarters") { add(legTeams(leg).join(" + "), odds, rawWho, iron, legMarket(leg), leg); return; }
+    if (kind === "team_drive") { add(leg.team || "", odds, rawWho, iron, legMarket(leg), leg); return; }
     legPlayers(leg).forEach(name => add(name, odds, rawWho, iron, legMarket(leg), leg));
   }
   EVALUATED.forEach(({ tk, states, evalRes }) => {
@@ -4208,7 +4315,9 @@ function labOddsHtml(pick, tag) {
   (pick.entries || []).forEach(e => {
     if (e.market === "hr" || e.market === "sb") return;
     const def = MARKETS[e.market];
-    const label = (def && def.label) || String(e.market).toUpperCase();
+    // "Scores in Q" alone doesn't say which quarter: the entry carries it.
+    const label = (e.market === "q_score" && e.quarter ? `Scores in Q${e.quarter}` : def && def.label)
+      || String(e.market).toUpperCase();
     // Case-blind: the registry says "All 4 Quarters", a tag says "ALL 4
     // QUARTERS", and the same word twice is the thing being avoided.
     if (tag && label.toUpperCase() === String(tag).toUpperCase()) {
@@ -4415,7 +4524,8 @@ function flashLegHit(leg, entry, cash) {
   const now = Date.now();
   const players = legPlayers(leg);
   const e = { market: legMarket(leg), line: leg.line === undefined ? null : leg.line, side: legSide(leg),
-              odds: leg.odds || "", names: players, team: leg.team || "", kind: liveTileKind(leg) };
+              odds: leg.odds || "", names: players, team: leg.team || "", kind: liveTileKind(leg),
+              quarter: leg.quarter ? Number(leg.quarter) : null };
   const who = whoDisplayName(leg.who);
   const pick = { norm: "hit:" + propKey(leg), player: entry.name, odds: [], oddsSb: [], whos: who ? [who] : [],
                  iron: false, hr: false, sb: false, entries: [e], kinds: new Set() };
@@ -4564,6 +4674,26 @@ function renderLiveAtBats() {
     // score, an open drive alone is stale right after a punt, and a finished
     // drive still named as current IS the kickoff window -- the NFL engine's
     // own liveContextForPlayer checks all three.
+    // A TEAM to score in a quarter. Only the quarter being played reaches
+    // here (a later one grades not_started, an earlier one is settled), and
+    // only while the leg is unscored -- so the tile is there exactly while
+    // that team has the ball and still owes the points.
+    if (pick.kinds && pick.kinds.has("team_drive")) {
+      const dctx = NFL.teamContext(pick.player);
+      const e = (pick.entries || []).find(x => x.market === "q_score") || {};
+      const tp = Object.assign({}, pick, { progress: `needs a score in Q${e.quarter}` });
+      if (dctx && dctx.status === "live") {
+        if (dctx.onOffense) {
+          nowCount++;
+          tiles.push({ rank: dctx.redZone ? 1 : 2, order: dctx.yardsToEndzone === null ? 99 : dctx.yardsToEndzone,
+                       html: NFL.ballTile(tp, dctx) });
+        } else if (dctx.takingFieldSoon) {
+          soonCount++;
+          tiles.push({ rank: 3, order: 0, html: NFL.waitTile(tp, dctx) });
+        }
+      }
+      return;
+    }
     if (pick.kinds && (pick.kinds.has("drive") || pick.kinds.has("defense"))) {
       const dctx = NFL.context(pick);
       // A copy, so the progress line rides along to the tile without being
@@ -5288,6 +5418,7 @@ function bellReady(slate) {
 }
 function bellLegState(leg) { return stateForLeg(leg); }
 function bellWhat(leg) {
+  if (legMarket(leg) === "q_score") return legMarketLabel(leg);
   const m = legMarket(leg);
   const def = marketDef(leg);
   const base = def && def.label ? def.label

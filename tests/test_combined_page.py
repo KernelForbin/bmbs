@@ -47,7 +47,8 @@ def mlb_schedule(date, games):
     return {"dates": [{"date": date, "games": out}]}
 
 
-def mlb_feed(abstract, roster, hrs=(), inning=None, state="Top", outs=1, batter=""):
+def mlb_feed(abstract, roster, hrs=(), inning=None, state="Top", outs=1, batter="",
+             teams=("AWY", "HME"), score=None):
     sides = {"away": {}, "home": {}}
     for i, n in enumerate(roster):
         side = "away" if i < 9 else "home"
@@ -64,16 +65,24 @@ def mlb_feed(abstract, roster, hrs=(), inning=None, state="Top", outs=1, batter=
         plays.append({"result": {"eventType": "field_out"},
                       "about": {"isTopInning": state in ("Top", "End")},
                       "matchup": {"batter": {"fullName": batter}}})
+    ls = ({"currentInning": inning, "inningState": state, "outs": outs,
+           "offense": {"batter": {"fullName": batter}}} if inning else {})
+    if score is not None:
+        # teamScores is built from linescore.teams keyed by the ABBREVIATIONS
+        # in gameData.teams -- a team bet has no player, so that pair is the
+        # only way the page can find the game at all.
+        ls["teams"] = {"away": {"runs": score[0]}, "home": {"runs": score[1]}}
     return {"gameData": {"status": {"abstractGameState": abstract,
-                                    "codedGameState": {"Final": "F", "Live": "I"}[abstract]}},
+                                    "codedGameState": {"Final": "F", "Live": "I"}[abstract]},
+                         "teams": {"away": {"abbreviation": teams[0]},
+                                   "home": {"abbreviation": teams[1]}}},
             "liveData": {"plays": {"allPlays": plays},
                 "boxscore": {"teams": {"away": {"players": sides["away"]},
                                        "home": {"players": sides["home"]}}},
                 # A live game needs a real linescore or there is no inning,
                 # no half and nobody at the plate -- so battingContextFor()
                 # returns null and the pick silently earns no tile.
-                "linescore": ({"currentInning": inning, "inningState": state, "outs": outs,
-                               "offense": {"batter": {"fullName": batter}}} if inning else {})}}
+                "linescore": ls}}
 
 
 # ---------------- ESPN fixtures ----------------
@@ -767,6 +776,48 @@ with sync_playwright() as p:
     check("K3 an all-football card's colour key says touchdown and nothing about home runs",
           page.inner_text("#legend-hit").lower() == "touchdown",
           page.inner_text("#legend-hit"))
+    browser.close()
+
+# ---------- N. a TEAM's own total ----------
+# "Braves Over 3.5 Runs" is the Braves' runs, not the game's -- a different
+# bet from the TOTAL market, which adds both sides. teamScores has carried
+# the per-team number all along; nothing read it this way, so the leg sat
+# untracked next to a game total that would have answered the wrong question.
+def team_leg(i, team, line, side=None, market="team_total"):
+    leg = {"id": f"T{i}", "player": team, "team": team, "who": "Memo",
+           "meta": team, "odds": "+118", "time": "7:10 PM ET",
+           "sport": "mlb", "market": market, "line": line}
+    if side:
+        leg["side"] = side
+    return leg
+
+
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["mlb"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [
+                     card(20, [team_leg(1, "ATL", 3.5)]),              # over, already clear
+                     card(21, [team_leg(2, "NYM", 3.5)]),              # over, still short
+                     card(22, [team_leg(3, "NYY", 3.5, "under")]),     # under, already busted
+                     card(23, [team_leg(4, "BOS", 4.0)]),              # lands ON the number
+                 ]}], "singles": []}
+FX["mlb_sched"][DAY] = mlb_schedule(DAY, [(6001, "Live", ["ATL", "NYM"]),
+                                          (6002, "Final", ["NYY", "BOS"])])
+# ATL 5 - NYM 1, still being played. NYY 6 - BOS 4, final.
+FX["mlb_feeds"][6001] = mlb_feed("Live", ["A1"], inning=6, state="Top", outs=1,
+                                 batter="A1", teams=("ATL", "NYM"), score=(5, 1))
+FX["mlb_feeds"][6002] = mlb_feed("Final", ["N1"], teams=("NYY", "BOS"), score=(6, 4))
+FX["espn_events"] = {}
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    ls = leg_states(page)
+    check("N1 a team over that has already cleared settles mid-game, "
+          "the way a stat prop does", ls.get("T1") == "hit", ls)
+    check("N2 ...one still short of the number stays live", ls.get("T2") == "live", ls)
+    check("N3 an under that has already busted is a miss", ls.get("T3") == "miss", ls)
+    check("N4 landing exactly ON the number is a push", ls.get("T4") == "na", ls)
+    check("N5 none of them fell through to untracked",
+          "untracked" not in ls.values(), ls)
+    check("N6 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
 print()

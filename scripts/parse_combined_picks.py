@@ -340,6 +340,32 @@ def scan_card(text, mlb, nfl):
         cleaned = QTY_RE.sub(" ", cleaned).strip(" -:|·")
         rec = {"sport": sport, "market": market, "line": line_val,
                "side": side_val, "name": cleaned, "why": why}
+        # A TEAM subject, not a player: "Braves Over 3.5 Runs" is the Braves'
+        # own runs. Nothing on the player rosters will ever match it, so the
+        # leg came back with a blank team and the player-stat `runs` market --
+        # pointed at a batter called Braves, who does not exist. It IS
+        # gradeable: teamScores has carried each side's runs all along.
+        if sport == "mlb" and not _in_roster(mlb_parser.normalize_name(cleaned), mlb):
+            abbr = mlb_team_in(cleaned, mlb.get("abbr_by_team_word") or {})
+            if abbr:
+                rec["team"], rec["is_team"] = abbr, True
+                # Only runs: teamScores knows the score and nothing else, so
+                # any other per-team stat stays whatever it was and grades
+                # untracked rather than being answered from a number that
+                # isn't the one asked about.
+                orig_market = market
+                if market == "runs":
+                    rec["market"] = market = "team_total"
+                key = mlb_parser.normalize_name(cleaned)
+                # Indexed under the market parse_picks will hand back as WELL
+                # as the converted one. Its leg still says "runs" -- the
+                # conversion happens here -- so keying only on the new name
+                # means the lookup never finds what this pass just worked out.
+                found[(key, orig_market or "hr")] = rec
+                found.setdefault((key, market or "hr"), rec)
+                found.setdefault(mlb_parser.normalize_name(candidate), rec)
+                continue
+
         if sport == "mlb" and market:
             # parse_picks resolves the player BEFORE it knows a market phrase
             # was glued to the name, so "Max Fried Strikeouts Over 5.5" misses

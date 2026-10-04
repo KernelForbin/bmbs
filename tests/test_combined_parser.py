@@ -372,6 +372,26 @@ check("M16 two legs on the SAME misspelt player keep their own markets",
 check("M17 ...and their own lines", sorted(l.get("line") for l in tatis) == [0.5, 2.5],
       [l.get("line") for l in tatis])
 
+# A TEAM subject, not a player. "Braves Over 3.5 Runs" is the Braves' own
+# runs -- gradeable off the score, which teamScores has always carried. It
+# came back with a blank team and the player-stat `runs` market, pointed at a
+# batter called Braves who does not exist.
+TEAMBET = (
+    "Ticket 1\n"
+    "Braves Over 3.5 Runs +118\n"
+    "Aaron Judge 1+ Home Run +390\n"
+    "Stake: 8.00 | Pays: 42.00\n"
+)
+out5 = cp.build(TEAMBET, MLB, NFL, NOW, no_network)
+tb_legs = {l["player"]: l for w in out5["windows"] for t in w["tickets"] for l in t["legs"]}
+braves = tb_legs.get("Braves", {})
+check("M18 a team name resolves to its abbreviation", braves.get("team") == "ATL", braves)
+check("M19 ...and becomes a TEAM total, not the player stat of the same name",
+      braves.get("market") == "team_total", braves)
+check("M20 ...keeping the line it was set at", braves.get("line") == 3.5, braves)
+check("M21 a real player on the same ticket is unaffected",
+      tb_legs.get("Aaron Judge", {}).get("team") == "NYY", tb_legs.get("Aaron Judge"))
+
 check("M12 an unsigned trailing price is still read as the price",
       by.get("Mookie Betts", {}).get("odds") == "+145", by.get("Mookie Betts"))
 check("M13 ...and the leg still resolves its team",

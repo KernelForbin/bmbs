@@ -2110,6 +2110,10 @@ const MARKETS = {
   ml:     { label: "MONEYLINE",   subject: "team",   grade: leg => stateForMoneyline(leg) },
   spread: { label: "SPREAD",      subject: "team",   grade: leg => stateForSpread(leg) },
   total:  { label: "TOTAL",       subject: "game",   grade: leg => stateForTotal(leg) },
+  // ONE team's own runs ("Braves Over 3.5 Runs"), which is a different bet
+  // from the game total above -- that one adds both sides. teamScores has
+  // carried the per-team number all along; nothing read it this way.
+  team_total: { label: "TEAM TOTAL", subject: "team", grade: leg => stateForTeamTotal(leg) },
   // "First 5 innings under 3.5". Gradeable off the linescore's per-inning
   // runs -- the reason it wasn't, for a while, is that I assumed only the
   // final score was available and never looked.
@@ -2246,6 +2250,23 @@ function stateForPartial(leg) {
   if (done < through) return row.status === "final" ? (under ? "hit" : "miss") : "live";
   if (soFar === line) return "na";                        // exact push
   return under ? "hit" : "miss";
+}
+
+// A TEAM's own total. Unlike the game total it can settle EARLY, exactly as a
+// stat prop does: once the Braves have 4 with a line of 3.5, the over is good
+// whatever happens next. An UNDER still has to wait for the final, because
+// any later run can bust it -- unless it already has.
+function stateForTeamTotal(leg) {
+  const row = teamScoreFor(leg);
+  if (!row) return "not_started";
+  const line = legLine(leg);
+  const final = row.status === "final";
+  const over = legSide(leg) !== "under";
+  if (over && row.runs > line) return "hit";
+  if (!over && row.runs > line) return "miss";
+  if (!final) return "live";
+  if (row.runs === line) return "na";          // exact push
+  return over === (row.runs > line) ? "hit" : "miss";
 }
 
 function stateForTotal(leg) {

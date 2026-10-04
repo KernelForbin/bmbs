@@ -1,7 +1,7 @@
 {
   "date": "2026-10-04",
   "endDate": "2026-10-04",
-  "note": "'Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs   Combined' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Jaxson Smith-Njigba Most Sunday' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Lions/Panthers Each team to score all four quarters' is not on the NFL roster -- check the spelling, it can't be graded as typed",
+  "note": "'Jaxson Smith-Njigba Most Sunday' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Dione Walker (Bills)' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'David Bailey (Jets)' is not on the NFL roster -- check the spelling, it can't be graded as typed",
   "sports": [
     "mlb",
     "nfl"
@@ -365,15 +365,25 @@
           "legs": [
             {
               "id": "p0-c8-l0",
-              "player": "Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs   Combined",
-              "team": "",
+              "player": "Amon-Ra St. Brown, Chuba Hubbard, Jahmyr Gibbs",
+              "team": "DET",
               "who": "",
-              "meta": "",
+              "meta": "DET",
               "odds": "+210",
               "time": "",
               "market": "td_count",
               "line": 3.5,
-              "sport": "nfl"
+              "sport": "nfl",
+              "players": [
+                "Amon-Ra St. Brown",
+                "Chuba Hubbard",
+                "Jahmyr Gibbs"
+              ],
+              "athleteIds": [
+                "4374302",
+                "4241416",
+                "4429795"
+              ]
             },
             {
               "id": "p0-c8-l1",
@@ -398,18 +408,22 @@
           "legs": [
             {
               "id": "p0-c9-l0",
-              "player": "Lions",
-              "team": "",
+              "player": "Lions/Panthers Each team to score",
+              "team": "DET",
               "who": "",
-              "meta": "",
+              "meta": "DET",
               "odds": "+500",
               "time": "",
-              "market": "unknown",
+              "market": "quarters",
               "players": [
                 "Lions",
                 "Panthers Each team to score all four quarters"
               ],
-              "sport": "mlb"
+              "sport": "nfl",
+              "teams": [
+                "DET",
+                "CAR"
+              ]
             },
             {
               "id": "p0-c9-l1",

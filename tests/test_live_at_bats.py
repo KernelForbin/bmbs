@@ -113,7 +113,7 @@ def handler(route, request):
         return route.fulfill(status=200, content_type="application/json", body=json.dumps(TICKETS))
     if "/api/v1/schedule" in url:
         return route.fulfill(status=200, content_type="application/json", body=json.dumps(
-            {"dates": [{"date": DATE, "games": [{"gamePk": 1301, "status": {"abstractGameState": "Live"}},
+            {"dates": [{"date": DATE, "games": [{"gamePk": 1301, "status": {"abstractGameState": FX.get("state", "Live")}},
                                                  {"gamePk": 1302, "status": {"abstractGameState": "Final"}}]}]}))
     m = re.search(r"/game/(\d+)/feed/live", url)
     if m:
@@ -567,6 +567,112 @@ with sync_playwright() as p:
               "{market:'hits',odds:'+150'}]}, 'AT BAT')") == "HR+390 HITS+150")
 
     check("Z12 no JS errors across the new tiles", not errors, errors)
+
+    # ================= AA: every tile says what it's chasing, every leg alerts =================
+    # The user's two rules (2026-10-04): a home run pick reads "0 of 1 HR" the
+    # way a sack reads "0 of 1 sacks", so no tile leaves you guessing what it
+    # is waiting for; and EVERY leg that hits -- not just home runs and steals
+    # -- changes its tile and pops the overlay.
+    def set_bat(feed, name, **stats):
+        for side in ("home", "away"):
+            for pl in feed["liveData"]["boxscore"]["teams"][side]["players"].values():
+                if pl["person"]["fullName"] == name:
+                    pl["stats"] = {"batting": dict({"plateAppearances": 3}, **stats)}
+
+    def aa_feed(extra_plays=(), on_deck_hits=1):
+        f = game(BASE + [play(50, "Up Now", False, COUNT_1_2, balls=1, strikes=2)] + list(extra_plays),
+                 "Bottom", 1, "Up Now")
+        set_bat(f, "On Deck", hits=on_deck_hits)
+        set_bat(f, "In Hole", hits=1)
+        set_bat(f, "Home 5", hits=0)
+        set_bat(f, "Home 6", hits=0)
+        f["liveData"]["boxscore"]["teams"]["home"]["players"]["IDP"] = {
+            "person": {"fullName": "Ace Arm"}, "stats": {"pitching": {"strikeOuts": 4, "earnedRuns": 1}}}
+        return f
+
+    FX["feed"] = aa_feed()
+    TICKETS["windows"][0]["tickets"] = [
+        card(1, [leg("Up Now", "Kevin", "+265"), prop_leg("On Deck", "hits", 1.5)]),
+        card(2, [prop_leg("Ace Arm", "er", 1.5), prop_leg("Lead Off", "rbi", 0.5)]),
+        # dead: Missed Guy's game is final with no home run
+        card(3, [leg("Missed Guy", "Noid", "+290"), prop_leg("Home 5", "hits", 0.5)]),
+    ]
+    TICKETS["singles"] = [
+        dict(prop_leg("In Hole", "hits", 0.5), id="single-0", stake=5.0, payout=12.5),   # already hit at load
+        dict(prop_leg("Home 6", "hits", 0.5), id="single-1", stake=5.0, payout=15.0),
+    ]
+    page.goto("http://bmbs.test/index.html")
+    boot(page)
+    poll(page)
+    page.evaluate("""() => { window.FIRED = []; const real = fireLegHit;
+        fireLegHit = (slate, leg, cash) => { FIRED.push(legAlertName(leg)); return real(slate, leg, cash); }; }""")
+    tl = {t["player"]: t for t in tiles(page)}
+    up = tl.get("Up Now")
+    check("AA1 a plain home run pick says what it's chasing: 0 of 1 HR",
+          bool(up) and "0 of 1 HR" in up["text"], up and up["text"])
+    arm = tl.get("Ace Arm")
+    check("AA2 an earned-runs bet counts EARNED RUNS off the pitching line, in its own unit -- "
+          "it read the batting line (always 0) and called it K",
+          bool(arm) and "1 ER" in arm["text"] and "needs 2" in arm["text"] and " K " not in arm["text"],
+          arm and arm["text"])
+    check("AA3 a steal bet with no line reads 0 of 1 SB",
+          page.evaluate("labProgress({market:'sb', names:['Nobody'], line:null}).text") == "0 of 1 SB",
+          page.evaluate("labProgress({market:'sb', names:['Nobody'], line:null})"))
+    under = page.evaluate("[labProgress({market:'hits', names:['In Hole'], line:1.5, side:'under'}),"
+                          " labProgress({market:'hits', names:['In Hole'], line:0.5, side:'under'})]")
+    check("AA4 an UNDER says the number to stay below, never 'x of y', and flags a bust",
+          under[0]["text"] == "1 hits (under 1.5)" and not under[0]["bust"] and under[1]["bust"], under)
+
+    # On Deck singles: his hits prop goes 1 -> 2 and clears, on the same play
+    # whose plain "Single" result would otherwise hold his tile. Home 5's
+    # prop clears too, but his only bet is a dead parlay. Home 6 clears a
+    # SINGLE, which cashes it.
+    FX["feed"] = aa_feed([play(51, "On Deck", False, [pitch("X", "In play, no out")], event="Single", etype="single")],
+                         on_deck_hits=2)
+    set_bat(FX["feed"], "Home 5", hits=1)
+    set_bat(FX["feed"], "Home 6", hits=1)
+    poll(page)
+    fired = page.evaluate("FIRED")
+    check("AA5 a hits prop clearing fires an alert", "On Deck" in fired, fired)
+    check("AA6 ...but not for a leg that already hit before the page opened (the flood guard)",
+          "In Hole" not in fired, fired)
+    check("AA7 ...nor for one whose only bet is already dead", "Home 5" not in fired, fired)
+    overlay = page.evaluate("document.getElementById('bomb-overlay').textContent.replace(/\\s+/g, ' ')")
+    check("AA8 the overlay names him and what he did", "On Deck" in overlay and "2+ HITS!" in overlay, overlay)
+    tl = tiles(page)
+    od = [t for t in tl if t["player"] == "On Deck"]
+    check("AA9 his tile turns into ONE green HIT tile -- the plain 'Single' result is replaced, not doubled",
+          len(od) == 1 and od[0]["tag"] == "HIT" and od[0]["result"] == "2+ HITS!",
+          [(t["tag"], t["result"]) for t in od])
+    check("AA10 ...showing the count it reached", bool(od) and "2 of 2 hits" in od[0]["text"], od and od[0]["text"])
+    h6 = [t for t in tl if t["player"] == "Home 6"]
+    check("AA11 a leg that CASHES a bet gets the gold CASHED tile with what it paid",
+          len(h6) == 1 and h6[0]["tag"] == "CASHED" and "SINGLE CASHED" in h6[0]["text"]
+          and "$15.00" in h6[0]["text"], [t["text"] for t in h6])
+    check("AA12 a cleared leg on a dead parlay changes no tile either",
+          not [t for t in tl if t["player"] == "Home 5"], [t["player"] for t in tl])
+
+    advance(page, 15)
+    left = [t["player"] for t in tiles(page) if t["tag"] in ("HIT", "CASHED")]
+    check("AA13 the HIT tiles hold about as long as a home run's, then go", not left, left)
+    # A walk-off. The home run and the final out arrive on the SAME poll, so
+    # by the time alerts are checked the slate has already rolled to
+    # Yesterday. Alerts read SLATES.today only, so the last swing of the
+    # night -- or any leg settled by the final out -- never alerted.
+    page.evaluate("""() => { window.BOMBED = []; const real = fireBomb;
+        fireBomb = (name, cash) => { BOMBED.push(name); return real(name, cash); }; }""")
+    FX["state"] = "Final"
+    FX["feed"] = aa_feed([play(52, "Up Now", False, [pitch("X", "In play, run(s)")], event="Home Run", etype="home_run",
+                               hit={"launchSpeed": 108.0, "launchAngle": 27.0, "totalDistance": 420.0, "trajectory": "fly_ball"})],
+                         on_deck_hits=2)
+    FX["feed"]["gameData"]["status"]["abstractGameState"] = "Final"
+    poll(page)
+    check("AA15 the slate rolled over on the walk-off poll -- the case being tested",
+          page.evaluate("SLATES.today === null && !!SLATES.yesterday"),
+          page.evaluate("[!!SLATES.today, !!SLATES.yesterday]"))
+    check("AA16 the walk-off home run still alerts", page.evaluate("BOMBED") == ["Up Now"], page.evaluate("BOMBED"))
+    FX["state"] = "Live"
+    check("AA14 no JS errors across the hit alerts", not errors, errors)
     browser.close()
 
 

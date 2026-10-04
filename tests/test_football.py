@@ -299,6 +299,10 @@ with sync_playwright() as p:
     check("C3 tile: down & distance, score/clock, his line so far, whose pick",
           all(s in barkley["text"] for s in ("RED ZONE", "2nd & 7 at TEN 12", "Q1 8:41", "3 car, 14 yds", "Kenny")), barkley["text"])
     check("C4 negative odds survive onto the tile", "-135" in barkley["text"])
+    # The user's rule (2026-10-04): every tile says what it's chasing, even
+    # when it is only ever one -- "0 of 1 TD" the way a sack reads "0 of 1".
+    check("C4b ...and every tile says what it's waiting for: 0 of 1 TD",
+          all("0 of 1 TD" in x["text"] for x in t), [x["text"][:90] for x in t])
     check("C5 the ticket row says it too", "IN THE RED ZONE" in ctx(page, "Saquon Barkley") and "1 rec, 9 yds (2 tgt)" in ctx(page, "A.J. Brown"), ctx(page, "A.J. Brown"))
     check("C6 no ON DEFENSE / HALFTIME / BETWEEN DRIVES tiles survive", not [x for x in t if x["kind"] == "wait"]
           and "ON DEFENSE" not in page.inner_text("#drives-grid"), str([(x["player"], x["tag"]) for x in t]))
@@ -473,6 +477,14 @@ with sync_playwright() as p:
     check("I5 no script errors", not errors, str(errors))
     check("I6 no sideways scroll on a phone", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
     check("I7 Last Week's header", "LAST WEEK'S SLATE" in page.inner_text("#eyebrow-text"), page.inner_text("#eyebrow-text"))
+    # The week rolled on the same poll as Monday night's final whistle. A
+    # touchdown on that last poll must still alert, so alerts keep reading
+    # the slate this page was watching -- but never one it wasn't (opening the
+    # page the morning after must stay silent).
+    check("I8 alerts still read the slate that just finished, on the poll it finished",
+          page.evaluate("SLATES.today === null && alertSlate() === SLATES.yesterday"))
+    check("I9 ...but never a finished slate this page wasn't already watching",
+          page.evaluate("(() => { const d = BOMB_STATE.date; BOMB_STATE.date = null; const r = alertSlate(); BOMB_STATE.date = d; return r === null; })()"))
 
     # ---------- J. a SUNDAY-ONLY card still holds This Week until Monday night ends ----------
     # The rule is the week's last game, not the card's: nobody here is playing Monday.

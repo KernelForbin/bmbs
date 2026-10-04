@@ -1141,6 +1141,76 @@ with sync_playwright() as p:
     check("R8 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
+# ---------- S. every tile says what it chases; every leg that hits alerts ----------
+# The user's rules (2026-10-04): an anytime-TD pick reads "0 of 1 TD" the way
+# a sack reads "0 of 1 sacks", and EVERY leg that hits -- not just home runs,
+# steals and touchdowns -- changes its tile and pops the overlay.
+#
+# The quarters bet settles only at the FINAL whistle, and here it is the
+# card's last game: the slate rolls to Yesterday on that same poll. Alerts
+# read SLATES.today only, so a final-whistle leg on the last game -- or a
+# walk-off home run -- never alerted at all until alertSlate().
+_s_q = nfl_leg_m(3, "Eagles/Giants Each team to score", "PHI", "quarters", None, teams=["PHI", "NYG"])
+_s_q["players"] = ["Eagles", "Giants Each team to score all four quarters"]
+_s_td = nfl_leg(4, "Run Guy", "PHI", "40")
+del _s_td["market"]          # no market named: the NFL default, anytime TD
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [
+                     card(80, [nfl_leg_m(1, "Pass Guy", "PHI", "pass_tds", 2.5, "31")]),
+                     card(81, [_s_q]),
+                     card(82, [_s_td]),
+                     # Hasn't touched the ball: no stat line at all, which is a zero
+                     card(83, [nfl_leg(5, "Quiet Guy", "PHI", "41", market="td")]),
+                 ]}], "singles": []}
+FX["mlb_sched"][DAY] = {"dates": []}
+FX["espn_events"] = {"9001": espn_event("9001", "in", (17, 17))}
+FX["espn_summaries"]["9001"] = espn_summary(
+    "9001", "in", {"PHI": [("31", "Pass Guy", "passing", (2, 1)), ("40", "Run Guy", "rushing", (5, 20, 0))]},
+    (17, 17), current=espn_drive("d1", "PHI", 12, "1st & 10 at NYG 12"),
+    quarters=[[7, 7, 3, 0], [3, 7, 7, 0]])
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("toggleLiveAb()")
+    page.wait_for_timeout(200)
+    page.evaluate("""() => { window.FIRED = []; const real = fireLegHit;
+        fireLegHit = (slate, leg, cash) => { FIRED.push(legAlertName(leg)); return real(slate, leg, cash); }; }""")
+    tiles = page.eval_on_selector_all(
+        "#liveab-grid .ab-tile",
+        "els => Object.fromEntries(els.map(e => [e.querySelector('.ab-name').textContent.trim(), "
+        "e.textContent.replace(/\\s+/g, ' ')]))")
+    check("S1 an anytime-TD pick says what it's chasing: 0 of 1 TD",
+          "0 of 1 TD" in tiles.get("Run Guy", ""), tiles.get("Run Guy", sorted(tiles)))
+    check("S1b ...including one with no stat line yet -- that is a zero, not a blank",
+          "0 of 1 TD" in tiles.get("Quiet Guy", ""), tiles.get("Quiet Guy", sorted(tiles)))
+    check("S2 ...and a prop still shows its own count beside it",
+          "2 of 3 passing TDs" in tiles.get("Pass Guy", ""), tiles.get("Pass Guy", sorted(tiles)))
+
+    # Final whistle: Pass Guy threw his third, both teams scored in the 4th.
+    FX["espn_events"]["9001"] = espn_event("9001", "post", (24, 20))
+    FX["espn_summaries"]["9001"] = espn_summary(
+        "9001", "post", {"PHI": [("31", "Pass Guy", "passing", (3, 1)), ("40", "Run Guy", "rushing", (5, 20, 0))]},
+        (24, 20), quarters=[[7, 7, 3, 7], [3, 7, 7, 3]])
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    fired = page.evaluate("FIRED")
+    check("S3 the slate rolled over on this very poll -- the case being tested",
+          page.evaluate("SLATES.today === null && !!SLATES.yesterday"),
+          page.evaluate("[!!SLATES.today, !!SLATES.yesterday]"))
+    check("S4 a passing-TD prop clearing alerts", "Pass Guy" in fired, fired)
+    check("S5 all four quarters scored alerts too, settled by the final whistle of the LAST game",
+          "PHI + NYG" in fired, fired)
+    seen = page.evaluate("""[document.getElementById('bomb-overlay').textContent,
+        ...BOMB_QUEUE.map(q => q.name + ' ' + (q.prop ? q.prop.word : ''))].join(' | ').replace(/\\s+/g, ' ')""")
+    check("S6 ...each with its own words", "3+ PASSING TDS!" in seen and "ALL 4 QUARTERS!" in seen, seen)
+    check("S7 both cashed their one-leg cards, so both say so",
+          page.evaluate("BOMB_QUEUE.every(q => q.cash)") and "CASHED" in seen, seen)
+    check("S8 the flash for a cleared NFL prop carries its count",
+          page.evaluate("[...LAB.flashes.values()].some(f => f.cleared && f.cleared.detail === '3 of 3 passing TDs')"),
+          page.evaluate("[...LAB.flashes.values()].map(f => f.cleared && f.cleared.detail)"))
+    check("S9 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

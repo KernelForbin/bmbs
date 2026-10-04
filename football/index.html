@@ -397,6 +397,10 @@
   .bell-title { font-weight: 700; font-size: 14px; color: var(--text); }
   .bell-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
   .bell-meta { font-size: 11.5px; color: var(--text-faint); margin-top: 4px; }
+  .bell-replay { margin-top: 6px; font: 600 11px 'Inter', sans-serif; letter-spacing: .02em;
+    color: var(--text-dim); background: transparent; border: 1px solid var(--panel-line);
+    border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  .bell-replay:hover, .bell-replay:focus-visible { color: var(--text); border-color: var(--text-dim); }
   .bell-time { flex: 0 0 auto; font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 </style>
 </head>
@@ -1351,6 +1355,7 @@ let PUSH_ON = false;
 const BOMB_STATE = { date: null, seeded: false, notified: new Set() };
 let BOMB_QUEUE = [];
 let bombTimer = null;
+let BOMB_SHOWING_REPLAY = false;   // the card on screen is a bell replay
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1668,20 +1673,26 @@ function showNextBomb() {
     host.innerHTML = "";
     host.classList.remove("active");
     bombTimer = null;
+    BOMB_SHOWING_REPLAY = false;
     return;
   }
   const { name, cash } = next;
+  BOMB_SHOWING_REPLAY = !!next.replay;
+  // A bell replay of a CASHED BET says so instead of "TOUCHDOWN!". Both come
+  // from code, never from storage.
+  const word = next.word || "TOUCHDOWN!";
+  const emoji = next.emoji || "&#127944;";
   host.innerHTML = cash
     ? `<div class="bomb-flash cash"></div>${moneyRainHtml()}
     <div class="bomb-card cash">
-      <span class="bomb-emojis"><span class="bomb-emoji">&#127944;</span><span class="bomb-emoji">&#128176;</span></span>
-      <span><span class="bomb-name">${escapeHtml(name)}</span><span class="bomb-word">TOUCHDOWN!</span>
+      <span class="bomb-emojis"><span class="bomb-emoji">${emoji}</span><span class="bomb-emoji">&#128176;</span></span>
+      <span><span class="bomb-name">${escapeHtml(name)}</span><span class="bomb-word">${escapeHtml(word)}</span>
         <span class="bomb-cash">&#128176; ${escapeHtml(cash.label)}<span class="amt">${escapeHtml(cash.amount)}</span></span></span>
     </div>`
     : `<div class="bomb-flash"></div>
     <div class="bomb-card">
-      <span class="bomb-emoji">&#127944;</span>
-      <span><span class="bomb-name">${escapeHtml(name)}</span><span class="bomb-word">TOUCHDOWN!</span></span>
+      <span class="bomb-emoji">${emoji}</span>
+      <span><span class="bomb-name">${escapeHtml(name)}</span><span class="bomb-word">${escapeHtml(word)}</span></span>
       ${confettiHtml()}
     </div>`;
   host.classList.add("active");
@@ -1741,8 +1752,22 @@ function pickedNamesOf(tickets) {
 }
 
 // Called once per poll, keyed on results.hitNames: the picks who have scored.
+// Which slate to announce from. Normally today's -- but the slate this page
+// was WATCHING finishes on the same poll as its last play: every game final,
+// so it has already rolled to Yesterday by the time this runs, and a walk-off
+// home run, or any leg that only settles at the final whistle (a moneyline,
+// an under, all four quarters), would never alert at all. So the slate the
+// flood guard is keyed on is still checked after it rolls. Never a finished
+// slate this page wasn't already watching: that is what keeps opening the
+// page the morning after silent.
+function alertSlate() {
+  if (SLATES.today) return SLATES.today;
+  const y = SLATES.yesterday;
+  return y && y.tickets && BOMB_STATE.date && y.tickets.date === BOMB_STATE.date ? y : null;
+}
+
 function checkForBombs() {
-  const slate = SLATES.today;
+  const slate = alertSlate();
   if (!slate || !slate.tickets || !slate.results || !slate.results.ready) return;
 
   const date = slate.tickets.date;
@@ -1974,8 +1999,12 @@ function drvTileShell(cls, tag, pick, link, inner) {
     <div class="ab-name">${escapeHtml(pick.player)}</div>${inner}</a>`;
 }
 
+// What the tile is waiting for comes FIRST: "0 of 1 TD". Every bet here is
+// an anytime touchdown, so it is always one -- but a tile should never leave
+// you guessing what it is tracking (the user's rule, 2026-10-04).
 function drvFootLine(ctx, pick) {
-  return [ctx.statLine, pick.whos.join(", ")].filter(Boolean).map(escapeHtml).join(" &middot; ");
+  const target = `${stateForPlayer(pick.player) === "hit" ? 1 : 0} of 1 TD`;
+  return [target, ctx.statLine, pick.whos.join(", ")].filter(Boolean).map(escapeHtml).join(" &middot; ");
 }
 
 // his offense is on the field
@@ -2824,6 +2853,38 @@ function bellScan() {
   bellRender();
 }
 
+// The overlay for one bell entry, again -- as many times as it's tapped. A
+// replay goes to the FRONT of the queue and replaces a replay already on
+// screen, so tapping twice shows it twice rather than stacking up a backlog;
+// a live alert already showing is let finish first. It ignores the overlay
+// toggle: tapping the button IS asking for it.
+function replayOverlay(entry) {
+  BOMB_QUEUE = BOMB_QUEUE.filter(q => !q.replay);
+  BOMB_QUEUE.unshift(Object.assign({ replay: true }, entry));
+  if (!bombTimer) { showNextBomb(); return; }
+  if (BOMB_SHOWING_REPLAY) { clearTimeout(bombTimer); showNextBomb(); }
+}
+
+function bellReplay(id) {
+  const item = BELL.items.find(i => i.id === id);
+  if (!item) return;
+  if (item.kind === "bet") {
+    const single = item.legs === 1;
+    playAlertSound("kick", true);
+    replayOverlay({ name: single ? (item.sub || "Single") : item.name, word: "CASHED!", emoji: "&#127881;",
+                    cash: { label: single ? "SINGLE" : `${item.legs}-LEG PARLAY`, amount: bellMoney(item.payout) } });
+    return;
+  }
+  // Every leg on this page is an anytime touchdown.
+  playAlertSound("kick", false);
+  replayOverlay({ name: item.who });
+}
+
+document.addEventListener("click", e => {
+  const btn = e.target && e.target.closest && e.target.closest(".bell-replay");
+  if (btn) bellReplay(btn.getAttribute("data-replay"));
+});
+
 function bellUnread() {
   const seen = new Set(BELL.seen);
   return BELL.items.filter(i => !seen.has(i.id)).length;
@@ -2848,6 +2909,7 @@ function bellItemHtml(item, unread) {
         <div class="bell-title">${escapeHtml(item.name)} cashed</div>
         <div class="bell-sub">${escapeHtml(legs)}${money ? " \u00b7 " + escapeHtml(money) : ""}</div>
         <div class="bell-meta">${item.book ? "Bet by " + escapeHtml(item.book) + " \u00b7 " : ""}${escapeHtml((item.on || []).join(" + "))}</div>
+        <button type="button" class="bell-replay" data-replay="${escapeHtml(item.id)}">&#9654; Play overlay</button>
       </div>
       <div class="bell-time">${escapeHtml(bellTime(item))}</div>
     </div>`;
@@ -2860,6 +2922,7 @@ function bellItemHtml(item, unread) {
       <div class="bell-title">${escapeHtml(item.who)}</div>
       <div class="bell-sub">${escapeHtml(item.what)} hit</div>
       <div class="bell-meta">${escapeHtml([meta, on].filter(Boolean).join(" \u00b7 "))}</div>
+      <button type="button" class="bell-replay" data-replay="${escapeHtml(item.id)}">&#9654; Play overlay</button>
     </div>
     <div class="bell-time">${escapeHtml(bellTime(item))}</div>
   </div>`;

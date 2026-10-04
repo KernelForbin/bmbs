@@ -607,7 +607,51 @@ notification controls next to frozen, archived results is misleading. This
 is visibility only: the saved settings and Today's actual notifications are
 completely unaffected by which tab happens to be on screen.
 
+## Every leg alerts, and alerts survive the last play (2026-10-04)
+
+**Home runs, steals and touchdowns were the only legs that ever alerted.** A
+hits prop clearing, a strikeout line reached, a moneyline won, all four
+quarters scored -- the page went quiet on exactly the legs nobody could
+otherwise watch for. The user's rule: EVERY leg that hits gets a tile change
+AND a popup. `propHitEvents()` (MLB and NFL+MLB pages) finds every leg whose
+state is `hit` outside `OWN_ALERT_MARKETS` (hr/sb, plus td on the combined
+page -- those keep their own play-keyed alerts), one event per distinct leg
+however many bets carry it. They go through `checkForBombs()`'s notified set
+with a `prop:` prefix, so the SAME seeding applies (opening mid-game is
+silent) and the same dead-parlay rule (a leg whose every bet is already dead
+stays quiet). `fireLegHit()` plays the sport's sound (swipe / kick; the
+register if it cashed), pushes, queues an overlay in the leg's own words
+(`legHitWord()`: "2+ HITS!", "UNDER 4.5 K!", "WON!", "COVERED!", "ALL 4
+QUARTERS!"), and sets a `cleared` flash -- a green **HIT** tile, gold
+**CASHED** when it finished a bet, held as long as a home run's. That tile
+REPLACES the plain at-bat result for the same man ("Single" beside "2+ HITS!"
+is one event told twice); a home run's own tile is left alone. The tile
+changes whatever the overlay toggle says -- the tracker is the page, not a
+notification. `test_live_at_bats.py` AA and `test_combined_page.py` S.
+
+**`alertSlate()`: the slate rolls over on the SAME poll as its last play.**
+When the last game on a card goes final, `refreshEverything()` moves the slate
+to `SLATES.yesterday` before alerts are checked -- and `checkForBombs()` read
+`SLATES.today` only. So a walk-off home run, Monday night's last touchdown, or
+any leg that only settles at the final whistle (a moneyline, an under, all
+four quarters) never alerted at all, on any of the three pages. Alerts now
+also read the finished slate IF its date is the one `BOMB_STATE` was already
+watching -- never a slate this page wasn't watching, which is what keeps the
+morning after silent. AA15/AA16 (walk-off), S3/S5 (quarters on the final
+whistle), and football I8/I9 pin both halves.
+
 ## Notification bell (all three pages)
+
+**Every entry has a Play overlay button** (2026-10-04) that shows its alert
+again -- the gold cash card for a bet entry -- repeatably and with the overlay
+toggle OFF, since tapping it is the request. A replay goes to the FRONT of the
+queue and replaces a replay already on screen (`BOMB_SHOWING_REPLAY`), so two
+taps show it twice rather than piling up; a live alert already showing is let
+finish. Leg entries store `alert` -- the market, the words, a steal's base --
+as DATA, rebuilt into an overlay by code and escaped on the way out, because
+everything in the bell comes back out of localStorage (`test_bell.py` I8 plants
+markup in one). Entries logged before `alert` existed are given one on the next
+scan, so the button works on what was already in the bell.
 
 Added 2026-10-04. A bell top-right of each page's header, with a red badge
 counting what hit since you last looked. Tapping it opens the list and clears
@@ -796,6 +840,18 @@ goes through `BETLIKE_RE` into the `note`.
   oversight: an inning-specific total can't be followed from a final score, so
   a tile could only ever show a number that means nothing. `MARKET_STATS`
   mirrors the registry's graders -- change one, change the other.
+  **Every tile says what it is chasing** (2026-10-04, the user's rule): a
+  plain home run pick reads "0 of 1 HR", a steal "0 of 1 SB", an anytime TD
+  "0 of 1 TD" (all three pages), the same way a sack reads "0 of 1 sacks". No
+  line means at least one, exactly as the grader reads it; an UNDER reads
+  "1 hits (under 1.5)" and goes red once it has busted. `labProgress()` takes
+  its source from the registry's `pitching` flag -- it used `market === "k"`,
+  which read earned runs and wins off the BATTING line (always 0) and labelled
+  them K. **A name collision broke the page on the first try:** the new helper
+  was called `stealsBy`, which already existed, and a later function
+  declaration silently REPLACES an earlier one -- `test_page.py` died on
+  `.find is not a function` far from either. Reuse the existing one; grep a
+  name before declaring it in these single-file pages.
   `test_live_at_bats.py` section Z covers it, and Z9 checks `liveTileKind()`
   DIRECTLY rather than just the absence of a tile: asserting absence alone
   passed even with the exclusion removed, which a mutation proved.
@@ -1772,6 +1828,10 @@ on failure:
   drive fixture had the pick already SCORING, which makes him ineligible for a
   tile anyway, so the drive logic was never exercised and a mutation against
   it passed.
+- `tests/test_bell.py` section I — the Play overlay button on all three pages:
+  present on every entry as a real `<button>`, plays with the overlay toggle
+  off, a second tap replaces rather than queues, a bet replays as a cash,
+  stored words are escaped, and older entries are upgraded.
 - `tests/test_bell.py` — the notification bell on all three pages, in ONE
   browser context, because the pages share an origin and a shared key would
   only show up there. Backfill, the leg/bet split, one entry per event,

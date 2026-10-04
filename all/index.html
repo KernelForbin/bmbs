@@ -303,6 +303,14 @@
      an over settles the moment it clears, so the tile shouldn't wait. */
   .ab-prog { color:var(--text-dim); }
   .ab-prog.done { color:var(--hit); font-weight:600; }
+  .ab-prog.bust { color:var(--red); font-weight:600; }
+  /* a leg that just HIT, whatever it was: green, gold when it cashed a bet */
+  .ab-tile.result.cleared { border-color:var(--green); background:var(--green-dim); }
+  .ab-tile.cleared .ab-result { color:var(--green); }
+  .ab-tile.result.cleared.cashed { border-color:var(--yellow); background:var(--yellow-dim); }
+  .ab-tile.cleared.cashed .ab-result { color:var(--yellow); }
+  .ab-tile.cleared .ab-bomb.cashed { background:var(--yellow-dim); }
+  .ab-tile.cleared .ab-bomb.cashed .n { color:var(--yellow); }
   .gameday-link { display:inline-block; font-size:10px; color:var(--green); margin-top:3px; text-decoration:underline; }
   .leg-right { flex:none; text-align:right; }
   .leg-odds { font-family:'Oswald',sans-serif; font-size:13.5px; font-weight:600; color:var(--amber); }
@@ -475,6 +483,10 @@
   .bell-title { font-weight: 700; font-size: 14px; color: var(--text); }
   .bell-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
   .bell-meta { font-size: 11.5px; color: var(--text-faint); margin-top: 4px; }
+  .bell-replay { margin-top: 6px; font: 600 11px 'Inter', sans-serif; letter-spacing: .02em;
+    color: var(--text-dim); background: transparent; border: 1px solid var(--panel-line);
+    border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  .bell-replay:hover, .bell-replay:focus-visible { color: var(--text); border-color: var(--text-dim); }
   .bell-time { flex: 0 0 auto; font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 
   /* ---- "each team to score all four quarters": one row per team, one cell
@@ -3018,6 +3030,7 @@ let PUSH_ON = false;
 const BOMB_STATE = { date: null, seeded: false, notified: new Set() };
 let BOMB_QUEUE = [];
 let bombTimer = null;
+let BOMB_SHOWING_REPLAY = false;   // the card on screen is a bell replay
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -3352,13 +3365,18 @@ function showNextBomb() {
     host.innerHTML = "";
     host.classList.remove("active");
     bombTimer = null;
+    BOMB_SHOWING_REPLAY = false;
     return;
   }
-  const { name, cash, steal, td } = next;
-  const emoji = td ? "&#127944;" : steal ? "&#127939;" : "&#128163;";
-  const word = td ? "TOUCHDOWN!"
+  const { name, cash, steal, td, prop } = next;
+  BOMB_SHOWING_REPLAY = !!next.replay;
+  // `prop` is any other leg -- a stat line cleared, a game line won, all four
+  // quarters scored. Its emoji is chosen by code from a fixed set, never read
+  // back from storage, so it is safe as markup; its word is escaped.
+  const emoji = prop ? prop.emoji : td ? "&#127944;" : steal ? "&#127939;" : "&#128163;";
+  const word = prop ? escapeHtml(prop.word) : td ? "TOUCHDOWN!"
     : steal ? `STOLE ${escapeHtml(String(steal.base || "a base").toUpperCase())}!` : "BOMB!";
-  const kindCls = td ? " td" : steal ? " steal" : "";
+  const kindCls = prop ? " prop" : td ? " td" : steal ? " steal" : "";
   host.innerHTML = cash
     ? `<div class="bomb-flash cash"></div>${moneyRainHtml()}
     <div class="bomb-card cash${kindCls}">
@@ -3465,11 +3483,133 @@ function pickedNamesOf(tickets, market) {
   return byNorm;
 }
 
+// ---------------- every other leg ----------------
+// Home runs, steals and touchdowns have alerts of their own, keyed on the play
+// itself. EVERY OTHER market -- a hits prop clearing, a strikeout line
+// reached, a moneyline won, all four quarters scored -- had no alert at all,
+// so the page went quiet on exactly the legs nobody could otherwise watch for
+// (the user's rule, 2026-10-04: every leg that hits gets a tile change AND a
+// popup). These are keyed on the leg's STATE turning to hit, since there is no
+// single play to point at.
+const OWN_ALERT_MARKETS = new Set(["hr", "sb", "td"]);
+const BASEBALL_EMOJI = "&#9918;", FOOTBALL_EMOJI = "&#127944;", CASH_EMOJI = "&#127881;";
+function propSound(leg) { return leg && leg.sport === "nfl" ? "kick" : "swipe"; }
+
+// Who the alert names. A team bet names the team, a game bet both sides, and
+// a player bet every player on it ("Schwarber + Olson").
+function legAlertName(leg) {
+  const subj = marketSubject(leg);
+  if (subj === "team") return (Array.isArray(leg.teams) && leg.teams.length ? leg.teams : [leg.team]).filter(Boolean).join(" + ");
+  if (subj === "game") return [leg.team, leg.opponent].filter(Boolean).join(" + ");
+  return legPlayers(leg).join(" + ") || leg.team || "";
+}
+
+// What it says: "2+ HITS!", "UNDER 4.5 K!", "WON!", "ALL 4 QUARTERS!".
+function legHitWord(leg) {
+  const m = legMarket(leg);
+  const def = marketDef(leg) || {};
+  const label = (PROGRESS_LABEL[m] || def.label || String(m)).toUpperCase();
+  const n = leg.line === null || leg.line === undefined ? NaN : Number(leg.line);
+  if (m === "ml") return "WON!";
+  if (m === "spread") return "COVERED!";
+  if (m === "win") return "GOT THE WIN!";
+  if (!Number.isFinite(n)) return `${label}!`;
+  if (legSide(leg) === "under") return `UNDER ${n} ${label}!`;
+  if (m === "total" || m === "f5") return `OVER ${n}!`;
+  return `${Math.floor(n) + 1}+ ${label}!`;
+}
+
+// What the overlay queue needs for this leg, in the same shape whichever
+// path asks: a live alert, or a replay from the bell.
+function legAlertEntry(leg, base) {
+  const m = legMarket(leg);
+  const name = legAlertName(leg);
+  if (m === "hr") return { name };
+  if (m === "sb") return { name, steal: { base: base || "a base" } };
+  if (m === "td") return { name, td: true };
+  return { name, prop: { emoji: leg.sport === "nfl" ? FOOTBALL_EMOJI : BASEBALL_EMOJI, word: legHitWord(leg) } };
+}
+
+function propKey(leg) {
+  return [leg.sport || "", legMarket(leg), leg.line === undefined || leg.line === null ? "" : leg.line,
+          legSide(leg), legAlertName(leg).toLowerCase()].join("|");
+}
+
+// Every leg on the slate that has HIT and isn't one of the three markets
+// above, one entry per distinct leg however many bets carry it. `open` is
+// whether any of those bets can still pay -- a leg that only sits on dead
+// parlays changes nothing and stays quiet, the rule bombs already follow --
+// and `cashed` lists the bets it just completed.
+function propHitEvents(slate) {
+  const events = new Map();
+  bellWithToday(slate, () => {
+    const take = (leg, state) => {
+      if (state !== "hit" || OWN_ALERT_MARKETS.has(legMarket(leg))) return null;
+      const key = propKey(leg);
+      if (!events.has(key)) events.set(key, { key, leg, open: false, cashed: [] });
+      return events.get(key);
+    };
+    (slate.tickets.windows || []).forEach(w => (w.tickets || []).forEach(tk => {
+      const legs = tk.legs || [];
+      const states = legs.map(stateForLeg);
+      const res = evaluateTicket(tk, states);
+      legs.forEach((leg, i) => {
+        const ev = take(leg, states[i]);
+        if (!ev) return;
+        if (res.outcome !== "dead") ev.open = true;
+        if (res.outcome === "hit") ev.cashed.push({ kind: "parlay", legs: legs.length, payout: res.adjustedPayout || 0 });
+      });
+    }));
+    (slate.tickets.singles || []).forEach(sg => {
+      const state = stateForLeg(sg);
+      const ev = take(sg, state);
+      if (!ev) return;
+      ev.open = true;
+      if (singleOutcome(state) === "hit") ev.cashed.push({ kind: "single", legs: 1, payout: sg.payout || 0 });
+    });
+  });
+  return [...events.values()];
+}
+
+function fireLegHit(slate, leg, cash) {
+  const entry = legAlertEntry(leg);
+  playAlertSound(propSound(leg), !!cash);
+  if (PUSH_ON && supportsNotification() && window.Notification.permission === "granted") {
+    try {
+      new window.Notification(`${entry.name} ${entry.prop.word}${cash ? " \u{1F4B0}" : ""}`, {
+        body: cash ? `${cash.label}${cash.amount ? ` - ${cash.amount}` : ""} - bmbs.bet` : `${bellWhat(leg)} hit - bmbs.bet`,
+        tag: `leg-${propKey(leg)}`
+      });
+    } catch (e) { /* some browsers throw when constructed outside a SW */ }
+  }
+  // The tile changes whatever the overlay toggle says: the Live Bet Tracker
+  // is the page itself, not a notification.
+  bellWithToday(slate, () => flashLegHit(leg, entry, cash));
+  if (OVERLAY_ON && document.visibilityState === "visible") {
+    BOMB_QUEUE.push(Object.assign({ cash: cash || null }, entry));
+    if (!bombTimer) showNextBomb();
+  }
+}
+
 // Called once per poll. Deliberately keyed on the player's OWN home run
 // (hitNames), not on leg state -- a leg credited through Pinch Hit
 // Protection wasn't a bomb by the player the notification would name.
+// Which slate to announce from. Normally today's -- but the slate this page
+// was WATCHING finishes on the same poll as its last play: every game final,
+// so it has already rolled to Yesterday by the time this runs, and a walk-off
+// home run, or any leg that only settles at the final whistle (a moneyline,
+// an under, all four quarters), would never alert at all. So the slate the
+// flood guard is keyed on is still checked after it rolls. Never a finished
+// slate this page wasn't already watching: that is what keeps opening the
+// page the morning after silent.
+function alertSlate() {
+  if (SLATES.today) return SLATES.today;
+  const y = SLATES.yesterday;
+  return y && y.tickets && BOMB_STATE.date && y.tickets.date === BOMB_STATE.date ? y : null;
+}
+
 function checkForBombs() {
-  const slate = SLATES.today;
+  const slate = alertSlate();
   if (!slate || !slate.tickets || !slate.results || !slate.results.ready) return;
 
   const date = slate.tickets.date;
@@ -3522,6 +3662,15 @@ function checkForBombs() {
     if (betsStillOpenFor(slate, display, "td")) freshTds.push(display);
   });
 
+  // Every other market, through the same notified set and so the same
+  // seeding: opening the page mid-game records what already hit, silently.
+  const freshProps = [];
+  propHitEvents(slate).forEach(ev => {
+    if (BOMB_STATE.notified.has("prop:" + ev.key)) return;
+    BOMB_STATE.notified.add("prop:" + ev.key);
+    if (ev.open) freshProps.push(ev);
+  });
+
   if (!BOMB_STATE.seeded) {
     BOMB_STATE.seeded = true; // first poll for this slate: record, don't announce
     return;
@@ -3529,6 +3678,7 @@ function checkForBombs() {
   fresh.forEach(name => fireBomb(name, cashSummary(betsCashedBy(slate, name, "hr"))));
   freshSteals.forEach(({ display, base }) => fireSteal(display, base, cashSummary(betsCashedBy(slate, display, "sb"))));
   freshTds.forEach(name => fireTouchdown(name, cashSummary(betsCashedBy(slate, name, "td"))));
+  freshProps.forEach(ev => fireLegHit(slate, ev.leg, cashSummary(ev.cashed)));
 }
 
 // ---------------- home run log ----------------
@@ -3618,19 +3768,40 @@ const NFL_PROGRESS = {
   pass_tds: ["passTd", "passing TDs"], pass_yds: ["passYds", "pass yds"],
   rec_yds: ["recYds", "rec yds"], rush_yds: ["rushYds", "rush yds"],
   receptions: ["rec", "catches"], td_count: ["td", "TDs"], sacks: ["sacks", "sacks"],
+  // Anytime TD too: "0 of 1 TD" says what the tile is waiting for, the same
+  // as any other prop's count (the user's rule, 2026-10-04).
+  td: ["td", "TD"],
 };
 // "2 of 3 passing TDs". Over 2.5 needs 3, so the target is floor(line) + 1.
 // Skipped for a leg naming several players: this tile is ONE of them, and
 // his own count against a combined line would read as further from cashing
 // than the bet really is.
 function nflProgress(pick, dctx) {
-  if (!dctx || !dctx.line) return "";
-  return (pick.entries || []).map(e => {
+  if (!dctx) return "";
+  // No stat line yet just means he hasn't touched the ball: that is a zero,
+  // not a reason to say nothing.
+  const have = dctx.line || {};
+  return [...new Set((pick.entries || []).map(e => {
     const spec = NFL_PROGRESS[e.market];
     if (!spec || (e.names && e.names.length > 1)) return "";
     const line = (e.line === null || e.line === undefined) ? 0.5 : Number(e.line);
-    return `${dctx.line[spec[0]] || 0} of ${Math.floor(line) + 1} ${spec[1]}`;
-  }).filter(Boolean).join(" \u00b7 ");
+    // An under has a number to stay below, not a count to reach.
+    if (e.side === "under") return `${have[spec[0]] || 0} ${spec[1]} (under ${line})`;
+    return `${have[spec[0]] || 0} of ${Math.floor(line) + 1} ${spec[1]}`;
+  }).filter(Boolean))].join(" \u00b7 ");
+}
+
+// The same count for a leg that has just HIT, for its result tile -- summed
+// over every name on it, since a finished leg is shown once for all of them.
+function nflHitProgress(e) {
+  const spec = NFL_PROGRESS[e.market];
+  if (!spec) return null;
+  const have = (e.names || []).reduce((sum, n) => {
+    const r = NFL.stat(n, spec[0]);
+    return sum + (r ? r.value : 0);
+  }, 0);
+  const line = (e.line === null || e.line === undefined) ? 0.5 : Number(e.line);
+  return { text: e.side === "under" ? `${have} ${spec[1]} (under ${line})` : `${have} of ${Math.floor(line) + 1} ${spec[1]}` };
 }
 
 function liveTileKind(leg) { return LIVE_TILE_KIND[legMarket(leg)] || null; }
@@ -3647,18 +3818,40 @@ const MARKET_STATS = {
 // "2 of 3 total bases" -- where a counting bet actually stands right now.
 // Returns null for a market with nothing to count (a plain home run or steal
 // bet is "at least one" and the tile already says everything).
+//
+// EVERY counting bet gets one, including the plain "at least one" kind -- a
+// home run or a steal reads "0 of 1 HR" like a sack reads "0 of 1 sacks", so
+// no tile leaves you guessing what it is waiting for (the user's rule,
+// 2026-10-04). No line means at least one, exactly as the grader reads it.
+//
+// The SOURCE is the registry's own `pitching` flag. It used to be
+// `market === "k"`, which sent earned runs and wins to the BATTING line and
+// read zero for them forever.
+const PROGRESS_LABEL = { hr: "HR", sb: "SB", k: "K", er: "ER", hrr: "H+R+RBI", rbi: "RBI", win: "win" };
+function progressLabel(market) {
+  if (PROGRESS_LABEL[market]) return PROGRESS_LABEL[market];
+  return ((MARKETS[market] && MARKETS[market].label) || String(market)).toLowerCase();
+}
 function labProgress(entry) {
   const keys = MARKET_STATS[entry.market];
-  if (!keys || entry.line === null || entry.line === undefined) return null;
-  const pitching = entry.market === "k";
-  const src = pitching ? RESULTS.pitchStats : RESULTS.batStats;
+  if (!keys && entry.market !== "sb") return null;
+  const def = MARKETS[entry.market] || {};
+  const src = def.pitching ? RESULTS.pitchStats : RESULTS.batStats;
   const have = (entry.names || []).reduce((sum, n) => {
+    // Steals aren't on the slim batting line; the feed's runner events are.
+    if (entry.market === "sb") return sum + stealsBy(normalizeName(n)).filter(x => !x.caught).length;
     const row = src && src.get(normalizeName(n));
     return sum + (row ? keys.reduce((a, k) => a + (row[k] || 0), 0) : 0);
   }, 0);
-  const need = Math.floor(entry.line) + 1;          // over 1.5 needs 2
-  const label = (MARKETS[entry.market] && MARKETS[entry.market].label || "").toLowerCase();
-  return { have, need, text: `${have} of ${need} ${label || "so far"}`.trim(), done: have >= need };
+  const label = progressLabel(entry.market);
+  const hasLine = entry.line !== null && entry.line !== undefined && Number.isFinite(Number(entry.line));
+  if (hasLine && entry.side === "under") {
+    // An under has no count to reach -- it has a number to stay below.
+    const line = Number(entry.line);
+    return { have, need: null, line, under: true, text: `${have} ${label} (under ${line})`, done: false, bust: have > line };
+  }
+  const need = hasLine ? Math.floor(Number(entry.line)) + 1 : 1;   // over 1.5 needs 2
+  return { have, need, text: `${have} of ${need} ${label}`, done: have >= need };
 }
 
 function relevantHrNames() {
@@ -4035,7 +4228,7 @@ function labProgressHtml(pick) {
     const prog = labProgress(e);
     if (!prog || seen.has(prog.text)) return;
     seen.add(prog.text);
-    bits.push(`<span class="${prog.done ? "ab-prog done" : "ab-prog"}">${escapeHtml(prog.text)}</span>`);
+    bits.push(`<span class="${prog.done ? "ab-prog done" : prog.bust ? "ab-prog bust" : "ab-prog"}">${escapeHtml(prog.text)}</span>`);
   });
   return bits.length ? `<div class="ab-line faint">${bits.join(" &middot; ")}</div>` : "";
 }
@@ -4045,7 +4238,14 @@ function labProgressHtml(pick) {
 // the thing that actually moves.
 function labMoundTile(pick, gamePk, inningLabel, gamedayLink) {
   const prog = (pick.entries || []).map(labProgress).find(Boolean);
-  const line = prog ? `${prog.have} K &middot; needs ${prog.need}` : "On the mound";
+  // Its own market's word: this said "K" for every pitcher prop, so an
+  // earned-runs bet read as a strikeout count.
+  const e = (pick.entries || []).find(x => labProgress(x)) || {};
+  const unit = progressLabel(e.market);
+  const line = !prog ? "On the mound"
+    : prog.under ? `${prog.have} ${unit} &middot; needs under ${prog.line}`
+    : e.market === "win" ? "needs the win"
+    : `${prog.have} ${unit} &middot; needs ${prog.need}`;
   return labTileShell("mound", "ON THE MOUND", pick, gamedayLink, `
     <div class="ab-line">${escapeHtml(inningLabel || "")}</div>
     <div class="ab-countrow"><span class="ab-count">${prog ? prog.have : "\u2013"}</span><span class="ab-pitches faint">${escapeHtml(line)}</span></div>`);
@@ -4198,6 +4398,36 @@ function labResultTile(flash, now) {
     <div class="ab-line faint">${escapeHtml(detail.filter(Boolean).join(" \u00b7 "))}</div>${bomb}`);
 }
 
+// A leg that just HIT, whatever its market: green, or gold when it finished
+// a bet. Held as long as a home run's tile, opening on the same burst.
+function flashLegHit(leg, entry, cash) {
+  const now = Date.now();
+  const players = legPlayers(leg);
+  const e = { market: legMarket(leg), line: leg.line === undefined ? null : leg.line, side: legSide(leg),
+              odds: leg.odds || "", names: players, team: leg.team || "", kind: liveTileKind(leg) };
+  const who = whoDisplayName(leg.who);
+  const pick = { norm: "hit:" + propKey(leg), player: entry.name, odds: [], oddsSb: [], whos: who ? [who] : [],
+                 iron: false, hr: false, sb: false, entries: [e], kinds: new Set() };
+  // The progress line is worked out NOW, against the slate that just hit;
+  // by the time the tile renders RESULTS may be following another tab.
+  const prog = labProgress(e) || nflHitProgress(e);
+  LAB.flashes.set(pick.norm, { pick, cleared: { word: entry.prop.word, emoji: entry.prop.emoji, cash: cash || null,
+                                               detail: prog ? prog.text : "" },
+                               norms: players.map(normalizeName), burst: true, at: now, until: now + LAB_HOMER_MS });
+}
+
+function labClearedTile(flash, now) {
+  const { pick, cleared } = flash;
+  const detail = [cleared.detail, pick.whos.join(", ")].filter(Boolean).join(" \u00b7 ");
+  const cash = cleared.cash
+    ? `<div class="ab-line"><b>&#128176; ${escapeHtml(cleared.cash.label)}</b>${cleared.cash.amount ? " " + escapeHtml(cleared.cash.amount) : ""}</div>` : "";
+  const burst = now < flash.at + LAB_BOMB_MS
+    ? `<div class="ab-bomb${cleared.cash ? " cashed" : ""}"><span class="e">${cleared.cash ? "&#128176;" : cleared.emoji}</span><span class="n">${escapeHtml(pick.player.toUpperCase())}</span></div>` : "";
+  return labTileShell(`result cleared${cleared.cash ? " cashed" : ""}`, cleared.cash ? "CASHED" : "HIT", pick, "", `
+    <div class="ab-result">${escapeHtml(cleared.word)}</div>
+    <div class="ab-line faint">${escapeHtml(detail)}</div>${cash}${burst}`);
+}
+
 function labDiamond(bases) {
   const b = bases || {};
   const bag = (x, y, on) => `<rect x="${x}" y="${y}" width="6" height="6" transform="rotate(45 ${x + 3} ${y + 3})" class="${on ? "on" : ""}"/>`;
@@ -4213,7 +4443,7 @@ function labOnBaseTile(pick, on) {
   return labTileShell(`onbag${on.nextOpen ? "" : " blocked"}`, `ON ${on.baseLabel}`, pick, on.gamedayLink, `
     <div class="ab-line">${labDiamond(game.bases)}${on.inningLabel} ${labOutsDots(on.outs)}</div>
     <div class="ab-line">${lane}</div>
-    <div class="ab-line faint">${scene}</div>`);
+    <div class="ab-line faint">${scene}</div>${labProgressHtml(pick)}`);
 }
 
 function labStealResultTile(flash, now) {
@@ -4296,7 +4526,18 @@ function renderLiveAtBats() {
   // A steal pick who reaches base goes straight to his on-base tile: the
   // "Single" result would only sit in front of the thing worth watching.
   picksNow.forEach(pick => { if (pick.sb && LAB.flashes.has(pick.norm) && !LAB.flashes.get(pick.norm).homer && onBaseContext(pick.player)) LAB.flashes.delete(pick.norm); });
-  LAB.flashes.forEach(flash => tiles.push({ rank: 0, order: flash.at, html: flash.steal || flash.left ? labStealResultTile(flash, now) : labResultTile(flash, now) }));
+  // A leg that just hit replaces the plain at-bat result for the same man:
+  // "Single" and "2+ HITS!" side by side are one event told twice. A home
+  // run's own tile stays -- that is a different bet landing.
+  LAB.flashes.forEach(flash => {
+    if (flash.cleared) (flash.norms || []).forEach(n => {
+      const pa = LAB.flashes.get(n);
+      if (pa && !pa.homer && !pa.cleared) LAB.flashes.delete(n);
+    });
+  });
+  LAB.flashes.forEach(flash => tiles.push({ rank: 0, order: flash.at,
+    html: flash.cleared ? labClearedTile(flash, now)
+      : flash.steal || flash.left ? labStealResultTile(flash, now) : labResultTile(flash, now) }));
   picksNow.forEach(pick => {
     if (LAB.flashes.has(pick.norm) || LAB.flashes.has("sb:" + pick.norm)) return;   // his result is still on screen
     const on = pick.sb ? onBaseContext(pick.player) : null;
@@ -5137,7 +5378,8 @@ function bellScan() {
       let ev = legEvents.get(key);
       if (!ev) {
         ev = { id: key, kind: "leg", who: bellPlain(who), what, team: leg.team || "",
-               odds: bellOdds(leg.odds), bettor: bellPlain(leg.who || ""), bets: [] };
+               odds: bellOdds(leg.odds), bettor: bellPlain(leg.who || ""), bets: [],
+               alert: bellAlertOf(leg) };
         legEvents.set(key, ev);
       }
       const b = bellPlain(betName);
@@ -5184,6 +5426,9 @@ function bellScan() {
         if (item.kind === "leg" && item.bets.length !== (prior.bets || []).length) {
           prior.bets = item.bets; changed = true;
         }
+        // Logged before entries carried their alert: give them one, so the
+        // replay button works on what is already in the bell.
+        if (item.kind === "leg" && !prior.alert && item.alert) { prior.alert = item.alert; changed = true; }
         return;
       }
       item.at = now;
@@ -5197,6 +5442,61 @@ function bellScan() {
   if (changed) bellSave();
   bellRender();
 }
+
+// Enough to rebuild this leg's overlay later, as DATA: the market, the
+// words, and for a steal which base. Never markup -- whatever is read back
+// from localStorage is escaped on the way out.
+function bellAlertOf(leg) {
+  const m = legMarket(leg);
+  const a = { m, sport: leg.sport || "", name: legAlertName(leg) };
+  if (m === "sb") {
+    const norm = normalizeName(leg.player || "");
+    if (RESULTS.gameInfo) RESULTS.gameInfo.forEach(g => (g.steals || []).forEach(st => {
+      if (!a.base && !st.caught && normalizeName(st.runner) === norm) a.base = st.base;
+    }));
+  } else if (!OWN_ALERT_MARKETS.has(m)) {
+    a.word = legHitWord(leg);
+  }
+  return a;
+}
+
+// The overlay for one bell entry, again -- as many times as it's tapped. A
+// replay goes to the FRONT of the queue and replaces a replay already on
+// screen, so tapping twice shows it twice rather than stacking up a backlog;
+// a live alert already showing is let finish first. It ignores the overlay
+// toggle: tapping the button IS asking for it.
+function replayOverlay(entry) {
+  BOMB_QUEUE = BOMB_QUEUE.filter(q => !q.replay);
+  BOMB_QUEUE.unshift(Object.assign({ replay: true }, entry));
+  if (!bombTimer) { showNextBomb(); return; }
+  if (BOMB_SHOWING_REPLAY) { clearTimeout(bombTimer); showNextBomb(); }
+}
+
+function bellReplay(id) {
+  const item = BELL.items.find(i => i.id === id);
+  if (!item) return;
+  if (item.kind === "bet") {
+    const single = item.legs === 1;
+    playAlertSound("cash", true);
+    replayOverlay({ name: single ? (item.sub || "Single") : item.name,
+                    prop: { emoji: CASH_EMOJI, word: "CASHED!" },
+                    cash: { label: single ? "SINGLE" : `${item.legs}-LEG PARLAY`, amount: bellMoney(item.payout) } });
+    return;
+  }
+  const a = item.alert || {};
+  const name = a.name || item.who;
+  if (a.m === "hr") { playAlertSound("bomb", false); replayOverlay({ name }); return; }
+  if (a.m === "sb") { playAlertSound("swipe", false); replayOverlay({ name, steal: { base: a.base || "a base" } }); return; }
+  if (a.m === "td") { playAlertSound("kick", false); replayOverlay({ name, td: true }); return; }
+  playAlertSound(a.sport === "nfl" ? "kick" : "swipe", false);
+  replayOverlay({ name, prop: { emoji: a.sport === "nfl" ? FOOTBALL_EMOJI : BASEBALL_EMOJI,
+                                word: a.word || `${item.what} hit!`.toUpperCase() } });
+}
+
+document.addEventListener("click", e => {
+  const btn = e.target && e.target.closest && e.target.closest(".bell-replay");
+  if (btn) bellReplay(btn.getAttribute("data-replay"));
+});
 
 function bellUnread() {
   const seen = new Set(BELL.seen);
@@ -5222,6 +5522,7 @@ function bellItemHtml(item, unread) {
         <div class="bell-title">${escapeHtml(item.name)} cashed</div>
         <div class="bell-sub">${escapeHtml(legs)}${money ? " \u00b7 " + escapeHtml(money) : ""}</div>
         <div class="bell-meta">${item.book ? "Bet by " + escapeHtml(item.book) + " \u00b7 " : ""}${escapeHtml((item.on || []).join(" + "))}</div>
+        <button type="button" class="bell-replay" data-replay="${escapeHtml(item.id)}">&#9654; Play overlay</button>
       </div>
       <div class="bell-time">${escapeHtml(bellTime(item))}</div>
     </div>`;
@@ -5234,6 +5535,7 @@ function bellItemHtml(item, unread) {
       <div class="bell-title">${escapeHtml(item.who)}</div>
       <div class="bell-sub">${escapeHtml(item.what)} hit</div>
       <div class="bell-meta">${escapeHtml([meta, on].filter(Boolean).join(" \u00b7 "))}</div>
+      <button type="button" class="bell-replay" data-replay="${escapeHtml(item.id)}">&#9654; Play overlay</button>
     </div>
     <div class="bell-time">${escapeHtml(bellTime(item))}</div>
   </div>`;

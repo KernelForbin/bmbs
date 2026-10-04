@@ -394,6 +394,78 @@ with sync_playwright() as p:
     check("H3 no JavaScript errors", not errors, errors[:3])
     fresh.close()
 
+    # ================= I. every entry can replay its overlay =================
+    # The user's ask (2026-10-04): a "Play overlay" button beside each
+    # notification, repeatable. It plays with the overlay toggle OFF -- the tap
+    # is the request -- and a second tap replays rather than queueing a pile.
+    def overlay_text(pg):
+        return pg.evaluate("document.getElementById('bomb-overlay').textContent.replace(/\\s+/g, ' ').trim()")
+
+    def replay(pg, kind):
+        pg.locator(f".bell-{kind} .bell-replay").first.click()
+        pg.wait_for_timeout(100)
+
+    FX["sched"] = mlb_schedule([(5001, "Final", ["NYY", "BOS"]), (5002, "Final", ["NYM", "ATL"])])
+    FX["espn_state"] = "in"
+    for path, leg_word in (("/", "BOMB!"), ("/football/", "TOUCHDOWN!"), ("/all/", None)):
+        rc = browser.new_context(viewport={"width": 420, "height": 900})
+        pg, errs = boot(rc, path)
+        pg.evaluate("OVERLAY_ON = false")
+        pg.click("#bell-btn")
+        pg.wait_for_timeout(150)
+        n_rows = pg.locator(".bell-item").count()
+        # A real <button>, so it is reachable from the keyboard and read as one.
+        check(f"I1 {path}: every entry has its own Play overlay button",
+              n_rows > 0 and pg.locator(".bell-item button.bell-replay").count() == n_rows,
+              (n_rows, pg.locator(".bell-item button.bell-replay").count()))
+        replay(pg, "leg")
+        txt = overlay_text(pg)
+        want = leg_word or ("TOUCHDOWN!" if "TOUCHDOWN!" in txt else "BOMB!")
+        check(f"I2 {path}: a leg entry replays its own overlay, with the overlay toggle off",
+              pg.evaluate("document.getElementById('bomb-overlay').classList.contains('active')") and want in txt, txt)
+        check(f"I3 {path}: the panel stays open, so another can be played", pg.is_visible("#bell-panel"))
+        replay(pg, "leg")
+        check(f"I4 {path}: tapping again replays it -- one card on screen, nothing piled up behind",
+              pg.locator("#bomb-overlay .bomb-card").count() == 1 and pg.evaluate("BOMB_QUEUE.length") == 0,
+              (pg.locator("#bomb-overlay .bomb-card").count(), pg.evaluate("BOMB_QUEUE.length")))
+        replay(pg, "bet")
+        txt = overlay_text(pg)
+        check(f"I5 {path}: a bet entry replays as a CASH, with what it paid",
+              "CASHED!" in txt and "$" in txt and pg.locator("#bomb-overlay .bomb-card.cash").count() == 1, txt)
+        check(f"I6 {path}: no JavaScript errors", not errs, errs[:3])
+        rc.close()
+
+    # A market with no alert of its own, and an entry whose stored words are
+    # hostile: what comes back out of localStorage is data, never markup.
+    rc = browser.new_context(viewport={"width": 420, "height": 900})
+    pg, errs = boot(rc, "/")
+    pg.evaluate("""() => {
+        BELL.items.push({id: 'leg:x:prop', kind: 'leg', who: 'Up Now', what: 'HITS OVER 1.5', bets: [], at: Date.now(),
+                         alert: {m: 'hits', sport: '', name: 'Up Now', word: '2+ HITS!'}});
+        BELL.items.push({id: 'leg:x:evil', kind: 'leg', who: 'Evil', what: 'HITS', bets: [], at: Date.now() - 1,
+                         alert: {m: 'hits', sport: '', name: '<img src=x id=pwn>', word: '<b id=pwn2>X</b>'}});
+        bellRender(); }""")
+    pg.click("#bell-btn")
+    pg.wait_for_timeout(150)
+    pg.evaluate("[...document.querySelectorAll('.bell-item')].find(r => r.dataset.id === 'leg:x:prop').querySelector('.bell-replay').click()")
+    pg.wait_for_timeout(100)
+    txt = overlay_text(pg)
+    check("I7 a prop entry replays with its own words", "Up Now" in txt and "2+ HITS!" in txt, txt)
+    pg.evaluate("[...document.querySelectorAll('.bell-item')].find(r => r.dataset.id === 'leg:x:evil').querySelector('.bell-replay').click()")
+    pg.wait_for_timeout(100)
+    check("I8 stored words are escaped on replay, never run as markup",
+          pg.evaluate("!document.getElementById('pwn') && !document.getElementById('pwn2')")
+          and "<b id=pwn2>" in overlay_text(pg), overlay_text(pg))
+    # Entries logged before they carried their alert are upgraded on the next
+    # scan, so the button works on what is already in the bell.
+    pg.evaluate("BELL.items.forEach(i => { if (i.kind === 'leg' && !i.id.startsWith('leg:x')) delete i.alert; }); bellSave()")
+    poll(pg)
+    check("I9 an older entry with no alert is given one on the next scan",
+          pg.evaluate("BELL.items.filter(i => i.kind === 'leg').every(i => i.alert && i.alert.m)"),
+          pg.evaluate("BELL.items.map(i => [i.id, i.alert])"))
+    check("I10 no JavaScript errors", not errs, errs[:3])
+    rc.close()
+
     browser.close()
 
 print()

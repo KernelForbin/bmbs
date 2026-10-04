@@ -186,13 +186,14 @@
       </div>
       <ul>
         <li>Tap <b>Live Bet Tracker</b> to open a wall of tiles: every pick who's <b>at the plate right now</b>, <b>on base</b>, or <b>guaranteed to bat this inning</b>, across every game at once. Even closed, its header tells you how many are up, on base, and due.</li>
-        <li>Props and game lines get tiles too. A hitter with a <b>hits</b>, <b>total bases</b> or <b>H+R+RBI</b> prop appears the same way any pick does, with a running count of where he stands &mdash; <b>"1 of 2 hits"</b> &mdash; that turns green the moment he gets there. A leg naming two players puts <b>both</b> on the wall, since either one batting moves the same bet.</li>
-        <li>A <b>pitcher</b> prop gets its own <b>ON THE MOUND</b> tile with his strikeout count and what he still needs &mdash; he'd never show up in the batting order, so there'd otherwise be no way to watch him. A <b>game line</b> gets a tile with the live score and whether it's covering, plus a reminder that nothing settles until the final.</li>
+        <li>Props and game lines get tiles too. A hitter with a <b>hits</b>, <b>total bases</b> or <b>H+R+RBI</b> prop appears the same way any pick does, with a running count of where he stands &mdash; <b>"1 of 2 hits"</b> &mdash; that turns green the moment he gets there. Every tile has one, so you always know what it's waiting for: a plain home run pick reads <b>"0 of 1 HR"</b>, a steal pick <b>"0 of 1 SB"</b>, and an <i>under</i> shows the number to stay below. A leg naming two players puts <b>both</b> on the wall, since either one batting moves the same bet.</li>
+        <li>A <b>pitcher</b> prop gets its own <b>ON THE MOUND</b> tile with his count &mdash; strikeouts, earned runs, or whatever the bet is on &mdash; and what he still needs &mdash; he'd never show up in the batting order, so there'd otherwise be no way to watch him. A <b>game line</b> gets a tile with the live score and whether it's covering, plus a reminder that nothing settles until the final.</li>
         <li>One thing that deliberately gets no tile: a bet on something the site can't follow live, like runs in a specific inning. It still shows on its card &mdash; there's just nothing honest to put on a tile.</li>
         <li>The man at the plate gets a lit-up tile with the pitcher he's facing, the live count, outs, and a dot for every pitch so far &mdash; ball, called strike, swinging strike, foul, in play &mdash; plus the last pitch spelled out.</li>
         <li>A steal pick who reaches base gets his own tile the moment he's on &mdash; <b>ON 1ST</b>, <b>ON 2ND</b>, or <b>ON 3RD</b> &mdash; showing the outs, who's up, and whether the next bag is open or blocked by another runner.</li>
         <li>Behind them, in order: <span class="tag">ON DECK</span>, <span class="tag">IN THE HOLE</span>, then the hitters leading off or due up next half-inning. Each tile shows the odds and whose pick it is.</li>
         <li>When the at-bat ends, the result holds the tile for a few seconds &mdash; <b>STRIKEOUT</b>, <b>DOUBLE</b>, whatever it was &mdash; then it drops off and everyone slides up. A home run turns the tile into a 💣 first, then shows the distance and exit velo. A steal turns it into a 🏃 first, then shows <b>SAFE</b> or <b>CAUGHT</b> &mdash; and if he's left on base with no attempt, a quick note says so instead of just vanishing.</li>
+        <li>Any other leg that lands &mdash; a hits prop clearing, a strikeout line reached, a moneyline won &mdash; gets a green <b>HIT</b> tile saying what it did, like <b>"2+ HITS!"</b>, with the count it reached. If it finished off a bet the tile turns gold, reads <b>CASHED</b>, and says what it paid.</li>
         <li>A 🧇 marks an Iron, so you can see at a glance which at-bat could cash something. The scoreboard filters work here too: tap <b>IRONS</b> and only those hitters remain; tap a name in the Bettor Tracker and it's just that person's guys.</li>
         <li>Only picks that can still win something appear &mdash; a hitter on a parlay that's already dead doesn't take up a tile. It refreshes with the rest of the page, so pitches arrive in small bursts rather than one by one. Tap any tile for Gameday.</li>
       </ul>
@@ -213,16 +214,16 @@
     <section class="card-item card--live">
       <div class="card-head">
         <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="11.5" cy="13" r="6.2"/><path d="M15.9 8.6 18.4 6M17 4.4l2.6 2.6M11.5 6.8V4M9.7 4h3.6"/></svg></span>
-        <h2>Bomb &amp; steal alerts</h2>
+        <h2>Bomb, steal &amp; hit alerts</h2>
       </div>
       <ul>
-        <li>When someone in the day's picks goes deep, the page announces it: <b>"&lt;Player&gt; BOMB! 💣"</b>. A stolen-base pick gets the same treatment when he swipes a bag: <b>"&lt;Player&gt; STOLE 2ND! 🏃"</b>.</li>
+        <li>When someone in the day's picks goes deep, the page announces it: <b>"&lt;Player&gt; BOMB! 💣"</b>. A stolen-base pick gets the same treatment when he swipes a bag: <b>"&lt;Player&gt; STOLE 2ND! 🏃"</b>. And every other kind of leg gets one the moment it hits, in its own words: <b>"&lt;Player&gt; 2+ HITS! ⚾"</b>, <b>"6+ K!"</b>, <b>"WON!"</b> for a moneyline, <b>"COVERED!"</b> for a spread.</li>
         <li>If that swing (or steal) <b>cashes a bet</b> &mdash; an Iron finishing off a parlay, or a single coming home &mdash; the same alert goes gold 💰: money rains down the screen and it tells you what hit and for how much, like <b>"2-LEG PARLAY CASHED &middot; $154.00"</b>. One play that cashes several bets adds them up. The push notification says it too.</li>
         <li>No alert fires for a home run or steal that can't change anything &mdash; if every bet naming that player is a parlay some other leg already missed, the page still tracks the hit but doesn't interrupt you with a popup for it.</li>
         <li>Three independent switches at the top &mdash; <b>Overlay</b> (a celebration right on the page), <b>Push</b> (a normal phone/desktop notification, even if you're on another tab), and <b>Sound</b>. Have any, all, or none; the settings stick on that device.</li>
         <li><b>Sound</b> gives each thing its own short noise &mdash; a thump for a home run and a quick whoosh for a stolen base. If the play actually cashes a bet you get a cash-register cha-ching <i>instead</i> &mdash; never two noises back to back, the same way the alert card turns gold rather than popping up twice. None of them run much past a third of a second. It starts switched <b>off</b> and plays once when you turn it on, so you know what you're in for. It works with the overlay switched off, and you'll hear it while you're on another tab.</li>
         <li>Push has to be switched on by you, and your browser will ask permission first. It works while the page is open somewhere &mdash; not once you've closed it entirely.</li>
-        <li>Opening the page mid-game <b>won't</b> bury you in alerts for home runs or steals that already happened &mdash; you only get told about ones that happen while you're watching.</li>
+        <li>Opening the page mid-game <b>won't</b> bury you in alerts for home runs or steals that already happened &mdash; you only get told about ones that happen while you're watching. A walk-off, or a bet settled by the last out of the night, still gets its alert.</li>
       </ul>
     </section>
     <section class="card-item">
@@ -235,6 +236,7 @@
         <li>Tap the bell to open the list, and the badge clears. Anything new since you last looked is highlighted while you read it.</li>
         <li>A leg that cashes a bet shows up <b>twice, on purpose</b> &mdash; once as the leg (who, what hit, which bets he&rsquo;s on) and once as the bet itself (how much was staked, what it paid, and everyone on it). One player on several bets is a single entry that lists them all.</li>
         <li>Unlike the pop-up alerts, it <b>does</b> catch you up: open the page late and everything that already hit is waiting in the list, marked &ldquo;Earlier&rdquo;. Things that happen while you&rsquo;re watching get the time, in ET.</li>
+        <li>Every entry has a <b>&#9654; Play overlay</b> button that shows its alert again &mdash; the gold cash version for a bet &mdash; as many times as you like, even with the overlay switched off.</li>
         <li>It survives a refresh, starts fresh when the next slate goes up, and each tracker &mdash; MLB, NFL and NFL+MLB &mdash; keeps its own count.</li>
       </ul>
     </section>
@@ -417,7 +419,7 @@
       </div>
       <ul>
         <li>Tap <b>Live Drives</b> to open a wall of tiles: every pick whose game is live, sorted by how close he is to paying off. Even closed, its header tells you how many are in the red zone or on the field.</li>
-        <li><span class="tag">RED ZONE</span> tiles come first, then <span class="tag">ON OFFENSE</span>, then the grey <span class="tag">TAKING THE FIELD SOON</span> ones. Each tile shows the score, the clock, down &amp; distance, and his stats so far.</li>
+        <li><span class="tag">RED ZONE</span> tiles come first, then <span class="tag">ON OFFENSE</span>, then the grey <span class="tag">TAKING THE FIELD SOON</span> ones. Each tile shows the score, the clock, down &amp; distance, his stats so far, and what it's waiting for &mdash; <b>"0 of 1 TD"</b>.</li>
         <li>A pick whose team is <b>on defense</b> gets no tile at all &mdash; he can't score, so he isn't taking up space. He comes back the moment his offense has the ball again.</li>
         <li>When a drive ends, the result holds the tile for a few seconds &mdash; <b>PUNT</b>, <b>FIELD GOAL</b>, or <b>TD &mdash; NOT HIM</b> if a teammate scored instead &mdash; then it drops off and everyone slides up.</li>
         <li>When your own pick scores, his tile turns into a 🏈 first, then shows the play &mdash; how many yards, and how it happened.</li>
@@ -463,6 +465,7 @@
         <li>Tap the bell to open the list, and the badge clears. Anything new since you last looked is highlighted while you read it.</li>
         <li>A leg that cashes a bet shows up <b>twice, on purpose</b> &mdash; once as the leg (who, what hit, which bets he&rsquo;s on) and once as the bet itself (how much was staked, what it paid, and everyone on it). One player on several bets is a single entry that lists them all.</li>
         <li>Unlike the pop-up alerts, it <b>does</b> catch you up: open the page late and everything that already hit is waiting in the list, marked &ldquo;Earlier&rdquo;. Things that happen while you&rsquo;re watching get the time, in ET.</li>
+        <li>Every entry has a <b>&#9654; Play overlay</b> button that shows its alert again &mdash; the gold cash version for a bet &mdash; as many times as you like, even with the overlay switched off.</li>
         <li>It survives a refresh, starts fresh when the next slate goes up, and each tracker &mdash; MLB, NFL and NFL+MLB &mdash; keeps its own count.</li>
       </ul>
     </section>
@@ -577,7 +580,7 @@
         <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
         <h2>Live Bet Tracker, both sports at once</h2>
       </div>
-      <p>One wall of tiles. A hitter who is at the plate or due up this inning gets his tile the usual way; a football pick gets one whenever his side has the ball, marked <b>RED ZONE</b> inside the 20, <b>ON OFFENSE</b> otherwise, and <b>TAKING THE FIELD SOON</b> in the gap after his team takes the ball back. That covers every football prop, not just touchdowns &mdash; passing TDs, yards, catches &mdash; and the tile shows how close it is, like <b>&ldquo;2 of 3 passing TDs&rdquo;</b>. A sack bet is the one exception: it shows while his side is <b>ON DEFENSE</b>, because that&rsquo;s the only time he can get one. An <b>each team to score all four quarters</b> bet gets one tile for the pair: a box per quarter for each team, ticked once they&rsquo;ve scored in it, and a line saying who still owes the quarter being played.</p>
+      <p>One wall of tiles. A hitter who is at the plate or due up this inning gets his tile the usual way; a football pick gets one whenever his side has the ball, marked <b>RED ZONE</b> inside the 20, <b>ON OFFENSE</b> otherwise, and <b>TAKING THE FIELD SOON</b> in the gap after his team takes the ball back. That covers every football prop, not just touchdowns &mdash; passing TDs, yards, catches &mdash; and the tile shows how close it is, like <b>&ldquo;2 of 3 passing TDs&rdquo;</b> &mdash; an anytime-TD pick reads <b>&ldquo;0 of 1 TD&rdquo;</b>, and a home run pick <b>&ldquo;0 of 1 HR&rdquo;</b>. A sack bet is the one exception: it shows while his side is <b>ON DEFENSE</b>, because that&rsquo;s the only time he can get one. An <b>each team to score all four quarters</b> bet gets one tile for the pair: a box per quarter for each team, ticked once they&rsquo;ve scored in it, and a line saying who still owes the quarter being played.</p>
     </section>
 
     <section class="card-item">
@@ -593,7 +596,7 @@
         <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2"/><circle cx="12" cy="12" r="5"/></svg></span>
         <h2>Alerts for whichever sport scored</h2>
       </div>
-      <p>A home run sets off the usual bomb, a touchdown its own alert, and either one turns gold with the cash register when it finishes off a bet. Same three switches at the top of the page &mdash; on-screen, push and sound &mdash; and the same rule: opening the page mid-slate never replays what has already happened.</p>
+      <p>A home run sets off the usual bomb, a touchdown its own alert, and every other leg &mdash; a yardage or passing-TD prop clearing, all four quarters scored, a hits prop &mdash; gets its own alert the moment it hits, plus a green <b>HIT</b> tile on the tracker. Any of them turns gold with the cash register when it finishes off a bet. Same three switches at the top of the page &mdash; on-screen, push and sound &mdash; and the same rule: opening the page mid-slate never replays what has already happened.</p>
     </section>
     <section class="card-item">
       <div class="card-head">
@@ -605,6 +608,7 @@
         <li>Tap the bell to open the list, and the badge clears. Anything new since you last looked is highlighted while you read it.</li>
         <li>A leg that cashes a bet shows up <b>twice, on purpose</b> &mdash; once as the leg (who, what hit, which bets he&rsquo;s on) and once as the bet itself (how much was staked, what it paid, and everyone on it). One player on several bets is a single entry that lists them all.</li>
         <li>Unlike the pop-up alerts, it <b>does</b> catch you up: open the page late and everything that already hit is waiting in the list, marked &ldquo;Earlier&rdquo;. Things that happen while you&rsquo;re watching get the time, in ET.</li>
+        <li>Every entry has a <b>&#9654; Play overlay</b> button that shows its alert again &mdash; the gold cash version for a bet &mdash; as many times as you like, even with the overlay switched off.</li>
         <li>It survives a refresh, starts fresh when the next slate goes up, and each tracker &mdash; MLB, NFL and NFL+MLB &mdash; keeps its own count.</li>
       </ul>
     </section>

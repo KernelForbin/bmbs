@@ -1237,6 +1237,9 @@ return {
   register(tickets) { PICKS.clear(); registerPicks(slateShim(tickets)); },
   async poll(tickets) { return pollSlate(slateShim(tickets)); },
   use(results) { RESULTS = results || emptyResults(); },
+  // Like use(), but hands back what was there so a caller can put it
+  // straight -- the alert helpers grade TODAY while another tab is showing.
+  swap(results) { const was = RESULTS; RESULTS = results || emptyResults(); return was; },
   empty: emptyResults,
   state(leg) { return stateForPlayer(leg.player); },
   context(leg) { return liveContextForPlayer(leg.player); },
@@ -2115,7 +2118,8 @@ const MARKETS = {
 
 function legMarket(leg) {
   const m = leg && leg.market;
-  return m && MARKETS[m] ? m : (m ? String(m) : "hr");
+  if (m) return MARKETS[m] ? m : String(m);
+  return leg && leg.sport === "nfl" ? "td" : "hr";
 }
 function marketDef(leg) { return MARKETS[legMarket(leg)] || null; }
 function marketSubject(leg) { const d = marketDef(leg); return d ? d.subject : "player"; }
@@ -2149,11 +2153,6 @@ function legLine(leg) {
 function legSide(leg) { return leg && leg.side === "under" ? "under" : "over"; }
 
 function stateForLeg(leg) {
-  // A leg with no market named means the sport's DEFAULT bet: a home run for
-  // baseball, an anytime touchdown for football. Reading leg.sport here is
-  // the whole of the mixed-parlay change -- everything downstream already
-  // works on a plain array of states and never asks which sport made them.
-  if (leg && leg.sport === "nfl" && !leg.market) return NFL.state(leg);
   const def = marketDef(leg);
   // Unknown market -> untracked. Never a miss: we have no idea, and guessing
   // would either kill a live parlay or claim money that wasn't won.
@@ -2822,7 +2821,7 @@ const LS_SOUND = "bmbs.notif.sound";
 let SOUND_ON = false;         // default off: a page that makes noise unasked is worse than one that doesn't
 let AC = null;
 const SOUND_VOL = 0.45;
-const SOUND_TRIM = { bomb: 0.93, swipe: 1.27, cash: 1.08 };
+const SOUND_TRIM = { bomb: 0.93, swipe: 1.27, kick: 0.72, cash: 1.08 };
 
 // Browsers refuse to start audio until the page has been interacted with, so
 // this is only reached from the toggle's own change event, or from a later
@@ -2901,7 +2900,13 @@ function sndCash(ac, out, t, v) {
   });
 }
 
-const SOUNDS = { bomb: sndBomb, swipe: sndSwipe, cash: sndCash };
+// 0.15s -- leather crack over a low thud
+function sndKick(ac, out, t, v) {
+  sndBurst(ac, out, t, { filter: "highpass", from: 1200, peak: 0.65 * v, attack: 0.003, decay: 0.1, dur: 0.12 });
+  sndTone(ac, out, t, { type: "triangle", from: 190, to: 70, peak: 0.75 * v, attack: 0.005, decay: 0.22 });
+}
+
+const SOUNDS = { bomb: sndBomb, swipe: sndSwipe, kick: sndKick, cash: sndCash };
 
 // `kind` is 'bomb' | 'swipe' | 'cash'. When the play also CASHED something, the register
 // REPLACES the event sound -- one noise, never two back to back. That mirrors
@@ -2976,7 +2981,8 @@ function moneyRainHtml() {
 // alerts say so, which is true of both).
 function betsCashedBy(slate, playerName, market) {
   const norm = normalizeName(playerName);
-  const mkt = market === "sb" ? "sb" : "hr";
+  const savedNfl = NFL.swap(slate.nfl);
+  const mkt = market === "sb" ? "sb" : market === "td" ? "td" : "hr";
   // only bets he's on IN THIS MARKET: his steal mustn't announce a parlay his
   // home run leg finished an hour ago
   const mine = l => normalizeName(l.player) === norm && legMarket(l) === mkt;
@@ -3000,6 +3006,7 @@ function betsCashedBy(slate, playerName, market) {
     return cashed;
   } finally {
     RESULTS = saved;
+    NFL.swap(savedNfl);
   }
 }
 
@@ -3035,10 +3042,11 @@ function showNextBomb() {
     bombTimer = null;
     return;
   }
-  const { name, cash, steal } = next;
-  const emoji = steal ? "&#127939;" : "&#128163;";
-  const word = steal ? `STOLE ${escapeHtml(String(steal.base || "a base").toUpperCase())}!` : "BOMB!";
-  const kindCls = steal ? " steal" : "";
+  const { name, cash, steal, td } = next;
+  const emoji = td ? "&#127944;" : steal ? "&#127939;" : "&#128163;";
+  const word = td ? "TOUCHDOWN!"
+    : steal ? `STOLE ${escapeHtml(String(steal.base || "a base").toUpperCase())}!` : "BOMB!";
+  const kindCls = td ? " td" : steal ? " steal" : "";
   host.innerHTML = cash
     ? `<div class="bomb-flash cash"></div>${moneyRainHtml()}
     <div class="bomb-card cash${kindCls}">
@@ -3074,6 +3082,23 @@ function fireBomb(playerName, cash) {
 }
 
 // The steal twin of fireBomb(): same two channels, same queue, its own look.
+function fireTouchdown(playerName, cash) {
+  playAlertSound("kick", !!cash);
+  const ball = String.fromCodePoint(0x1F3C8), bag = String.fromCodePoint(0x1F4B0);
+  if (PUSH_ON && supportsNotification() && window.Notification.permission === "granted") {
+    try {
+      new window.Notification(`${playerName} TOUCHDOWN! ${ball}${cash ? bag : ""}`, {
+        body: cash ? `${cash.label}${cash.amount ? ` - ${cash.amount}` : ""} - bmbs.bet` : "Touchdown - bmbs.bet",
+        tag: `td-${playerName}`
+      });
+    } catch (e) { /* some browsers throw when constructed outside a SW */ }
+  }
+  if (OVERLAY_ON && document.visibilityState === "visible") {
+    BOMB_QUEUE.push({ name: playerName, cash: cash || null, td: true });
+    if (!bombTimer) showNextBomb();
+  }
+}
+
 function fireSteal(playerName, base, cash) {
   playAlertSound("swipe", !!cash);
   const runner = String.fromCodePoint(0x1F3C3), bag = String.fromCodePoint(0x1F4B0);
@@ -3099,6 +3124,7 @@ function fireSteal(playerName, base, cash) {
 // counts and short-circuits the (more expensive) parlay check.
 function betsStillOpenFor(slate, playerName, market) {
   const norm = normalizeName(playerName);
+  const savedNfl = NFL.swap(slate.nfl);
   const mine = l => normalizeName(l.player) === norm && legMarket(l) === market;
   const saved = RESULTS;
   RESULTS = slate.results;
@@ -3111,6 +3137,7 @@ function betsStillOpenFor(slate, playerName, market) {
     }));
   } finally {
     RESULTS = saved;
+    NFL.swap(savedNfl);
   }
 }
 
@@ -3165,12 +3192,31 @@ function checkForBombs() {
     freshSteals.push({ display, base });
   });
 
+  // Touchdowns. Same shape as the two above and the same flood guard: the
+  // first poll for a slate records without announcing, so opening the page at
+  // half time doesn't replay the afternoon. Names are keyed with the NFL
+  // engine's normalizer because that is what its hitNames are keyed with.
+  const tdNames = (slate.nfl && slate.nfl.hitNames) || new Set();
+  const freshTds = [];
+  const pickedTd = new Map();
+  const takeTd = l => {
+    if (l && l.sport === "nfl" && l.player && legMarket(l) === "td") pickedTd.set(NFL.norm(l.player), l.player);
+  };
+  (slate.tickets.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(takeTd)));
+  (slate.tickets.singles || []).forEach(takeTd);
+  pickedTd.forEach((display, norm) => {
+    if (!tdNames.has(norm) || BOMB_STATE.notified.has("td:" + norm)) return;
+    BOMB_STATE.notified.add("td:" + norm);
+    if (betsStillOpenFor(slate, display, "td")) freshTds.push(display);
+  });
+
   if (!BOMB_STATE.seeded) {
     BOMB_STATE.seeded = true; // first poll for this slate: record, don't announce
     return;
   }
   fresh.forEach(name => fireBomb(name, cashSummary(betsCashedBy(slate, name, "hr"))));
   freshSteals.forEach(({ display, base }) => fireSteal(display, base, cashSummary(betsCashedBy(slate, display, "sb"))));
+  freshTds.forEach(name => fireTouchdown(name, cashSummary(betsCashedBy(slate, name, "td"))));
 }
 
 // ---------------- home run log ----------------

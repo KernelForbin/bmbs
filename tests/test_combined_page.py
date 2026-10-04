@@ -563,6 +563,178 @@ with sync_playwright() as p:
     check("H10 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
+# ---------- I. alerts fire for whichever sport scored ----------
+# The flood guard matters more than the alert here: the first poll of a slate
+# records who has already scored WITHOUT announcing, so opening the page at
+# half time doesn't replay the whole afternoon in a queue of overlays.
+FX["tickets"] = TICKETS
+FX["mlb_sched"][DAY] = mlb_schedule(DAY, [(5001, "Live", ["NYY", "BOS"]),
+                                          (5002, "Live", ["NYM", "ATL"])])
+FX["mlb_feeds"][5001] = mlb_feed("Live", ["Aaron Judge"] + [f"NY{i}" for i in range(8)],
+                                 inning=5, state="Top", outs=1, batter="Aaron Judge")
+FX["mlb_feeds"][5002] = mlb_feed("Live", ["NM0", "Juan Soto"] + [f"NM{i}" for i in range(1, 8)],
+                                 inning=5, state="Top", outs=1, batter="NM0")
+FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in NFL_GAMES}
+FX["espn_summaries"]["9001"] = espn_summary(
+    "9001", "in", {"PHI": [("1", "Saquon Barkley", "rushing", (12, 60, 0))]}, (14, 10),
+    current=espn_drive("d1", "PHI", 12, "1st & 10 at NYG 12"))
+FX["espn_summaries"]["9002"] = espn_summary(
+    "9002", "in", {"KC": [("2", "Travis Kelce", "receiving", (4, 40, 0, 5))]}, (14, 10))
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("""() => {
+        window.FIRED = [];
+        window.REAL_ALERT = playAlertSound;   // kept: I6b needs the real one back
+        playAlertSound = (kind, cashed) => { window.FIRED.push({kind, cashed: !!cashed}); };
+    }""")
+    check("I1 nobody has scored yet, so nothing has fired",
+          page.evaluate("window.FIRED.length") == 0)
+
+    # Barkley scores. Card 2 (both NFL) is still live, so the alert is worth
+    # firing, and the sound is the KICK -- not the home run's bomb.
+    FX["espn_summaries"]["9001"] = espn_summary(
+        "9001", "in", {"PHI": [("1", "Saquon Barkley", "rushing", (13, 64, 1))]}, (21, 10),
+        plays=[espn_scoring("sp9", "PHI", "Rushing Touchdown",
+                            "Saquon Barkley 4 Yd Run", 3, "7:12", 21, 10)],
+        current=espn_drive("d1", "PHI", 12, "1st & 10 at NYG 12"))
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    fired = page.evaluate("window.FIRED")
+    check("I2 a touchdown by a pick fires an alert", len(fired) == 1, fired)
+    check("I3 ...and it is the football sound, not the home run's",
+          fired and fired[0]["kind"] == "kick", fired)
+
+    # The same touchdown on the next poll must not fire again.
+    poll(page)
+    check("I4 the same touchdown does not announce itself twice",
+          page.evaluate("window.FIRED.length") == 1, page.evaluate("window.FIRED"))
+
+    # Judge homers. Different sport, different voice, same queue.
+    FX["mlb_feeds"][5001] = mlb_feed(
+        "Live", ["Aaron Judge"] + [f"NY{i}" for i in range(8)], hrs=["Aaron Judge"],
+        inning=6, state="Top", outs=1, batter="Aaron Judge")
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    fired = page.evaluate("window.FIRED")
+    check("I5 a home run on the same card fires its own alert", len(fired) == 2, fired)
+    check("I6 ...flagged as a cash, because the mixed parlay just landed",
+          fired[-1]["kind"] == "bomb" and fired[-1]["cashed"] is True, fired)
+    # The spy above records the ARGUMENTS playAlertSound was called with, so
+    # it cannot see which sound actually came out -- and a cash is supposed to
+    # REPLACE the event sound rather than play after it. Stub the voices and
+    # call the real thing.
+    played = page.evaluate("""() => {
+        const calls = [];
+        ["bomb", "swipe", "kick", "cash"].forEach(k => { SOUNDS[k] = () => calls.push(k); });
+        SOUND_ON = true;   // defaults off, and playAlertSound returns early when it is
+        const grab = () => { const c = calls.slice(); calls.length = 0; return c; };
+        const out = {};
+        window.REAL_ALERT("kick", false); out.kick = grab();
+        window.REAL_ALERT("kick", true);  out.kickCashed = grab();
+        window.REAL_ALERT("bomb", true);  out.bombCashed = grab();
+        return out;
+    }""")
+    check("I6b a touchdown that cashes plays the register INSTEAD of the kick, "
+          "never both back to back",
+          played == {"kick": ["kick"], "kickCashed": ["cash"], "bombCashed": ["cash"]}, played)
+    check("I7 no JavaScript errors anywhere in the alert path", not errors, errors[:3])
+    browser.close()
+
+# The flood guard, on its own page: both scores are ALREADY on the board when
+# the page opens. Nothing may fire -- the difference between opening the tab
+# late and being shouted at by every play of the afternoon.
+#
+# Checked on the OVERLAY rather than with a spy, because the first poll
+# happens inside open_page: a spy installed afterwards is already too late to
+# see it, which is why the first version of this check passed with the
+# seeding deleted.
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    check("I8 scores already on the board when the page opens announce nothing",
+          page.evaluate("document.getElementById('bomb-overlay').innerHTML") == ""
+          and page.evaluate("BOMB_QUEUE.length") == 0,
+          page.evaluate("document.getElementById('bomb-overlay').innerHTML")[:120])
+    check("I8b ...but they ARE recorded, so they can't fire later either",
+          page.evaluate("BOMB_STATE.seeded === true && BOMB_STATE.notified.size > 0"),
+          page.evaluate("JSON.stringify([BOMB_STATE.seeded, [...BOMB_STATE.notified]])"))
+    browser.close()
+
+# ---------- J. a score that can't change anything stays quiet ----------
+# The parlay is already dead from a leg that missed, and the scorer is on
+# nothing else. He still resolves to `hit` on the card; what he does not get
+# is an alert, because there is no longer anything his touchdown can do.
+DEAD = {"date": DAY, "endDate": DAY, "note": "", "sports": ["mlb", "nfl"],
+        "windows": [{"title": "Parlay Cards", "tickets": [
+            card(8, [mlb_leg(1, "Dead Bat", "SEA"),
+                     nfl_leg(2, "Travis Kelce", "KC", "2")])]}],
+        "singles": []}
+FX["tickets"] = DEAD
+FX["mlb_sched"][DAY] = mlb_schedule(DAY, [(5003, "Final", ["SEA", "TEX"])])
+FX["mlb_feeds"][5003] = mlb_feed("Final", ["Dead Bat"] + [f"SE{i}" for i in range(8)])
+FX["espn_events"] = {"9002": espn_event("9002", "in", (14, 10))}
+FX["espn_summaries"]["9002"] = espn_summary(
+    "9002", "in", {"KC": [("2", "Travis Kelce", "receiving", (4, 40, 0, 5))]}, (14, 10))
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("""() => {
+        window.FIRED = [];
+        playAlertSound = (k, c) => { window.FIRED.push(k); };
+    }""")   # wrapped: a bare assignment returns the arrow, which Playwright then CALLS
+    check("J1 the parlay is already dead from the baseball leg",
+          page.evaluate("EVALUATED[0].evalRes.outcome") == "dead",
+          page.evaluate("EVALUATED[0].evalRes.outcome"))
+    FX["espn_summaries"]["9002"] = espn_summary(
+        "9002", "in", {"KC": [("2", "Travis Kelce", "receiving", (5, 52, 1, 6))]}, (21, 10),
+        plays=[espn_scoring("sp2", "KC", "Receiving Touchdown",
+                            "Travis Kelce 8 Yd pass", 3, "4:00", 21, 10)])
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    check("J2 his touchdown still resolves the leg on the card",
+          page.evaluate("EVALUATED[0].states[1]") == "hit",
+          page.evaluate("EVALUATED[0].states.join(',')"))
+    check("J3 ...but nothing is announced, because it can't change a thing",
+          page.evaluate("window.FIRED.length") == 0, page.evaluate("window.FIRED"))
+    check("J4 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
+# ---------- K. an all-football card can still alert ----------
+# checkForBombs used to bail unless the BASEBALL half was ready. On a card
+# with no baseball on it that never happens -- there are no MLB games to make
+# it happen -- so every touchdown on an all-NFL card went unannounced.
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [
+                     card(9, [nfl_leg(1, "Saquon Barkley", "PHI", "1")])]}],
+                 "singles": []}
+FX["mlb_sched"][DAY] = {"dates": []}
+FX["espn_events"] = {"9001": espn_event("9001", "in", (14, 10))}
+FX["espn_summaries"]["9001"] = espn_summary(
+    "9001", "in", {"PHI": [("1", "Saquon Barkley", "rushing", (12, 60, 0))]}, (14, 10))
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("""() => {
+        window.FIRED = [];
+        window.CASHED = null;
+        playAlertSound = (k, c) => { window.FIRED.push(k); window.CASHED = !!c; };
+    }""")   # wrapped: a bare assignment returns the arrow, which Playwright then CALLS
+    FX["espn_summaries"]["9001"] = espn_summary(
+        "9001", "in", {"PHI": [("1", "Saquon Barkley", "rushing", (13, 64, 1))]}, (21, 10),
+        plays=[espn_scoring("sp3", "PHI", "Rushing Touchdown",
+                            "Saquon Barkley 4 Yd Run", 3, "7:12", 21, 10)])
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    # "kick" is the KIND asked for; a cash is the second argument, and
+    # playAlertSound swaps in the register itself (I6b pins that). Asserting
+    # "cash" here would be asserting against the wrong layer.
+    check("K1 a touchdown on an all-football card still alerts",
+          page.evaluate("window.FIRED") == ["kick"], page.evaluate("window.FIRED"))
+    check("K1b ...and it is flagged as cashing the bet it just completed",
+          page.evaluate("window.CASHED") is True, page.evaluate("window.CASHED"))
+    check("K2 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

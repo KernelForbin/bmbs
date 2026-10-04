@@ -476,6 +476,18 @@
   .bell-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
   .bell-meta { font-size: 11.5px; color: var(--text-faint); margin-top: 4px; }
   .bell-time { flex: 0 0 auto; font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+
+  /* ---- "each team to score all four quarters": one row per team, one cell
+     per quarter. Green = scored, amber = the quarter being played and still
+     owed, dim = not reached yet. A blanked quarter never appears -- it
+     settles the bet as a miss, and a missed leg has no tile. ---- */
+  .q-grid { display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 3px 4px;
+    margin: 6px 0 4px; font: 600 11px 'Inter', sans-serif; align-items: center; }
+  .q-grid .q-head { color: var(--text-faint); text-align: center; font-weight: 500; }
+  .q-grid .q-team { color: var(--text-dim); padding-right: 4px; }
+  .q-cell { text-align: center; border-radius: 5px; padding: 2px 0; background: var(--bg); color: var(--text-faint); }
+  .q-cell.q-yes { background: var(--green-dim); color: var(--green); }
+  .q-cell.q-owed { background: rgba(255, 184, 77, .16); color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber); }
 </style>
 </head>
 <body>
@@ -1395,7 +1407,7 @@ return {
     if (!game) return null;
     const side = ["away", "home"].map(s => game.teams && game.teams[s])
       .filter(Boolean).find(t => t.abbr === (teamAbbr || "").toUpperCase());
-    return side ? { quarters: side.quarters || [], status: game.status } : null;
+    return side ? { quarters: side.quarters || [], status: game.status, gamePk: game.gamePk } : null;
   }
 };
 })();
@@ -3594,6 +3606,9 @@ const LIVE_TILE_KIND = {
   // A sack happens while his side DEFENDS, which is the inverse of every
   // other pick here -- so it gets its own kind, and a tile on those snaps.
   sacks: "defense",
+  // Two TEAMS and four quarters, not a player and not a final score -- so its
+  // own kind, filed under the pair rather than under either team.
+  quarters: "quarters",
   hr: "bat", sb: "base", hrr: "bat", hits: "bat", rbi: "bat", runs: "bat",
   tb: "bat", doubles: "bat", k: "mound", er: "mound", win: "mound",
   ml: "game", spread: "game", total: "game", f5: "game",
@@ -3852,6 +3867,7 @@ function labEligiblePicks() {
       market, line: leg && leg.line !== undefined ? leg.line : null,
       side: (leg && leg.side) || "over", odds,
       names: leg ? legPlayers(leg) : [player], team: (leg && leg.team) || "", kind,
+      teams: leg ? legTeams(leg) : [],
     });
     const who = whoDisplayName(rawWho);
     if (who && !pick.whos.includes(who)) pick.whos.push(who);
@@ -3864,6 +3880,9 @@ function labEligiblePicks() {
     const kind = liveTileKind(leg);
     if (!kind) return;
     if (kind === "game") { add(leg.team || "", odds, rawWho, iron, legMarket(leg), leg); return; }
+    // ONE tile for "DET + CAR", not one per team: it is one bet, and either
+    // side failing to score in a quarter loses all of it.
+    if (kind === "quarters") { add(legTeams(leg).join(" + "), odds, rawWho, iron, legMarket(leg), leg); return; }
     legPlayers(leg).forEach(name => add(name, odds, rawWho, iron, legMarket(leg), leg));
   }
   EVALUATED.forEach(({ tk, states, evalRes }) => {
@@ -3971,7 +3990,14 @@ function labOddsText(odds) {
 // price at all (some cards only price the ticket) contributes a label and no
 // number rather than being dropped -- the bet is still worth watching.
 function labOddsHtml(pick, tag) {
-  const hr = pick.odds && pick.odds.length ? escapeHtml(labOddsText(pick.odds)) : "";
+  // Only HOME RUN prices are labelled HR. add() files every non-steal price
+  // into pick.odds -- the football drive tiles read that list as "this
+  // player's prices" -- so taking HR from it here labelled every prop, game
+  // line and quarters bet as a home run bet and printed its price twice:
+  // "HR+390 HITS+390". Live on the MLB page since prop tiles were added.
+  const hrPrices = [...new Set((pick.entries || [])
+    .filter(e => e.market === "hr" && e.odds).map(e => e.odds))];
+  const hr = hrPrices.length ? escapeHtml(labOddsText(hrPrices)) : "";
   const sb = pick.oddsSb && pick.oddsSb.length ? `<span class="ab-mkt">SB</span>${escapeHtml(labOddsText(pick.oddsSb))}` : "";
   const others = [];
   const seen = new Set();
@@ -3979,7 +4005,9 @@ function labOddsHtml(pick, tag) {
     if (e.market === "hr" || e.market === "sb") return;
     const def = MARKETS[e.market];
     const label = (def && def.label) || String(e.market).toUpperCase();
-    if (tag && label === tag) {
+    // Case-blind: the registry says "All 4 Quarters", a tag says "ALL 4
+    // QUARTERS", and the same word twice is the thing being avoided.
+    if (tag && label.toUpperCase() === String(tag).toUpperCase()) {
       // The tile's own tag already says it; repeating it reads as "SPREADSPREAD".
       if (e.odds) others.push(escapeHtml(e.odds));
       return;
@@ -4025,6 +4053,40 @@ function labMoundTile(pick, gamePk, inningLabel, gamedayLink) {
 
 // A GAME LINE. No player at all: the live score is the state, and the tile
 // says plainly that nothing settles until the final -- a lead is not a win.
+// One row per team, one cell per quarter, and a line saying what is still
+// owed in the quarter being played -- which is the only thing that can still
+// go wrong for this bet right now.
+function quartersTile(pick, rows, link) {
+  const e = (pick.entries || []).find(x => x.market === "quarters") || {};
+  const teams = e.teams || [];
+  const owed = [];
+  let current = 0;
+  const cells = teams.map((t, i) => {
+    const r = rows[i] || { quarters: [], status: "preview" };
+    const q = r.quarters || [];
+    // While the game is on, the LAST entry is the quarter being played;
+    // ESPN adds it when the quarter starts, at zero.
+    const live = r.status === "live" ? q.length : 0;
+    if (live > current) current = live;
+    const row = [1, 2, 3, 4].map(n => {
+      const pts = q[n - 1];
+      if (pts > 0) return `<span class="q-cell q-yes">&#10003;</span>`;
+      if (n === live) { owed.push(t); return `<span class="q-cell q-owed">&middot;&middot;</span>`; }
+      return `<span class="q-cell">&ndash;</span>`;
+    }).join("");
+    return `<span class="q-team">${escapeHtml(t)}</span>${row}`;
+  }).join("");
+  const label = current ? (current > 4 ? "Overtime" : `Q${current}`) : "";
+  const need = !current ? ""
+    : current > 4 ? "All four quarters are in."
+    : owed.length === 0 ? `${label}: both have scored${current < 4 ? ` &middot; ${4 - current} to go` : " &middot; that&rsquo;s all four"}`
+    : owed.length === teams.length ? `${label}: both still need to score`
+    : `${label}: ${escapeHtml(owed.join(" & "))} still needs to score`;
+  return labTileShell("game", "ALL 4 QUARTERS", pick, link, `
+    <div class="q-grid"><span></span><span class="q-head">Q1</span><span class="q-head">Q2</span><span class="q-head">Q3</span><span class="q-head">Q4</span>${cells}</div>
+    <div class="ab-line ${owed.length ? "" : "faint"}">${need}</div>`);
+}
+
 function labGameTile(pick, row, inningLabel, gamedayLink) {
   const e = (pick.entries || [])[0] || {};
   const def = MARKETS[e.market];
@@ -4276,6 +4338,18 @@ function renderLiveAtBats() {
     }
     // A GAME LINE has no player, so none of the batting machinery below can
     // place it. It gets a tile whenever its game is actually under way.
+    // Each team to score all four quarters: on the wall while EITHER game
+    // is being played, since a quarter in either can still settle it.
+    if (pick.kinds && pick.kinds.has("quarters")) {
+      const e = (pick.entries || []).find(x => x.market === "quarters") || {};
+      const rows = (e.teams || []).map(t => NFL.quarters(t));
+      if (rows.length && rows.every(Boolean) && rows.some(r => r.status === "live")) {
+        gameCount++;
+        const pk = rows[0].gamePk;
+        tiles.push({ rank: 4, order: 0, html: quartersTile(pick, rows, pk ? NFL.gameUrl(pk) : "") });
+      }
+      return;
+    }
     if (pick.kinds && pick.kinds.has("game")) {
       const row = RESULTS.teamScores && RESULTS.teamScores.get((pick.player || "").toUpperCase());
       if (row && row.runs !== null && row.status !== "preview") {

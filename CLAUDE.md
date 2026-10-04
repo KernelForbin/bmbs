@@ -1121,6 +1121,22 @@ page -- that one was on anytime-TD picks, who cannot score from defense; a
 pass rusher can only cash from it. `test_combined_page.py` Q pins both, plus
 a sack pick whose own offense is out there getting nothing.
 
+**"Each team to score all four quarters" has its own `quarters` kind**: two
+teams, four quarters, one bet -- so ONE tile filed under the PAIR
+(`legTeams(leg).join(" + ")`), never per player. The real leg carries a
+garbled `players` split ("Lions", "Panthers Each team to score...") from the
+parser, so falling through to `legPlayers()` would put two nonsense tiles on
+the wall; `test_combined_page.py` R mirrors that shape on purpose, because a
+tidy fixture `player` let the mutation through. A grid per team (scored /
+owed in the quarter being played / not reached) plus one line on what is
+still owed. On the wall while either game is live; no player, so it counts
+toward the game tiles.
+
+**The tile's odds row lists HR prices from HR entries only** (`labOddsHtml`,
+both pages). It used to print `pick.odds` -- every non-steal price -- under an
+"HR" label, so a hitter on a hits prop read "HR+390 HITS+390", live on the MLB
+page. `test_live_at_bats.py` Z13-Z15 pin it.
+
 **The Home Run Log is the Scoring Log here**: home runs and touchdowns
 interleaved by timestamp, each keeping its own row builder and detail panel,
 sharing `.hr-row`'s markup so a mixed list needed no new CSS. "Ours" marking

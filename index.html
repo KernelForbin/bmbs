@@ -2971,7 +2971,14 @@ function labOddsText(odds) {
 // price at all (some cards only price the ticket) contributes a label and no
 // number rather than being dropped -- the bet is still worth watching.
 function labOddsHtml(pick, tag) {
-  const hr = pick.odds && pick.odds.length ? escapeHtml(labOddsText(pick.odds)) : "";
+  // Only HOME RUN prices are labelled HR. add() files every non-steal price
+  // into pick.odds -- the football drive tiles read that list as "this
+  // player's prices" -- so taking HR from it here labelled every prop, game
+  // line and quarters bet as a home run bet and printed its price twice:
+  // "HR+390 HITS+390". Live on the MLB page since prop tiles were added.
+  const hrPrices = [...new Set((pick.entries || [])
+    .filter(e => e.market === "hr" && e.odds).map(e => e.odds))];
+  const hr = hrPrices.length ? escapeHtml(labOddsText(hrPrices)) : "";
   const sb = pick.oddsSb && pick.oddsSb.length ? `<span class="ab-mkt">SB</span>${escapeHtml(labOddsText(pick.oddsSb))}` : "";
   const others = [];
   const seen = new Set();
@@ -2979,7 +2986,9 @@ function labOddsHtml(pick, tag) {
     if (e.market === "hr" || e.market === "sb") return;
     const def = MARKETS[e.market];
     const label = (def && def.label) || String(e.market).toUpperCase();
-    if (tag && label === tag) {
+    // Case-blind: the registry says "All 4 Quarters", a tag says "ALL 4
+    // QUARTERS", and the same word twice is the thing being avoided.
+    if (tag && label.toUpperCase() === String(tag).toUpperCase()) {
       // The tile's own tag already says it; repeating it reads as "SPREADSPREAD".
       if (e.odds) others.push(escapeHtml(e.odds));
       return;

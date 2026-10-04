@@ -547,6 +547,25 @@ with sync_playwright() as p:
     check("Z11 both players on a combined leg get their own tile",
           {"Up Now", "On Deck"} <= names, sorted(names))
 
+    # The odds row. Every prop tile read "HR+390 HITS+390" -- a home-run label
+    # on a bet that wasn't one, and the price twice -- because add() files
+    # every non-steal price into the list this row labelled HR. Checked on
+    # the function directly: a rendered tile only says it once the right
+    # fixture happens to put a prop on the wall.
+    txt = lambda js: page.evaluate(
+        "h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent; }",
+        page.evaluate(js))
+    check("Z13 a prop tile's odds row does not call it a home run bet",
+          txt("labOddsHtml({odds:['+390'],oddsSb:[],entries:[{market:'hits',odds:'+390'}]}, 'AT BAT')")
+          == "HITS+390",
+          txt("labOddsHtml({odds:['+390'],oddsSb:[],entries:[{market:'hits',odds:'+390'}]}, 'AT BAT')"))
+    check("Z14 ...a plain home run still shows just its price",
+          txt("labOddsHtml({odds:['+390'],oddsSb:[],entries:[{market:'hr',odds:'+390'}]}, 'AT BAT')")
+          == "+390")
+    check("Z15 ...and a man carrying BOTH still gets the HR label, where it's needed",
+          txt("labOddsHtml({odds:['+390','+150'],oddsSb:[],entries:[{market:'hr',odds:'+390'},"
+              "{market:'hits',odds:'+150'}]}, 'AT BAT')") == "HR+390 HITS+150")
+
     check("Z12 no JS errors across the new tiles", not errors, errors)
     browser.close()
 

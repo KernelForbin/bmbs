@@ -1065,6 +1065,82 @@ with sync_playwright() as p:
     check("Q6 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
+# ---------- R. "each team to score all four quarters" on the tracker ----------
+# Two teams, four quarters, one bet -- so ONE tile for the pair, showing which
+# quarters each side has scored in and who still owes the one being played.
+# Shaped like the real card's leg: the parser's player split leaves TWO
+# garbled "players" on it, so a tile filed per player rather than per pair
+# would show up as two tiles named "Eagles" and "Giants Each team to...".
+_q_leg = nfl_leg_m(1, "Eagles/Giants Each team to score", "PHI", "quarters", None,
+                   teams=["PHI", "NYG"])
+_q_leg["players"] = ["Eagles", "Giants Each team to score all four quarters"]
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [card(60, [_q_leg])]}],
+                 "singles": []}
+FX["mlb_sched"][DAY] = {"dates": []}
+FX["espn_events"] = {"9001": espn_event("9001", "in", (7, 10))}
+# Second quarter under way: both scored in the first, NYG has scored in the
+# second, PHI hasn't yet.
+FX["espn_summaries"]["9001"] = espn_summary(
+    "9001", "in", {"PHI": [("40", "Somebody", "rushing", (5, 20, 0))]}, (7, 10),
+    quarters=[[7, 0], [3, 7]])
+
+
+def quarter_tiles(page):
+    return page.eval_on_selector_all(
+        "#liveab-grid .ab-tile",
+        "els => els.map(e => ({name: e.querySelector('.ab-name').textContent.trim(), "
+        "tag: e.querySelector('.ab-tag').textContent.trim(), "
+        "text: e.textContent.replace(/\\s+/g, ' '), "
+        "yes: e.querySelectorAll('.q-yes').length, owed: e.querySelectorAll('.q-owed').length}))")
+
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("toggleLiveAb()")
+    page.wait_for_timeout(200)
+    qt = quarter_tiles(page)
+    check("R1 the quarters bet gets ONE tile for the pair, not one per team",
+          len(qt) == 1 and qt[0]["name"] == "PHI + NYG", qt)
+    t = qt[0] if qt else {}
+    check("R2 ...tagged as what it is", t.get("tag") == "ALL 4 QUARTERS", t.get("tag"))
+    odds_row = page.eval_on_selector("#liveab-grid .ab-tile .ab-odds", "e => e.textContent.trim()")
+    # The waffle stays: a one-leg card still live is one away from cashing,
+    # which is exactly what an Iron is. Only the price is under test here.
+    price = odds_row.replace("\U0001F9C7", "").strip()
+    check("R2b ...with its price once, and no home-run label it never had",
+          price == "+308" and "HR" not in odds_row, ascii(odds_row))
+    check("R3 ...marking the three quarter-scores already in (PHI Q1, NYG Q1, NYG Q2)",
+          t.get("yes") == 3, t)
+    check("R4 ...and the one still owed in the quarter being played",
+          t.get("owed") == 1 and "Q2: PHI still needs to score" in t.get("text", ""),
+          t.get("text", "")[:200])
+
+    # PHI score in the second.
+    FX["espn_summaries"]["9001"] = espn_summary(
+        "9001", "in", {"PHI": [("40", "Somebody", "rushing", (5, 20, 0))]}, (14, 10),
+        quarters=[[7, 7], [3, 7]])
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    t = (quarter_tiles(page) or [{}])[0]
+    check("R5 once both have scored in the quarter, it says so and counts what's left",
+          "Q2: both have scored" in t.get("text", "") and "2 to go" in t.get("text", ""),
+          t.get("text", "")[:200])
+    check("R6 ...and nothing is marked owed", t.get("owed") == 0, t)
+
+    # Into the third, nobody on the board yet.
+    FX["espn_summaries"]["9001"] = espn_summary(
+        "9001", "in", {"PHI": [("40", "Somebody", "rushing", (5, 20, 0))]}, (14, 10),
+        quarters=[[7, 7, 0], [3, 7, 0]])
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    t = (quarter_tiles(page) or [{}])[0]
+    check("R7 a fresh quarter shows both teams owing it",
+          "Q3: both still need to score" in t.get("text", "") and t.get("owed") == 2,
+          t.get("text", "")[:200])
+    check("R8 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

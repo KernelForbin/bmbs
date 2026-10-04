@@ -274,6 +274,77 @@ check("L5 a team spread is NOT turned into an anytime-touchdown bet",
 check("L6 ...and it is still recognised as football", browns.get("sport") == "nfl", browns)
 
 
+# ================= M. the first real card's props ==========================
+# Eight legs on it surfaced as UNKNOWN. The sport detection had been RIGHT on
+# every one; the answer was then thrown away on a key mismatch, because
+# parse_picks reads the "15+" as the market's LINE and drops it from the name
+# while this pass was still indexing it WITH the quantity attached.
+REAL = (
+    "Ticket 1\n"
+    "Keon Coleman 15+ Receiving Yards +106\n"
+    "Josh Allen 3+ Passing Touchdowns +235\n"
+    "Derrick Henry 2+ Touchdowns +240\n"
+    "Dione Walker (Bills) Sack +308\n"
+    "Jeremiyah Love 80+ Yards +154\n"
+    "Barelon Allen Anytime TD +130\n"
+    "Mookie Betts 2+ TB 145\n"
+    "Stake: 8.00 | Pays: 108.48\n"
+)
+out3 = cp.build(REAL, MLB, NFL, NOW, no_network)
+by = {}
+for _l in [l for w in out3["windows"] for t in w["tickets"] for l in t["legs"]] + out3["singles"]:
+    by[_l["player"]] = _l
+
+check("M1 a quantity in front of the market is not part of the name",
+      "Keon Coleman" in by, sorted(by))
+check("M2 ...and the prop keeps the market it actually names",
+      by.get("Keon Coleman", {}).get("market") == "rec_yds", by.get("Keon Coleman"))
+check("M3 ...on the right sport", by.get("Keon Coleman", {}).get("sport") == "nfl")
+
+# "3+ Passing Touchdowns" must not read as an anytime TD: a thrown touchdown
+# does not cash the passer, which is why football's own TD sum excludes
+# passing entirely.
+check("M4 passing touchdowns are their own market, not an anytime TD",
+      by.get("Josh Allen", {}).get("market") == "pass_tds", by.get("Josh Allen"))
+
+# THE one that would have paid out wrongly. "2+ Touchdowns" matches the td
+# alias, and td grades BINARY -- did he reach the end zone at all -- so it
+# would have cashed on one touchdown when the bet needed two.
+henry = by.get("Derrick Henry", {})
+check("M5 a 2+ touchdown leg is NOT graded as anytime", henry.get("market") == "td_count", henry)
+check("M6 ...and carries the line it was actually set at", henry.get("line") == 1.5, henry)
+check("M7 a one-touchdown leg IS still anytime, with no line",
+      by.get("Braelon Allen", {}).get("market") == "td"
+      and by.get("Braelon Allen", {}).get("line") is None, by.get("Braelon Allen"))
+
+# The name keeps its "(Bills)" annotation, which is how the team got
+# resolved at all -- he isn't on the roster, so the parenthetical is the only
+# thing that says which side he plays for. Asserted as it really is rather
+# than as it would look tidiest.
+check("M8 a sack prop is named rather than left unknown",
+      by.get("Dione Walker (Bills)", {}).get("market") == "sacks", sorted(by))
+check("M8b ...and the parenthetical team is what resolves him",
+      by.get("Dione Walker (Bills)", {}).get("team") == "BUF",
+      by.get("Dione Walker (Bills)"))
+check("M9 a bare 'Yards' is a yardage prop on the right sport, not an unknown "
+      "BASEBALL market -- the card doesn't say which kind and neither do we",
+      by.get("Jeremiyah Love", {}).get("market") == "yards"
+      and by.get("Jeremiyah Love", {}).get("sport") == "nfl", by.get("Jeremiyah Love"))
+
+# A typo in a football name gets the same 0.82 fuzzy treatment baseball has
+# always had. Unresolved, it is a leg that can never grade a hit OR a miss.
+check("M10 a misspelt football name resolves", "Braelon Allen" in by, sorted(by))
+check("M11 ...and brings his team with him", by.get("Braelon Allen", {}).get("team"),
+      by.get("Braelon Allen"))
+
+# An UNSIGNED price at the end of the line ("...2+ TB 145") is still a price.
+# Missed, the pre-pass never saw that leg at all.
+check("M12 an unsigned trailing price is still read as the price",
+      by.get("Mookie Betts", {}).get("odds") == "+145", by.get("Mookie Betts"))
+check("M13 ...and the leg still resolves its team",
+      by.get("Mookie Betts", {}).get("team") == "LAD", by.get("Mookie Betts"))
+
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

@@ -25,6 +25,7 @@ parlay and grade them as different people in different sports. Five names are
 on both rosters; Jose Ramirez is one of them, and he is a star in both.
 """
 import argparse
+import difflib
 import json
 import re
 import sys
@@ -97,14 +98,29 @@ NFL_WORDS = re.compile(r"\b(?:nfl|football)\b", re.IGNORECASE)
 # silently defaulting to "did he score a touchdown", which is a different bet
 # and would be confidently wrong.
 # ---------------------------------------------------------------------------
+# "3+" / "15+" -- a quantity the card puts in FRONT of the market, which
+# parse_picks reads as the line (3+ means over 2.5) and strips from the name.
+QTY_RE = re.compile(r"\b\d+(?:\.\d+)?\s*\+")
+
 NFL_MARKET_ALIASES = [
+    # BEFORE "td": "3+ Passing Touchdowns" contains the word, and a passing
+    # touchdown does not cash an anytime-TD bet on the man who threw it --
+    # the same exclusion football/index.html makes when it sums its TD
+    # columns and deliberately leaves passing out.
+    ("pass_tds",       r"passing\s+(?:td|touchdown)s?"),
     ("td",             r"anytime\s*(?:td|touchdown)|to\s+score\s+a?\s*(?:td|touchdown)"
                        r"|\btouchdowns?\b|\btds?\b"),
+    ("sacks",          r"\bsacks?\b"),
     ("rec_yds",        r"receiving\s+yards?|\brec\s+yds?\b"),
     ("rush_yds",       r"rushing\s+yards?|\brush\s+yds?\b"),
     ("pass_yds",       r"passing\s+yards?|\bpass\s+yds?\b"),
     ("receptions",     r"receptions?\b"),
-    ("pass_tds",       r"passing\s+(?:td|touchdown)s?"),
+    # LAST of the yardage rows, so "Receiving Yards" / "Rushing Yards" claim
+    # theirs first. A bare "80+ Yards" doesn't say which kind, and the card
+    # is the only thing that would know -- but every yardage prop is
+    # untracked anyway, so naming it "yards" is both honest and strictly
+    # better than letting it fall through as an unknown BASEBALL market.
+    ("yards",          r"\byards?\b"),
 ]
 NFL_MARKET_RE = [(k, re.compile(p, re.IGNORECASE)) for k, p in NFL_MARKET_ALIASES]
 
@@ -112,7 +128,7 @@ NFL_MARKET_RE = [(k, re.compile(p, re.IGNORECASE)) for k, p in NFL_MARKET_ALIASE
 # before anything else is consulted.
 MLB_ONLY_MARKETS = {"hr", "sb", "hrr", "hits", "rbi", "runs", "tb",
                     "doubles", "k", "er", "win", "f5"}
-NFL_ONLY_MARKETS = {m for m, _ in NFL_MARKET_ALIASES}
+NFL_ONLY_MARKETS = {m for m, _ in NFL_MARKET_ALIASES} | {"td_count"}
 
 # The first signed 2-4 digit number on a line is the price. Two digits minimum
 # so a "-1.5" run line or an "Over 5.5" total can never be read as odds.
@@ -239,8 +255,18 @@ def scan_card(text, mlb, nfl):
             continue
 
         odds = ODDS_RE.search(line)
-        bullet = BULLET_LEG_RE.match(line) if not odds else None
-        if not odds and not bullet:
+        tail = None
+        if not odds:
+            # A price written with no sign, at the end of the line: "Mookie
+            # Betts 2+ TB 145". parse_picks' own splitter already knows the
+            # rules for telling that from a market's line, so borrow it
+            # rather than inventing a second set. Without this the pre-pass
+            # never saw those legs at all and they fell through unresolved.
+            body, tail_odds = mlb_parser.split_trailing_odds(line)
+            if tail_odds:
+                tail = body
+        bullet = BULLET_LEG_RE.match(line) if not odds and not tail else None
+        if not odds and not bullet and not tail:
             # Prose. A heading naming exactly ONE sport sets the default for
             # what follows; one naming BOTH (a "MIXED" header) deliberately
             # clears it, so every leg under it is judged alone.
@@ -255,6 +281,8 @@ def scan_card(text, mlb, nfl):
 
         if odds:
             head, rest = line[:odds.start()], line[odds.end():]
+        elif tail is not None:
+            head, rest = tail, ""
         else:
             # A PRICELESS leg line: "- Pat Freiermuth: 30+ Receiving Yards".
             # The twelfth template writes every leg this way, and it is the
@@ -276,7 +304,7 @@ def scan_card(text, mlb, nfl):
         # out for us and the subject is just the subject. Reading the whole
         # line in both cases would let a stray "Over 8.5" from one leg's tail
         # land on another's.
-        market_src = candidate if odds else rest
+        market_src = candidate if (odds or tail is not None) else rest
         market, cleaned = detect_nfl_market(market_src)
         if market is None:
             mkey, mline, mside, mcleaned = mlb_parser.detect_market(market_src)
@@ -286,14 +314,30 @@ def scan_card(text, mlb, nfl):
             # An NFL prop can still carry its own over/under ("Receiving Yards
             # Over 62.5"), and baseball's detector is the thing that reads one.
             _k, line_val, side_val, cleaned = mlb_parser.detect_market(cleaned)
-        if not odds:
+        if not odds and tail is None:
             cleaned = candidate      # the subject was never the market
 
         sport, why = decide_sport(cleaned, market, rest, head, mlb, nfl, section_hint)
         if sport is None:
-            warnings.append(f"{candidate!r} could be MLB or NFL ({why})")
+            # An UNSIGNED trailing number is weak evidence that this was ever
+            # a leg -- a heading ending "OCTOBER 4, 2026" ends in one too. So
+            # a line reached only that way and then sporting to nothing is
+            # dropped quietly rather than reported as an ambiguous bet. A
+            # SIGNED price is unambiguous, and still gets the warning.
+            if tail is None:
+                warnings.append(f"{candidate!r} could be MLB or NFL ({why})")
             continue
 
+        # "15+" is the market's LINE, never part of the player's name. Left on
+        # it, nothing resolves against either roster. It is also the only
+        # place the line is stated on this card shape -- "2+ Touchdowns" has
+        # no over/under phrase for detect_market to read -- so take the number
+        # before discarding it: N+ means at least N, i.e. an over on N-0.5.
+        qty = QTY_RE.search(cleaned) or QTY_RE.search(candidate)
+        if qty and line_val is None:
+            line_val = float(qty.group(0).rstrip("+ ").strip()) - 0.5
+            side_val = side_val or "over"
+        cleaned = QTY_RE.sub(" ", cleaned).strip(" -:|·")
         rec = {"sport": sport, "market": market, "line": line_val,
                "side": side_val, "name": cleaned, "why": why}
         if sport == "mlb" and market:
@@ -306,6 +350,18 @@ def scan_card(text, mlb, nfl):
             rec["name"], rec["team"] = canon, team
         if sport == "nfl":
             norm = nfl_parser.norm_key(cleaned)
+            # A typo in the name gets the same treatment baseball's already
+            # had: difflib at resolve_player()'s 0.82 cutoff, and only when a
+            # SINGLE roster name is that close -- two equally near means no
+            # answer, not a pick. Without it "Barelon Allen" stayed unresolved
+            # with a blank team, which on the page is a leg that can never
+            # grade a hit OR a miss.
+            if norm not in nfl["team_by_name"]:
+                near = difflib.get_close_matches(norm, nfl["team_by_name"].keys(), n=2, cutoff=0.82)
+                if len(near) == 1:
+                    print(f"NOTE: read {cleaned!r} as "
+                          f"{nfl['canonical_name_by_norm'].get(near[0], near[0])!r}.", file=sys.stderr)
+                    norm = near[0]
             rec["name"] = nfl["canonical_name_by_norm"].get(norm, cleaned)
             rec["team"] = (nfl["team_by_name"].get(norm)
                            or nfl_team_in(rest) or nfl_team_in(head) or "")
@@ -320,7 +376,16 @@ def scan_card(text, mlb, nfl):
         # name -- and for an NFL player it usually will not.
         found[mlb_parser.normalize_name(candidate)] = rec
         found.setdefault(mlb_parser.normalize_name(rec["name"]), rec)
-        if not odds:
+        # And WITHOUT the "N+" quantity. parse_picks reads that as the market's
+        # LINE and drops it from the name, so "Keon Coleman 15+ Receiving
+        # Yards" comes back as "Keon Coleman Receiving Yards" -- a key this
+        # pass never had. Every football prop on the first real card was
+        # sported correctly here and then lost on that mismatch, surfacing as
+        # UNKNOWN on the page.
+        no_qty = QTY_RE.sub(" ", candidate)
+        if no_qty != candidate:
+            found.setdefault(mlb_parser.normalize_name(no_qty), rec)
+        if not odds and tail is None:
             # On a priceless line the colon is the only thing separating the
             # subject from the bet, and parse_picks keeps the two JOINED when
             # it can't resolve the name -- "Tage Thompson Anytime Goal". Index
@@ -345,6 +410,17 @@ def apply_sports(windows, singles, found):
             return
         touched += 1
         leg["sport"] = rec["sport"]
+        # "2+ Touchdowns" is NOT an anytime-TD bet. The td market grades
+        # binary -- did he reach the end zone at all -- so a leg needing two
+        # would cash on one, silently, in the group's favour. There is no
+        # counted-TD grader, so it is reported as its own market and shown
+        # untracked. Naming it td and hoping is the one thing that must not
+        # happen.
+        # The line can come from either pass -- parse_picks reads "N+" as a
+        # line of its own -- so check both before deciding this is anytime.
+        eff_line = rec.get("line") if rec.get("line") is not None else leg.get("line")
+        if rec["market"] == "td" and (eff_line or 0) > 0.5:
+            rec = dict(rec, market="td_count")
         if rec["market"] and rec["market"] != "hr":
             leg["market"] = rec["market"]
         elif rec["sport"] == "nfl" and not rec["market"] and rec.get("is_player"):

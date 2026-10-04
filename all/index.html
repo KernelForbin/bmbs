@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BMBS Tracker — MLB</title>
+<title>BMBS Tracker — NFL+MLB</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -440,9 +440,9 @@
 <body>
 <div class="card">
   <nav class="sport-switch" aria-label="Sport">
-    <a class="sport active" href="/" aria-current="page"><span class="ico">&#9918;</span>MLB</a>
+    <a class="sport" href="/"><span class="ico">&#9918;</span>MLB</a>
     <a class="sport" href="/football/"><span class="ico">&#127944;</span>NFL</a>
-    <a class="sport" href="/all/"><span class="ico">&#127919;</span>NFL+MLB</a>
+    <a class="sport active" href="/all/" aria-current="page"><span class="ico">&#127919;</span>NFL+MLB</a>
   </nav>
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-today" onclick="activateTab('today')">Today's Picks<span class="tab-date" id="tab-date-today"></span></button>
@@ -450,7 +450,7 @@
   </div>
   <div class="queued-note" id="queued-note"></div>
   <header>
-    <h1>BMBS Tracker &mdash; MLB</h1>
+    <h1>BMBS Tracker &mdash; NFL+MLB</h1>
     <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM MLB</span></p>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
     <!-- Only a parser warning lands here now. The old "Auto-tracked against
@@ -640,6 +640,613 @@ const SLATE_POLLS = new Map();
 // gamePk -> snapshot, only for games already Final. Their box score can't
 // change, so there's no reason to re-download the feed every 20 seconds.
 const FINAL_SNAPSHOTS = new Map();
+
+// ============ the NFL engine ============
+// Lifted whole out of football/index.html and sealed in a closure. Its
+// normalizeName strips generational suffixes (ESPN writes "Marvin
+// Harrison Jr."), its stateForPlayer grades an anytime-touchdown leg off
+// an ESPN boxscore, and its RESULTS is its own -- all three would be
+// actively wrong applied to a baseball leg, and all three share a name
+// with this page's version. The closure is what makes that safe.
+const NFL = (function () {
+const ESPN = "https://site.web.api.espn.com/apis/site/v2/sports/football/nfl";
+
+const ESPN_CORE = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl";
+
+const BACKGROUND_GAME_MS = 60000;   // games none of our picks are in: refreshed this often, for the All Touchdowns log
+
+const TD_CATEGORIES = ["rushing", "receiving", "defensive", "interceptions", "kickReturns", "puntReturns"];
+
+const SETTLED_SCHEDULES = new Map();
+
+const FINAL_SNAPSHOTS = new Map();
+
+const LIVE_SNAPSHOTS = new Map();
+
+const ROSTER_CACHE = new Map();   // `${gamePk}-${teamId}` -> Promise<Map(athleteId -> played)>
+
+const PICKS = new Map();
+
+const DASH = "—";
+
+const DRV_RESULT_MS = 9000;    // a finished drive's result holds the tile this long...
+
+const DRV_TD_MS = 14000;       // ...the pick's own touchdown earns a longer look,
+
+const DRV_BALL_MS = 3200;      // the first stretch of which the tile is just a football
+
+const DRV_STALE_MS = 180000;   // a drive that ended longer ago than this isn't news
+
+let RESULTS = emptyResults();
+
+const TD_EXPANDED = new Set(); // touchdown ids whose full detail is open
+
+function emptyResults() {
+  return { hitNames: new Set(), hitIds: new Set(), lineIds: new Set(), tdNameTeams: new Map(), participation: new Map(),
+           gameByTeam: new Map(), gameByAthlete: new Map(), touchdowns: [], gameInfo: new Map(),
+           allGamesFinal: false, ready: false, noGames: false };
+}
+
+function normalizeName(name) {
+  return String(name || "")
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.']/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+(jr|sr|ii|iii|iv|v)$/, "");
+}
+
+async function getScheduleForDate(date) {
+  if (SETTLED_SCHEDULES.has(date)) return SETTLED_SCHEDULES.get(date);
+  const games = await fetchScheduleForDate(date);
+  if (games.length ? games.every(g => g.final) : date < todayET()) SETTLED_SCHEDULES.set(date, games);
+  return games;
+}
+
+async function getGameSnapshot(game) {
+  const data = await fetchJson(`${ESPN}/summary?event=${game.gamePk}`);
+  const comp = (data.header && data.header.competitions && data.header.competitions[0]) || {};
+  const type = (comp.status && comp.status.type) || {};
+  const state = type.state || (game.final ? "post" : game.preview ? "pre" : "in");
+  const status = state === "post" ? "final" : state === "pre" ? "preview" : "live";
+
+  const teamsById = new Map();
+  const teams = {};
+  (comp.competitors || []).forEach(c => {
+    const t = { id: String(c.id), abbr: (c.team && c.team.abbreviation) || "", side: c.homeAway, score: c.score || "0", possession: c.possession === true };
+    teamsById.set(t.id, t);
+    teams[c.homeAway] = t;
+  });
+  if (!teams.away || !teams.home) { teams.away = teams.away || game.teams.away; teams.home = teams.home || game.teams.home; }
+
+  // ---- stat lines + touchdowns by athlete ----
+  const lines = new Map();   // athlete id -> { id, name, norm, team, car, rushYds, rec, recYds, tgts, td }
+  ((data.boxscore && data.boxscore.players) || []).forEach(side => {
+    const abbr = (side.team && side.team.abbreviation) || "";
+    (side.statistics || []).forEach(cat => {
+      const tdIdx = statIndex(cat.labels, "TD");
+      (cat.athletes || []).forEach(row => {
+        const a = row.athlete || {};
+        if (!a.id) return;
+        const id = String(a.id);
+        let line = lines.get(id);
+        if (!line) {
+          line = { id, name: a.displayName || "", norm: normalizeName(a.displayName || ""), team: abbr, car: 0, rushYds: 0, rec: 0, recYds: 0, tgts: 0, td: 0 };
+          lines.set(id, line);
+        }
+        const stats = row.stats || [];
+        if (cat.name === "rushing") { line.car = statNum(stats, statIndex(cat.labels, "CAR")); line.rushYds = statNum(stats, statIndex(cat.labels, "YDS")); }
+        if (cat.name === "receiving") {
+          line.rec = statNum(stats, statIndex(cat.labels, "REC")); line.recYds = statNum(stats, statIndex(cat.labels, "YDS"));
+          line.tgts = statNum(stats, statIndex(cat.labels, "TGTS"));
+        }
+        if (TD_CATEGORIES.includes(cat.name)) line.td += statNum(stats, tdIdx);
+      });
+    });
+  });
+
+  // ---- when each play happened, for ordering touchdowns across games ----
+  const drives = data.drives || {};
+  const wallclock = new Map();
+  const allDrives = (drives.previous || []).concat(drives.current ? [drives.current] : []);
+  allDrives.forEach(dr => (dr.plays || []).forEach(p => { if (p.id && p.wallclock) wallclock.set(String(p.id), p.wallclock); }));
+  const kickoffMs = Date.parse(game.kickoff) || 0;
+
+  const touchdowns = [];
+  const tdNameTeams = new Map();   // normalized scorer name -> Set of team abbrs (two NFL players can share a name)
+  (data.scoringPlays || []).forEach(sp => {
+    const kind = (sp.type && sp.type.text) || "";
+    if (!/touchdown/i.test(kind)) return;
+    const text = sp.text || "";
+    const m = text.match(/^(.+?)\s+(-?\d+)\s+Yd\.?\s+(.+?)(?:\s*\(|$)/i);
+    const scorer = m ? m[1].trim() : "";
+    const abbr = (sp.team && sp.team.abbreviation) || "";
+    const period = (sp.period && sp.period.number) || 0;
+    const clockVal = sp.clock && typeof sp.clock.value === "number" ? sp.clock.value : 0;
+    // real time if the play-by-play has it; otherwise estimated from the game
+    // clock (an NFL game runs ~3.2x its 60 minutes) -- good enough to order by
+    const when = wallclock.get(String(sp.id)) ||
+      new Date(kickoffMs + (((period - 1) * 900) + (900 - clockVal)) * 3200).toISOString();
+    const passer = (text.match(/pass from\s+(.+?)\s*(?:\(|$)/i) || [])[1] || "";
+    if (scorer) {
+      const norm = normalizeName(scorer);
+      if (!tdNameTeams.has(norm)) tdNameTeams.set(norm, new Set());
+      tdNameTeams.get(norm).add(abbr);
+    }
+    touchdowns.push({
+      id: String(sp.id), time: when, scorer: scorer || text, team: abbr, kind,
+      yards: m ? parseInt(m[2], 10) : null, how: m ? m[3].trim() : "", passer, text,
+      period, clock: (sp.clock && sp.clock.displayValue) || "", gamePk: game.gamePk,
+      score: `${teams.away.abbr} ${sp.awayScore} – ${teams.home.abbr} ${sp.homeScore}`
+    });
+  });
+
+  // ---- who has the ball, and where ----
+  // The last play's END state is the truth: after a score the "current drive"
+  // still names the team that just scored while the ball is about to go the
+  // other way. Scoreboard situation and the header's possession flag back it up.
+  let drive = null;
+  if (status === "live") {
+    const cur = drives.current || null;
+    const plays = (cur && cur.plays) || [];
+    const last = plays.length ? plays[plays.length - 1] : null;
+    const end = (last && last.end) || {};
+    const sit = game.situation || {};
+    const possId = (end.team && end.team.id && String(end.team.id)) || (sit.possession && String(sit.possession)) ||
+      ((comp.competitors || []).filter(c => c.possession === true).map(c => String(c.id))[0]) || "";
+    const toGo = typeof end.yardsToEndzone === "number" ? end.yardsToEndzone : null;
+    const team = teamsById.get(possId) || null;
+    if (team) {
+      drive = {
+        id: (cur && cur.id) || "", team: team.abbr,
+        // Whose drive ESPN currently has open, which is NOT always who has the
+        // ball: a drive object only appears once its first play posts, so
+        // between a punt/turnover/score and the next snap the possession flag
+        // has already flipped while `drives.current` still names the team that
+        // just gave it up. That gap is the "taking the field soon" window --
+        // measured against live games 2026-09-20 at 65s, 82s and 179s, so it's
+        // several polls wide, not a flicker.
+        driveTeam: (cur && cur.team && cur.team.abbreviation) || "",
+        // Whether that open drive is already FINISHED. ESPN stamps
+        // displayResult on drives.current the moment the drive ends, and after
+        // a score the possession flag keeps naming the team that just scored
+        // until the kickoff is returned -- so without this a team that just
+        // kicked a field goal or scored a touchdown kept a green "ON OFFENSE"
+        // tile through the whole kickoff. Verified on live games 2026-09-20:
+        // SEA scored a TD with situation.possession still SEA, and LAC threw
+        // an interception with drives.current still LAC.
+        driveOver: !!(cur && (cur.displayResult || cur.result)),
+        downDistance: end.downDistanceText || sit.downDistanceText || "",
+        shortDownDistance: end.shortDownDistanceText || sit.shortDownDistanceText || "",
+        yardsToEndzone: toGo,
+        redZone: toGo !== null ? (toGo > 0 && toGo <= 20) : sit.isRedZone === true,
+        description: (cur && cur.team && cur.team.abbreviation === team.abbr && cur.description) || "",
+        lastPlay: (last && last.text) || (sit.lastPlay && sit.lastPlay.text) || ""
+      };
+    }
+  }
+
+  // ---- drives that have ended, for the Live Drives panel's result tiles ----
+  const finishedDrives = (drives.previous || []).filter(dr => dr.displayResult || dr.result).slice(-6).map(dr => {
+    const plays = dr.plays || [];
+    const scoring = plays.filter(p => p.scoringPlay).pop();
+    const lastTimed = plays.filter(p => p.wallclock).pop();
+    return {
+      key: `${game.gamePk}-${dr.id}`, gamePk: game.gamePk, team: (dr.team && dr.team.abbreviation) || "",
+      result: dr.displayResult || dr.result || "", isScore: dr.isScore === true, description: dr.description || "",
+      endTime: (lastTimed && lastTimed.wallclock) || "", scoringText: (scoring && scoring.text) || ""
+    };
+  });
+
+  const period = (comp.status && comp.status.period) || game.period || 0;
+  const clock = (comp.status && comp.status.displayClock) || game.clock || "";
+  return { status, gamePk: game.gamePk, date: game.date, teams, period, clock, detail: type.shortDetail || game.detail || "",
+           lines, touchdowns, tdNameTeams, drive, finishedDrives, fetchedAt: Date.now() };
+}
+
+function getParticipation(gamePk, teamId) {
+  const key = `${gamePk}-${teamId}`;
+  if (!ROSTER_CACHE.has(key)) {
+    const request = fetchJson(`${ESPN_CORE}/events/${gamePk}/competitions/${gamePk}/competitors/${teamId}/roster`).then(data => {
+      const played = new Map();
+      (data.entries || []).forEach(e => { if (e.playerId) played.set(String(e.playerId), e.didNotPlay === false); });
+      return played;
+    });
+    request.catch(() => ROSTER_CACHE.delete(key));
+    ROSTER_CACHE.set(key, request);
+  }
+  return ROSTER_CACHE.get(key);
+}
+
+async function pollSlate(tickets) {
+  const dates = slateDates(tickets);
+  const games = (await Promise.all(dates.map(getScheduleForDate))).flat();
+  const allScheduledFinal = games.every(g => g.final);
+  if (games.length === 0) {
+    return { results: Object.assign(emptyResults(), { ready: true, noGames: true }), done: true, settled: true };
+  }
+
+  const picks = picksOf(tickets);
+  const pickTeams = new Set(picks.map(p => p.team).filter(Boolean));
+  const watchEverything = picks.some(p => !p.team);   // an unresolved pick could be in any game
+
+  const snapshots = await Promise.all(games.map(g => {
+    if (FINAL_SNAPSHOTS.has(g.gamePk)) return FINAL_SNAPSHOTS.get(g.gamePk);
+    if (g.preview) return previewSnapshot(g);
+    const ours = watchEverything || pickTeams.has(g.teams.away && g.teams.away.abbr) || pickTeams.has(g.teams.home && g.teams.home.abbr);
+    const cached = LIVE_SNAPSHOTS.get(g.gamePk);
+    if (!ours && !g.final && cached && Date.now() - cached.fetchedAt < BACKGROUND_GAME_MS) return cached;
+    return getGameSnapshot(g).then(snap => {
+      if (snap.status === "final") { FINAL_SNAPSHOTS.set(g.gamePk, snap); LIVE_SNAPSHOTS.delete(g.gamePk); }
+      else LIVE_SNAPSHOTS.set(g.gamePk, snap);
+      return snap;
+    }).catch(() => cached || null);
+  }));
+
+  const results = emptyResults();
+  let allFinal = true;
+  snapshots.forEach(snap => {
+    if (!snap) { allFinal = false; return; }
+    results.gameInfo.set(snap.gamePk, snap);
+    ["away", "home"].forEach(side => { if (snap.teams[side] && snap.teams[side].abbr) results.gameByTeam.set(snap.teams[side].abbr, snap.gamePk); });
+    snap.lines.forEach(line => {
+      results.lineIds.add(line.id);
+      results.gameByAthlete.set(line.id, snap.gamePk);
+      if (line.td > 0) results.hitIds.add(line.id);
+    });
+    snap.tdNameTeams.forEach((teamSet, norm) => {
+      if (!results.tdNameTeams.has(norm)) results.tdNameTeams.set(norm, new Set());
+      teamSet.forEach(t => results.tdNameTeams.get(norm).add(t));
+    });
+    snap.touchdowns.forEach(td => results.touchdowns.push(td));
+    if (snap.status !== "final") allFinal = false;
+  });
+  results.touchdowns.sort((a, b) => String(b.time).localeCompare(String(a.time)));   // newest first, across games
+
+  // Final game, no stat line, and we know who he is: ask the roster whether he played.
+  let rosterFailed = false;
+  await Promise.all(picks.map(async p => {
+    if (!p.id || results.lineIds.has(p.id)) return;
+    const snap = results.gameInfo.get(results.gameByTeam.get(p.team));
+    if (!snap || snap.status !== "final") return;
+    const team = ["away", "home"].map(s => snap.teams[s]).find(t => t && t.abbr === p.team);
+    if (!team) return;
+    try {
+      const played = await getParticipation(snap.gamePk, team.id);
+      results.participation.set(p.id, played.get(p.id) === true);
+    } catch (e) { rosterFailed = true; }
+  }));
+
+  results.allGamesFinal = allFinal;
+  results.ready = true;
+  linkPicks(results, tickets);
+  const anyFetchFailed = snapshots.some(s => !s) || rosterFailed;
+  return { results, done: allScheduledFinal || pastSafetyValve(slateEnd(tickets)), settled: allScheduledFinal && !anyFetchFailed };
+}
+
+function registerPicks(tickets) {
+  picksOf(tickets).forEach(p => {
+    const old = PICKS.get(p.norm);
+    if (!old || (!old.id && p.id)) PICKS.set(p.norm, { id: p.id, team: p.team });
+  });
+}
+
+function stateForPlayer(playerName) {
+  const norm = normalizeName(playerName);
+  if (!RESULTS.ready) return "not_started";
+  if (RESULTS.hitNames.has(norm)) return "hit";
+  const game = gameForPick(playerName);
+  if (!game) return RESULTS.allGamesFinal ? "na" : "not_started";   // team isn't playing on this slate (bye, wrong week)
+  if (game.status === "preview") return "not_started";
+  if (game.status === "live") return "live";
+  if (lineForPick(playerName)) return "miss";          // touched the ball, never scored
+  const pick = pickInfo(playerName);
+  if (pick.id && RESULTS.participation.has(pick.id)) return RESULTS.participation.get(pick.id) ? "miss" : "na";
+  // Roster not read (yet): someone the card resolved is presumed to have
+  // dressed; a name that never matched anyone can't be graded at all.
+  return pick.id ? "miss" : "na";
+}
+
+function liveContextForPlayer(playerName) {
+  const game = gameForPick(playerName);
+  if (!game || game.status === "preview") return null;
+  const pick = pickInfo(playerName);
+  const line = lineForPick(playerName);
+  const team = (line && line.team) || pick.team || "";
+  const drive = game.drive;
+  const hasPossession = !!(drive && team && drive.team === team);
+  // His side's own drive is the one ESPN currently has open.
+  const myDriveOpen = hasPossession && !!drive.driveTeam && drive.driveTeam === team;
+  // "On offense" means his side is actually lined up and the drive is still
+  // going: possession is theirs, ESPN has THEIR drive open, and that drive
+  // hasn't ended. All three matter --
+  //   * possession alone is stale right after a score;
+  //   * an open drive alone is stale right after a punt/turnover;
+  //   * a finished drive still named as current is the kickoff window.
+  // ESPN publishes no personnel data -- `play.participants` names only the
+  // players involved in a play (rusher, tackler, receiver), never the 11 on
+  // the field -- so "is HE on the field" is not knowable and isn't claimed.
+  const onOffense = hasPossession && (!drive.driveTeam || myDriveOpen) && !drive.driveOver;
+  // Possession is ours but our drive hasn't opened yet: the gap between the
+  // other team giving the ball up and our first snap. Deliberately NOT the
+  // case where our own drive just ended -- we're kicking off, not taking the
+  // field -- which is what `!myDriveOpen` rules out.
+  const takingFieldSoon = hasPossession && !onOffense && !myDriveOpen;
+  return {
+    gamePk: game.gamePk, status: game.status, team,
+    opponent: ["away", "home"].map(s => game.teams[s]).filter(t => t && t.abbr !== team).map(t => t.abbr)[0] || "",
+    clockLabel: periodLabel(game),
+    score: `${game.teams.away.abbr} ${game.teams.away.score}, ${game.teams.home.abbr} ${game.teams.home.score}`,
+    onOffense, takingFieldSoon, redZone: onOffense && drive.redZone,
+    downDistance: onOffense ? drive.downDistance : "", yardsToEndzone: onOffense ? drive.yardsToEndzone : null,
+    driveDescription: onOffense ? drive.description : "", lastPlay: (drive && drive.lastPlay) || "",
+    line, statLine: statLineText(line), link: espnGameUrl(game.gamePk)
+  };
+}
+
+function slateDates(tickets) {
+  const out = [];
+  const end = tickets.endDate && tickets.endDate >= tickets.date ? tickets.endDate : tickets.date;
+  const [y, m, d] = tickets.date.split("-").map(Number);
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10);
+    if (day > end) break;
+    out.push(day);
+  }
+  return out;
+}
+
+function slateEnd(tickets) {
+  const dates = slateDates(tickets);
+  return dates[dates.length - 1];
+}
+
+function tdDetailHtml(td) {
+  const rows = [
+    ["Play", escapeHtml(td.text)],
+    ["Type", escapeHtml(td.kind || DASH)],
+    ["Team", escapeHtml(td.team || DASH)],
+    ["When", escapeHtml(tdWhenText(td) || DASH)],
+    ["Score after", escapeHtml(td.score || DASH)]
+  ];
+  if (td.passer) rows.splice(2, 0, ["Thrown by", escapeHtml(td.passer)]);
+  return `<dl class="hr-detail">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
+    <a href="${espnGameUrl(td.gamePk)}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Open this game on ESPN &#8599;</a>`;
+}
+
+function tdRowHtml(td, isOurs) {
+  const open = TD_EXPANDED.has(td.id);
+  const short = /pass/i.test(td.kind) ? "REC" : /rush/i.test(td.kind) ? "RUSH" : "RETURN";
+  return `<div class="hr-row${isOurs ? " ours" : ""}${open ? " open" : ""}" onclick="toggleTdRow('${td.id}')">
+    <div class="hr-main">
+      <div class="hr-left">
+        <div class="hr-batter">${escapeHtml(td.scorer)}</div>
+        <div class="hr-sub">${escapeHtml(td.team || DASH)} &middot; ${escapeHtml(tdWhenText(td) || DASH)}${td.passer ? ` &middot; from ${escapeHtml(td.passer)}` : ""}</div>
+      </div>
+      <div class="hr-right">
+        <div class="hr-dist">${td.yards !== null ? `${td.yards} yd` : DASH}</div>
+        <div class="hr-ev">${short}</div>
+      </div>
+      <span class="hr-chevron">&#9660;</span>
+    </div>
+    ${open ? tdDetailHtml(td) : ""}
+  </div>`;
+}
+
+function espnGameUrl(gamePk) {
+  return `https://www.espn.com/nfl/game/_/gameId/${gamePk}`;
+}
+
+function drvBallTile(pick, ctx) {
+  const where = ctx.downDistance || "Ball on offense";
+  // "1st & Goal at TEN 4" already says how far; only spell it out when ESPN gave no down-and-distance
+  const toGo = !ctx.downDistance && ctx.yardsToEndzone !== null && ctx.yardsToEndzone > 0 ? `${ctx.yardsToEndzone} to the end zone` : "";
+  return drvTileShell(ctx.redZone ? "now rz" : "now", ctx.redZone ? "RED ZONE" : "ON OFFENSE", pick, ctx.link, `
+    <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}</div>
+    <div class="ab-countrow"><span class="ab-count drv-down">${escapeHtml(where)}</span></div>
+    <div class="ab-line faint">${[toGo, drvFootLine(ctx, pick)].filter(Boolean).join(" &middot; ")}</div>`);
+}
+
+function drvWaitTile(pick, ctx) {
+  return drvTileShell("soon", "TAKING THE FIELD SOON", pick, ctx.link, `
+    <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}</div>
+    <div class="ab-line faint">${drvFootLine(ctx, pick)}</div>`);
+}
+
+function drvResultTile(flash, now) {
+  const pick = flash.pick;
+  if (flash.kind === "td") {
+    const td = flash.td;
+    const ball = now < flash.at + DRV_BALL_MS
+      ? `<div class="ab-bomb"><span class="e">&#127944;</span><span class="n">${escapeHtml(pick.player.toUpperCase())}</span></div>` : "";
+    return drvTileShell("result homer", "TOUCHDOWN", pick, td ? espnGameUrl(td.gamePk) : null, `
+      <div class="ab-result">Touchdown</div>
+      <div class="ab-line faint">${escapeHtml([td ? tdHowText(td) : "", td ? tdWhenText(td) : "", pick.whos.join(", ")].filter(Boolean).join(" · "))}</div>${ball}`);
+  }
+  const dr = flash.drive;
+  // his team scored, but it wasn't him: worth saying plainly
+  const stolen = /touchdown/i.test(dr.result);
+  return drvTileShell(`result${dr.isScore ? " onbase" : ""}`, "DRIVE OVER", pick, espnGameUrl(dr.gamePk), `
+    <div class="ab-result">${escapeHtml(stolen ? "TD — not him" : dr.result)}</div>
+    <div class="ab-line faint">${escapeHtml([dr.description, pick.whos.join(", ")].filter(Boolean).join(" · "))}</div>`);
+}
+
+function drvOddsText(odds) {
+  if (odds.length <= 2) return odds.join("/");
+  const nums = odds.map(oddsToNumber).filter(n => n !== null).sort((a, b) => a - b);
+  const fmt = n => (n > 0 ? "+" : "") + n;
+  return nums.length ? `${fmt(nums[0])} to ${fmt(nums[nums.length - 1])}` : odds[0];
+}
+
+function drvFootLine(ctx, pick) {
+  return [ctx.statLine, pick.whos.join(", ")].filter(Boolean).map(escapeHtml).join(" &middot; ");
+}
+
+function drvTileShell(cls, tag, pick, link, inner) {
+  const href = link ? ` href="${link}" target="_blank" rel="noopener"` : "";
+  return `<a class="ab-tile ${cls}"${href} data-player="${escapeHtml(pick.player)}" title="${escapeHtml(pick.whos.join(", "))}">
+    <div class="ab-top"><span class="ab-tag">${tag}</span><span class="ab-odds">${escapeHtml(drvOddsText(pick.odds))}${pick.iron ? ironMark() : ""}</span></div>
+    <div class="ab-name">${escapeHtml(pick.player)}</div>${inner}</a>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
+  return res.json();
+}
+
+async function fetchScheduleForDate(date) {
+  const data = await fetchJson(`${ESPN}/scoreboard?dates=${date.replace(/-/g, "")}`);
+  return (data.events || []).map(ev => {
+    const comp = (ev.competitions || [])[0] || {};
+    const type = (ev.status && ev.status.type) || {};
+    const teams = {};
+    (comp.competitors || []).forEach(c => {
+      teams[c.homeAway] = { id: String(c.id), abbr: (c.team && c.team.abbreviation) || "", score: c.score || "0" };
+    });
+    return {
+      gamePk: String(ev.id), date, kickoff: ev.date || "",
+      final: type.state === "post", preview: type.state === "pre",
+      period: (ev.status && ev.status.period) || 0, clock: (ev.status && ev.status.displayClock) || "",
+      detail: type.shortDetail || "", teams, situation: comp.situation || null
+    };
+  });
+}
+
+function gameForPick(playerName) {
+  const norm = normalizeName(playerName);
+  const pick = pickInfo(playerName);
+  // his boxscore line wins (it survives a trade the roster file hasn't caught up with), then his team's game
+  const pk = (pick.id && RESULTS.gameByAthlete.get(pick.id)) || (pick.team && RESULTS.gameByTeam.get(pick.team)) || null;
+  return pk ? RESULTS.gameInfo.get(pk) || null : null;
+}
+
+function lineForPick(playerName) {
+  const pick = pickInfo(playerName);
+  const game = gameForPick(playerName);
+  if (!game) return null;
+  if (pick.id && game.lines.has(pick.id)) return game.lines.get(pick.id);
+  const norm = normalizeName(playerName);
+  let found = null;
+  game.lines.forEach(line => { if (!found && line.norm === norm && (!pick.team || line.team === pick.team)) found = line; });
+  return found;
+}
+
+function linkPicks(results, tickets) {
+  results.hitNames = new Set();
+  picksOf(tickets).forEach(p => {
+    const byId = p.id && results.hitIds.has(p.id);
+    const teamsScoredFor = results.tdNameTeams.get(p.norm);
+    const byName = !!teamsScoredFor && (!p.team || teamsScoredFor.has(p.team));
+    if (byId || byName) results.hitNames.add(p.norm);
+  });
+}
+
+function pastSafetyValve(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const n = nowET();
+  return Date.UTC(n.year, n.month - 1, n.day, n.hour, n.minute) >= Date.UTC(y, m - 1, d + 1, 6, 0);
+}
+
+function periodLabel(game) {
+  if (!game) return "";
+  if (game.status === "final") return "Final";
+  if (/half/i.test(game.detail || "")) return "Halftime";
+  const q = game.period > 4 ? "OT" : game.period ? `Q${game.period}` : "";
+  return [q, game.clock].filter(Boolean).join(" ");
+}
+
+function pickInfo(name) { return PICKS.get(normalizeName(name)) || { id: "", team: "" }; }
+
+function picksOf(tickets) {
+  const out = [];
+  if (!tickets) return out;
+  (tickets.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(l => { if (l.player) out.push(l); })));
+  (tickets.singles || []).forEach(s => { if (s.player) out.push(s); });
+  return out.map(p => ({ name: p.player, norm: normalizeName(p.player), id: p.athleteId ? String(p.athleteId) : "", team: p.team || "" }));
+}
+
+function previewSnapshot(game) {
+  return { status: "preview", gamePk: game.gamePk, date: game.date, teams: game.teams, period: 0, clock: "", detail: game.detail,
+           lines: new Map(), touchdowns: [], tdNameTeams: new Map(), drive: null, finishedDrives: [], fetchedAt: 0 };
+}
+
+function statIndex(labels, name) { return (labels || []).indexOf(name); }
+
+function statLineText(line) {
+  if (!line) return "";
+  const bits = [];
+  if (line.rec || line.tgts) bits.push(`${line.rec} rec, ${line.recYds} yds${line.tgts ? ` (${line.tgts} tgt)` : ""}`);
+  if (line.car) bits.push(`${line.car} car, ${line.rushYds} yds`);
+  return bits.join(" · ");
+}
+
+function statNum(stats, idx) { const n = idx >= 0 ? parseInt(stats[idx], 10) : NaN; return Number.isNaN(n) ? 0 : n; }
+
+function tdHowText(td) {
+  if (td.yards === null) return td.text;
+  return `${td.yards}-yd ${td.how.replace(/^Rush$/i, "rush").replace(/^Run$/i, "run")}`;
+}
+
+function tdWhenText(td) {
+  const q = td.period > 4 ? "OT" : td.period ? `Q${td.period}` : "";
+  return [q, td.clock].filter(Boolean).join(" ");
+}
+
+function todayET() {
+  const n = nowET();
+  return `${n.year}-${String(n.month).padStart(2, "0")}-${String(n.day).padStart(2, "0")}`;
+}
+
+function nowET() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(new Date());
+  const get = (t) => +parts.find(p => p.type === t).value;
+  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour") % 24, minute: get("minute") };
+}
+
+// ---- what the host page is allowed to touch ----
+// RESULTS is NOT declared here: the extracted engine brings football's own
+// `let RESULTS = emptyResults()` with it, and a second `let` in the same
+// scope is a SyntaxError that takes the whole page down, not just this half.
+function slateShim(tickets) {
+  // Only the NFL legs. picksOf() would otherwise hand ESPN a list of
+  // baseball players to look for, and slateDates() needs the span.
+  const legsOf = t => (t.legs || []).filter(l => l.sport === "nfl");
+  return {
+    date: tickets.date,
+    endDate: tickets.endDate || tickets.date,
+    windows: (tickets.windows || []).map(w => ({
+      tickets: (w.tickets || []).map(t => ({ legs: legsOf(t) })).filter(t => t.legs.length)
+    })),
+    singles: (tickets.singles || []).filter(x => x.sport === "nfl")
+  };
+}
+return {
+  has(tickets) {
+    const sh = slateShim(tickets);
+    return sh.singles.length > 0 || sh.windows.some(w => w.tickets.length > 0);
+  },
+  register(tickets) { PICKS.clear(); registerPicks(slateShim(tickets)); },
+  async poll(tickets) { return pollSlate(slateShim(tickets)); },
+  use(results) { RESULTS = results || emptyResults(); },
+  empty: emptyResults,
+  state(leg) { return stateForPlayer(leg.player); },
+  context(leg) { return liveContextForPlayer(leg.player); },
+  scoring() { return RESULTS.touchdowns || []; },
+  rowHtml: tdRowHtml, detailHtml: tdDetailHtml,
+  ballTile: drvBallTile, waitTile: drvWaitTile, resultTile: drvResultTile,
+  oddsText: drvOddsText, gameUrl: espnGameUrl,
+  norm(name) { return normalizeName(name); }
+};
+})();
 
 function emptyResults() {
   return { hitNames: new Set(), sbNames: new Set(), appeared: new Set(), inBox: new Map(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), homeRuns: [], gameInfo: new Map(), teamState: new Map(), batStats: new Map(), pitchStats: new Map(), teamScores: new Map(), allGamesFinal: false, ready: false, noGames: false };
@@ -1309,11 +1916,28 @@ function isPhpCreditedHit(playerName) {
 // Polls MLB for one slate date. Returns { results, done, settled }; `done`
 // is the rollover signal -- every game on that date is Final (or there are
 // none), or the safety valve has passed.
-async function pollSlate(date) {
-  const games = await getScheduleForDate(date);
+function slateDays(tickets) {
+  const out = [];
+  const end = (tickets.endDate && tickets.endDate >= tickets.date) ? tickets.endDate : tickets.date;
+  let d = new Date(tickets.date + "T00:00:00Z");
+  for (let i = 0; i < 8; i++) {
+    const iso = d.toISOString().slice(0, 10);
+    out.push(iso);
+    if (iso >= end) break;
+    d = new Date(d.getTime() + 86400000);
+  }
+  return out;
+}
+
+async function pollSlate(tickets) {
+  const days = slateDays(tickets);
+  const games = (await Promise.all(days.map(getScheduleForDate))).flat();
   const allScheduledFinal = games.every(g => g.final);
 
-  if (games.length === 0) {
+  // A card can be all football. No MLB game that day is then the normal
+  // state, not an empty slate -- returning "done" here would park a live NFL
+  // card straight onto the Yesterday tab.
+  if (games.length === 0 && !NFL.has(tickets)) {
     return { results: Object.assign(emptyResults(), { ready: true, noGames: true }), done: true, settled: true };
   }
 
@@ -1440,6 +2064,20 @@ function stateForPlayer(playerName) {
 // morning and the slate still posts, still grades every leg it understands,
 // and says out loud which one it didn't.
 const MARKETS = {
+  // ---- NFL ----
+  // "td" is the only one that can be FOLLOWED. The yardage props are listed
+  // so the parser's market word survives onto the page and the leg grades to
+  // untracked -- shown, named, in neither column, unable to kill a parlay.
+  // Leaving them out would be the same thing; listing them is what lets the
+  // leg say what it actually is instead of "not tracked".
+  td:     { label: "Anytime TD",      subject: "player", sport: "nfl",
+            grade: leg => NFL.state(leg) },
+  rec_yds:   { label: "Receiving Yds",  subject: "player", sport: "nfl", grade: () => "untracked" },
+  rush_yds:  { label: "Rushing Yds",    subject: "player", sport: "nfl", grade: () => "untracked" },
+  pass_yds:  { label: "Passing Yds",    subject: "player", sport: "nfl", grade: () => "untracked" },
+  receptions:{ label: "Receptions",     subject: "player", sport: "nfl", grade: () => "untracked" },
+  pass_tds:  { label: "Passing TDs",    subject: "player", sport: "nfl", grade: () => "untracked" },
+
   // A home run leg is still graded from the play-by-play -- that's what makes
   // it resolve the INSTANT the ball lands, and what Pinch Hit Protection hangs
   // off. But a leg naming two players, or carrying a line ("1+ Total Homers"),
@@ -1510,6 +2148,11 @@ function legLine(leg) {
 function legSide(leg) { return leg && leg.side === "under" ? "under" : "over"; }
 
 function stateForLeg(leg) {
+  // A leg with no market named means the sport's DEFAULT bet: a home run for
+  // baseball, an anytime touchdown for football. Reading leg.sport here is
+  // the whole of the mixed-parlay change -- everything downstream already
+  // works on a plain array of states and never asks which sport made them.
+  if (leg && leg.sport === "nfl" && !leg.market) return NFL.state(leg);
   const def = marketDef(leg);
   // Unknown market -> untracked. Never a miss: we have no idea, and guessing
   // would either kill a live parlay or claim money that wasn't won.
@@ -3667,11 +4310,27 @@ function render() {
 
 // ---------------- slates / tabs / boot ----------------
 
-async function refreshSlate(date) {
+async function refreshSlate(tickets) {
+  const date = tickets.date;
   let entry = SLATE_POLLS.get(date);
   if (entry && entry.settled) return entry;
   try {
-    entry = await pollSlate(date);
+    // Both leagues, in parallel, every poll. The slate is DONE only when both
+    // are -- the rule for a combined card is "every game on the card", which
+    // is deliberately not the NFL tab's "the whole week" (a football slate IS
+    // an NFL week; this one is one card that happens to span two leagues).
+    NFL.register(tickets);
+    const [mlb, nfl] = await Promise.all([
+      pollSlate(tickets),
+      NFL.has(tickets) ? NFL.poll(tickets)
+                       : Promise.resolve({ results: NFL.empty(), done: true, settled: true })
+    ]);
+    entry = {
+      results: mlb.results,
+      nfl: nfl.results,
+      done: mlb.done && nfl.done,
+      settled: mlb.settled && nfl.settled
+    };
     SLATE_POLLS.set(date, entry);
   } catch (e) {
     if (!entry) throw e; // otherwise keep last-known results through a transient failure
@@ -3687,8 +4346,8 @@ async function refreshSlate(date) {
 // Once every slate is finished, Today falls back to its waiting state.
 async function refreshEverything() {
   const [current, previous] = await Promise.all([
-    loadTicketsFile("data/tickets.json"),
-    loadTicketsFile("data/tickets-previous.json")
+    loadTicketsFile("../data/combined/tickets.json"),
+    loadTicketsFile("../data/combined/tickets-previous.json")
   ]);
   if (current && !current.date) current.date = todayET(); // file predates date stamping; gone after the next upload
 
@@ -3702,12 +4361,12 @@ async function refreshEverything() {
   for (const tickets of files) {
     let entry;
     try {
-      entry = await refreshSlate(tickets.date);
+      entry = await refreshSlate(tickets);
     } catch (e) {
       firstError = firstError || e;
-      entry = { results: emptyResults(), done: false };
+      entry = { results: emptyResults(), nfl: NFL.empty(), done: false };
     }
-    slates.push({ tickets, results: entry.results, done: entry.done });
+    slates.push({ tickets, results: entry.results, nfl: entry.nfl || NFL.empty(), done: entry.done });
   }
 
   const liveIdx = slates.findIndex(s => !s.done);
@@ -3725,6 +4384,7 @@ function applyActiveTab() {
   const slate = SLATES[ACTIVE_TAB];
   TICKETS = slate ? slate.tickets : null;
   RESULTS = slate ? slate.results : emptyResults();
+  NFL.use(slate ? slate.nfl : null);
 
   document.getElementById("tab-btn-today").classList.toggle("active", ACTIVE_TAB === "today");
   document.getElementById("tab-btn-yesterday").classList.toggle("active", ACTIVE_TAB === "yesterday");
@@ -3758,7 +4418,7 @@ function applyActiveTab() {
   document.getElementById("notif-note").style.display = showNotifControls ? "" : "none";
 
   if (ACTIVE_TAB === "today") {
-    document.getElementById("eyebrow-text").innerHTML = showSlate ? "TODAY'S SLATE &middot; LIVE FROM MLB" : "TODAY'S SLATE";
+    document.getElementById("eyebrow-text").innerHTML = showSlate ? "TODAY'S SLATE &middot; LIVE FROM MLB + ESPN" : "TODAY'S SLATE";
     document.getElementById("waiting-title").textContent = "Waiting for today's picks";
     document.getElementById("waiting-text").textContent = SLATES.yesterday
       ? "Yesterday's results are in the other tab. This page picks up the new slate automatically once it's posted."

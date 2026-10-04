@@ -76,6 +76,7 @@
   <nav class="sport-switch" aria-label="Sport">
     <button type="button" class="sport active" id="switch-baseball" onclick="showSport('baseball')"><span class="ico">&#9918;</span>MLB</button>
     <button type="button" class="sport" id="switch-football" onclick="showSport('football')"><span class="ico">&#127944;</span>NFL</button>
+    <button type="button" class="sport" id="switch-combined" onclick="showSport('combined')"><span class="ico">&#127919;</span>NFL+MLB</button>
   </nav>
 
   <div id="baseball-content">
@@ -520,38 +521,107 @@
   </div>
   </div>
 
+  <div id="combined-content" style="display:none">
+  <header class="hero">
+    <h1>What the NFL+MLB Tracker Can Do</h1>
+  </header>
+
+  <div class="sections">
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span>
+        <h2>One card, both sports</h2>
+      </div>
+      <p>This tab tracks a single card that can hold baseball and football bets at the same time. Everything the other two tabs do &mdash; the payout estimate, the Open / Hit / Missed / N&nbsp;A counts, Irons, the Bettor Tracker, the filters, the collapsible bet lists &mdash; works here exactly the same way.</p>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16"/></svg></span>
+        <h2>Parlays can mix the two</h2>
+      </div>
+      <p>A single parlay can have a home run leg and a touchdown leg on it. Each leg is graded off its own sport's live data, and the card cashes when all of them land &mdash; no different from any other parlay on the site.</p>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+        <h2>Live Bet Tracker, both sports at once</h2>
+      </div>
+      <p>One wall of tiles. A hitter who is at the plate or due up this inning gets his tile the usual way; a football pick gets one whenever his side has the ball, marked <b>RED ZONE</b> inside the 20, <b>ON OFFENSE</b> otherwise, and <b>TAKING THE FIELD SOON</b> in the gap after his team takes the ball back. Nobody gets a tile while his side is on defense.</p>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>
+        <h2>Scoring Log</h2>
+      </div>
+      <p>Every home run and every touchdown from the slate, newest first, in one list. Your picks are highlighted; switch to <b>Everything</b> to see the rest of both leagues. Tap any row for the detail &mdash; Statcast numbers on a home run, the drive and who threw it on a touchdown.</p>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2"/><circle cx="12" cy="12" r="5"/></svg></span>
+        <h2>Alerts for whichever sport scored</h2>
+      </div>
+      <p>A home run sets off the usual bomb, a touchdown its own alert, and either one turns gold with the cash register when it finishes off a bet. Same three switches at the top of the page &mdash; on-screen, push and sound &mdash; and the same rule: opening the page mid-slate never replays what has already happened.</p>
+    </section>
+
+    <section class="card-item">
+      <div class="card-head">
+        <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></span>
+        <h2>When the card moves to Yesterday</h2>
+      </div>
+      <p>Not until <b>every game on the card</b> is finished &mdash; both sports. A baseball game that ends at eleven will not drag a football leg off the tab while its game is still being played.</p>
+    </section>
+
+  </div>
+  </div>
+
   <footer id="site-footer">No login and nothing to install &mdash; just open bmbs.bet. Powered by <span id="footer-source">MLB's free public live data</span>.<br><a id="footer-back" href="/" style="color:var(--text-faint)">&larr; Back to the live card</a></footer>
 
 </div>
 <script>
-function showSport(sport) {
-  var isBaseball = sport !== "football";
-  document.getElementById("baseball-content").style.display = isBaseball ? "" : "none";
-  document.getElementById("football-content").style.display = isBaseball ? "none" : "";
-  document.getElementById("switch-baseball").classList.toggle("active", isBaseball);
-  document.getElementById("switch-football").classList.toggle("active", !isBaseball);
+var SPORTS = {
+  baseball: { pane: "baseball-content", btn: "switch-baseball", href: "/",
+              back: "the live card", source: "MLB's free public live data",
+              title: "What the BMBS Tracker Can Do" },
+  football: { pane: "football-content", btn: "switch-football", href: "/football/",
+              back: "the NFL tracker", source: "ESPN's free public NFL data",
+              title: "What the NFL Tracker Can Do" },
+  combined: { pane: "combined-content", btn: "switch-combined", href: "/all/",
+              back: "the NFL+MLB tracker", source: "MLB and ESPN's free public live data",
+              title: "What the NFL+MLB Tracker Can Do" }
+};
 
-  var backHref = isBaseball ? "/" : "/football/";
-  var backText = "← Back to " + (isBaseball ? "the live card" : "the NFL tracker");
+function showSport(sport) {
+  var key = SPORTS[sport] ? sport : "baseball";
+  Object.keys(SPORTS).forEach(function (k) {
+    document.getElementById(SPORTS[k].pane).style.display = k === key ? "" : "none";
+    document.getElementById(SPORTS[k].btn).classList.toggle("active", k === key);
+  });
+  var cur = SPORTS[key];
+
+  var backHref = cur.href;
+  var backText = "← Back to " + cur.back;
   document.getElementById("back-link").href = backHref;
   document.getElementById("back-link").textContent = backText;
   document.getElementById("footer-back").href = backHref;
   document.getElementById("footer-back").textContent = backText;
-  document.getElementById("footer-source").textContent = isBaseball ? "MLB's free public live data" : "ESPN's free public NFL data";
-
-  var title = isBaseball ? "What the BMBS Tracker Can Do" : "What the NFL Tracker Can Do";
-  document.getElementById("page-title").textContent = title;
+  document.getElementById("footer-source").textContent = cur.source;
+  document.getElementById("page-title").textContent = cur.title;
 
   // Reflected in the URL (via replaceState, no reload) so the choice survives a
   // refresh and can be linked directly -- e.g. the football tracker's own
   // footer links here with ?sport=football so it opens on the right list.
   var params = new URLSearchParams(location.search);
-  if (isBaseball) { params.delete("sport"); } else { params.set("sport", "football"); }
+  if (key === "baseball") { params.delete("sport"); } else { params.set("sport", key); }
   var qs = params.toString();
   history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
 }
 
-showSport(new URLSearchParams(location.search).get("sport") === "football" ? "football" : "baseball");
+showSport(new URLSearchParams(location.search).get("sport") || "baseball");
 </script>
 </body>
 </html>

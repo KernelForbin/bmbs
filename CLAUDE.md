@@ -3,11 +3,24 @@
 A live-tracking site for a friend group's home run parlay/prop pool. Static
 site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
 
+**The two sports are called MLB and NFL on screen** (renamed from "Baseball"
+and "Football", 2026-10-04 -- it's what the group says). Labels ONLY: the
+`/football/` and `data/football/` paths, the `?sport=football` query param a
+bookmarked features link carries, the `baseball*`/`football*` file-name
+prefixes the bot routes on, and every element id, CSS class and `--sport` CLI
+value are addresses rather than names and were deliberately left alone.
+
 ## Architecture
 
 - **`index.html`** — the entire live site. Single self-contained file:
   inline CSS, inline JS. No build step, no framework, no dependencies.
   Deploy = commit this file, GitHub Pages serves it directly.
+- **`all/index.html`** — the **NFL+MLB** tracker at `/all/`, a THIRD site in
+  this repo alongside the two single-sport ones. Tracks a card that can hold
+  MLB and NFL bets at once, **including a single parlay with a leg in each**.
+  Assembled ONCE from `index.html` (2026-10-04) and independent from here, the
+  same rule `football/index.html` lives under. See "The NFL+MLB tracker" below
+  before changing anything in it.
 - **`features/index.html`** — a static, plain-language "what this site can
   do" page for end users (the friend group), reusing `index.html`'s exact
   color tokens/fonts so it reads as the same product. Lives at the clean
@@ -69,6 +82,12 @@ site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
   user's own always-on Windows machine): a friend uploads a `.txt` in a
   Discord channel, confirms with a reaction, and the bot commits it here
   via the GitHub Contents API.
+- **`data/combined/{tickets,tickets-previous}.json`** — the NFL+MLB tab's own
+  slate. LIVE DATA, same rules as the other two sports': written only by
+  `scripts/parse_combined_picks.py`, never hand-edited, absent is a normal
+  state. **`data/combined/incoming_picks.txt`** is its paste target, fed by a
+  `sports_*.txt` upload to the Discord bot. It has no roster of its own -- it
+  resolves against BOTH sports' rosters.
 - **`data/roster.json`** — name/team lookup, used to normalize player names
   and teams during parsing. Built by `scripts/build_roster.py` straight
   from the MLB Stats API (every team's active roster). Originally a
@@ -955,6 +974,149 @@ feed's boxscore `battingOrder` field, combined with a negative-binomial
 model using a league-average 68.5% out rate (NOT the specific hitter's real
 stats — this is disclosed in the UI, don't remove that framing).
 
+## The NFL+MLB tracker -- the third site, and the only one that mixes sports
+
+`all/index.html` at `/all/`, added 2026-10-04. The sport switch at the top of
+all three pages is now three-way: **MLB / NFL / NFL+MLB**.
+
+**Why `index.html` is the base and not football's.** It is the SUPERSET: the
+markets registry, the `untracked`/`partial` sixth state, Pinch Hit Protection,
+the stat-prop and game-line graders. Starting from the richer side makes the
+football engine an ADDITION rather than a rewrite of everything baseball knows.
+
+**The football half is a SEALED MODULE, not a merge, and this is the single
+most important thing to understand about the file.** The two pages define the
+same NAMES for different jobs -- `normalizeName` most dangerously (football
+strips generational suffixes because ESPN writes "Marvin Harrison Jr."; MLB
+must NOT, because its own feed always sends them and stripping is exactly what
+broke Tatis Jr. live), plus `stateForPlayer`, `evaluateTicket`,
+`emptyResults`, `RESULTS`, `TICKETS`, `getGameSnapshot`, `pollSlate`. Merging
+them into one scope means renaming every collision by hand across 2600 lines,
+and a miss is SILENT: the wrong `normalizeName` still returns a perfectly good
+string. Wrapped in an IIFE (`const NFL = (function () { ... })()`), football's
+names stay private and resolve to each other exactly as they do in its own
+page. `test_combined_page.py` A3/A4 pin both normalizers coexisting in one
+document; if those ever fail, the seal is broken.
+
+The module exposes only `has/register/poll/use/swap/empty/state/context/
+scoring/rowHtml/detailHtml/toggleRow/ballTile/waitTile/resultTile/oddsText/
+gameUrl/norm`. It does NOT bring football's page shell -- no `render`, no
+filters, no tabs, no alert queue, no `init` -- because the host owns all of
+that and a second copy would fight it for the same DOM.
+
+**A mixed parlay needed no special case anywhere.** `evaluateTicket()` already
+takes a plain array of leg states and never asks which sport produced them, so
+the entire change is that `legMarket()` returns the SPORT's default for a leg
+with no market named: `td` for football, `hr` for baseball, as before.
+
+**That default belongs in `legMarket` and nowhere else.** It was first
+special-cased in `stateForLeg`, which graded the leg correctly and left every
+OTHER reader of `legMarket` still calling it a home run -- `betsCashedBy`
+couldn't find the bet the touchdown had just cashed, `liveTileKind` sent him
+to the batting machinery, and `relevantHrNames` counted him among the home run
+picks. One source of truth; don't reintroduce the special case.
+
+**Rollover is "every game ON THE CARD", the user's rule (2026-10-04)**: done
+only when BOTH leagues are. Deliberately NOT the NFL tab's week rule -- a
+football slate IS an NFL week, while this is one card that happens to span two
+leagues. Two consequences that are easy to get backwards and are both pinned:
+an all-NFL card is **not** an empty slate (treating it as one parks live
+football on the Yesterday tab), and an all-MLB card must never wait on a
+football game it has no bet in, which is why the NFL engine is handed only the
+NFL legs.
+
+**Markets.** `td` is the only football market that can be FOLLOWED. The
+yardage props (`rec_yds`, `rush_yds`, `pass_yds`, `receptions`, `pass_tds`)
+are in the registry so the parser's market word survives onto the page and the
+leg grades `untracked` -- shown, named, counted in neither column, unable to
+kill a parlay. Falling back to "did he score a touchdown" would answer a
+different question confidently and wrongly.
+
+**The Live Bet Tracker carries both sports on one wall.** A football pick has
+no batting order, no base and no inning, so every path in `renderLiveAtBats`
+skipped it until `LIVE_TILE_KIND` gained `td: "drive"`. Green means what it
+means on the football page and nothing looser -- possession AND an open drive
+AND that drive not already over. Nothing at all while his defence is on the
+field, matching baseball.
+
+**The Home Run Log is the Scoring Log here**: home runs and touchdowns
+interleaved by timestamp, each keeping its own row builder and detail panel,
+sharing `.hr-row`'s markup so a mixed list needed no new CSS. "Ours" marking
+for a touchdown uses the ENGINE's normalizer, not the host's. A touchdown
+row's inline `onclick` names `toggleTdRow`, which lives inside the module --
+an inline handler resolves against `window` at CLICK time, so the host carries
+a shim or every touchdown row throws on tap.
+
+**Alerts** fire for whichever sport scored, through one queue and one overlay,
+with every guard the existing alerts have. `betsCashedBy`/`betsStillOpenFor`
+already swapped the `RESULTS` global so they grade TODAY while another tab is
+showing; they now swap the engine's in step, or a mixed parlay would be graded
+with one league's numbers from today and the other's from whatever tab is open.
+
+**No results archive and no History page yet** -- the user deferred both
+(2026-10-04). The combined footer therefore does NOT link `/history/`: that is
+the baseball archive, and pointing at it from here would answer a question
+nobody asked.
+
+**It was assembled by a scripted patch set, not by hand**, and those scripts
+were scratchpad scaffolding rather than a build step -- there is no build step
+in this project and adding one would change what deploying means. The file is
+INDEPENDENT now: a fix that applies to it and to `index.html` is made twice,
+on purpose, exactly as with football.
+
+## Combined picks: `sports_*.txt`
+
+**`scripts/parse_combined_picks.py`** -> `data/combined/tickets.json`, fired by
+`.github/workflows/parse-combined-picks.yml` off `data/combined/incoming_picks.txt`.
+The Discord bot routes a `sports*.txt` upload there; `baseball*` and
+`football*` are unchanged and all three intakes stay live.
+
+**It is a thin layer over `parse_picks.parse()`, not a third parser.** That one
+already reads ten card templates and every ticket/bettor/stake/payout/odds
+shape the group's generator has emitted; re-implementing any of it would
+guarantee silent drift. So a combined card is parsed exactly as a baseball
+card is, and this module answers only the question that parser cannot: WHICH
+SPORT is each leg, and therefore which roster resolves the player.
+
+**The join between the two halves is the leg's player STRING**, because
+`parse_picks` either returns the canonical spelling it resolved or keeps the
+text exactly as typed -- both deterministic. Keying on the RAW text is what
+lets one parlay carry "Jose Ramirez Anytime TD" (NE) and "Jose Ramirez" (CLE)
+and grade them as two different people in two different sports. **Five names
+sit on both rosters and he is a star in each**; getting it wrong does not
+throw, it grades a touchdown bet off a batting line, quietly, forever.
+
+**Evidence order is per-leg first and the section heading LAST**: an explicit
+market word, then roster membership when the name is on only one, then the
+team named on the line, then the heading. A heading is about the GROUP of bets
+rather than this one, so a mixed parlay filed under an "MLB" heading would
+otherwise mis-sport half of itself; a heading naming BOTH sports clears the
+default instead of setting it. Nothing resolvable -> the leg is reported in
+the `note`, never guessed.
+
+**The team is read from the text AFTER the price, never from the player's own
+name** -- plenty of names ARE team words (Buffalo, Jackson, Carolina, Phoenix).
+The text before the price is consulted only when the rest names no team at
+all, and then all-or-nothing: as a per-sport fallback it let a leg whose line
+clearly named one team pick up a second off the name and go ambiguous.
+
+**A market phrase glued to the player name is stripped and the name
+re-resolved.** `parse_picks` resolves the player BEFORE it knows the phrase is
+there, so "Max Fried Strikeouts Over 5.5" misses the roster entirely and comes
+back as typed with a BLANK team -- the Tatis Jr. failure mode.
+
+**`NFL_TEAM_WORDS` is a static 32-row table** because the football roster
+stores abbreviations only (no `abbr_by_team_word`, unlike baseball's) and a
+card writes "Philadelphia Eagles", never "PHI".
+
+**The span is the PICKED teams' games**, deliberately not the NFL tab's
+week-end rule, for the same reason the page's rollover isn't.
+
+**No real `sports_` card has arrived yet.** `tests/fixtures/sports_combined_format.txt`
+is written to the shape the generator currently emits, not observed -- treat
+the first real one as a template incident exactly as with the other two
+parsers.
+
 ## Football (anytime-touchdown) tracker -- a separate site in the same repo
 
 `football/index.html` at `/football/` is the NFL twin of the baseball page:
@@ -994,6 +1156,7 @@ script), and the Discord bot's routing. Keep it that way:
   assertions per template, same pattern as `test_parser.py`).
 - **The Discord bot routes by FILE NAME only**: `baseball*.txt` ->
   `data/incoming_picks.txt`, `football*.txt` -> `data/football/incoming_picks.txt`,
+  `sports*.txt` -> `data/combined/incoming_picks.txt` (the NFL+MLB tab),
   anything else is refused with a rename hint. It never inspects the text --
   the cards share a template, and a guess would eventually overwrite the wrong
   sport's slate. The bot runs from this clone on the user's Windows machine
@@ -1319,12 +1482,14 @@ after a dash during parsing — don't reintroduce this).
    got shipped in delivery zips and silently overwrote the user's real
    picks multiple times because "copy the zip contents over the repo" also
    copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
-   and `data/incoming_picks.txt` (plus their `data/football/` twins) are live user data, managed only through
+   and `data/incoming_picks.txt` (plus their `data/football/` and
+   `data/combined/` twins) are live user data, managed only through
    the picks-upload → GitHub Actions pipeline. `data/history.json` is pipeline data too (only
    `scripts/import_history.py` writes it), and so are `data/results/`,
    `data/football/results/` and `data/football/history.json` (only the two
    `record_*_results.py` scripts write them). Code changes should only
-   ever touch `index.html`, `football/index.html`, `history/`, `features/`, `scripts/`,
+   ever touch `index.html`, `football/index.html`, `all/index.html`,
+   `history/`, `features/`, `scripts/`,
    `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
    `tests/test_live_data_schema.py` is a deliberate, narrow exception: it
    **reads** whatever is currently committed under `data/` to check it against
@@ -1473,6 +1638,31 @@ on failure:
   **Section O** is the finished-drive bug: it walks one game from mid-drive to
   field goal to touchdown to the receiving team's first snap to a punt, and
   pins who is green at each step. **Section P** is baseball's section V.
+- `tests/test_combined_parser.py` — `scripts/parse_combined_picks.py`, fully
+  offline (the ESPN schedule lookup is given a fetcher that raises). Covers the
+  mixed parlay, the Jose Ramirez cross-sport collision in a single ticket,
+  athlete ids on every NFL leg, a market phrase stripped off a player name, an
+  ungradeable NFL prop keeping its own market, `decide_sport`'s evidence ORDER
+  checked directly (the fixture can pass while the order is wrong, and the
+  order is the whole design), and the archive-only-on-a-new-day rule.
+  Eight mutations, all caught -- one of which ("read the team out of the
+  player's own name") exposed a real hole in the fix rather than in the test.
+- `tests/test_combined_page.py` — `all/index.html` in Chromium, fully offline:
+  its own tickets files, the MLB schedule and feed, and ESPN's scoreboard /
+  summary / roster, all from fixtures, with `route.abort()` on anything else
+  so a missed host fails loudly instead of reaching the internet. The checks
+  that matter most: both `normalizeName`s coexisting (A3/A4 -- the seal on the
+  NFL module), a mixed parlay cashing (C3), a hit baseball leg NOT cashing a
+  football bet nobody followed (C4), the slate staying open while either sport
+  is live (D1), an all-NFL card not being an empty slate (E1) and an all-MLB
+  one not waiting on football (G2), both sports' tiles on one wall (H), and
+  the alert path including the flood guard, a dead parlay staying quiet, and
+  an all-football card alerting at all (I/J/K).
+  **Two fixture lessons worth keeping:** every NFL leg carried an explicit
+  market at first, so the sport-default line was never run; and the first
+  drive fixture had the pick already SCORING, which makes him ineligible for a
+  tile anyway, so the drive logic was never exercised and a mutation against
+  it passed.
 - `tests/test_football_parser.py` — football parser (both templates, negative
   odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
   roster builder, and the Discord bot's file-name routing. Fully offline.
@@ -1545,10 +1735,14 @@ on failure:
   break while the copy keeps getting edited. Added once the page became
   auto-maintained rather than static; skipped before that for the opposite
   reason.
-- `tests/test_workflow_yaml.py` — the three `.github/workflows/*.yml` files,
-  read with targeted regexes rather than a YAML parser (no dependency this
-  project doesn't otherwise need; none of the three is complex enough to
-  require one). Checks every `python scripts/X.py` line names a real script,
+- `tests/test_workflow_yaml.py` — the four push-triggered
+  `.github/workflows/*.yml` files, read with targeted regexes rather than a
+  YAML parser (no dependency this project doesn't otherwise need; none of them
+  is complex enough to require one). Adding a workflow to its enumeration
+  earns it every generic check for free; the per-workflow lane checks have to
+  name it, and D2b/D2c are the ones that matter -- a combined card can only
+  ever write `data/combined/tickets*`, and neither single-sport parser can
+  write the combined slate. Checks every `python scripts/X.py` line names a real script,
   every trigger path matches what that script is actually told to parse, and
   -- the one that matters most -- **that no workflow commits a file outside
   its documented lane**: `parse-picks.yml` may only ever touch baseball's own
@@ -1587,6 +1781,7 @@ on failure:
 pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py && python tests/test_steals.py
+python tests/test_combined_parser.py && python tests/test_combined_page.py
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py
@@ -1604,7 +1799,7 @@ this pattern for any nontrivial change rather than shipping unverified.
 
 **`scripts/notify_discord.py`** posts (or edits) a status message in the
 group's Discord intake channel via an incoming webhook (`DISCORD_STATUS_WEBHOOK`,
-a GitHub Actions secret -- both sports share one webhook, one channel).
+a GitHub Actions secret -- all three sports share one webhook, one channel).
 Three subcommands: `success` (summarizes a freshly-written `tickets.json`
 and posts it), `post` (posts fresh text, prints the message id), `edit`
 (PATCHes a message this webhook posted earlier, by id). It never logs,

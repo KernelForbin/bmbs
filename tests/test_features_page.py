@@ -156,6 +156,53 @@ with sync_playwright() as p:
           all(has_topic(baseball_h2, t) for t in topics) and all(has_topic(football_h2, t) for t in topics),
           (baseball_h2, football_h2))
     check("F4 no sideways scroll on a phone", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
+
+    # ---- G. the NFL+MLB tracker is documented too ----
+    # Deliberately NOT folded into F3's topic list: the combined tab has no
+    # History page yet, and this file's whole job is to check the mechanics
+    # under the copy rather than the copy itself.
+    combined_h2 = page.eval_on_selector_all(
+        "#combined-content h2", "els => els.map(e => e.textContent.trim())")
+    check("G1 the combined tracker has its own section", len(combined_h2) >= 4, combined_h2)
+    check("G2 no duplicate heading inside it",
+          len(combined_h2) == len(set(combined_h2)), combined_h2)
+    check("G3 it covers the mixed parlay, the live tiles, the log and the alerts",
+          all(any(t in h.lower() for h in combined_h2)
+              for t in ("both sports", "mix", "live bet tracker", "scoring log", "alert")),
+          combined_h2)
+
+    page.click("#switch-combined")
+    check("G4 clicking its switch shows it and hides the other two",
+          page.is_visible("#combined-content")
+          and not page.is_visible("#baseball-content")
+          and not page.is_visible("#football-content"))
+    check("G5 ...and the back link points at the combined tracker",
+          page.get_attribute("#back-link", "href") == "/all/",
+          page.get_attribute("#back-link", "href"))
+    check("G6 ...and the URL records the choice so it survives a refresh",
+          "sport=combined" in page.url, page.url)
+    check("G7 no script errors from any of that", not errors, errors[:3])
+    browser.close()
+
+# A direct link straight to the combined list, the way the tracker's own
+# footer will arrive here.
+with sync_playwright() as p:
+    browser, page, requests, errors = serve(p)
+    page.goto("http://bmbs.test/features/?sport=combined")
+    check("G8 ?sport=combined opens straight to the combined section",
+          page.is_visible("#combined-content") and not page.is_visible("#baseball-content"))
+    check("G9 ...with its own title and switch already set",
+          page.title() == "What the NFL+MLB Tracker Can Do"
+          and "active" in (page.get_attribute("#switch-combined", "class") or ""),
+          page.title())
+    browser.close()
+
+with sync_playwright() as p:
+    browser, page, requests, errors = serve(p)
+    page.goto("http://bmbs.test/features/?sport=lacrosse")
+    check("G10 an unknown sport falls back to baseball rather than a blank page",
+          page.is_visible("#baseball-content") and not page.is_visible("#combined-content"))
+    check("G11 no script errors on the fallback", not errors, errors[:3])
     browser.close()
 
 print()

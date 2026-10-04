@@ -359,6 +359,26 @@ BULLET_PROP_RE = re.compile(r"^[*\-\u2022\u00b7]\s*(.+?)\s*$")
 # lines are still claimed by that pattern first; this one excludes anything
 # that looks like a ticket/game/footer line so it can never eat one of those.
 BARE_PROP_LINE_RE = re.compile(r"^(?!\s*$)(.+?)\s*$")
+# A price at the END of a leg line, with or without a sign: "... TD +130",
+# "... 2+ TB 145". Deliberately strict about what counts, because this runs on
+# a line that also carries the market and its LINE:
+#   * a signed number is a price, full stop;
+#   * an UNSIGNED one only counts at 100 or more, so the "2" of "2+ TB" and
+#     the "3.5" of "Over 3.5 Runs" can never be mistaken for one;
+#   * never a decimal -- odds are whole numbers, payouts are not, and this
+#     must not eat the "81.87" of a footer that reached here by accident.
+TRAILING_ODDS_RE = re.compile(r"^(.*?)\s+([+-]\d{2,4}|\d{3,4})\s*$")
+
+
+def split_trailing_odds(text):
+    """-> (line without its trailing price, that price as '+130' / None)."""
+    m = TRAILING_ODDS_RE.match(text or "")
+    if not m:
+        return text, None
+    body, num = m.group(1), m.group(2)
+    if not body.strip():
+        return text, None          # the whole line was a number; not a leg
+    return body, num if num[0] in "+-" else f"+{num}"
 # "1+ Total Homers" / "4+ Total Bases" / "2+ Hits" / "5+ Strikeouts".
 # "N+" means at least N, which is an over on N-0.5.
 N_PLUS_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*\+", re.IGNORECASE)
@@ -1483,8 +1503,24 @@ def parse(text, team_by_name, canonical_by_norm):
                     and not GAME_HEADER_RE.match(original)):
                 bare_line = BARE_PROP_LINE_RE.match(original)
                 if bare_line:
-                    leg = read_prop_leg(bare_line.group(1), prop_teams)
+                    # ---- thirteenth template (first seen 2026-10-04) ----
+                    # Same bare "Ticket N" header as the tenth and twelfth,
+                    # but the PRICE sits at the end of each leg line with no
+                    # brackets and no bullet:
+                    #     Barelon Allen Anytime TD +130
+                    #     Mookie Betts 2+ TB 145
+                    #     $8 Pays 81.87
+                    # read_prop_leg() has never looked for odds (templates ten
+                    # and twelve carry none), so every leg came back
+                    # odds=None AND kept the digits glued to the name --
+                    # "Jake Bauers +460" resolves to nobody, which is the
+                    # Tatis Jr. failure mode: no team, never grades either way.
+                    # Taking the price off FIRST fixes both at once.
+                    body, trailing_odds = split_trailing_odds(bare_line.group(1))
+                    leg = read_prop_leg(body, prop_teams)
                     if leg:
+                        if trailing_odds and not leg.get("odds"):
+                            leg["odds"] = trailing_odds
                         current_prop["_legs"].append(leg)
                     continue
 

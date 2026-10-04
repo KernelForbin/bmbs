@@ -926,4 +926,37 @@ assert all(t.get("stake") is None for t in ns_tickets), [t.get("stake") for t in
 print("OK: an unreadable footer costs that ticket its stake, not the whole card")
 
 
+# --- 19. thirteenth template: the price sits at the END of each leg line ---
+# Same bare "Ticket N" header as the tenth and twelfth, but written
+# "Barelon Allen Anytime TD +130" / "Mookie Betts 2+ TB 145". read_prop_leg()
+# has never looked for odds, so every leg came back with odds=None AND the
+# digits still glued to the name -- "Jake Bauers +460" resolves to nobody,
+# which is the Tatis Jr. failure mode: no team, and it never grades either way.
+t13 = (REPO / "tests" / "fixtures" / "sports_bare_ticket_trailing_odds.txt").read_text(encoding="utf-8")
+w13, s13, _ = pp.parse(t13, team_by_name, canon)
+legs13 = [l for w in w13 for t in w["tickets"] for l in t["legs"]] + list(s13)
+assert len(legs13) >= 25, len(legs13)
+priced = [l for l in legs13 if l.get("odds")]
+assert len(priced) >= 24, f"only {len(priced)} of {len(legs13)} legs got a price"
+assert all(str(l["odds"])[0] in "+-" for l in priced), [l["odds"] for l in priced][:5]
+# And the price must come OFF the name, or nothing resolves against the roster.
+glued = [l["player"] for l in legs13 if l["player"].rstrip().rsplit(" ", 1)[-1].lstrip("+-").isdigit()]
+assert not glued, glued
+print(f"OK: trailing odds split off {len(priced)} legs, and off their names")
+
+# The splitter must not eat a market's own LINE. "2+ TB" and "Over 3.5 Runs"
+# both carry small numbers; only a signed price, or an unsigned one of 100+,
+# counts as the price.
+for text, want_body, want_odds in [
+    ("Barelon Allen Anytime TD +130", "Barelon Allen Anytime TD", "+130"),
+    ("Mookie Betts 2+ TB 145", "Mookie Betts 2+ TB", "+145"),
+    ("Jake Bauers 1+ Home Run -110", "Jake Bauers 1+ Home Run", "-110"),
+    ("Matt Olson 2+ Total Bases", "Matt Olson 2+ Total Bases", None),
+    ("Braves Over 3.5 Runs", "Braves Over 3.5 Runs", None),
+]:
+    got = pp.split_trailing_odds(text)
+    assert got == (want_body, want_odds), f"{text!r} -> {got!r}"
+print("OK: a market's own line is never mistaken for its price")
+
+
 print("\nALL PARSER TESTS PASSED")

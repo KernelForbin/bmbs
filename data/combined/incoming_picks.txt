@@ -58,3 +58,14 @@ Lions/Panthers Each team to score all four quarters +500
 Dione Walker (Bills) 1+ Sack +308
 David Bailey (Jets) 1+ Sack +249
 4 pays 510.64
+
+Ticket 12
+- Lions: Score in 1st Quarter
+- Panthers: Score in 1st Quarter
+- Lions: Score in 2nd Quarter
+- Panthers: Score in 2nd Quarter
+- Lions: Score in 3rd Quarter
+- Panthers: Score in 3rd Quarter
+- Lions: Score in 4th Quarter
+- Panthers: Score in 4th Quarter
+Stake: 9.88 | Pays: 84 (Kenny)

@@ -1405,6 +1405,11 @@ with sync_playwright() as p:
     check("U1 the home leadoff man has a batting context before his side has batted",
           bool(ctx) and ctx["slot"] == 1 and ctx["battersAway"] == 0, ctx)
     check("U2 ...and so does a hitter further down", (page.evaluate("liveContextForPlayer('H5')") or {}).get("slot") == 5)
+    # Hockey (2026-10-05): shown, graded by nobody -- the user's call. It must
+    # neither kill nor cash the parlay it sits in, and it must not be graded
+    # as a Rays run line just because it says "Tampa Bay".
+    nhl = page.evaluate("stateForLeg({sport: 'nhl', market: 'puck line +1.5', player: 'Tampa Bay Lightning', team: ''})")
+    check("U4 an NHL leg is untracked, never graded as something else", nhl == "untracked", nhl)
     check("U3 no JavaScript errors", not errors, errors[:3])
     browser.close()
 

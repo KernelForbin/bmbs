@@ -165,7 +165,7 @@ NFL_MARKET_RE = [(k, re.compile(p, re.IGNORECASE)) for k, p in NFL_MARKET_ALIASE
 # Markets that only exist in one sport, used to settle the sport question
 # before anything else is consulted.
 MLB_ONLY_MARKETS = {"hr", "sb", "hrr", "hits", "rbi", "runs", "tb",
-                    "doubles", "k", "er", "win", "f5"}
+                    "doubles", "k", "er", "win", "f5", "xbh", "outs"}
 NFL_ONLY_MARKETS = {m for m, _ in NFL_MARKET_ALIASES} | {"td_count"}
 
 # The first signed 2-4 digit number on a line is the price. Two digits minimum
@@ -189,6 +189,54 @@ LEG_PREFIX_RE = re.compile(
 QUARTER_RE = re.compile(r"\b(1st|2nd|3rd|4th|first|second|third|fourth|q[1-4])\b", re.IGNORECASE)
 QUARTER_NUM = {"1st": 1, "first": 1, "q1": 1, "2nd": 2, "second": 2, "q2": 2,
                "3rd": 3, "third": 3, "q3": 3, "4th": 4, "fourth": 4, "q4": 4}
+
+
+# ---- the 2026-10-05 card's shape ----
+# Every leg a bare count, no "+" and no "Over": "Gavin Williams 9 Strikeouts
+# 259" means 9 or more. Read as written, the 9 was simply lost, and a
+# nine-strikeout bet graded on the first one. Rewritten to "9+" -- the shape
+# both passes already read -- before either sees the card. A team with an
+# UNSIGNED half-point ("Tampa Bay Rays 1.5 240") is the plus side of the
+# run / puck line, given its sign the same way.
+BARE_COUNT_RE = re.compile(r"(?<=[A-Za-z.'])\s+(\d{1,3})\s+(?=[A-Za-z])(?!pays?\b)", re.IGNORECASE)
+BARE_SPREAD_RE = re.compile(r"^([A-Za-z][A-Za-z .'&-]*?)\s+(\d+\.5)\s+(\d{2,4})\s*$")
+LEG_TAIL_PRICE_RE = re.compile(r"\s[+-]?\d{2,4}\s*$")
+
+
+def normalize_card(text):
+    out = []
+    for line in text.splitlines():
+        s = line.rstrip()
+        if (LEG_TAIL_PRICE_RE.search(s) and not mlb_parser.BARE_TICKET_RE.match(s)
+                and not re.match(r"^\W*\$?[\d,.]+\s*pays?\b", s, re.IGNORECASE)):
+            m = BARE_SPREAD_RE.match(s)
+            if m:
+                s = f"{m.group(1)} +{m.group(2)} {m.group(3)}"
+            else:
+                s = BARE_COUNT_RE.sub(lambda mm: f" {mm.group(1)}+ ", s, count=1)
+        out.append(s)
+    return "\n".join(out) + ("\n" if text.endswith("\n") else "")
+
+
+# ---- hockey: shown, not tracked (the user's call, 2026-10-05) ----
+# A full NHL team name, or a nickname no NFL or MLB team shares. "Panthers",
+# "Jets" and "Rangers" are deliberately NOT here alone -- each is also an NFL
+# or MLB team -- so they only count with their city. Without this, "Tampa
+# Bay Lightning" was read as the BUCCANEERS (it says Tampa Bay), which also
+# stretched the slate to the Bucs' next game, Thursday.
+NHL_TEAMS_RE = re.compile(
+    r"\b(lightning|bruins|canadiens|maple\s+leafs|red\s+wings|blackhawks|penguins|flyers|"
+    r"capitals|hurricanes|islanders|devils|sabres|senators|oilers|flames|canucks|kraken|"
+    r"golden\s+knights|avalanche|blue\s+jackets|predators|mammoth|utah\s+hockey\s+club|"
+    r"florida\s+panthers|winnipeg\s+jets|new\s+york\s+rangers|"
+    r"(?:dallas\s+)?stars|(?:minnesota\s+)?wild|(?:st\.?\s+louis\s+)?blues|"
+    r"(?:anaheim\s+)?ducks|(?:san\s+jose\s+)?sharks|(?:los\s+angeles\s+|la\s+)kings)\b",
+    re.IGNORECASE)
+
+# A bare "Yards" doesn't say which kind; his POSITION does. A QB's yards are
+# passing, a back's rushing, a receiver's receiving.
+YARDS_BY_POS = {"QB": "pass_yds", "RB": "rush_yds", "FB": "rush_yds",
+                "WR": "rec_yds", "TE": "rec_yds"}
 
 
 def detect_nfl_market(text):
@@ -280,9 +328,37 @@ def decide_sport(cleaned, market, rest_of_line, head_of_line, mlb, nfl, section_
     if mlb_team and not nfl_team:
         return "mlb", f"team {mlb_team} is MLB-only"
 
+    if nfl_team and mlb_team:
+        # Both leagues named, usually through a shared CITY: "Tampa Bay Rays"
+        # is the Bucs' city too, and that tie silently dropped the Rays' run
+        # line. A team word only ONE league uses -- the nickname -- settles it.
+        # A word that is just PART of the other league's longer match is no
+        # evidence: "tampa bay" inside "tampa bay rays" is the Rays' name.
+        text = f"{rest_of_line} {head_of_line}"
+        got_mlb, got_nfl = team_words_in(text, words), team_words_in(text, NFL_TEAM_WORDS)
+        only_mlb = {w for w in got_mlb - set(NFL_TEAM_WORDS) if not any(w in o and w != o for o in got_nfl)}
+        only_nfl = {w for w in got_nfl - set(words) if not any(w in o and w != o for o in got_mlb)}
+        if only_mlb and not only_nfl:
+            return "mlb", f"{sorted(only_mlb)[0]!r} is an MLB team"
+        if only_nfl and not only_mlb:
+            return "nfl", f"{sorted(only_nfl)[0]!r} is an NFL team"
+
     if section_hint:
         return section_hint, "the section heading"
     return None, "nothing on the line says which sport"
+
+
+def team_words_in(text, words):
+    low = f" {str(text).lower()} "
+    return {w for w in words if re.search(rf"(?<![\w]){re.escape(w)}(?![\w])", low)}
+
+
+def pp_key_for(line, odds, tail):
+    """The player string parse_picks will keep for this leg line."""
+    body = (tail if tail is not None else
+            (line[:odds.start()] + line[odds.end():]) if odds else line).strip()
+    leg = mlb_parser.read_prop_leg(LEG_PREFIX_RE.sub("", body).strip(), set())
+    return (leg or {}).get("player") or ""
 
 
 def scan_card(text, mlb, nfl):
@@ -361,6 +437,22 @@ def scan_card(text, mlb, nfl):
         if not odds and tail is None:
             cleaned = candidate      # the subject was never the market
 
+        nhl = NHL_TEAMS_RE.search(candidate)
+        if nhl:
+            # Hockey: shown by name with what the card said, graded by nobody.
+            # A market word the page doesn't know is UNTRACKED there -- unable
+            # to kill or cash anything -- and no team is set, so nothing can
+            # mistake it for the Bucs or the Rays.
+            hm = re.search(r"([+-]\d+(?:\.\d+)?)", candidate)
+            subject = candidate[:hm.start()].strip() if hm else cleaned
+            label = f"puck line {hm.group(1)}" if hm else "nhl"
+            rec = {"sport": "nhl", "market": label, "line": None, "side": None,
+                   "name": subject, "team": "", "why": "an NHL team"}
+            for key in (candidate, subject, cleaned, pp_key_for(line, odds, tail)):
+                if key:
+                    found.setdefault(mlb_parser.normalize_name(key), rec)
+            continue
+
         sport, why = decide_sport(cleaned, market, rest, head, mlb, nfl, section_hint)
         if sport is None:
             # An UNSIGNED trailing number is weak evidence that this was ever
@@ -397,6 +489,16 @@ def scan_card(text, mlb, nfl):
                 cleaned = cleaned[:pm.start()].strip()
         rec = {"sport": sport, "market": market, "line": line_val,
                "side": side_val, "name": cleaned, "why": why}
+        # ALSO under the player string parse_picks will hand back for this
+        # line. For a market it can't place it keeps odd leftovers -- "Kyle
+        # Pitts Receiving Yards" -- which matched no spelling above, so a leg
+        # this pass had read perfectly (Kyle Pitts Sr., ATL, receiving yards
+        # under 29.5) fell back to baseball with a nonsense market.
+        pp_body = (tail if tail is not None else
+                   (line[:odds.start()] + line[odds.end():]) if odds else line).strip()
+        pp_leg = mlb_parser.read_prop_leg(LEG_PREFIX_RE.sub("", pp_body).strip(), set())
+        if pp_leg and pp_leg.get("player"):
+            found.setdefault(mlb_parser.normalize_name(pp_leg["player"]), rec)
         # A TEAM subject, not a player: "Braves Over 3.5 Runs" is the Braves'
         # own runs. Nothing on the player rosters will ever match it, so the
         # leg came back with a blank team and the player-stat `runs` market --
@@ -538,6 +640,9 @@ def scan_card(text, mlb, nfl):
                           f"{nfl['canonical_name_by_norm'].get(near[0], near[0])!r}.", file=sys.stderr)
                     norm = near[0]
             rec["name"] = nfl["canonical_name_by_norm"].get(norm, cleaned)
+            if rec["market"] == "yards":
+                pos = (nfl.get("pos_by_norm") or {}).get(norm, "")
+                rec["market"] = market = YARDS_BY_POS.get(str(pos).upper(), "yards")
             rec["team"] = (nfl["team_by_name"].get(norm)
                            or nfl_team_in(rest) or nfl_team_in(head) or "")
             rec["athleteId"] = nfl.get("id_by_norm", {}).get(norm, "")
@@ -551,6 +656,11 @@ def scan_card(text, mlb, nfl):
         # name -- and for an NFL player it usually will not.
         found[mlb_parser.normalize_name(candidate)] = rec
         found.setdefault(mlb_parser.normalize_name(rec["name"]), rec)
+        # And by name AND market: one man can be on two different bets on the
+        # same card (Cody Bellinger: a home run on Ticket 3, H+R+RBI on Ticket
+        # 8), and keyed on the name alone the first one wins -- his 3+ H+R+RBI
+        # came out with the home run's line, 0.5.
+        found[(mlb_parser.normalize_name(rec["name"]), rec["market"] or "hr")] = rec
         # ...and under the name as the CARD misspelt it, before this pass
         # resolved it. parse_picks strips the market itself but has no fuzzy
         # match on this path, so its leg comes back as the raw typo --
@@ -595,7 +705,11 @@ def apply_sports(windows, singles, found):
     def fix(leg, owner=""):
         nonlocal touched
         norm_player = mlb_parser.normalize_name(leg.get("player") or "")
-        rec = found.get(norm_player)
+        # Name AND market first: the name alone is ambiguous when one man is on
+        # two different bets (see scan_card).
+        rec = found.get((norm_player, leg.get("market") or "hr"))
+        if rec is None:
+            rec = found.get(norm_player)
         if rec is None:
             # The name alone didn't match, so try it alongside the market
             # parse_picks read off the same line. That pair is what separates
@@ -610,6 +724,15 @@ def apply_sports(windows, singles, found):
             return
         touched += 1
         leg["sport"] = rec["sport"]
+        if rec["sport"] == "nhl":
+            # Shown, not graded: its market text says it all ("puck line
+            # +1.5"). A leftover line or team would print twice on the page, or
+            # point a grader at the Bucs or the Rays.
+            leg["market"], leg["player"], leg["team"] = rec["market"], rec["name"], ""
+            leg.pop("line", None); leg.pop("side", None)
+            bits = [b for b in [leg.get("who")] if b]
+            leg["meta"] = " &middot; ".join(["NHL"] + bits)
+            return
         # "2+ Touchdowns" is NOT an anytime-TD bet. The td market grades
         # binary -- did he reach the end zone at all -- so a leg needing two
         # would cash on one, silently, in the group's favour. There is no
@@ -761,6 +884,7 @@ def archive_previous_slate(new_date, out_path, prev_path):
 
 def build(text, mlb, nfl, now, fetcher=None):
     """The whole pipeline, as a pure-ish function so the tests can drive it."""
+    text = normalize_card(text)
     found, warnings = scan_card(text, mlb, nfl)
     windows, singles, _raw = mlb_parser.parse(
         text, mlb["team_by_name"], mlb["canonical_name_by_norm"])
@@ -770,7 +894,7 @@ def build(text, mlb, nfl, now, fetcher=None):
 
     apply_sports(windows, singles, found)
     legs = [l for w in windows for t in w["tickets"] for l in t["legs"]] + list(singles)
-    by_sport = {"mlb": 0, "nfl": 0}
+    by_sport = {"mlb": 0, "nfl": 0, "nhl": 0}
     for leg in legs:
         by_sport[leg.get("sport", "mlb")] += 1
 

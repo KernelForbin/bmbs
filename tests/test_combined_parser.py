@@ -354,9 +354,12 @@ check("M8 a sack prop is named rather than left unknown, under his real name",
 check("M8b ...resolved to the roster, team and athlete id together",
       by.get("Deone Walker", {}).get("team") == "BUF"
       and by.get("Deone Walker", {}).get("athleteId"), by.get("Deone Walker"))
-check("M9 a bare 'Yards' is a yardage prop on the right sport, not an unknown "
-      "BASEBALL market -- the card doesn't say which kind and neither do we",
-      by.get("Jeremiyah Love", {}).get("market") == "yards"
+# The card doesn't say which kind -- his POSITION does (2026-10-05). It used to
+# stay a bare, ungradeable "yards", and the user had to say "Jeremiyah Love is
+# rushing yards" by hand; a back's yards are rushing.
+check("M9 a bare 'Yards' is a yardage prop on the right sport, read by position: "
+      "a running back's are rushing",
+      by.get("Jeremiyah Love", {}).get("market") == "rush_yds"
       and by.get("Jeremiyah Love", {}).get("sport") == "nfl", by.get("Jeremiyah Love"))
 
 # A typo in a football name gets the same 0.82 fuzzy treatment baseball has
@@ -557,6 +560,60 @@ check("N8 the all-four-quarters wording is still its own bet, not one quarter",
       and cp.detect_nfl_market("Score in 2nd Quarter")[0] == "q_score"
       and cp.detect_nfl_market("scores in Q3")[0] == "q_score")
 
+
+
+# ================= O. the 2026-10-05 card: bare counts, no "+" =================
+# Every leg written as a bare count with an unsigned price -- "Gavin Williams 9
+# Strikeouts 259" -- so the 9 was lost and a nine-strikeout bet would have
+# graded on the first one. Also: "3 H R Rbi" without its plus signs, a receiving
+# yards UNDER that joined to nothing and fell back to baseball, a pitcher's
+# OUTS, EXTRA BASE HITS, an unsigned run line, a bare "Yards", the same man on
+# two different bets, and an NHL leg read as the Buccaneers. The real upload.
+BARE = (REPO / "tests" / "fixtures" / "sports_bare_count_format.txt").read_text(encoding="utf-8")
+out12 = cp.build(BARE, MLB, NFL, NOW, no_network)
+bl = [l for w in out12["windows"] for t in w["tickets"] for l in t["legs"]]
+def find(player, market=None):
+    return next((l for l in bl if l["player"] == player and (market is None or l.get("market") == market)), {})
+check("O1 the whole card parses: 10 tickets, 24 legs, nothing unread",
+      sum(len(w["tickets"]) for w in out12["windows"]) == 10 and len(bl) == 24 and out12["note"] == "",
+      (len(bl), out12["note"]))
+check("O2 a bare count is AT LEAST that many: '9 Strikeouts' is over 8.5",
+      find("Gavin Williams").get("market") == "k" and find("Gavin Williams").get("line") == 8.5, find("Gavin Williams"))
+check("O3 '3 H R Rbi', no plus signs, is H+R+RBI over 2.5",
+      find("Kyle Teel").get("market") == "hrr" and find("Kyle Teel").get("line") == 1.5
+      and [l.get("line") for l in bl if l.get("market") == "hrr" and l["player"] != "Kyle Teel"] == [2.5, 2.5],
+      [(l["player"], l.get("market"), l.get("line")) for l in bl if l.get("market") == "hrr"])
+check("O4 an NFL receiving-yards UNDER is football, with its line and side",
+      find("Kyle Pitts Sr.").get("sport") == "nfl" and find("Kyle Pitts Sr.").get("market") == "rec_yds"
+      and find("Kyle Pitts Sr.").get("line") == 29.5 and find("Kyle Pitts Sr.").get("side") == "under", find("Kyle Pitts Sr."))
+check("O5 a pitcher's outs: 'Over 14.5 Outs'",
+      find("Freddy Peralta").get("market") == "outs" and find("Freddy Peralta").get("line") == 14.5, find("Freddy Peralta"))
+check("O6 extra-base hits are their own market, not plain hits, and the player resolves",
+      find("Chase DeLauter").get("market") == "xbh" and find("Chase DeLauter").get("team"), find("Chase DeLauter"))
+check("O7 an unsigned team half-point is the plus side of the run line, on the Rays (not the Bucs)",
+      find("Tampa Bay Rays").get("market") == "spread" and find("Tampa Bay Rays").get("line") == 1.5
+      and find("Tampa Bay Rays").get("team") == "TB" and find("Tampa Bay Rays").get("sport") == "mlb", find("Tampa Bay Rays"))
+check("O8 a bare 'Yards' is read by position: a QB's are passing, a receiver's receiving",
+      find("Michael Penix Jr.").get("market") == "pass_yds" and find("Michael Penix Jr.").get("line") == 249.5
+      and find("Devaughn Vele", "rec_yds").get("line") == 59.5,
+      (find("Michael Penix Jr."), find("Devaughn Vele", "rec_yds")))
+check("O9 one man on two different bets keeps each its own line -- Bellinger's HR, and his 3+ H+R+RBI",
+      find("Cody Bellinger", "hrr").get("line") == 2.5 and find("Cody Bellinger").get("market") in (None, "hr"),
+      [(l.get("market"), l.get("line")) for l in bl if l["player"] == "Cody Bellinger"])
+lt = find("Tampa Bay Lightning")
+check("O10 the NHL leg is shown as hockey and graded by nobody: no team to mistake for the Bucs or Rays",
+      lt.get("sport") == "nhl" and lt.get("market") == "puck line +1.5" and not lt.get("team") and "line" not in lt, lt)
+check("O11 ...so the slate is today only -- the Bucs' Thursday game is not on this card",
+      out12["date"] == out12["endDate"], (out12["date"], out12["endDate"]))
+_untouched = "Ticket 4\n8 pays 96.91\n5 Pays 228.46\n"
+check("O12 the rewrite never touches a footer or a header",
+      cp.normalize_card(_untouched) == _untouched, cp.normalize_card(_untouched))
+_untouched = "A B 2+ Hits 150\nC D Over 14.5 Outs 189\n"
+check("O13 ...or a count that already says '+', or a decimal line",
+      cp.normalize_card(_untouched) == _untouched, cp.normalize_card(_untouched))
+check("O14 a team word only ONE league uses breaks a shared-city tie",
+      cp.decide_sport("Tampa Bay Rays", "spread", "", "Tampa Bay Rays +1.5", MLB, NFL, None)[0] == "mlb"
+      and cp.decide_sport("Tampa Bay Buccaneers", "spread", "", "Tampa Bay Buccaneers +3.5", MLB, NFL, None)[0] == "nfl")
 
 print()
 if failures:

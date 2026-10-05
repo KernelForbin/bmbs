@@ -586,11 +586,11 @@ with sync_playwright() as p:
         f = game(BASE + [play(50, "Up Now", False, COUNT_1_2, balls=1, strikes=2)] + list(extra_plays),
                  "Bottom", 1, "Up Now")
         set_bat(f, "On Deck", hits=on_deck_hits)
-        set_bat(f, "In Hole", hits=1)
+        set_bat(f, "In Hole", hits=1, doubles=1)
         set_bat(f, "Home 5", hits=0)
         set_bat(f, "Home 6", hits=0)
         f["liveData"]["boxscore"]["teams"]["home"]["players"]["IDP"] = {
-            "person": {"fullName": "Ace Arm"}, "stats": {"pitching": {"strikeOuts": 4, "earnedRuns": 1}}}
+            "person": {"fullName": "Ace Arm"}, "stats": {"pitching": {"strikeOuts": 4, "earnedRuns": 1, "outs": 16}}}
         return f
 
     FX["feed"] = aa_feed()
@@ -664,6 +664,19 @@ with sync_playwright() as p:
           bool(timed[0]) and timed[0]["t"] == int(NOW.timestamp() * 1000) and not timed[0]["approx"], timed[0])
     check("AA18 ...and a line the plays never reached gets no exact time (a single is 1 total base, not 2)",
           timed[1] is None or timed[1]["approx"], timed[1])
+
+    # Two markets first seen on the 2026-10-05 card: extra-base hits (doubles +
+    # triples + homers) off the batting line, a pitcher's OUTS off the pitching
+    # line. "Over 14.5 Outs" with 16 recorded is a hit.
+    graded = page.evaluate("""() => [
+        stateForLeg({player: 'In Hole', market: 'xbh', line: 0.5}),
+        stateForLeg({player: 'On Deck', market: 'xbh', line: 0.5}),
+        stateForLeg({player: 'Ace Arm', market: 'outs', line: 14.5}),
+        stateForLeg({player: 'Ace Arm', market: 'outs', line: 16.5})]""")
+    check("AA19 extra-base hits count a double; a man with only singles isn't there yet",
+          graded[0] == "hit" and graded[1] == "live", graded)
+    check("AA20 a pitcher's outs come off his PITCHING line: 16 clears 14.5, not 16.5",
+          graded[2] == "hit" and graded[3] == "live", graded)
 
     advance(page, 15)
     left = [t["player"] for t in tiles(page) if t["tag"] in ("HIT", "CASHED")]

@@ -388,12 +388,15 @@ CARD_MARKET_WORDS = [
     # hrr BEFORE hits: "3+ Hits+Runs+RBIs" otherwise matches the bare `hits`
     # alias and grades as a hits prop. er/win BEFORE runs, for the same
     # reason "Home Runs" has to beat "Runs".
-    ("hrr",    r"h\s*\+\s*r\s*\+\s*rbi|hits?\s*\+\s*runs?\s*\+\s*rbis?"),
+    ("hrr",    r"\bh\s*\+?\s*r\s*\+?\s*rbis?\b|hits?\s*\+\s*runs?\s*\+\s*rbis?"),
     ("er",     r"\bER\b|earned\s+runs?"),
     ("win",    r"to\s+get\s+the\s+win|\bpitcher\s+win\b|\bfor\s+the\s+win\b"),
     ("hr",     r"total\s+homers?|home\s+runs?\b|\bhr\b"),
     ("tb",     r"total\s+bases\b"),
     ("k",      r"strikeouts?\b|\bks?\b"),
+    # BEFORE doubles and hits: "Extra Base Hits" contains the word hits.
+    ("xbh",    r"extra[\s-]*base\s*hits?|\bxbh\b"),
+    ("outs",   r"\bouts\s+recorded\b|\bpitching\s+outs\b|\bouts\b"),
     ("doubles", r"\bdoubles?\b"),
     ("hits",   r"\bhits?\b"),
     ("rbi",    r"\brbis?\b"),
@@ -806,7 +809,7 @@ SB_MARK_RE = re.compile(
 # PARLAY_HEADER_RE trap: a later pattern must not match a line an earlier one
 # owns. Add new markets in specificity order, never alphabetically.
 MARKET_ALIASES = [
-    ("hrr",     r"h\s*\+\s*r\s*\+\s*rbi|hits?\s*\+\s*runs?\s*\+\s*rbis?"),
+    ("hrr",     r"\bh\s*\+?\s*r\s*\+?\s*rbis?\b|hits?\s*\+\s*runs?\s*\+\s*rbis?"),
     # BEFORE "runs": "earned runs" contains the word, and an alias table is
     # read in order. Same trap "Home Runs" hit.
     ("er",      r"\bER\b|earned\s+runs?"),
@@ -816,6 +819,11 @@ MARKET_ALIASES = [
     ("hr",      r"home\s+runs?|total\s+homers?|\bhr\b|to\s+go\s+deep"),
     ("tb",      r"total\s+bases|tot\s*bases|\bTB\b"),
     ("sb",      r"\bsb\b|stolen\s+bases?|steals?"),
+    # Extra-base hits (doubles + triples + homers), BEFORE doubles/hits whose
+    # words it contains; a pitcher's outs recorded. Both first seen on the
+    # 2026-10-05 card.
+    ("xbh",     r"extra[\s-]*base\s*hits?|\bxbh\b"),
+    ("outs",    r"\bouts\s+recorded\b|\bpitching\s+outs\b|\bouts\b"),
     ("doubles", r"\bdoubles?\b"),
     ("k",       r"strikeouts?\b"),
     ("hits",    r"\bhits?\b"),

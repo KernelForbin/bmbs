@@ -1124,7 +1124,8 @@ async function getGameSnapshot(gamePk) {
       if (pitching && typeof pitching.strikeOuts === "number") {
         pitchStats.set(norm, { strikeOuts: pitching.strikeOuts || 0,
                                earnedRuns: pitching.earnedRuns || 0,
-                               wins: pitching.wins || 0 });
+                               wins: pitching.wins || 0,
+                               outs: pitching.outs || 0 });
       }
       if (batting) {
         // The raw batting line, for stat props (H+R+RBI, hits, RBI, runs,
@@ -1570,6 +1571,12 @@ const MARKETS = {
   runs:   { label: "RUNS",        subject: "player", grade: leg => stateForStatProp(leg, ["runs"]) },
   tb:     { label: "TOTAL BASES", subject: "player", grade: leg => stateForStatProp(leg, ["totalBases"]) },
   doubles: { label: "DOUBLES",   subject: "player", grade: leg => stateForStatProp(leg, ["doubles"]) },
+  // Extra-base hits (doubles + triples + homers) and a pitcher's outs
+  // recorded -- both first on the 2026-10-05 card, both off lines the feed
+  // already carries.
+  xbh:    { label: "EXTRA BASE HITS", subject: "player", grade: leg => stateForStatProp(leg, ["doubles", "triples", "homeRuns"]) },
+  outs:   { label: "OUTS",       subject: "player", pitching: true,
+            grade: leg => stateForStatProp(leg, ["outs"], true) },
   k:      { label: "STRIKEOUTS", subject: "player", pitching: true,
             grade: leg => stateForStatProp(leg, ["strikeOuts"], true) },
   // Earned runs charged to a pitcher, and whether he got the decision. Both
@@ -2857,7 +2864,7 @@ function zoneGridHtml(zone) {
 // only ever show a number that means nothing.
 const LIVE_TILE_KIND = {
   hr: "bat", sb: "base", hrr: "bat", hits: "bat", rbi: "bat", runs: "bat",
-  tb: "bat", doubles: "bat", k: "mound", er: "mound", win: "mound",
+  tb: "bat", doubles: "bat", xbh: "bat", k: "mound", er: "mound", win: "mound", outs: "mound",
   ml: "game", spread: "game", total: "game", f5: "game",
 };
 function liveTileKind(leg) { return LIVE_TILE_KIND[legMarket(leg)] || null; }
@@ -2868,7 +2875,7 @@ function liveTileKind(leg) { return LIVE_TILE_KIND[legMarket(leg)] || null; }
 const MARKET_STATS = {
   hrr: ["hits", "runs", "rbi"], hits: ["hits"], rbi: ["rbi"], runs: ["runs"],
   tb: ["totalBases"], doubles: ["doubles"], hr: ["homeRuns"], k: ["strikeOuts"],
-  er: ["earnedRuns"], win: ["wins"],
+  er: ["earnedRuns"], win: ["wins"], xbh: ["doubles", "triples", "homeRuns"], outs: ["outs"],
 };
 
 // "2 of 3 total bases" -- where a counting bet actually stands right now.
@@ -4227,6 +4234,7 @@ function playCount(market, p, names) {
     case "hits": return bat && TB_FOR[p.ev] ? 1 : 0;
     case "tb": return bat ? (TB_FOR[p.ev] || 0) : 0;
     case "doubles": return bat && p.ev === "double" ? 1 : 0;
+    case "xbh": return bat && TB_FOR[p.ev] > 1 ? 1 : 0;
     case "hr": return bat && p.ev === "home_run" ? 1 : 0;
     case "rbi": return bat ? (p.rbi || 0) : 0;
     case "runs": return scored;
@@ -4282,7 +4290,7 @@ function legHitTime(leg) {
       if (sub) return exact(Date.parse(sub.time));
     }
   }
-  if (["hits", "tb", "doubles", "hr", "rbi", "runs", "hrr", "k"].includes(m)) {
+  if (["hits", "tb", "doubles", "xbh", "hr", "rbi", "runs", "hrr", "k"].includes(m)) {
     const t = whenCountReached(plays, need, p => playCount(m, p, names));
     if (t) return exact(t);
   }

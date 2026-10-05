@@ -1362,6 +1362,31 @@ but when the bettor IS the owner the footer already names ("bet by Kenny"),
 it's left off -- eight legs all saying Kenny was noise. `who` stays on the leg
 for the Bettor Tracker. N4b.
 
+**The 2026-10-05 card: bare counts** (`tests/fixtures/sports_bare_count_format.txt`,
+`test_combined_parser.py` O). Every leg a bare count with an unsigned price --
+"Gavin Williams 9 Strikeouts 259" -- and it parsed "successfully" with half
+its legs wrong: lines lost (a 9-strikeout bet would have graded on the first),
+"3 H R Rbi" read as RBI, a receiving-yards UNDER fallen back to baseball, an
+unsigned run line dropped, an NHL leg read as the Buccaneers (which also
+stretched the slate to Thursday). Fixed by:
+- `normalize_card()`: a bare count becomes "N+", an unsigned team half-point
+  "+1.5", BEFORE either pass reads the card. Footers and headers untouched.
+- Joining on the player string parse_picks itself keeps (`pp_key_for`), which
+  for a market it can't place is an odd leftover ("Kyle Pitts Receiving
+  Yards"); and looking up name+MARKET before name alone, since one man on two
+  bets (Bellinger: HR, and 3+ H+R+RBI) otherwise got the first one's line.
+- A shared-city tie ("Tampa Bay") broken by a nickname only one league uses.
+- `xbh` (extra-base hits) and `outs` (a pitcher's outs recorded): new markets
+  on both pages and in `record_results.py`, off lines the feed already carries.
+- A bare "Yards" read by POSITION (`pos_by_norm`): QB passing, RB rushing,
+  WR/TE receiving.
+- **Hockey is shown, not tracked** (the user's call): sport `nhl`, a market
+  the page doesn't know ("puck line +1.5") so it grades `untracked`, and NO
+  team, so nothing can mistake it for the Bucs or the Rays.
+- Discord said "now LIVE" while the site still showed yesterday: the parse had
+  committed, but GitHub Pages' deploy sat queued for 10+ minutes. The ping
+  fires on the commit, not the deploy.
+
 **No real `sports_` card has arrived yet.** `tests/fixtures/sports_combined_format.txt`
 is written to the shape the generator currently emits, not observed -- treat
 the first real one as a template incident exactly as with the other two

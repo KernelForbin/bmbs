@@ -403,6 +403,23 @@ check("J19 ...but a miss anywhere still kills it, which is certain", out2 == "de
 
 
 print()
+# ---- extra-base hits and a pitcher's outs (first on the 2026-10-05 card) ----
+# Mirrors of the page's two new graders: doubles + triples + homers off the
+# batting line, outs recorded off the pitching line.
+_xf = market_feed()
+for _side in _xf["liveData"]["boxscore"]["teams"].values():
+    for _pl in _side["players"].values():
+        if _pl["person"]["fullName"] == "The Arm":
+            _pl["stats"]["pitching"]["outs"] = 16
+R2 = rr.poll_slate("2026-09-18", market_fetcher(_xf))
+check("K1 an extra-base-hits leg counts a double", rr.grade_market(R2, {"player": "Two Hits", "team": "AAA", "market": "xbh", "line": 0.5})[0] == "hit")
+check("K2 ...and a single isn't one -- final, so a miss",
+      rr.grade_market(R2, {"player": "One Hit", "team": "AAA", "market": "xbh", "line": 0.5})[0] == "miss")
+check("K3 a pitcher's outs are read off the PITCHING line: 16 clears 14.5",
+      rr.grade_market(R2, {"player": "The Arm", "team": "AAA", "market": "outs", "line": 14.5})[0] == "hit",
+      rr.grade_market(R2, {"player": "The Arm", "team": "AAA", "market": "outs", "line": 14.5}))
+check("K4 ...and 16 doesn't clear 16.5", rr.grade_market(R2, {"player": "The Arm", "team": "AAA", "market": "outs", "line": 16.5})[0] == "miss")
+
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))
     sys.exit(1)

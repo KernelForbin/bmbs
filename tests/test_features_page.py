@@ -65,23 +65,29 @@ for el_id in REQUIRED_IDS:
 
 
 with sync_playwright() as p:
-    # ---------------- B. default state: baseball, on load, no query string ----------------
+    # ---------------- B. default state: All Sports, on load, no query string ----------------
+    # Since 2026-10-05 the All Sports tracker IS the front page and MLB / NFL
+    # are hidden, so this page opens on All Sports and its switch is hidden.
     browser, page, requests, errors = serve(p)
-    check("B1 baseball content is shown by default", page.is_visible("#baseball-content"))
-    check("B2 football content is hidden by default", not page.is_visible("#football-content"))
-    check("B3 the baseball switch reads as active", "active" in page.get_attribute("#switch-baseball", "class"))
-    check("B4 the football switch does not", "active" not in page.get_attribute("#switch-football", "class"))
-    check("B5 page title matches the baseball tracker", page.title() == "What the BMBS Tracker Can Do", page.title())
-    check("B6 the back link points at the live baseball tracker", page.get_attribute("#back-link", "href") == "/")
+    check("B1 the All Sports content is shown by default", page.is_visible("#combined-content"))
+    check("B2 baseball and football content are hidden by default",
+          not page.is_visible("#football-content") and not page.is_visible("#baseball-content"))
+    check("B3 the switch itself is hidden -- MLB and NFL are not offered", not page.is_visible(".sport-switch"))
+    check("B4 the All Sports switch reads as active underneath", "active" in page.get_attribute("#switch-combined", "class"))
+    check("B5 page title names the tracker", page.title() == "What the BMBS Tracker Can Do", page.title())
+    check("B6 the back link points at the front page", page.get_attribute("#back-link", "href") == "/")
     browser.close()
 
     # ---------------- C. the toggle, both directions ----------------
     browser, page, requests, errors = serve(p)
-    page.click("#switch-football")
+    # The switch is hidden, but its buttons still drive the page (and the
+    # hidden trackers' footers deep-link into these sections), so the
+    # mechanics are exercised by clicking them from script.
+    page.evaluate("document.getElementById('switch-football').click()")
     page.wait_for_timeout(50)
-    check("C1 football content shows, baseball hides", page.is_visible("#football-content") and not page.is_visible("#baseball-content"))
-    check("C2 the football switch is now active, baseball isn't",
-          "active" in page.get_attribute("#switch-football", "class") and "active" not in page.get_attribute("#switch-baseball", "class"))
+    check("C1 football content shows, All Sports hides", page.is_visible("#football-content") and not page.is_visible("#combined-content"))
+    check("C2 the football switch is now active, All Sports isn't",
+          "active" in page.get_attribute("#switch-football", "class") and "active" not in page.get_attribute("#switch-combined", "class"))
     check("C3 the URL picks up ?sport=football via replaceState (no reload)",
           page.url == ORIGIN + "/features/?sport=football" and len(requests) == sum(1 for u in requests if "fonts.g" in u) + 1,
           page.url)
@@ -89,12 +95,17 @@ with sync_playwright() as p:
     check("C5 the back link now points at the football tracker", page.get_attribute("#back-link", "href") == "/football/")
     check("C6 the footer's data-source line switches to ESPN", "ESPN" in page.inner_text("#footer-source"))
 
-    page.click("#switch-baseball")
+    page.evaluate("document.getElementById('switch-combined').click()")
     page.wait_for_timeout(50)
-    check("C7 toggling back to baseball clears ?sport from the URL", page.url == ORIGIN + "/features/", page.url)
+    check("C7 toggling back to All Sports clears ?sport from the URL", page.url == ORIGIN + "/features/", page.url)
     check("C8 ...and everything else reverts with it",
-          page.is_visible("#baseball-content") and page.title() == "What the BMBS Tracker Can Do"
-          and page.get_attribute("#back-link", "href") == "/" and "MLB" in page.inner_text("#footer-source"))
+          page.is_visible("#combined-content") and page.title() == "What the BMBS Tracker Can Do"
+          and page.get_attribute("#back-link", "href") == "/" and "MLB and ESPN" in page.inner_text("#footer-source"))
+    page.evaluate("document.getElementById('switch-baseball').click()")
+    page.wait_for_timeout(50)
+    check("C9 the baseball section points back at the hidden MLB tracker, now at /mlb/",
+          page.is_visible("#baseball-content") and page.get_attribute("#back-link", "href") == "/mlb/"
+          and page.title() == "What the MLB Tracker Can Do", (page.get_attribute("#back-link", "href"), page.title()))
     browser.close()
 
     # ---------------- D. deep-linking straight to ?sport=football ----------------
@@ -124,8 +135,7 @@ with sync_playwright() as p:
 
     # ---------------- E. isolation: this is a content page, not a tracker ----------------
     browser, page, requests, errors = serve(p)
-    page.click("#switch-football")
-    page.click("#switch-baseball")
+    page.evaluate("document.getElementById('switch-football').click(); document.getElementById('switch-baseball').click()")
     page.wait_for_timeout(100)
     asked = sorted(set(u for u in requests if "fonts.g" not in u))
     check("E1 the page never asks for anything but itself -- no MLB, no ESPN, no tickets/history files",
@@ -166,21 +176,23 @@ with sync_playwright() as p:
     check("G1 the combined tracker has its own section", len(combined_h2) >= 4, combined_h2)
     check("G2 no duplicate heading inside it",
           len(combined_h2) == len(set(combined_h2)), combined_h2)
-    check("G3 it covers the mixed parlay, the live tiles, the log and the alerts",
+    check("G3 it covers the mixed parlay, the live tiles and the alerts",
           all(any(t in h.lower() for h in combined_h2)
-              for t in ("every sport", "mix", "live bet tracker", "scoring log", "alert")),
+              for t in ("every sport", "mix", "live bet tracker", "alert")),
           combined_h2)
 
-    page.click("#switch-combined")
+    page.evaluate("document.getElementById('switch-baseball').click(); document.getElementById('switch-combined').click()")
+    check("G3b the Scoring Log is hidden on the page, so it isn't listed as a feature",
+          not any("scoring log" in h.lower() for h in combined_h2), combined_h2)
     check("G4 clicking its switch shows it and hides the other two",
           page.is_visible("#combined-content")
           and not page.is_visible("#baseball-content")
           and not page.is_visible("#football-content"))
     check("G5 ...and the back link points at the combined tracker",
-          page.get_attribute("#back-link", "href") == "/all/",
+          page.get_attribute("#back-link", "href") == "/",
           page.get_attribute("#back-link", "href"))
-    check("G6 ...and the URL records the choice so it survives a refresh",
-          "sport=combined" in page.url, page.url)
+    check("G6 ...and the URL needs no ?sport for it -- it is the default",
+          "sport=" not in page.url, page.url)
     check("G7 no script errors from any of that", not errors, errors[:3])
     browser.close()
 
@@ -192,7 +204,7 @@ with sync_playwright() as p:
     check("G8 ?sport=combined opens straight to the combined section",
           page.is_visible("#combined-content") and not page.is_visible("#baseball-content"))
     check("G9 ...with its own title and switch already set",
-          page.title() == "What the All Sports Tracker Can Do"
+          page.title() == "What the BMBS Tracker Can Do"
           and "active" in (page.get_attribute("#switch-combined", "class") or ""),
           page.title())
     browser.close()
@@ -200,8 +212,8 @@ with sync_playwright() as p:
 with sync_playwright() as p:
     browser, page, requests, errors = serve(p)
     page.goto("http://bmbs.test/features/?sport=lacrosse")
-    check("G10 an unknown sport falls back to baseball rather than a blank page",
-          page.is_visible("#baseball-content") and not page.is_visible("#combined-content"))
+    check("G10 an unknown sport falls back to All Sports rather than a blank page",
+          page.is_visible("#combined-content") and not page.is_visible("#baseball-content"))
     check("G11 no script errors on the fallback", not errors, errors[:3])
     browser.close()
 

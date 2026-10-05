@@ -18,7 +18,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
-PAGE = REPO / "all" / "index.html"
+PAGE = REPO / "index.html"     # the front page since 2026-10-05 (was all/index.html)
 
 DAY = "2026-10-04"
 NEXT = "2026-10-05"
@@ -458,17 +458,31 @@ FX["espn_summaries"]["9002"] = espn_summary(
 
 with sync_playwright() as p:
     browser, page, errors = open_page(p)
-    # The icon span is an emoji; reading it back through a Windows console
-    # raises rather than failing the check, so take only the label node.
-    sports = page.eval_on_selector_all(
-        ".sport-switch .sport", "els => els.map(e => e.lastChild.textContent.trim())")
-    check("F1 the sport switch offers all three trackers", sports == ["MLB", "NFL", "ALL SPORTS"], sports)
-    check("F2 this page is the one marked active",
-          page.get_attribute(".sport-switch .sport.active", "href") == "/all/")
-    check("F3 the title names the combined tracker",
-          page.inner_text("h1") == "BMBS Tracker — All Sports", page.inner_text("h1"))
-    check("F4 the eyebrow says where the data comes from",
-          "MLB + ESPN" in page.inner_text("#eyebrow-text"), page.inner_text("#eyebrow-text"))
+    # The FRONT PAGE since 2026-10-05 (the user's call): All Sports is bmbs.bet
+    # itself, MLB and NFL are hidden, and with one tab left the switch is too.
+    switch = page.eval_on_selector(".sport-switch", "e => getComputedStyle(e).display")
+    hrefs = page.eval_on_selector_all("a[href]", "els => els.map(e => e.getAttribute('href'))")
+    check("F1 the sport switch is hidden -- every other tracker is reachable by URL only", switch == "none", switch)
+    check("F2 ...and nothing on the page links a hidden tracker",
+          not [h for h in hrefs if h.split("?")[0] in ("/mlb/", "/football/", "/hockey/", "/basketball/", "/wnba/", "/cfb/", "/all/")],
+          hrefs)
+    check("F3 the title is just the tracker's name", page.inner_text("h1") == "BMBS Tracker"
+          and page.title() == "BMBS Tracker", (page.inner_text("h1"), page.title()))
+    check("F4 the eyebrow says it updates live, naming no data source",
+          page.inner_text("#eyebrow-text") == "TODAY'S SLATE · UPDATED LIVE", page.inner_text("#eyebrow-text"))
+    # Hidden, not removed: every panel's code still runs, so unhiding one is
+    # deleting a single class.
+    shown = page.evaluate("""() => Object.fromEntries([['legs', '#chip-leg-live'], ['log', '#hrlog-section'],
+        ['bettors', '#bettor-section']].map(([k, sel]) => [k, document.querySelector(sel).getClientRects().length > 0]))""")
+    check("F5 the LEGS row, the Scoring Log and the Bettor Tracker are hidden", shown == {"legs": False, "log": False, "bettors": False}, shown)
+    alive = page.evaluate("""() => [document.getElementById('count-leg-live').textContent,
+        document.getElementById('bettor-list').innerHTML.length > 0, typeof renderHrLog === 'function']""")
+    check("F6 ...and still running underneath: leg counts kept, Bettor Tracker rows built, the log's renderer there",
+          alive[0] not in ("", None) and alive[1] is True and alive[2] is True, alive)
+    page.evaluate("toggleLiveAb()")
+    sub = page.inner_text("#liveab-sub")
+    check("F7 the tracker's sub-line names no sport: no 'Gameday', no 'at the plate'",
+          "Gameday" not in sub and "plate" not in sub and "updates every" in sub.lower(), sub)
     browser.close()
 
 # ---------- G. a combined card with no football on it ----------

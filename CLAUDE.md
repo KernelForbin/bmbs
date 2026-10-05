@@ -3,6 +3,45 @@
 A live-tracking site for a friend group's home run parlay/prop pool. Static
 site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
 
+## READ FIRST: the site was rearranged on 2026-10-05
+
+The user's call: **the All Sports tracker is the site's front page and every
+single-sport tracker is hidden.**
+
+| URL | File | What |
+|---|---|---|
+| `/` | `index.html` | **All Sports** -- titled plain "BMBS Tracker". Was `all/index.html`. |
+| `/all/` | `all/index.html` | redirect stub to `/` (query + hash kept), like `features.html` |
+| `/mlb/` | `mlb/index.html` | the MLB tracker, HIDDEN. Was the root `index.html`. |
+| `/football/`, `/hockey/`, `/basketball/`, `/wnba/`, `/cfb/` | as named | HIDDEN single-sport trackers |
+
+**Most of this file predates the move.** Where it says `index.html` meaning the
+MLB page (its grading, FEED_FIELDS, Pinch Hit Protection, the test files that
+load it), read **`mlb/index.html`**; where it says `all/index.html` / "the
+combined page" / "the NFL+MLB tab", read the root **`index.html`**. The MLB
+page's data paths became `../data/...`; the All Sports page's were already
+`../data/combined/...`, which resolves the same from `/`. The tests kept their
+URLs and only changed which FILE they serve, for the same reason.
+
+- **Hidden** = in no visible page's markup. The front page's sport switch is
+  `display:none` with only its own tab left; each hidden page's switch shows
+  itself and ALL SPORTS (`/`). Hidden pages don't link each other.
+  `test_combined_page.py` F1/F2 pin the front page; each hidden tracker's own
+  test pins that nothing links it.
+- **Three panels on the front page are hidden, not removed**: the LEGS chip
+  row, the Scoring Log and the Bettor Tracker carry `class="hidden-panel"`
+  (`display:none !important`); every line of code behind them still runs.
+  Unhiding one = deleting that class. F5/F6 pin both halves.
+- Front-page wording: the eyebrow reads "TODAY'S SLATE · UPDATED LIVE", and the
+  Live Bet Tracker's sub-line names no sport ("Your picks in live games...",
+  "N in action, M up next") -- it used to say "at the plate" and "Gameday"
+  over football, hockey and basketball tiles too.
+- `/features/` opens on All Sports with its switch hidden; `?sport=baseball` /
+  `?sport=football` still work (the hidden pages' footers use them), and the
+  All Sports section no longer lists the hidden Scoring Log or Bettor Tracker.
+- Discord links: All Sports -> `https://bmbs.bet/`, MLB -> `https://bmbs.bet/mlb/`
+  (`notify_discord.py` SITE_URL, the bot's ROUTES -- the bot needs a restart).
+
 **The two sports are called MLB and NFL on screen** (renamed from "Baseball"
 and "Football", 2026-10-04 -- it's what the group says). Labels ONLY: the
 `/football/` and `data/football/` paths, the `?sport=football` query param a
@@ -19,10 +58,14 @@ tracker", "The WNBA tracker" and "The college-football tracker" below.
 
 ## Architecture
 
-- **`index.html`** — the entire live site. Single self-contained file:
-  inline CSS, inline JS. No build step, no framework, no dependencies.
+- **`index.html`** — the **front page: the All Sports tracker** (moved here from
+  `all/index.html` on 2026-10-05 -- see READ FIRST). Single self-contained
+  file: inline CSS, inline JS. No build step, no framework, no dependencies.
   Deploy = commit this file, GitHub Pages serves it directly.
-- **`all/index.html`** — the **NFL+MLB** tracker at `/all/`, a THIRD site in
+- **`mlb/index.html`** — the MLB tracker, HIDDEN at `/mlb/` (it WAS the root
+  `index.html`; most of this file's "index.html" means this page).
+- **`all/index.html`** — now a redirect stub to `/`. What follows describes the
+  page that lived here, which is the root `index.html` today: the **NFL+MLB** tracker, a THIRD site in
   this repo alongside the two single-sport ones. Tracks a card that can hold
   MLB and NFL bets at once, **including a single parlay with a leg in each**.
   Assembled ONCE from `index.html` (2026-10-04) and independent from here, the
@@ -2057,7 +2100,7 @@ after a dash during parsing — don't reintroduce this).
    `scripts/import_history.py` writes it), and so are `data/results/`,
    `data/football/results/` and `data/football/history.json` (only the two
    `record_*_results.py` scripts write them). Code changes should only
-   ever touch `index.html`, `football/index.html`, `all/index.html`,
+   ever touch `index.html`, `mlb/index.html`, `football/index.html`, `all/index.html`,
    `hockey/index.html`, `basketball/index.html`, `wnba/index.html`, `cfb/index.html`, `history/`, `features/`, `scripts/`,
    `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
    `tests/test_live_data_schema.py` is a deliberate, narrow exception: it

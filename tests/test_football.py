@@ -21,7 +21,7 @@ from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
 PAGE = REPO / "football" / "index.html"
-BASEBALL_SRC = (REPO / "index.html").read_text(encoding="utf-8")
+BASEBALL_SRC = (REPO / "mlb" / "index.html").read_text(encoding="utf-8")
 FOOTBALL_SRC = PAGE.read_text(encoding="utf-8")
 NOW = datetime(2026, 9, 20, 17, 30, tzinfo=timezone.utc)   # Sunday 1:30 PM ET
 SUN, MON = "2026-09-20", "2026-09-21"
@@ -257,14 +257,16 @@ with sync_playwright() as p:
     check("A3 it reads its own files, under data/football/", any(u.endswith("/data/football/tickets.json") for u in SEEN))
     check("A4 football source has no MLB API, baseball source has no ESPN",
           "statsapi" not in FOOTBALL_SRC and "espn" not in BASEBALL_SRC.lower())
-    check("A5 baseball page's only football coupling is the switch link",
-          BASEBALL_SRC.count('href="/football/"') == 1 and "data/football" not in BASEBALL_SRC)
+    # Both single-sport pages are HIDDEN since 2026-10-05: each links only
+    # itself and the All Sports front page, so they no longer link each other.
+    check("A5 the baseball page has no football coupling at all",
+          BASEBALL_SRC.count('href="/football/"') == 0 and "data/football" not in BASEBALL_SRC)
     check("A6 every ESPN call uses the browser-permitted hosts (site.api.espn.com is CORS-blocked for browsers)",
           all("site.web.api.espn.com" in u or "sports.core.api.espn.com" in u for u in SEEN if "espn" in u) and "//site.api.espn.com" not in FOOTBALL_SRC)
-    check("A7 sport switch: NFL active here, MLB links home",
+    check("A7 sport switch: NFL active here, the other tab is the All Sports front page",
           page.get_attribute(".sport-switch .sport.active", "href") == "/football/" and page.get_attribute(".sport-switch .sport:not(.active)", "href") == "/")
-    check("A8 the baseball page has the same switch, pointing here",
-          'class="sport active" href="/"' in BASEBALL_SRC and 'class="sport" href="/football/"' in BASEBALL_SRC)
+    check("A8 the baseball page's switch: itself (now /mlb/) and the front page",
+          'class="sport active" href="/mlb/"' in BASEBALL_SRC and 'class="sport" href="/"' in BASEBALL_SRC)
 
     labels = page.evaluate("[...document.querySelectorAll('.tab-btn')].map(b => b.firstChild.textContent.trim())")
     check("A9 football's tabs are weeks, not days", labels == ["This Week's Picks", "Last Week's Picks"], str(labels))

@@ -73,7 +73,11 @@
     <a class="back-link" id="back-link" href="/">&larr; Back to the live card</a>
   </div>
 
-  <nav class="sport-switch" aria-label="Sport">
+  <!-- MLB and NFL are hidden on the site (2026-10-05), so this page opens on
+       the All Sports tracker -- the front page -- and the switch is hidden with
+       them. ?sport=baseball / ?sport=football still open those sections: the
+       hidden trackers' own footers link here that way. -->
+  <nav class="sport-switch" aria-label="Sport" style="display:none">
     <button type="button" class="sport active" id="switch-baseball" onclick="showSport('baseball')"><span class="ico">&#9918;</span>MLB</button>
     <button type="button" class="sport" id="switch-football" onclick="showSport('football')"><span class="ico">&#127944;</span>NFL</button>
     <button type="button" class="sport" id="switch-combined" onclick="showSport('combined')"><span class="ico">&#127919;</span>ALL SPORTS</button>
@@ -566,7 +570,7 @@
         <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span>
         <h2>One card, every sport</h2>
       </div>
-      <p>This tab tracks a single card that can hold baseball, football (NFL and college), hockey and basketball (NBA and WNBA) bets at the same time. Everything the other two tabs do &mdash; the payout estimate, the Open / Hit / Missed / N&nbsp;A counts, Irons, the Bettor Tracker, the filters, the collapsible bet lists &mdash; works here exactly the same way.</p>
+      <p>The tracker follows a single card that can hold baseball, football (NFL and college), hockey and basketball (NBA and WNBA) bets at the same time &mdash; with the payout estimate, the Open / Hit / Missed / N&nbsp;A counts, Irons, the filters and the collapsible bet lists, whatever sport a bet is in.</p>
     </section>
 
     <section class="card-item">
@@ -585,13 +589,6 @@
       <p>One wall of tiles. A hitter who is at the plate or due up this inning gets his tile the usual way; a football pick gets one whenever his side has the ball, marked <b>RED ZONE</b> inside the 20, <b>ON OFFENSE</b> otherwise, and <b>TAKING THE FIELD SOON</b> in the gap after his team takes the ball back. That covers every football prop, not just touchdowns &mdash; passing TDs, yards, catches &mdash; and the tile shows how close it is, like <b>&ldquo;2 of 3 passing TDs&rdquo;</b> &mdash; an anytime-TD pick reads <b>&ldquo;0 of 1 TD&rdquo;</b>, and a home run pick <b>&ldquo;0 of 1 HR&rdquo;</b>. A bet on a <b>team scoring in a given quarter</b> shows that team whenever it has the ball in that quarter and still needs points &mdash; and drops off the moment they score. A sack bet is the one exception: it shows while his side is <b>ON DEFENSE</b>, because that&rsquo;s the only time he can get one. An <b>each team to score all four quarters</b> bet gets one tile for the pair: a box per quarter for each team, ticked once they&rsquo;ve scored in it, and a line saying who still owes the quarter being played. A hockey pick gets a tile while his game is on, with his count toward the bet: <b>IN NET</b> for a goalie, <b>ON THE ICE</b> or <b>ON THE BENCH</b> for a skater whenever ESPN&rsquo;s live feed says which, and a <b>POWER PLAY</b> flag when his team is a man up. Hockey team bets get one tile per team with the score and what each bet still needs, like <b>&ldquo;1 short of covering&rdquo;</b>. A basketball pick gets one the same way: his count toward the bet (<b>&ldquo;23 of 26 points&rdquo;</b>), <b>ON THE COURT</b> or <b>ON THE BENCH</b> whenever ESPN&rsquo;s live feed says which, a warning once he has four fouls, and basketball team bets get the same one-tile-per-team treatment.</p>
     </section>
 
-    <section class="card-item">
-      <div class="card-head">
-        <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>
-        <h2>Scoring Log</h2>
-      </div>
-      <p>Every home run, touchdown and goal from the slate, newest first, in one list. Your picks are highlighted; switch to <b>Everything</b> to see the rest of both leagues. Tap any row for the detail &mdash; Statcast numbers on a home run, the drive and who threw it on a touchdown, the assists on a goal. Power-play, short-handed and empty-net goals are tagged as such.</p>
-    </section>
 
     <section class="card-item">
       <div class="card-head">
@@ -632,19 +629,19 @@
 </div>
 <script>
 var SPORTS = {
-  baseball: { pane: "baseball-content", btn: "switch-baseball", href: "/",
-              back: "the live card", source: "MLB's free public live data",
-              title: "What the BMBS Tracker Can Do" },
+  baseball: { pane: "baseball-content", btn: "switch-baseball", href: "/mlb/",
+              back: "the MLB tracker", source: "MLB's free public live data",
+              title: "What the MLB Tracker Can Do" },
   football: { pane: "football-content", btn: "switch-football", href: "/football/",
               back: "the NFL tracker", source: "ESPN's free public NFL data",
               title: "What the NFL Tracker Can Do" },
-  combined: { pane: "combined-content", btn: "switch-combined", href: "/all/",
-              back: "the All Sports tracker", source: "MLB and ESPN's free public live data",
-              title: "What the All Sports Tracker Can Do" }
+  combined: { pane: "combined-content", btn: "switch-combined", href: "/",
+              back: "the live card", source: "MLB and ESPN's free public live data",
+              title: "What the BMBS Tracker Can Do" }
 };
 
 function showSport(sport) {
-  var key = SPORTS[sport] ? sport : "baseball";
+  var key = SPORTS[sport] ? sport : "combined";
   Object.keys(SPORTS).forEach(function (k) {
     document.getElementById(SPORTS[k].pane).style.display = k === key ? "" : "none";
     document.getElementById(SPORTS[k].btn).classList.toggle("active", k === key);
@@ -664,12 +661,12 @@ function showSport(sport) {
   // refresh and can be linked directly -- e.g. the football tracker's own
   // footer links here with ?sport=football so it opens on the right list.
   var params = new URLSearchParams(location.search);
-  if (key === "baseball") { params.delete("sport"); } else { params.set("sport", key); }
+  if (key === "combined") { params.delete("sport"); } else { params.set("sport", key); }
   var qs = params.toString();
   history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
 }
 
-showSport(new URLSearchParams(location.search).get("sport") || "baseball");
+showSport(new URLSearchParams(location.search).get("sport") || "combined");
 </script>
 </body>
 </html>

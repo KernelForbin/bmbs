@@ -29,8 +29,8 @@ import sys
 import urllib.error
 import urllib.request
 
-SITE_URL = {"baseball": "https://bmbs.bet/", "football": "https://bmbs.bet/football/",
-            "combined": "https://bmbs.bet/all/", "hockey": "https://bmbs.bet/hockey/",
+SITE_URL = {"baseball": "https://bmbs.bet/mlb/", "football": "https://bmbs.bet/football/",
+            "combined": "https://bmbs.bet/", "hockey": "https://bmbs.bet/hockey/",
             "basketball": "https://bmbs.bet/basketball/",
             "wnba": "https://bmbs.bet/wnba/",
             "cfb": "https://bmbs.bet/cfb/"}

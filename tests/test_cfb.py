@@ -20,7 +20,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
-PAGES = {"/cfb/": REPO / "cfb" / "index.html", "/all/": REPO / "all" / "index.html"}
+PAGES = {"/cfb/": REPO / "cfb" / "index.html", "/all/": REPO / "index.html"}
 DAY = "2026-10-10"
 NOW = "2026-10-10T21:00:00Z"          # 5:00 PM ET, a Saturday
 

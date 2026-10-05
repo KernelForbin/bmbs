@@ -90,6 +90,32 @@ with sync_playwright() as p:
           page.url == ORIGIN + "/features/?sport=football", page.url)
     browser.close()
 
+    # ---------------- E. /all/ -> / (2026-10-05) ----------------
+    # The All Sports tracker became the front page. Every bookmark and every
+    # older Discord message points at /all/, which is now a stub forwarding to
+    # /, query and hash kept -- the same machinery as features.html.
+    ALL_SRC = (Path(__file__).resolve().parent.parent / "all" / "index.html").read_text(encoding="utf-8")
+    check("E1 /all/'s stub forwards to the front page in its meta fallback and its canonical link",
+          'content="0; url=/"' in ALL_SRC and '<link rel="canonical" href="/">' in ALL_SRC)
+    check("E2 ...and holds no tracker -- it polls nothing", "pollAndRender" not in ALL_SRC and "fetch(" not in ALL_SRC)
+    browser = p.chromium.launch()
+    page = browser.new_page()
+
+    def all_handler(route):
+        path = route.request.url.split("?", 1)[0].split("#", 1)[0]
+        if path == ORIGIN + "/all/":
+            return route.fulfill(status=200, content_type="text/html; charset=utf-8", body=ALL_SRC)
+        if path == ORIGIN + "/":
+            return route.fulfill(status=200, content_type="text/html; charset=utf-8", body="<title>front page</title>")
+        return route.abort()
+
+    page.route("**/*", all_handler)
+    page.goto(ORIGIN + "/all/?tab=yesterday#card-3")
+    page.wait_for_timeout(200)
+    check("E3 a bookmarked /all/ lands on the front page, query and hash intact",
+          page.url == ORIGIN + "/?tab=yesterday#card-3", page.url)
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

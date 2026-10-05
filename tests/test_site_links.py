@@ -21,7 +21,13 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 PAGES = [
-    REPO / "index.html",
+    REPO / "index.html",                       # the All Sports front page
+    REPO / "mlb" / "index.html",               # hidden trackers, by URL only
+    REPO / "hockey" / "index.html",
+    REPO / "basketball" / "index.html",
+    REPO / "wnba" / "index.html",
+    REPO / "cfb" / "index.html",
+    REPO / "all" / "index.html",               # redirect stub to /
     REPO / "football" / "index.html",
     REPO / "history" / "index.html",
     REPO / "football" / "history" / "index.html",

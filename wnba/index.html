@@ -514,13 +514,11 @@
 <body>
 <div class="card">
   <nav class="sport-switch" aria-label="Sport">
-    <a class="sport" href="/"><span class="ico">&#9918;</span>MLB</a>
-    <a class="sport" href="/football/"><span class="ico">&#127944;</span>NFL</a>
     <!-- WNBA is HIDDEN (the user's call, 2026-10-05): this page is complete,
          but no other page's switch links here yet. Unhiding it = adding this
-         same tab to the switch on /, /football/ and /all/. -->
+         same tab to the switch on / (the All Sports front page). -->
     <a class="sport active" href="/wnba/" aria-current="page"><span class="ico">&#127936;</span>WNBA</a>
-    <a class="sport" href="/all/"><span class="ico">&#127919;</span>ALL SPORTS</a>
+    <a class="sport" href="/"><span class="ico">&#127919;</span>ALL SPORTS</a>
   </nav>
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-today" onclick="activateTab('today')">Today's Picks<span class="tab-date" id="tab-date-today"></span></button>

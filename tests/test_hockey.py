@@ -16,7 +16,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
-PAGES = {"/hockey/": REPO / "hockey" / "index.html", "/all/": REPO / "all" / "index.html"}
+PAGES = {"/hockey/": REPO / "hockey" / "index.html", "/all/": REPO / "index.html"}
 DAY = "2026-10-05"
 NOW = "2026-10-05T23:50:00Z"          # 7:50 PM ET
 
@@ -300,8 +300,8 @@ with sync_playwright() as p:
                          "singles": []}
     SEEN.clear()
     browser, page, errors = open_page(p, "/all/")
-    check("F1 the tab is renamed ALL SPORTS", page.inner_text("h1") == "BMBS Tracker — All Sports" and
-          "ALL SPORTS" in page.inner_text(".sport-switch"), page.inner_text("h1"))
+    check("F1 the All Sports tracker -- the front page, titled plain BMBS Tracker", page.inner_text("h1") == "BMBS Tracker",
+          page.inner_text("h1"))
     ls = leg_states(page)
     check("F2 the All Sports tracker grades hockey legs the same way", ls.get("H1") == "live" and ls.get("H4") == "hit", ls)
     check("F3 ...and its switch still has no NHL tab (hidden)", "NHL" not in page.inner_text(".sport-switch"),

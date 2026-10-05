@@ -17,7 +17,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-INDEX = Path(__file__).resolve().parent.parent / "index.html"
+INDEX = Path(__file__).resolve().parent.parent / "mlb" / "index.html"
 DATE = "2026-09-19"
 NOW = datetime(2026, 9, 20, 1, 0, tzinfo=timezone.utc)   # 9:00 PM ET on the 19th
 

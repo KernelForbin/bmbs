@@ -29,7 +29,7 @@ LEAGUE = os.environ.get("HOOPS_LEAGUE", "nba")
 CONF = {"nba": ("/basketball/", "basketball", "NBA", "bmbs.bb.", "wnba"),
         "wnba": ("/wnba/", "wnba", "WNBA", "bmbs.wb.", "nba")}[LEAGUE]
 PAGE, DATA, WORD, KEYS, OTHER = CONF
-PAGES = {PAGE: REPO / PAGE.strip("/") / "index.html", "/all/": REPO / "all" / "index.html"}
+PAGES = {PAGE: REPO / PAGE.strip("/") / "index.html", "/all/": REPO / "index.html"}
 DAY = "2026-10-05"
 NOW = "2026-10-06T01:50:00Z"          # 9:50 PM ET
 

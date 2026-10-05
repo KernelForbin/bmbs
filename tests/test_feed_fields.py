@@ -28,7 +28,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
-INDEX = REPO / "index.html"
+INDEX = REPO / "mlb" / "index.html"
 API = "https://statsapi.mlb.com/api/v1.1/game/{pk}/feed/live"
 SCHEDULE = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={date}"
 MAX_GAMES = 15

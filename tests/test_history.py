@@ -19,7 +19,7 @@ from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
 PAGE_SRC = (REPO / "history" / "index.html").read_text(encoding="utf-8")
-INDEX_SRC = (REPO / "index.html").read_text(encoding="utf-8")
+INDEX_SRC = (REPO / "mlb" / "index.html").read_text(encoding="utf-8")
 ORIGIN = "http://bmbs.test"
 
 failures = []

@@ -419,9 +419,10 @@
 <body>
 <div class="card">
   <nav class="sport-switch" aria-label="Sport">
-    <a class="sport" href="/"><span class="ico">&#9918;</span>MLB</a>
+    <!-- NFL is HIDDEN (2026-10-05): reachable by URL only; the front page is
+         the All Sports tracker. -->
     <a class="sport active" href="/football/" aria-current="page"><span class="ico">&#127944;</span>NFL</a>
-    <a class="sport" href="/all/"><span class="ico">&#127919;</span>ALL SPORTS</a>
+    <a class="sport" href="/"><span class="ico">&#127919;</span>ALL SPORTS</a>
   </nav>
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-today" onclick="activateTab('today')">This Week's Picks<span class="tab-date" id="tab-date-today"></span></button>

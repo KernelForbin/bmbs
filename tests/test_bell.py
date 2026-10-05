@@ -163,8 +163,11 @@ FX = {"mlb": MLB_TICKETS, "nfl": NFL_TICKETS, "all": ALL_TICKETS,
                 5003: mlb_feed("Live", ["Shohei Ohtani"] + [f"D{i}" for i in range(8)])},
       "espn_state": "post", "tds": 1}
 
-PAGES = {"/": REPO / "index.html", "/football/": REPO / "football" / "index.html",
-         "/all/": REPO / "all" / "index.html"}
+# The MLB page moved to /mlb/ and All Sports to the root on 2026-10-05; the
+# URLs below are kept as they were, because each page's relative data paths
+# resolve to the same files from either one.
+PAGES = {"/": REPO / "mlb" / "index.html", "/football/": REPO / "football" / "index.html",
+         "/all/": REPO / "index.html"}
 
 
 def handler(route, request):

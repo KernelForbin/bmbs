@@ -52,9 +52,9 @@ GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 
 # file-name prefix -> where that sport's card goes
 ROUTES = {
-    "baseball": {"path": "data/incoming_picks.txt", "sport": "MLB (home runs)", "site": "https://bmbs.bet/"},
+    "baseball": {"path": "data/incoming_picks.txt", "sport": "MLB (home runs)", "site": "https://bmbs.bet/mlb/"},
     "football": {"path": "data/football/incoming_picks.txt", "sport": "NFL (touchdowns)", "site": "https://bmbs.bet/football/"},
-    "sports": {"path": "data/combined/incoming_picks.txt", "sport": "All Sports", "site": "https://bmbs.bet/all/"},
+    "sports": {"path": "data/combined/incoming_picks.txt", "sport": "All Sports", "site": "https://bmbs.bet/"},
     # The NHL tracker is HIDDEN from the site's sport switch (2026-10-05), but
     # complete -- a hockey_*.txt upload still lands and is tracked there.
     "hockey": {"path": "data/hockey/incoming_picks.txt", "sport": "NHL", "site": "https://bmbs.bet/hockey/"},

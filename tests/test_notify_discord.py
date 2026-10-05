@@ -50,7 +50,7 @@ msg = nd.summarize(p, "baseball")
 # promise. This message is the fact, and its Discord timestamp is what tells
 # the group when it actually happened.
 check("A1 baseball: card + single + leg counts, singular single",
-      msg == "✅ MLB picks for 2026-09-20 are now LIVE on https://bmbs.bet/ — "
+      msg == "✅ MLB picks for 2026-09-20 are now LIVE on https://bmbs.bet/mlb/ — "
              "2 parlay cards and 1 single (5 legs). Tracking has started.", msg)
 p.unlink()
 

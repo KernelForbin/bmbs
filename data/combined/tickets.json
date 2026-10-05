@@ -1,7 +1,7 @@
 {
   "date": "2026-10-05",
-  "endDate": "2026-10-08",
-  "note": "'Tampa Bay Lightning 1.5' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Michael Penix Jr 250' is not on the NFL roster -- check the spelling, it can't be graded as typed",
+  "endDate": "2026-10-05",
+  "note": "",
   "sports": [
     "mlb",
     "nfl"
@@ -20,16 +20,17 @@
           "legs": [
             {
               "id": "p0-c0-l0",
-              "player": "Kyle Pitts Receiving Yards",
-              "team": "",
+              "player": "Kyle Pitts Sr.",
+              "team": "ATL",
               "who": "",
-              "meta": "",
+              "meta": "ATL",
               "odds": "+113",
               "time": "",
-              "market": "kyle pitts",
+              "market": "rec_yds",
               "line": 29.5,
               "side": "under",
-              "sport": "mlb"
+              "sport": "nfl",
+              "athleteId": "4360248"
             },
             {
               "id": "p0-c0-l1",
@@ -51,6 +52,7 @@
               "meta": "CLE",
               "odds": "+675",
               "time": "",
+              "line": 0.5,
               "sport": "mlb"
             }
           ]
@@ -71,17 +73,18 @@
               "meta": "CLE",
               "odds": "+985",
               "time": "",
+              "line": 0.5,
               "sport": "mlb"
             },
             {
               "id": "p0-c1-l1",
-              "player": "Freddy Peralta Outs",
-              "team": "",
+              "player": "Freddy Peralta",
+              "team": "TB",
               "who": "",
-              "meta": "",
+              "meta": "TB",
               "odds": "+189",
               "time": "",
-              "market": "freddy peralta",
+              "market": "outs",
               "line": 14.5,
               "sport": "mlb"
             }
@@ -104,6 +107,7 @@
               "odds": "+259",
               "time": "",
               "market": "k",
+              "line": 8.5,
               "sport": "mlb"
             },
             {
@@ -114,6 +118,7 @@
               "meta": "NYY",
               "odds": "+791",
               "time": "",
+              "line": 0.5,
               "sport": "mlb"
             }
           ]
@@ -139,14 +144,14 @@
             },
             {
               "id": "p0-c3-l1",
-              "player": "Tampa Bay Lightning 1.5",
-              "team": "TB",
+              "player": "Tampa Bay Lightning",
+              "team": "",
               "who": "",
-              "meta": "TB",
+              "meta": "NHL",
               "odds": "+114",
               "time": "",
-              "market": "unknown",
-              "sport": "nfl"
+              "market": "puck line +1.5",
+              "sport": "nhl"
             },
             {
               "id": "p0-c3-l2",
@@ -157,6 +162,7 @@
               "odds": "+144",
               "time": "",
               "market": "k",
+              "line": 7.5,
               "sport": "mlb"
             }
           ]
@@ -177,7 +183,8 @@
               "meta": "NO",
               "odds": "+150",
               "time": "",
-              "market": "yards",
+              "market": "rec_yds",
+              "line": 59.5,
               "sport": "nfl",
               "athleteId": "4569559"
             },
@@ -195,13 +202,14 @@
             },
             {
               "id": "p0-c4-l2",
-              "player": "Yandy Diaz 3 H R",
-              "team": "",
+              "player": "Yandy D\u00edaz",
+              "team": "TB",
               "who": "",
-              "meta": "",
+              "meta": "TB",
               "odds": "+220",
               "time": "",
-              "market": "rbi",
+              "market": "hrr",
+              "line": 2.5,
               "sport": "mlb"
             }
           ]
@@ -216,13 +224,14 @@
           "legs": [
             {
               "id": "p0-c5-l0",
-              "player": "Tampa Bay Rays 1.5",
-              "team": "",
+              "player": "Tampa Bay Rays",
+              "team": "TB",
               "who": "",
-              "meta": "",
+              "meta": "TB",
               "odds": "+240",
               "time": "",
-              "market": "unknown",
+              "market": "spread",
+              "line": 1.5,
               "sport": "mlb"
             },
             {
@@ -255,6 +264,7 @@
               "meta": "NYY",
               "odds": "+360",
               "time": "",
+              "line": 0.5,
               "sport": "mlb"
             },
             {
@@ -281,13 +291,14 @@
           "legs": [
             {
               "id": "p0-c7-l0",
-              "player": "Kyle Teel 2 H R",
-              "team": "",
+              "player": "Kyle Teel",
+              "team": "CWS",
               "who": "",
-              "meta": "",
+              "meta": "CWS",
               "odds": "+160",
               "time": "",
-              "market": "rbi",
+              "market": "hrr",
+              "line": 1.5,
               "sport": "mlb"
             },
             {
@@ -298,7 +309,8 @@
               "meta": "NYY",
               "odds": "+200",
               "time": "",
-              "market": "rbi",
+              "market": "hrr",
+              "line": 2.5,
               "sport": "mlb"
             },
             {
@@ -310,6 +322,7 @@
               "odds": "+122",
               "time": "",
               "market": "rush_yds",
+              "line": 19.5,
               "sport": "nfl",
               "athleteId": "4360689"
             }
@@ -332,18 +345,21 @@
               "odds": "+300",
               "time": "",
               "market": "sb",
+              "line": 0.5,
               "sport": "mlb"
             },
             {
               "id": "p0-c8-l1",
-              "player": "Michael Penix Jr 250",
-              "team": "",
+              "player": "Michael Penix Jr.",
+              "team": "ATL",
               "who": "",
-              "meta": "",
+              "meta": "ATL",
               "odds": "+162",
               "time": "",
-              "market": "yards",
-              "sport": "nfl"
+              "market": "pass_yds",
+              "line": 249.5,
+              "sport": "nfl",
+              "athleteId": "4360423"
             }
           ]
         },
@@ -357,13 +373,14 @@
           "legs": [
             {
               "id": "p0-c9-l0",
-              "player": "Chase DeLauter 1 Extra Base",
-              "team": "",
+              "player": "Chase DeLauter",
+              "team": "CLE",
               "who": "",
-              "meta": "",
+              "meta": "CLE",
               "odds": "+246",
               "time": "",
-              "market": "hits",
+              "market": "xbh",
+              "line": 0.5,
               "sport": "mlb"
             },
             {
@@ -375,6 +392,7 @@
               "odds": "+230",
               "time": "",
               "market": "rush_yds",
+              "line": 39.5,
               "sport": "nfl",
               "athleteId": "4599739"
             }

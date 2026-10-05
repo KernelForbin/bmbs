@@ -168,7 +168,7 @@ with sync_playwright() as p:
           len(combined_h2) == len(set(combined_h2)), combined_h2)
     check("G3 it covers the mixed parlay, the live tiles, the log and the alerts",
           all(any(t in h.lower() for h in combined_h2)
-              for t in ("both sports", "mix", "live bet tracker", "scoring log", "alert")),
+              for t in ("every sport", "mix", "live bet tracker", "scoring log", "alert")),
           combined_h2)
 
     page.click("#switch-combined")
@@ -192,7 +192,7 @@ with sync_playwright() as p:
     check("G8 ?sport=combined opens straight to the combined section",
           page.is_visible("#combined-content") and not page.is_visible("#baseball-content"))
     check("G9 ...with its own title and switch already set",
-          page.title() == "What the NFL+MLB Tracker Can Do"
+          page.title() == "What the All Sports Tracker Can Do"
           and "active" in (page.get_attribute("#switch-combined", "class") or ""),
           page.title())
     browser.close()

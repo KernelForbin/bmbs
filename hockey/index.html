@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BMBS Tracker — MLB</title>
+<title>BMBS Tracker — NHL</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -285,7 +285,7 @@
   .leg-action-tag.steal { background:var(--steal-dim); color:var(--steal); border:1px solid var(--steal); }
   .leg-live-context.leg-status { color:var(--text-faint); }
   .leg-live-context.steal-credit { color:var(--green); }
-  .mkt-tag { font-family:'Inter',sans-serif; font-size:9px; font-weight:700; letter-spacing:.07em; border-radius:4px; padding:1px 5px; vertical-align:2px; }
+  .mkt-tag { font-family:'Inter',sans-serif; font-size:9px; font-weight:700; letter-spacing:.07em; border-radius:4px; padding:1px 5px; vertical-align:2px; text-transform:uppercase; }  /* NFL labels are mixed case, MLB's capitals */
   .mkt-tag.sb { color:var(--steal); background:var(--steal-dim); border:1px solid var(--steal); }
   /* A player stat prop and a game line read as distinct kinds of bet, and an
      UNKNOWN market is deliberately the dimmest of the three -- it is shown so
@@ -497,13 +497,29 @@
     color: var(--text-faint); cursor: pointer; opacity: .75; }
   .bell-replay:hover, .bell-replay:focus-visible { color: var(--text); opacity: 1; background: var(--panel-line); }
   .bell-time { flex: 0 0 auto; font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+
+  /* ---- "each team to score all four quarters": one row per team, one cell
+     per quarter. Green = scored, amber = the quarter being played and still
+     owed, dim = not reached yet. A blanked quarter never appears -- it
+     settles the bet as a miss, and a missed leg has no tile. ---- */
+  .q-grid { display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 3px 4px;
+    margin: 6px 0 4px; font: 600 11px 'Inter', sans-serif; align-items: center; }
+  .q-grid .q-head { color: var(--text-faint); text-align: center; font-weight: 500; }
+  .q-grid .q-team { color: var(--text-dim); padding-right: 4px; }
+  .q-cell { text-align: center; border-radius: 5px; padding: 2px 0; background: var(--bg); color: var(--text-faint); }
+  .q-cell.q-yes { background: var(--green-dim); color: var(--green); }
+  .q-cell.q-owed { background: rgba(255, 184, 77, .16); color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber); }
 </style>
 </head>
 <body>
 <div class="card">
   <nav class="sport-switch" aria-label="Sport">
-    <a class="sport active" href="/" aria-current="page"><span class="ico">&#9918;</span>MLB</a>
+    <a class="sport" href="/"><span class="ico">&#9918;</span>MLB</a>
     <a class="sport" href="/football/"><span class="ico">&#127944;</span>NFL</a>
+    <!-- NHL is HIDDEN (the user's call, 2026-10-05): this page is complete,
+         but no other page's switch links here yet. Unhiding it = adding this
+         same tab to the switch on /, /football/ and /all/. -->
+    <a class="sport active" href="/hockey/" aria-current="page"><span class="ico">&#127954;</span>NHL</a>
     <a class="sport" href="/all/"><span class="ico">&#127919;</span>ALL SPORTS</a>
   </nav>
   <div class="tabs">
@@ -512,8 +528,8 @@
   </div>
   <div class="queued-note" id="queued-note"></div>
   <header>
-    <h1>BMBS Tracker &mdash; MLB</h1>
-    <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM MLB</span></p>
+    <h1>BMBS Tracker &mdash; NHL</h1>
+    <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM ESPN</span></p>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
     <!-- Only a parser warning lands here now. The old "Auto-tracked against
          live MLB results." copy was removed as redundant with the eyebrow
@@ -631,14 +647,14 @@
 
   <div class="hrlog-section collapsed" id="hrlog-section">
     <div class="hrlog-head" onclick="toggleHrLog()">
-      <p class="hrlog-title">Home Run Log <span class="head-count" id="hrlog-count"></span></p>
+      <p class="hrlog-title">Scoring Log <span class="head-count" id="hrlog-count"></span></p>
       <span class="hrlog-chevron">&#9660;</span>
     </div>
-    <p class="hrlog-sub" id="hrlog-sub">Tap to expand &mdash; see every home run hit today, or just your picks.</p>
+    <p class="hrlog-sub" id="hrlog-sub">Tap to expand &mdash; every home run and touchdown today, or just your picks.</p>
     <div class="hrlog-body">
       <div class="hrlog-filter">
         <button type="button" id="hrlog-btn-picks" onclick="setHrFilter('picks')">OUR PICKS</button>
-        <button type="button" id="hrlog-btn-all" onclick="setHrFilter('all')">ALL HOME RUNS</button>
+        <button type="button" id="hrlog-btn-all" onclick="setHrFilter('all')">EVERYTHING</button>
       </div>
       <div id="hrlog-list"></div>
     </div>
@@ -668,12 +684,19 @@
 
   </div>
 
-  <footer id="footer-line">all times ET &middot; results pulled directly from the MLB Stats API &middot; <a href="/history/" style="color:inherit;">history</a> &middot; <a href="/features/" style="color:inherit;">what this site can do</a></footer>
+  <footer id="footer-line">all times ET &middot; results pulled directly from ESPN</footer>
 </div>
 
 <div id="bomb-overlay" role="status" aria-live="polite"></div>
 
 <script>
+// hockey/index.html -- the NHL tracker at /hockey/. HIDDEN: complete and
+// working, deliberately not in any other page's sport switch (2026-10-05).
+// Assembled ONCE from all/index.html (the NHL engine was built into that page
+// first, so the two grade a hockey leg identically) and independent from
+// here: data/hockey/, storage under bmbs.hk.*. A hockey-only card means the
+// MLB and NFL engines simply stand down -- they only ever run for their own
+// legs. See CLAUDE.md, "The NHL tracker".
 // 10s, matching what the API itself asks for: every live feed carries
 // `metaData.wait: 10`, and responses ship `Cache-Control: max-age=10`, so
 // polling faster than this is served the same cached bytes. Measured
@@ -718,6 +741,1254 @@ const SLATE_POLLS = new Map();
 // gamePk -> snapshot, only for games already Final. Their box score can't
 // change, so there's no reason to re-download the feed every 20 seconds.
 const FINAL_SNAPSHOTS = new Map();
+
+// ============ the NFL engine ============
+// Lifted whole out of football/index.html and sealed in a closure. Its
+// normalizeName strips generational suffixes (ESPN writes "Marvin
+// Harrison Jr."), its stateForPlayer grades an anytime-touchdown leg off
+// an ESPN boxscore, and its RESULTS is its own -- all three would be
+// actively wrong applied to a baseball leg, and all three share a name
+// with this page's version. The closure is what makes that safe.
+const NFL = (function () {
+const ESPN = "https://site.web.api.espn.com/apis/site/v2/sports/football/nfl";
+
+const ESPN_CORE = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl";
+
+const BACKGROUND_GAME_MS = 60000;   // games none of our picks are in: refreshed this often, for the All Touchdowns log
+
+const TD_CATEGORIES = ["rushing", "receiving", "defensive", "interceptions", "kickReturns", "puntReturns"];
+
+const SETTLED_SCHEDULES = new Map();
+
+const FINAL_SNAPSHOTS = new Map();
+
+const LIVE_SNAPSHOTS = new Map();
+
+const ROSTER_CACHE = new Map();   // `${gamePk}-${teamId}` -> Promise<Map(athleteId -> played)>
+
+const PICKS = new Map();
+
+const DASH = "—";
+
+const DRV_RESULT_MS = 9000;    // a finished drive's result holds the tile this long...
+
+const DRV_TD_MS = 14000;       // ...the pick's own touchdown earns a longer look,
+
+const DRV_BALL_MS = 3200;      // the first stretch of which the tile is just a football
+
+const DRV_STALE_MS = 180000;   // a drive that ended longer ago than this isn't news
+
+let RESULTS = emptyResults();
+
+const TD_EXPANDED = new Set(); // touchdown ids whose full detail is open
+
+function emptyResults() {
+  return { hitNames: new Set(), hitIds: new Set(), lineIds: new Set(), tdNameTeams: new Map(), participation: new Map(),
+           gameByTeam: new Map(), gameByAthlete: new Map(), touchdowns: [], gameInfo: new Map(),
+           allGamesFinal: false, ready: false, noGames: false };
+}
+
+function normalizeName(name) {
+  return String(name || "")
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.']/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+(jr|sr|ii|iii|iv|v)$/, "");
+}
+
+async function getScheduleForDate(date) {
+  if (SETTLED_SCHEDULES.has(date)) return SETTLED_SCHEDULES.get(date);
+  const games = await fetchScheduleForDate(date);
+  if (games.length ? games.every(g => g.final) : date < todayET()) SETTLED_SCHEDULES.set(date, games);
+  return games;
+}
+
+async function getGameSnapshot(game) {
+  const data = await fetchJson(`${ESPN}/summary?event=${game.gamePk}`);
+  const comp = (data.header && data.header.competitions && data.header.competitions[0]) || {};
+  const type = (comp.status && comp.status.type) || {};
+  const state = type.state || (game.final ? "post" : game.preview ? "pre" : "in");
+  const status = state === "post" ? "final" : state === "pre" ? "preview" : "live";
+
+  const teamsById = new Map();
+  const teams = {};
+  (comp.competitors || []).forEach(c => {
+    // Per-QUARTER points, which ESPN publishes as competitors[].linescores
+    // -- ["7","3","10","7"]. Checked against a real finished game. A quarter
+    // only appears once it has been played, so the length is also how far
+    // the game has got, and overtime simply adds a fifth entry.
+    const t = { id: String(c.id), abbr: (c.team && c.team.abbreviation) || "", side: c.homeAway, score: c.score || "0", possession: c.possession === true,
+                quarters: (c.linescores || []).map(q => Number(q.displayValue != null ? q.displayValue : q.value) || 0) };
+    teamsById.set(t.id, t);
+    teams[c.homeAway] = t;
+  });
+  if (!teams.away || !teams.home) { teams.away = teams.away || game.teams.away; teams.home = teams.home || game.teams.home; }
+
+  // ---- stat lines + touchdowns by athlete ----
+  const lines = new Map();   // athlete id -> { id, name, norm, team, car, rushYds, rec, recYds, tgts, td }
+  ((data.boxscore && data.boxscore.players) || []).forEach(side => {
+    const abbr = (side.team && side.team.abbreviation) || "";
+    (side.statistics || []).forEach(cat => {
+      const tdIdx = statIndex(cat.labels, "TD");
+      (cat.athletes || []).forEach(row => {
+        const a = row.athlete || {};
+        if (!a.id) return;
+        const id = String(a.id);
+        let line = lines.get(id);
+        if (!line) {
+          line = { id, name: a.displayName || "", norm: normalizeName(a.displayName || ""), team: abbr, car: 0, rushYds: 0, rec: 0, recYds: 0, tgts: 0, td: 0, sacks: 0, passTd: 0, passYds: 0 };
+          lines.set(id, line);
+        }
+        const stats = row.stats || [];
+        if (cat.name === "rushing") { line.car = statNum(stats, statIndex(cat.labels, "CAR")); line.rushYds = statNum(stats, statIndex(cat.labels, "YDS")); }
+        if (cat.name === "receiving") {
+          line.rec = statNum(stats, statIndex(cat.labels, "REC")); line.recYds = statNum(stats, statIndex(cat.labels, "YDS"));
+          line.tgts = statNum(stats, statIndex(cat.labels, "TGTS"));
+        }
+        // Sacks live in the DEFENSIVE category, labelled "SACKS", and come
+        // as halves when two players share one -- so it is a float, not a
+        // count. Verified against a real finished game, not assumed.
+        //
+        // Gated on that category deliberately: the PASSING line carries a
+        // "SACKS" column too, and it means the opposite -- sacks the
+        // quarterback TOOK. Read generically, every QB would be credited
+        // with the sacks he suffered.
+        if (cat.name === "defensive") line.sacks = statNum(stats, statIndex(cat.labels, "SACKS"));
+        // Touchdowns THROWN, which is a different bet from scoring one --
+        // and the reason passing is excluded from the TD sum below.
+        if (cat.name === "passing") {
+          line.passTd = statNum(stats, tdIdx);
+          line.passYds = statNum(stats, statIndex(cat.labels, "YDS"));
+        }
+        if (TD_CATEGORIES.includes(cat.name)) line.td += statNum(stats, tdIdx);
+      });
+    });
+  });
+
+  // ---- when each play happened, for ordering touchdowns across games ----
+  const drives = data.drives || {};
+  const wallclock = new Map();
+  const allDrives = (drives.previous || []).concat(drives.current ? [drives.current] : []);
+  allDrives.forEach(dr => (dr.plays || []).forEach(p => { if (p.id && p.wallclock) wallclock.set(String(p.id), p.wallclock); }));
+  // Every play in order, with when it happened, its quarter, the score after
+  // it, its yardage and its text -- for the bell's timestamps. ESPN names no
+  // player on a play except in the text ("K.Coleman", "J.Allen pass"), so
+  // that is what the per-player times are read from. A score change marks
+  // which team scored, for "team to score in Q2".
+  const playLog = [];
+  let lastAway = 0, lastHome = 0;
+  allDrives.forEach(dr => (dr.plays || []).forEach(p => {
+    const a = typeof p.awayScore === "number" ? p.awayScore : lastAway;
+    const h = typeof p.homeScore === "number" ? p.homeScore : lastHome;
+    playLog.push({
+      t: p.wallclock || "", q: (p.period && p.period.number) || 0, text: p.text || "",
+      yds: typeof p.statYardage === "number" ? p.statYardage : 0,
+      scored: a > lastAway ? "away" : h > lastHome ? "home" : null
+    });
+    lastAway = a; lastHome = h;
+  }));
+  const kickoffMs = Date.parse(game.kickoff) || 0;
+
+  const touchdowns = [];
+  const tdNameTeams = new Map();   // normalized scorer name -> Set of team abbrs (two NFL players can share a name)
+  (data.scoringPlays || []).forEach(sp => {
+    const kind = (sp.type && sp.type.text) || "";
+    if (!/touchdown/i.test(kind)) return;
+    const text = sp.text || "";
+    const m = text.match(/^(.+?)\s+(-?\d+)\s+Yd\.?\s+(.+?)(?:\s*\(|$)/i);
+    const scorer = m ? m[1].trim() : "";
+    const abbr = (sp.team && sp.team.abbreviation) || "";
+    const period = (sp.period && sp.period.number) || 0;
+    const clockVal = sp.clock && typeof sp.clock.value === "number" ? sp.clock.value : 0;
+    // real time if the play-by-play has it; otherwise estimated from the game
+    // clock (an NFL game runs ~3.2x its 60 minutes) -- good enough to order by
+    const when = wallclock.get(String(sp.id)) ||
+      new Date(kickoffMs + (((period - 1) * 900) + (900 - clockVal)) * 3200).toISOString();
+    const passer = (text.match(/pass from\s+(.+?)\s*(?:\(|$)/i) || [])[1] || "";
+    if (scorer) {
+      const norm = normalizeName(scorer);
+      if (!tdNameTeams.has(norm)) tdNameTeams.set(norm, new Set());
+      tdNameTeams.get(norm).add(abbr);
+    }
+    touchdowns.push({
+      id: String(sp.id), time: when, scorer: scorer || text, team: abbr, kind,
+      yards: m ? parseInt(m[2], 10) : null, how: m ? m[3].trim() : "", passer, text,
+      period, clock: (sp.clock && sp.clock.displayValue) || "", gamePk: game.gamePk,
+      score: `${teams.away.abbr} ${sp.awayScore} – ${teams.home.abbr} ${sp.homeScore}`
+    });
+  });
+
+  // ---- who has the ball, and where ----
+  // The last play's END state is the truth: after a score the "current drive"
+  // still names the team that just scored while the ball is about to go the
+  // other way. Scoreboard situation and the header's possession flag back it up.
+  let drive = null;
+  if (status === "live") {
+    const cur = drives.current || null;
+    const plays = (cur && cur.plays) || [];
+    const last = plays.length ? plays[plays.length - 1] : null;
+    const end = (last && last.end) || {};
+    const sit = game.situation || {};
+    const possId = (end.team && end.team.id && String(end.team.id)) || (sit.possession && String(sit.possession)) ||
+      ((comp.competitors || []).filter(c => c.possession === true).map(c => String(c.id))[0]) || "";
+    const toGo = typeof end.yardsToEndzone === "number" ? end.yardsToEndzone : null;
+    const team = teamsById.get(possId) || null;
+    if (team) {
+      drive = {
+        id: (cur && cur.id) || "", team: team.abbr,
+        // Whose drive ESPN currently has open, which is NOT always who has the
+        // ball: a drive object only appears once its first play posts, so
+        // between a punt/turnover/score and the next snap the possession flag
+        // has already flipped while `drives.current` still names the team that
+        // just gave it up. That gap is the "taking the field soon" window --
+        // measured against live games 2026-09-20 at 65s, 82s and 179s, so it's
+        // several polls wide, not a flicker.
+        driveTeam: (cur && cur.team && cur.team.abbreviation) || "",
+        // Whether that open drive is already FINISHED. ESPN stamps
+        // displayResult on drives.current the moment the drive ends, and after
+        // a score the possession flag keeps naming the team that just scored
+        // until the kickoff is returned -- so without this a team that just
+        // kicked a field goal or scored a touchdown kept a green "ON OFFENSE"
+        // tile through the whole kickoff. Verified on live games 2026-09-20:
+        // SEA scored a TD with situation.possession still SEA, and LAC threw
+        // an interception with drives.current still LAC.
+        driveOver: !!(cur && (cur.displayResult || cur.result)),
+        downDistance: end.downDistanceText || sit.downDistanceText || "",
+        shortDownDistance: end.shortDownDistanceText || sit.shortDownDistanceText || "",
+        yardsToEndzone: toGo,
+        redZone: toGo !== null ? (toGo > 0 && toGo <= 20) : sit.isRedZone === true,
+        description: (cur && cur.team && cur.team.abbreviation === team.abbr && cur.description) || "",
+        lastPlay: (last && last.text) || (sit.lastPlay && sit.lastPlay.text) || ""
+      };
+    }
+  }
+
+  // ---- drives that have ended, for the Live Drives panel's result tiles ----
+  const finishedDrives = (drives.previous || []).filter(dr => dr.displayResult || dr.result).slice(-6).map(dr => {
+    const plays = dr.plays || [];
+    const scoring = plays.filter(p => p.scoringPlay).pop();
+    const lastTimed = plays.filter(p => p.wallclock).pop();
+    return {
+      key: `${game.gamePk}-${dr.id}`, gamePk: game.gamePk, team: (dr.team && dr.team.abbreviation) || "",
+      result: dr.displayResult || dr.result || "", isScore: dr.isScore === true, description: dr.description || "",
+      endTime: (lastTimed && lastTimed.wallclock) || "", scoringText: (scoring && scoring.text) || ""
+    };
+  });
+
+  const period = (comp.status && comp.status.period) || game.period || 0;
+  const clock = (comp.status && comp.status.displayClock) || game.clock || "";
+  // The quarter on the clock has ENDED -- "End of 1st", halftime -- though
+  // the next has not started, so `period` still names it. Taken from ESPN's
+  // status name rather than a 0:00 clock: a score can still post on an
+  // untimed down after the clock reads zero.
+  const periodOver = type.name === "STATUS_END_PERIOD" || type.name === "STATUS_HALFTIME";
+  return { status, gamePk: game.gamePk, date: game.date, teams, period, periodOver, clock, detail: type.shortDetail || game.detail || "",
+           lines, touchdowns, tdNameTeams, drive, finishedDrives, playLog, fetchedAt: Date.now() };
+}
+
+function getParticipation(gamePk, teamId) {
+  const key = `${gamePk}-${teamId}`;
+  if (!ROSTER_CACHE.has(key)) {
+    const request = fetchJson(`${ESPN_CORE}/events/${gamePk}/competitions/${gamePk}/competitors/${teamId}/roster`).then(data => {
+      const played = new Map();
+      (data.entries || []).forEach(e => { if (e.playerId) played.set(String(e.playerId), e.didNotPlay === false); });
+      return played;
+    });
+    request.catch(() => ROSTER_CACHE.delete(key));
+    ROSTER_CACHE.set(key, request);
+  }
+  return ROSTER_CACHE.get(key);
+}
+
+async function pollSlate(tickets) {
+  const dates = slateDates(tickets);
+  const games = (await Promise.all(dates.map(getScheduleForDate))).flat();
+  const allScheduledFinal = games.every(g => g.final);
+  if (games.length === 0) {
+    return { results: Object.assign(emptyResults(), { ready: true, noGames: true }), done: true, settled: true };
+  }
+
+  const picks = picksOf(tickets);
+  const pickTeams = new Set(picks.map(p => p.team).filter(Boolean));
+  const watchEverything = picks.some(p => !p.team);   // an unresolved pick could be in any game
+
+  const snapshots = await Promise.all(games.map(g => {
+    if (FINAL_SNAPSHOTS.has(g.gamePk)) return FINAL_SNAPSHOTS.get(g.gamePk);
+    if (g.preview) return previewSnapshot(g);
+    const ours = watchEverything || pickTeams.has(g.teams.away && g.teams.away.abbr) || pickTeams.has(g.teams.home && g.teams.home.abbr);
+    const cached = LIVE_SNAPSHOTS.get(g.gamePk);
+    if (!ours && !g.final && cached && Date.now() - cached.fetchedAt < BACKGROUND_GAME_MS) return cached;
+    return getGameSnapshot(g).then(snap => {
+      if (snap.status === "final") { FINAL_SNAPSHOTS.set(g.gamePk, snap); LIVE_SNAPSHOTS.delete(g.gamePk); }
+      else LIVE_SNAPSHOTS.set(g.gamePk, snap);
+      return snap;
+    }).catch(() => cached || null);
+  }));
+
+  const results = emptyResults();
+  let allFinal = true;
+  snapshots.forEach(snap => {
+    if (!snap) { allFinal = false; return; }
+    results.gameInfo.set(snap.gamePk, snap);
+    ["away", "home"].forEach(side => { if (snap.teams[side] && snap.teams[side].abbr) results.gameByTeam.set(snap.teams[side].abbr, snap.gamePk); });
+    snap.lines.forEach(line => {
+      results.lineIds.add(line.id);
+      results.gameByAthlete.set(line.id, snap.gamePk);
+      if (line.td > 0) results.hitIds.add(line.id);
+    });
+    snap.tdNameTeams.forEach((teamSet, norm) => {
+      if (!results.tdNameTeams.has(norm)) results.tdNameTeams.set(norm, new Set());
+      teamSet.forEach(t => results.tdNameTeams.get(norm).add(t));
+    });
+    snap.touchdowns.forEach(td => results.touchdowns.push(td));
+    if (snap.status !== "final") allFinal = false;
+  });
+  results.touchdowns.sort((a, b) => String(b.time).localeCompare(String(a.time)));   // newest first, across games
+
+  // Final game, no stat line, and we know who he is: ask the roster whether he played.
+  let rosterFailed = false;
+  await Promise.all(picks.map(async p => {
+    if (!p.id || results.lineIds.has(p.id)) return;
+    const snap = results.gameInfo.get(results.gameByTeam.get(p.team));
+    if (!snap || snap.status !== "final") return;
+    const team = ["away", "home"].map(s => snap.teams[s]).find(t => t && t.abbr === p.team);
+    if (!team) return;
+    try {
+      const played = await getParticipation(snap.gamePk, team.id);
+      results.participation.set(p.id, played.get(p.id) === true);
+    } catch (e) { rosterFailed = true; }
+  }));
+
+  results.allGamesFinal = allFinal;
+  results.ready = true;
+  linkPicks(results, tickets);
+  const anyFetchFailed = snapshots.some(s => !s) || rosterFailed;
+  return { results, done: allScheduledFinal || pastSafetyValve(slateEnd(tickets)), settled: allScheduledFinal && !anyFetchFailed };
+}
+
+function registerPicks(tickets) {
+  picksOf(tickets).forEach(p => {
+    const old = PICKS.get(p.norm);
+    if (!old || (!old.id && p.id)) PICKS.set(p.norm, { id: p.id, team: p.team });
+  });
+}
+
+function stateForPlayer(playerName) {
+  const norm = normalizeName(playerName);
+  if (!RESULTS.ready) return "not_started";
+  if (RESULTS.hitNames.has(norm)) return "hit";
+  const game = gameForPick(playerName);
+  if (!game) return RESULTS.allGamesFinal ? "na" : "not_started";   // team isn't playing on this slate (bye, wrong week)
+  if (game.status === "preview") return "not_started";
+  if (game.status === "live") return "live";
+  if (lineForPick(playerName)) return "miss";          // touched the ball, never scored
+  const pick = pickInfo(playerName);
+  if (pick.id && RESULTS.participation.has(pick.id)) return RESULTS.participation.get(pick.id) ? "miss" : "na";
+  // Roster not read (yet): someone the card resolved is presumed to have
+  // dressed; a name that never matched anyone can't be graded at all.
+  return pick.id ? "miss" : "na";
+}
+
+function liveContextForPlayer(playerName) {
+  const game = gameForPick(playerName);
+  if (!game || game.status === "preview") return null;
+  const pick = pickInfo(playerName);
+  const line = lineForPick(playerName);
+  const team = (line && line.team) || pick.team || "";
+  return Object.assign(teamContextIn(game, team), { line, statLine: statLineText(line) });
+}
+
+// The same thing for a TEAM rather than a player -- a "team to score in the
+// 2nd quarter" bet is followed exactly the way a player's touchdown is: is
+// his side on the field with the ball, right now.
+function liveContextForTeam(abbr) {
+  const pk = RESULTS.gameByTeam && RESULTS.gameByTeam.get((abbr || "").toUpperCase());
+  const game = pk && RESULTS.gameInfo && RESULTS.gameInfo.get(pk);
+  if (!game || game.status === "preview") return null;
+  return Object.assign(teamContextIn(game, (abbr || "").toUpperCase()), { line: null, statLine: "" });
+}
+
+function teamContextIn(game, team) {
+  const drive = game.drive;
+  const hasPossession = !!(drive && team && drive.team === team);
+  // His side's own drive is the one ESPN currently has open.
+  const myDriveOpen = hasPossession && !!drive.driveTeam && drive.driveTeam === team;
+  // "On offense" means his side is actually lined up and the drive is still
+  // going: possession is theirs, ESPN has THEIR drive open, and that drive
+  // hasn't ended. All three matter --
+  //   * possession alone is stale right after a score;
+  //   * an open drive alone is stale right after a punt/turnover;
+  //   * a finished drive still named as current is the kickoff window.
+  // ESPN publishes no personnel data -- `play.participants` names only the
+  // players involved in a play (rusher, tackler, receiver), never the 11 on
+  // the field -- so "is HE on the field" is not knowable and isn't claimed.
+  const onOffense = hasPossession && (!drive.driveTeam || myDriveOpen) && !drive.driveOver;
+  // Possession is ours but our drive hasn't opened yet: the gap between the
+  // other team giving the ball up and our first snap. Deliberately NOT the
+  // case where our own drive just ended -- we're kicking off, not taking the
+  // field -- which is what `!myDriveOpen` rules out.
+  const takingFieldSoon = hasPossession && !onOffense && !myDriveOpen;
+  // The OTHER side has the ball and their drive is live -- the same three
+  // conditions as onOffense, mirrored. It matters only to a defensive prop: a
+  // sack can happen on exactly these snaps and no others, which is the
+  // inverse of every other pick on this wall.
+  const oppHasBall = !!(drive && team && drive.team && drive.team !== team);
+  const onDefense = oppHasBall && (!drive.driveTeam || drive.driveTeam === drive.team) && !drive.driveOver;
+  return {
+    gamePk: game.gamePk, status: game.status, team,
+    opponent: ["away", "home"].map(s => game.teams[s]).filter(t => t && t.abbr !== team).map(t => t.abbr)[0] || "",
+    clockLabel: periodLabel(game),
+    score: `${game.teams.away.abbr} ${game.teams.away.score}, ${game.teams.home.abbr} ${game.teams.home.score}`,
+    onOffense, takingFieldSoon, onDefense, redZone: onOffense && drive.redZone,
+    oppDownDistance: onDefense ? drive.downDistance : "",
+    downDistance: onOffense ? drive.downDistance : "", yardsToEndzone: onOffense ? drive.yardsToEndzone : null,
+    driveDescription: onOffense ? drive.description : "", lastPlay: (drive && drive.lastPlay) || "",
+    link: espnGameUrl(game.gamePk)
+  };
+}
+
+// ---- when did it happen ----
+// The moment a football leg HIT: { t: ms, approx } or null. Touchdowns carry
+// their own time; a team's first score in a quarter is the play where its
+// score went up; a yardage / catch / sack count is summed play by play from
+// the text, which is the only place ESPN names who did what.
+function textKey(name) {
+  const parts = String(name || "").replace(/\s+(jr|sr|ii|iii|iv|v)\.?$/i, "").trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const key = parts[0][0] + "." + parts.slice(1).join(" ");
+  return key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function playCredit(market, p, key) {
+  const text = p.text || "";
+  if (!key || /no play/i.test(text)) return 0;
+  const done = !/incomplete|intercepted/i.test(text);
+  if (market === "receptions" || market === "rec_yds") {
+    if (!done || !new RegExp(`pass\\b[^.]*?\\bto ${key}\\b`, "i").test(text)) return 0;
+    return market === "receptions" ? 1 : p.yds;
+  }
+  if (market === "pass_yds") return done && new RegExp(`\\b${key} pass\\b`, "i").test(text) ? p.yds : 0;
+  if (market === "rush_yds") {
+    const body = text.replace(/^(\([^)]*\)\s*)+/, "");
+    return new RegExp(`^${key}\\b`, "i").test(body) && !/\bpass\b|sacked|kneels/i.test(body) ? p.yds : 0;
+  }
+  if (market === "sacks") {
+    const m = text.match(/sacked[^()]*\(([^)]*)\)/i);
+    if (!m || !new RegExp(`\\b${key}\\b`, "i").test(m[1])) return 0;
+    return /\band\b|;/.test(m[1]) ? 0.5 : 1;
+  }
+  return 0;
+}
+function legHitTimeNfl(leg) {
+  const m = leg.market || "td";
+  const lineN = leg.line === null || leg.line === undefined ? NaN : Number(leg.line);
+  const need = Number.isFinite(lineN) ? Math.floor(lineN) + 1 : 1;
+  const pk = (leg.team && RESULTS.gameByTeam && RESULTS.gameByTeam.get(String(leg.team).toUpperCase()));
+  const game = (m === "q_score" || m === "quarters")
+    ? (pk && RESULTS.gameInfo.get(pk)) || null
+    : gameForPick(leg.player) || (pk && RESULTS.gameInfo.get(pk)) || null;
+  const log = (game && game.playLog) || [];
+  const lastT = log.length ? Date.parse(log[log.length - 1].t) || null : null;
+  const final = game && game.status === "final" ? lastT : null;
+  const exact = t => (t ? { t, approx: false } : null);
+  if (leg.side === "under" || m === "quarters" || m === "most_rec_yds") return exact(final);
+  const norm = normalizeName(leg.player || "");
+  const tds = (RESULTS.touchdowns || []).slice().sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+  if (m === "td" || m === "td_count") {
+    const mine = tds.filter(td => normalizeName(td.scorer) === norm && (!leg.team || !td.team || td.team === leg.team));
+    if (mine[need - 1]) return exact(Date.parse(mine[need - 1].time));
+  }
+  if (m === "pass_tds") {
+    const mine = tds.filter(td => td.passer && normalizeName(td.passer) === norm);
+    if (mine[need - 1]) return exact(Date.parse(mine[need - 1].time));
+  }
+  if (m === "q_score" && game) {
+    const side = ["away", "home"].find(s => game.teams[s] && game.teams[s].abbr === String(leg.team || "").toUpperCase());
+    const first = log.find(p => p.q === Number(leg.quarter) && p.scored === side && p.t);
+    if (first) return exact(Date.parse(first.t));
+  }
+  if (["receptions", "rec_yds", "rush_yds", "pass_yds", "sacks"].includes(m)) {
+    const key = textKey(leg.player);
+    let have = 0;
+    for (const p of log) {
+      have += playCredit(m, p, key);
+      if (have >= need && p.t) return exact(Date.parse(p.t));
+    }
+  }
+  return final ? { t: final, approx: true } : null;
+}
+
+function slateDates(tickets) {
+  const out = [];
+  const end = tickets.endDate && tickets.endDate >= tickets.date ? tickets.endDate : tickets.date;
+  const [y, m, d] = tickets.date.split("-").map(Number);
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10);
+    if (day > end) break;
+    out.push(day);
+  }
+  return out;
+}
+
+function slateEnd(tickets) {
+  const dates = slateDates(tickets);
+  return dates[dates.length - 1];
+}
+
+function tdDetailHtml(td) {
+  const rows = [
+    ["Play", escapeHtml(td.text)],
+    ["Type", escapeHtml(td.kind || DASH)],
+    ["Team", escapeHtml(td.team || DASH)],
+    ["When", escapeHtml(tdWhenText(td) || DASH)],
+    ["Score after", escapeHtml(td.score || DASH)]
+  ];
+  if (td.passer) rows.splice(2, 0, ["Thrown by", escapeHtml(td.passer)]);
+  return `<dl class="hr-detail">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
+    <a href="${espnGameUrl(td.gamePk)}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Open this game on ESPN &#8599;</a>`;
+}
+
+function tdRowHtml(td, isOurs) {
+  const open = TD_EXPANDED.has(td.id);
+  const short = /pass/i.test(td.kind) ? "REC" : /rush/i.test(td.kind) ? "RUSH" : "RETURN";
+  return `<div class="hr-row${isOurs ? " ours" : ""}${open ? " open" : ""}" onclick="toggleTdRow('${td.id}')">
+    <div class="hr-main">
+      <div class="hr-left">
+        <div class="hr-batter">${escapeHtml(td.scorer)}</div>
+        <div class="hr-sub">${escapeHtml(td.team || DASH)} &middot; ${escapeHtml(tdWhenText(td) || DASH)}${td.passer ? ` &middot; from ${escapeHtml(td.passer)}` : ""}</div>
+      </div>
+      <div class="hr-right">
+        <div class="hr-dist">${td.yards !== null ? `${td.yards} yd` : DASH}</div>
+        <div class="hr-ev">${short}</div>
+      </div>
+      <span class="hr-chevron">&#9660;</span>
+    </div>
+    ${open ? tdDetailHtml(td) : ""}
+  </div>`;
+}
+
+function espnGameUrl(gamePk) {
+  return `https://www.espn.com/nfl/game/_/gameId/${gamePk}`;
+}
+
+function drvBallTile(pick, ctx) {
+  const where = ctx.downDistance || "Ball on offense";
+  // "1st & Goal at TEN 4" already says how far; only spell it out when ESPN gave no down-and-distance
+  const toGo = !ctx.downDistance && ctx.yardsToEndzone !== null && ctx.yardsToEndzone > 0 ? `${ctx.yardsToEndzone} to the end zone` : "";
+  return drvTileShell(ctx.redZone ? "now rz" : "now", ctx.redZone ? "RED ZONE" : "ON OFFENSE", pick, ctx.link, `
+    <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}</div>
+    <div class="ab-countrow"><span class="ab-count drv-down">${escapeHtml(where)}</span></div>
+    <div class="ab-line faint">${[toGo, drvFootLine(ctx, pick)].filter(Boolean).join(" &middot; ")}</div>`);
+}
+
+function drvWaitTile(pick, ctx) {
+  return drvTileShell("soon", "TAKING THE FIELD SOON", pick, ctx.link, `
+    <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}</div>
+    <div class="ab-line faint">${drvFootLine(ctx, pick)}</div>`);
+}
+
+function drvResultTile(flash, now) {
+  const pick = flash.pick;
+  if (flash.kind === "td") {
+    const td = flash.td;
+    const ball = now < flash.at + DRV_BALL_MS
+      ? `<div class="ab-bomb"><span class="e">&#127944;</span><span class="n">${escapeHtml(pick.player.toUpperCase())}</span></div>` : "";
+    return drvTileShell("result homer", "TOUCHDOWN", pick, td ? espnGameUrl(td.gamePk) : null, `
+      <div class="ab-result">Touchdown</div>
+      <div class="ab-line faint">${escapeHtml([td ? tdHowText(td) : "", td ? tdWhenText(td) : "", pick.whos.join(", ")].filter(Boolean).join(" · "))}</div>${ball}`);
+  }
+  const dr = flash.drive;
+  // his team scored, but it wasn't him: worth saying plainly
+  const stolen = /touchdown/i.test(dr.result);
+  return drvTileShell(`result${dr.isScore ? " onbase" : ""}`, "DRIVE OVER", pick, espnGameUrl(dr.gamePk), `
+    <div class="ab-result">${escapeHtml(stolen ? "TD — not him" : dr.result)}</div>
+    <div class="ab-line faint">${escapeHtml([dr.description, pick.whos.join(", ")].filter(Boolean).join(" · "))}</div>`);
+}
+
+function drvOddsText(odds) {
+  if (odds.length <= 2) return odds.join("/");
+  const nums = odds.map(oddsToNumber).filter(n => n !== null).sort((a, b) => a - b);
+  const fmt = n => (n > 0 ? "+" : "") + n;
+  return nums.length ? `${fmt(nums[0])} to ${fmt(nums[nums.length - 1])}` : odds[0];
+}
+
+function drvFootLine(ctx, pick) {
+  // Progress toward the line comes FIRST when there is one -- "2 of 3
+  // passing TDs" is the thing the person holding that bet is watching for.
+  return [pick.progress, ctx.statLine, pick.whos.join(", ")]
+    .filter(Boolean).map(escapeHtml).join(" &middot; ");
+}
+
+// A defensive pick, while the other side has the ball. Shows THEIR down and
+// distance, because that is the snap he can make the play on.
+function drvDefenseTile(pick, ctx) {
+  return drvTileShell("now", "ON DEFENSE", pick, ctx.link, `
+    <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}</div>
+    <div class="ab-countrow"><span class="ab-count drv-down">${escapeHtml(ctx.oppDownDistance || "Opponent has the ball")}</span></div>
+    <div class="ab-line faint">${drvFootLine(ctx, pick)}</div>`);
+}
+
+function drvTileShell(cls, tag, pick, link, inner) {
+  const href = link ? ` href="${link}" target="_blank" rel="noopener"` : "";
+  return `<a class="ab-tile ${cls}"${href} data-player="${escapeHtml(pick.player)}" title="${escapeHtml(pick.whos.join(", "))}">
+    <div class="ab-top"><span class="ab-tag">${tag}</span><span class="ab-odds">${escapeHtml(drvOddsText(pick.odds))}${pick.iron ? ironMark() : ""}</span></div>
+    <div class="ab-name">${escapeHtml(pick.player)}</div>${inner}</a>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
+  return res.json();
+}
+
+async function fetchScheduleForDate(date) {
+  const data = await fetchJson(`${ESPN}/scoreboard?dates=${date.replace(/-/g, "")}`);
+  return (data.events || []).map(ev => {
+    const comp = (ev.competitions || [])[0] || {};
+    const type = (ev.status && ev.status.type) || {};
+    const teams = {};
+    (comp.competitors || []).forEach(c => {
+      teams[c.homeAway] = { id: String(c.id), abbr: (c.team && c.team.abbreviation) || "", score: c.score || "0" };
+    });
+    return {
+      gamePk: String(ev.id), date, kickoff: ev.date || "",
+      final: type.state === "post", preview: type.state === "pre",
+      period: (ev.status && ev.status.period) || 0, clock: (ev.status && ev.status.displayClock) || "",
+      detail: type.shortDetail || "", teams, situation: comp.situation || null
+    };
+  });
+}
+
+function gameForPick(playerName) {
+  const norm = normalizeName(playerName);
+  const pick = pickInfo(playerName);
+  // his boxscore line wins (it survives a trade the roster file hasn't caught up with), then his team's game
+  const pk = (pick.id && RESULTS.gameByAthlete.get(pick.id)) || (pick.team && RESULTS.gameByTeam.get(pick.team)) || null;
+  return pk ? RESULTS.gameInfo.get(pk) || null : null;
+}
+
+function lineForPick(playerName) {
+  const pick = pickInfo(playerName);
+  const game = gameForPick(playerName);
+  if (!game) return null;
+  if (pick.id && game.lines.has(pick.id)) return game.lines.get(pick.id);
+  const norm = normalizeName(playerName);
+  let found = null;
+  game.lines.forEach(line => { if (!found && line.norm === norm && (!pick.team || line.team === pick.team)) found = line; });
+  return found;
+}
+
+function linkPicks(results, tickets) {
+  results.hitNames = new Set();
+  picksOf(tickets).forEach(p => {
+    const byId = p.id && results.hitIds.has(p.id);
+    const teamsScoredFor = results.tdNameTeams.get(p.norm);
+    const byName = !!teamsScoredFor && (!p.team || teamsScoredFor.has(p.team));
+    if (byId || byName) results.hitNames.add(p.norm);
+  });
+}
+
+function pastSafetyValve(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const n = nowET();
+  return Date.UTC(n.year, n.month - 1, n.day, n.hour, n.minute) >= Date.UTC(y, m - 1, d + 1, 6, 0);
+}
+
+function periodLabel(game) {
+  if (!game) return "";
+  if (game.status === "final") return "Final";
+  if (/half/i.test(game.detail || "")) return "Halftime";
+  const q = game.period > 4 ? "OT" : game.period ? `Q${game.period}` : "";
+  return [q, game.clock].filter(Boolean).join(" ");
+}
+
+function pickInfo(name) { return PICKS.get(normalizeName(name)) || { id: "", team: "" }; }
+
+function picksOf(tickets) {
+  const out = [];
+  if (!tickets) return out;
+  (tickets.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(l => { if (l.player) out.push(l); })));
+  (tickets.singles || []).forEach(s => { if (s.player) out.push(s); });
+  return out.map(p => ({ name: p.player, norm: normalizeName(p.player), id: p.athleteId ? String(p.athleteId) : "", team: p.team || "" }));
+}
+
+function previewSnapshot(game) {
+  return { status: "preview", gamePk: game.gamePk, date: game.date, teams: game.teams, period: 0, clock: "", detail: game.detail,
+           lines: new Map(), touchdowns: [], tdNameTeams: new Map(), drive: null, finishedDrives: [], fetchedAt: 0 };
+}
+
+function statIndex(labels, name) { return (labels || []).indexOf(name); }
+
+function statLineText(line) {
+  if (!line) return "";
+  const bits = [];
+  if (line.rec || line.tgts) bits.push(`${line.rec} rec, ${line.recYds} yds${line.tgts ? ` (${line.tgts} tgt)` : ""}`);
+  if (line.car) bits.push(`${line.car} car, ${line.rushYds} yds`);
+  return bits.join(" · ");
+}
+
+function statNum(stats, idx) { const n = idx >= 0 ? parseInt(stats[idx], 10) : NaN; return Number.isNaN(n) ? 0 : n; }
+
+function tdHowText(td) {
+  if (td.yards === null) return td.text;
+  return `${td.yards}-yd ${td.how.replace(/^Rush$/i, "rush").replace(/^Run$/i, "run")}`;
+}
+
+function tdWhenText(td) {
+  const q = td.period > 4 ? "OT" : td.period ? `Q${td.period}` : "";
+  return [q, td.clock].filter(Boolean).join(" ");
+}
+
+function todayET() {
+  const n = nowET();
+  return `${n.year}-${String(n.month).padStart(2, "0")}-${String(n.day).padStart(2, "0")}`;
+}
+
+function nowET() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(new Date());
+  const get = (t) => +parts.find(p => p.type === t).value;
+  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour") % 24, minute: get("minute") };
+}
+
+// ---- what the host page is allowed to touch ----
+// RESULTS is NOT declared here: the extracted engine brings football's own
+// `let RESULTS = emptyResults()` with it, and a second `let` in the same
+// scope is a SyntaxError that takes the whole page down, not just this half.
+function slateShim(tickets) {
+  // Only the NFL legs. picksOf() would otherwise hand ESPN a list of
+  // baseball players to look for, and slateDates() needs the span.
+  // One leg can name SEVERAL players ("A, B, C Combined TDs"). picksOf()
+  // reads leg.player, so without splitting them here none of the three is
+  // ever registered, no game is found for any of them, and the bet sits at
+  // "not started" for ever.
+  const expand = l => (Array.isArray(l.players) && l.players.length > 1)
+    ? l.players.map((p, i) => Object.assign({}, l, {
+        player: p, athleteId: (l.athleteIds || [])[i] || "", players: null }))
+    : [l];
+  const legsOf = t => (t.legs || []).filter(l => l.sport === "nfl")
+    .reduce((out, l) => out.concat(expand(l)), []);
+  return {
+    date: tickets.date,
+    endDate: tickets.endDate || tickets.date,
+    windows: (tickets.windows || []).map(w => ({
+      tickets: (w.tickets || []).map(t => ({ legs: legsOf(t) })).filter(t => t.legs.length)
+    })),
+    singles: (tickets.singles || []).filter(x => x.sport === "nfl")
+  };
+}
+return {
+  has(tickets) {
+    const sh = slateShim(tickets);
+    return sh.singles.length > 0 || sh.windows.some(w => w.tickets.length > 0);
+  },
+  register(tickets) { PICKS.clear(); registerPicks(slateShim(tickets)); },
+  async poll(tickets) { return pollSlate(slateShim(tickets)); },
+  use(results) { RESULTS = results || emptyResults(); },
+  // Like use(), but hands back what was there so a caller can put it
+  // straight -- the alert helpers grade TODAY while another tab is showing.
+  swap(results) { const was = RESULTS; RESULTS = results || emptyResults(); return was; },
+  empty: emptyResults,
+  state(leg) { return stateForPlayer(leg.player); },
+  context(leg) { return liveContextForPlayer(leg.player); },
+  teamContext(abbr) { return liveContextForTeam(abbr); },
+  hitTime(leg) { return legHitTimeNfl(leg); },
+  scoring() { return RESULTS.touchdowns || []; },
+  rowHtml: tdRowHtml, detailHtml: tdDetailHtml,
+  toggleRow(id) { if (TD_EXPANDED.has(id)) TD_EXPANDED.delete(id); else TD_EXPANDED.add(id); },
+  ballTile: drvBallTile, waitTile: drvWaitTile, resultTile: drvResultTile,
+  defenseTile: drvDefenseTile,
+  oddsText: drvOddsText, gameUrl: espnGameUrl,
+  norm(name) { return normalizeName(name); },
+
+  // ---- counted stats, for markets the host grades itself ----
+  // -> { value, status } for one player's stat, or null when his game can't
+  // be found at all. `status` is the GAME's, because an over can settle the
+  // moment it clears while an under has to wait for the whistle.
+  stat(playerName, key) {
+    const game = gameForPick(playerName);
+    if (!game) return null;
+    const line = lineForPick(playerName);
+    return { value: line ? (line[key] || 0) : 0, status: game.status,
+             played: !!line };
+  },
+  // The best figure for `key` across EVERY game on the slate, and who holds
+  // it. For a "most on the day" market, which is won against the whole field
+  // rather than against a number.
+  leaders(key) {
+    let best = -1;
+    const holders = new Set();
+    let allFinal = true;
+    (RESULTS.gameInfo || new Map()).forEach(g => {
+      // A game still to kick off can always overtake whoever leads now, so
+      // one unfinished game anywhere means nothing is settled.
+      if (g.status !== "final") allFinal = false;
+      (g.lines || new Map()).forEach(l => {
+        const v = l[key] || 0;
+        if (v > best) { best = v; holders.clear(); holders.add(l.norm); }
+        else if (v === best && v > 0) holders.add(l.norm);
+      });
+    });
+    return { best, holders, allFinal };
+  },
+  // -> { quarters: [7,3,10,7], status } for a team, or null. A quarter only
+  // appears once it has been played, so the length is how far the game has
+  // got; overtime simply adds a fifth entry.
+  quarters(teamAbbr) {
+    const pk = RESULTS.gameByTeam && RESULTS.gameByTeam.get((teamAbbr || "").toUpperCase());
+    const game = pk && RESULTS.gameInfo && RESULTS.gameInfo.get(pk);
+    if (!game) return null;
+    const side = ["away", "home"].map(s => game.teams && game.teams[s])
+      .filter(Boolean).find(t => t.abbr === (teamAbbr || "").toUpperCase());
+    return side ? { quarters: side.quarters || [], status: game.status, gamePk: game.gamePk,
+                    period: game.period || 0, periodOver: !!game.periodOver } : null;
+  }
+};
+})();
+
+// ============ the NHL engine ============
+// The hockey twin of the NFL engine above, sealed in a closure for the same
+// reasons: its normalizeName strips generational suffixes (ESPN writes them,
+// nobody types them), its RESULTS is its own, and it shares names with the
+// host (emptyResults, pollSlate, gameForPick...). Added 2026-10-05.
+//
+// Everything is read off ESPN's hockey SUMMARY, the same keyless host the NFL
+// engine uses (site.web.api: the NHL's own api-web.nhle.com refuses a browser
+// on another origin -- checked from bmbs.bet in Chromium). One summary carries:
+//   * a boxscore line per skater (G, A, SOG, TOI) and per goalie (SV, GA, SA);
+//   * every play, each with its team, its STRENGTH relative to that team
+//     (even / power-play / short-handed), its period, its wallclock, and its
+//     participants -- scorer and assisters on a goal, shooter and the goalie
+//     who saved it on a shot -- which is what times a hit to the play.
+const NHL = (function () {
+const ESPN = "https://site.web.api.espn.com/apis/site/v2/sports/hockey/nhl";
+const BACKGROUND_GAME_MS = 60000;   // games none of our picks are in: refreshed this often, for the goal log
+
+const SETTLED = new Map();
+const FINAL_SNAPSHOTS = new Map();
+const LIVE_SNAPSHOTS = new Map();
+const GOAL_EXPANDED = new Set();
+const PICKS = new Map();
+let RESULTS = emptyResults();
+
+function emptyResults() {
+  return { gameInfo: new Map(), gameByTeam: new Map(), gameByAthlete: new Map(), goals: [],
+           allGamesFinal: false, ready: false, noGames: false };
+}
+
+function normalizeName(name) {
+  return String(name || "")
+    .normalize("NFKD").replace(/[̀-ͯ]/g, "")
+    .replace(/[.']/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+(jr|sr|ii|iii|iv|v)$/, "");
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
+  return res.json();
+}
+
+function slateDates(tickets) {
+  const out = [];
+  const end = tickets.endDate && tickets.endDate >= tickets.date ? tickets.endDate : tickets.date;
+  const [y, m, d] = tickets.date.split("-").map(Number);
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10);
+    if (day > end) break;
+    out.push(day);
+  }
+  return out;
+}
+
+async function getSchedule(date) {
+  if (SETTLED.has(date)) return SETTLED.get(date);
+  const data = await fetchJson(`${ESPN}/scoreboard?dates=${date.replace(/-/g, "")}`);
+  const games = (data.events || []).map(ev => {
+    const comp = (ev.competitions || [])[0] || {};
+    const type = (ev.status && ev.status.type) || {};
+    const teams = {};
+    (comp.competitors || []).forEach(c => {
+      teams[c.homeAway] = { id: String(c.id), abbr: (c.team && c.team.abbreviation) || "", score: Number(c.score) || 0, periods: [] };
+    });
+    return { gamePk: String(ev.id), date, start: ev.date || "", final: type.state === "post", preview: type.state === "pre",
+             period: (ev.status && ev.status.period) || 0, clock: (ev.status && ev.status.displayClock) || "",
+             detail: type.shortDetail || "", teams };
+  });
+  if (games.length ? games.every(g => g.final) : date < todayET()) SETTLED.set(date, games);
+  return games;
+}
+
+const num = v => { const n = parseFloat(v); return Number.isNaN(n) ? 0 : n; };
+
+async function getGameSnapshot(game) {
+  const data = await fetchJson(`${ESPN}/summary?event=${game.gamePk}`);
+  const comp = ((data.header && data.header.competitions) || [])[0] || {};
+  const type = (comp.status && comp.status.type) || {};
+  const state = type.state || (game.final ? "post" : game.preview ? "pre" : "in");
+  const status = state === "post" ? "final" : state === "pre" ? "preview" : "live";
+
+  const teamsById = new Map();
+  const teams = {};
+  (comp.competitors || []).forEach(c => {
+    const t = { id: String(c.id), abbr: (c.team && c.team.abbreviation) || "", side: c.homeAway, score: Number(c.score) || 0,
+                periods: (c.linescores || []).map(l => Number(l.displayValue != null ? l.displayValue : l.value) || 0) };
+    teamsById.set(t.id, t);
+    teams[c.homeAway] = t;
+  });
+  if (!teams.away || !teams.home) { teams.away = teams.away || game.teams.away; teams.home = teams.home || game.teams.home; }
+
+  // ---- a line per player: skaters and goalies ----
+  const lines = new Map();
+  ((data.boxscore && data.boxscore.players) || []).forEach(side => {
+    const abbr = (side.team && side.team.abbreviation) || "";
+    (side.statistics || []).forEach(cat => {
+      const labels = cat.labels || cat.keys || [];
+      const goalie = cat.name === "goalies";
+      (cat.athletes || []).forEach(row => {
+        const a = row.athlete || {};
+        if (!a.id) return;
+        const st = row.stats || [];
+        const val = k => { const i = labels.indexOf(k); return i >= 0 ? num(st[i]) : 0; };
+        const toiIdx = labels.indexOf("TOI");
+        const line = { id: String(a.id), name: a.displayName || "", norm: normalizeName(a.displayName || ""), team: abbr, goalie,
+                       g: goalie ? 0 : val("G"), a: goalie ? 0 : val("A"), sog: goalie ? 0 : val("SOG"),
+                       sv: goalie ? val("SV") : 0, ga: goalie ? val("GA") : 0, sa: goalie ? val("SA") : 0,
+                       toi: toiIdx >= 0 ? String(st[toiIdx] || "") : "" };
+        line.pts = line.g + line.a;
+        lines.set(line.id, line);
+      });
+    });
+  });
+
+  // ---- every play, in order ----
+  const playLog = [];
+  const goals = [];
+  (data.plays || []).forEach(p => {
+    const kind = (p.type && p.type.text) || "";
+    const team = p.team && p.team.id ? teamsById.get(String(p.team.id)) : null;
+    const parts = (p.participants || []).map(x => ({
+      id: String((x.athlete && x.athlete.id) || ""), name: (x.athlete && x.athlete.displayName) || "", role: x.type || "" }));
+    const q = (p.period && p.period.number) || 0;
+    const entry = { t: p.wallclock || "", q, kind, team: team ? team.abbr : "", strength: (p.strength && p.strength.abbreviation) || "",
+                    parts, goal: !!p.scoringPlay && /goal/i.test(kind), shot: kind === "Shot" };
+    playLog.push(entry);
+    if (entry.goal) {
+      const scorer = parts.find(x => x.role === "scorer") || parts[0] || { id: "", name: "" };
+      goals.push({
+        id: String(p.id), time: entry.t, gamePk: game.gamePk, team: entry.team, period: q,
+        clock: (p.clock && p.clock.displayValue) || "", strength: (p.strength && p.strength.text) || "",
+        scorer: scorer.name, scorerId: scorer.id,
+        assists: parts.filter(x => x.role === "assister").map(x => x.name),
+        assistIds: parts.filter(x => x.role === "assister").map(x => x.id),
+        text: p.text || "",
+        score: `${teams.away.abbr} ${p.awayScore} – ${teams.home.abbr} ${p.homeScore}`
+      });
+    }
+  });
+
+  // ---- the power play, right now ----
+  // Each play's strength is relative to ITS team: the latest play naming a
+  // team says who is a man up. Stale through a stoppage, which is fine -- the
+  // manpower doesn't change during one either.
+  let powerPlay = null;
+  if (status === "live") {
+    for (let i = playLog.length - 1; i >= 0; i--) {
+      const p = playLog[i];
+      if (!p.team || !p.strength) continue;
+      if (p.strength === "power-play") powerPlay = p.team;
+      else if (p.strength === "short-handed") powerPlay = ["away", "home"].map(s => teams[s].abbr).find(a => a !== p.team) || null;
+      break;
+    }
+  }
+
+  // ---- who is on the ice ----
+  // ESPN's `onIce` lists athlete ids "In Play". Only trusted while the game is
+  // LIVE; anything else and the page says nothing about who is on the ice.
+  let onIce = null;
+  if (status === "live" && Array.isArray(data.onIce)) {
+    const ids = new Set();
+    data.onIce.forEach(grp => (grp.entries || []).forEach(e => {
+      if (e && e.athleteid && e.whereabouts && e.whereabouts.name === "ROSTER_WHEREABOUTS_IN_PLAY") ids.add(String(e.athleteid));
+    }));
+    if (ids.size) onIce = ids;
+  }
+
+  const period = (comp.status && comp.status.period) || game.period || 0;
+  const clock = (comp.status && comp.status.displayClock) || game.clock || "";
+  const periodOver = type.name === "STATUS_END_PERIOD" || /intermission|end of/i.test(type.shortDetail || "");
+  return { status, gamePk: game.gamePk, date: game.date, start: game.start, teams, period, clock, periodOver,
+           detail: type.shortDetail || game.detail || "", lines, goals, playLog, powerPlay, onIce, fetchedAt: Date.now() };
+}
+
+function previewSnapshot(game) {
+  return { status: "preview", gamePk: game.gamePk, date: game.date, start: game.start, teams: game.teams, period: 0, clock: "",
+           periodOver: false, detail: game.detail, lines: new Map(), goals: [], playLog: [], powerPlay: null, onIce: null, fetchedAt: 0 };
+}
+
+// ---- picks: name -> { id, team } ----
+function picksOf(tickets) {
+  const out = [];
+  if (!tickets) return out;
+  (tickets.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(l => out.push(l))));
+  (tickets.singles || []).forEach(s => out.push(s));
+  return out.map(p => ({ name: p.player || "", norm: normalizeName(p.player || ""), id: p.athleteId ? String(p.athleteId) : "",
+                         team: p.team || "", teams: Array.isArray(p.teams) ? p.teams : [p.team, p.opponent].filter(Boolean) }));
+}
+function registerPicks(tickets) {
+  picksOf(tickets).forEach(p => {
+    if (!p.norm) return;
+    const old = PICKS.get(p.norm);
+    if (!old || (!old.id && p.id)) PICKS.set(p.norm, { id: p.id, team: p.team });
+  });
+}
+function pickInfo(name) { return PICKS.get(normalizeName(name)) || { id: "", team: "" }; }
+
+async function pollSlate(tickets) {
+  const dates = slateDates(tickets);
+  const games = (await Promise.all(dates.map(getSchedule))).flat();
+  const allScheduledFinal = games.every(g => g.final);
+  if (games.length === 0) {
+    return { results: Object.assign(emptyResults(), { ready: true, noGames: true }), done: true, settled: true };
+  }
+  const picks = picksOf(tickets);
+  const pickTeams = new Set(picks.flatMap(p => [p.team].concat(p.teams)).filter(Boolean));
+  const watchEverything = picks.some(p => !p.team && !p.teams.length);
+
+  const snapshots = await Promise.all(games.map(g => {
+    if (FINAL_SNAPSHOTS.has(g.gamePk)) return FINAL_SNAPSHOTS.get(g.gamePk);
+    if (g.preview) return previewSnapshot(g);
+    const ours = watchEverything || pickTeams.has(g.teams.away && g.teams.away.abbr) || pickTeams.has(g.teams.home && g.teams.home.abbr);
+    const cached = LIVE_SNAPSHOTS.get(g.gamePk);
+    if (!ours && !g.final && cached && Date.now() - cached.fetchedAt < BACKGROUND_GAME_MS) return cached;
+    return getGameSnapshot(g).then(snap => {
+      if (snap.status === "final") { FINAL_SNAPSHOTS.set(g.gamePk, snap); LIVE_SNAPSHOTS.delete(g.gamePk); }
+      else LIVE_SNAPSHOTS.set(g.gamePk, snap);
+      return snap;
+    }).catch(() => cached || null);
+  }));
+
+  const results = emptyResults();
+  let allFinal = true;
+  snapshots.forEach(snap => {
+    if (!snap) { allFinal = false; return; }
+    results.gameInfo.set(snap.gamePk, snap);
+    ["away", "home"].forEach(s => { if (snap.teams[s] && snap.teams[s].abbr) results.gameByTeam.set(snap.teams[s].abbr, snap.gamePk); });
+    snap.lines.forEach(line => results.gameByAthlete.set(line.id, snap.gamePk));
+    snap.goals.forEach(g => results.goals.push(g));
+    if (snap.status !== "final") allFinal = false;
+  });
+  results.goals.sort((a, b) => String(b.time).localeCompare(String(a.time)));   // newest first, across games
+  results.allGamesFinal = allFinal;
+  results.ready = true;
+  const anyFetchFailed = snapshots.some(s => !s);
+  return { results, done: allScheduledFinal || pastSafetyValve(dates[dates.length - 1]), settled: allScheduledFinal && !anyFetchFailed };
+}
+
+function gameForPick(playerName, team) {
+  const pick = pickInfo(playerName);
+  const pk = (pick.id && RESULTS.gameByAthlete.get(pick.id)) || ((team || pick.team) && RESULTS.gameByTeam.get(team || pick.team)) || null;
+  return pk ? RESULTS.gameInfo.get(pk) || null : null;
+}
+function lineForPick(playerName, team) {
+  const pick = pickInfo(playerName);
+  const game = gameForPick(playerName, team);
+  if (!game) return null;
+  if (pick.id && game.lines.has(pick.id)) return game.lines.get(pick.id);
+  const norm = normalizeName(playerName);
+  const t = team || pick.team;
+  let found = null;
+  game.lines.forEach(line => { if (!found && line.norm === norm && (!t || line.team === t)) found = line; });
+  return found;
+}
+function gameForTeam(abbr) {
+  const pk = RESULTS.gameByTeam.get(String(abbr || "").toUpperCase());
+  return pk ? RESULTS.gameInfo.get(pk) || null : null;
+}
+
+function espnGameUrl(gamePk) { return `https://www.espn.com/nhl/game/_/gameId/${gamePk}`; }
+
+function periodLabel(game) {
+  if (!game) return "";
+  if (game.status === "final") return /OT|SO/i.test(game.detail || "") ? `Final (${(game.detail.match(/OT|SO/i) || [""])[0].toUpperCase()})` : "Final";
+  const p = game.period > 4 ? "SO" : game.period === 4 ? "OT" : game.period ? `P${game.period}` : "";
+  if (game.periodOver) return `End of ${p}`;
+  return [p, game.clock].filter(Boolean).join(" ");
+}
+
+function statLineText(line) {
+  if (!line) return "";
+  if (line.goalie) return `${line.sv} saves on ${line.sa} · ${line.ga} GA`;
+  const bits = [`${line.g} G, ${line.a} A`, `${line.sog} SOG`];
+  if (line.toi) bits.push(`${line.toi} TOI`);
+  return bits.join(" · ");
+}
+
+function scoreText(game) {
+  return `${game.teams.away.abbr} ${game.teams.away.score}, ${game.teams.home.abbr} ${game.teams.home.score}`;
+}
+
+// Everything a ticket row or a tracker tile says about a pick whose game has
+// started, or null when his game can't be found.
+function liveContextForPlayer(playerName, team) {
+  const game = gameForPick(playerName, team);
+  if (!game || game.status === "preview") return null;
+  const pick = pickInfo(playerName);
+  const line = lineForPick(playerName, team);
+  const myTeam = (line && line.team) || team || pick.team || "";
+  const id = (line && line.id) || pick.id || "";
+  return {
+    gamePk: game.gamePk, status: game.status, team: myTeam, goalie: !!(line && line.goalie),
+    clockLabel: periodLabel(game), score: scoreText(game), intermission: !!game.periodOver,
+    // null = not knowable right now; the page then says nothing either way
+    onIce: game.onIce && id ? game.onIce.has(id) : null,
+    powerPlay: game.powerPlay ? (game.powerPlay === myTeam ? "pp" : "sh") : null,
+    line, statLine: statLineText(line), link: espnGameUrl(game.gamePk)
+  };
+}
+function liveContextForTeam(abbr) {
+  const game = gameForTeam(abbr);
+  if (!game || game.status === "preview") return null;
+  const me = String(abbr || "").toUpperCase();
+  return { gamePk: game.gamePk, status: game.status, team: me, clockLabel: periodLabel(game), score: scoreText(game),
+           intermission: !!game.periodOver,
+           powerPlay: game.powerPlay ? (game.powerPlay === me ? "pp" : "sh") : null, link: espnGameUrl(game.gamePk) };
+}
+
+// ---- when did it happen: { t: ms, approx } | null ----
+const PLAY_CREDIT = {
+  nhl_goal: (p, ids) => (p.goal && p.parts.some(x => x.role === "scorer" && ids.has(x.id)) ? 1 : 0),
+  nhl_assists: (p, ids) => (p.goal ? p.parts.filter(x => x.role === "assister" && ids.has(x.id)).length : 0),
+  nhl_points: (p, ids) => (p.goal ? p.parts.filter(x => (x.role === "scorer" || x.role === "assister") && ids.has(x.id)).length : 0),
+  nhl_sog: (p, ids) => ((p.shot || p.goal) && p.parts.some(x => (x.role === "shooter" || x.role === "scorer") && ids.has(x.id)) ? 1 : 0),
+  nhl_saves: (p, ids) => (p.shot && p.parts.some(x => x.role === "saver" && ids.has(x.id)) ? 1 : 0),
+};
+function legHitTimeNhl(leg) {
+  const m = leg.market || "nhl_goal";
+  const lineN = leg.line === null || leg.line === undefined ? NaN : Number(leg.line);
+  const need = Number.isFinite(lineN) ? Math.floor(lineN) + 1 : 1;
+  const game = (m === "nhl_ml" || m === "nhl_pl" || m === "nhl_total") ? gameForTeam(leg.team) : gameForPick(leg.player, leg.team);
+  const log = (game && game.playLog) || [];
+  const lastT = log.length ? Date.parse(log[log.length - 1].t) || null : null;
+  const final = game && game.status === "final" ? lastT : null;
+  const exact = t => (t ? { t, approx: false } : null);
+  if (leg.side === "under" || m === "nhl_ml" || m === "nhl_pl") return exact(final);
+  if (m === "nhl_total") {
+    let have = 0;
+    for (const p of log) { if (p.goal) have++; if (have >= need && p.t) return exact(Date.parse(p.t)); }
+    return final ? { t: final, approx: true } : null;
+  }
+  const credit = PLAY_CREDIT[m];
+  const line = lineForPick(leg.player, leg.team);
+  const pick = pickInfo(leg.player);
+  const ids = new Set([line && line.id, pick.id, leg.athleteId].filter(Boolean).map(String));
+  if (credit && ids.size) {
+    let have = 0;
+    for (const p of log) {
+      have += credit(p, ids);
+      if (have >= need && p.t) return exact(Date.parse(p.t));
+    }
+  }
+  return final ? { t: final, approx: true } : null;
+}
+
+// ---- the goal log ----
+function goalWhenText(g) {
+  const p = g.period > 4 ? "SO" : g.period === 4 ? "OT" : g.period ? `P${g.period}` : "";
+  return [p, g.clock].filter(Boolean).join(" ");
+}
+function goalDetailHtml(g) {
+  const rows = [
+    ["Play", escapeHtml(g.text || DASH)],
+    ["Team", escapeHtml(g.team || DASH)],
+    ["When", escapeHtml(goalWhenText(g) || DASH)],
+    ["Strength", escapeHtml(g.strength || DASH)],
+    ["Assists", escapeHtml(g.assists.length ? g.assists.join(", ") : "Unassisted")],
+    ["Score after", escapeHtml(g.score || DASH)]
+  ];
+  return `<dl class="hr-detail">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
+    <a href="${espnGameUrl(g.gamePk)}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Open this game on ESPN &#8599;</a>`;
+}
+function goalRowHtml(g, isOurs) {
+  const open = GOAL_EXPANDED.has(g.id);
+  const tag = /power/i.test(g.strength) ? "PPG" : /short/i.test(g.strength) ? "SHG" : /empty/i.test(g.text) ? "EN" : "GOAL";
+  return `<div class="hr-row${isOurs ? " ours" : ""}${open ? " open" : ""}" onclick="toggleGoalRow('${g.id}')">
+    <div class="hr-main">
+      <div class="hr-left">
+        <div class="hr-batter">${escapeHtml(g.scorer || DASH)}</div>
+        <div class="hr-sub">${escapeHtml(g.team || DASH)} &middot; ${escapeHtml(goalWhenText(g) || DASH)}${g.assists.length ? ` &middot; from ${escapeHtml(g.assists[0])}` : ""}</div>
+      </div>
+      <div class="hr-right">
+        <div class="hr-dist">&#127954;</div>
+        <div class="hr-ev">${tag}</div>
+      </div>
+      <span class="hr-chevron">&#9660;</span>
+    </div>
+    ${open ? goalDetailHtml(g) : ""}
+  </div>`;
+}
+
+function slateShim(tickets) {
+  const legsOf = t => (t.legs || []).filter(l => l.sport === "nhl");
+  return {
+    date: tickets.date,
+    endDate: tickets.endDate || tickets.date,
+    windows: (tickets.windows || []).map(w => ({
+      tickets: (w.tickets || []).map(t => ({ legs: legsOf(t) })).filter(t => t.legs.length)
+    })),
+    singles: (tickets.singles || []).filter(x => x.sport === "nhl")
+  };
+}
+
+return {
+  has(tickets) {
+    const sh = slateShim(tickets);
+    return sh.singles.length > 0 || sh.windows.some(w => w.tickets.length > 0);
+  },
+  register(tickets) { PICKS.clear(); registerPicks(slateShim(tickets)); },
+  async poll(tickets) { return pollSlate(slateShim(tickets)); },
+  use(results) { RESULTS = results || emptyResults(); },
+  swap(results) { const was = RESULTS; RESULTS = results || emptyResults(); return was; },
+  empty: emptyResults,
+  // -> { value, status, played } for one player's counted stat, or null when
+  // his game can't be found. `status` is the GAME's.
+  stat(playerName, key, team) {
+    const game = gameForPick(playerName, team);
+    if (!game) return null;
+    const line = lineForPick(playerName, team);
+    return { value: line ? (line[key] || 0) : 0, status: game.status, played: !!line };
+  },
+  // -> { score, opp, status, periods, gamePk } for a team, or null.
+  team(abbr) {
+    const game = gameForTeam(abbr);
+    if (!game) return null;
+    const me = String(abbr || "").toUpperCase();
+    const mine = ["away", "home"].map(s => game.teams[s]).find(t => t && t.abbr === me);
+    const theirs = ["away", "home"].map(s => game.teams[s]).find(t => t && t.abbr !== me);
+    if (!mine || !theirs) return null;
+    return { score: mine.score, opp: theirs.score, oppAbbr: theirs.abbr, status: game.status, gamePk: game.gamePk,
+             clockLabel: periodLabel(game) };
+  },
+  context(leg) { return liveContextForPlayer(leg.player, leg.team); },
+  teamContext(abbr) { return liveContextForTeam(abbr); },
+  hitTime(leg) { return legHitTimeNhl(leg); },
+  goals() { return RESULTS.goals || []; },
+  rowHtml: goalRowHtml, detailHtml: goalDetailHtml,
+  toggleRow(id) { if (GOAL_EXPANDED.has(id)) GOAL_EXPANDED.delete(id); else GOAL_EXPANDED.add(id); },
+  gameUrl: espnGameUrl,
+  norm(name) { return normalizeName(name); }
+};
+})();
 
 function emptyResults() {
   return { hitNames: new Set(), sbNames: new Set(), appeared: new Set(), inBox: new Map(), rosterStatus: new Map(), rosterSide: new Map(), substitutedOut: new Set(), homeRuns: [], gameInfo: new Map(), teamState: new Map(), batStats: new Map(), pitchStats: new Map(), teamScores: new Map(), allGamesFinal: false, ready: false, noGames: false };
@@ -1425,11 +2696,42 @@ function isPhpCreditedHit(playerName) {
 // Polls MLB for one slate date. Returns { results, done, settled }; `done`
 // is the rollover signal -- every game on that date is Final (or there are
 // none), or the safety valve has passed.
-async function pollSlate(date) {
-  const games = await getScheduleForDate(date);
+function slateDays(tickets) {
+  const out = [];
+  const end = (tickets.endDate && tickets.endDate >= tickets.date) ? tickets.endDate : tickets.date;
+  let d = new Date(tickets.date + "T00:00:00Z");
+  for (let i = 0; i < 8; i++) {
+    const iso = d.toISOString().slice(0, 10);
+    out.push(iso);
+    if (iso >= end) break;
+    d = new Date(d.getTime() + 86400000);
+  }
+  return out;
+}
+
+function mlbLegsOn(tickets) {
+  const isMlb = l => l && l.sport !== "nfl" && l.sport !== "nhl";
+  return (tickets.windows || []).some(w => (w.tickets || []).some(t => (t.legs || []).some(isMlb)))
+    || (tickets.singles || []).some(isMlb);
+}
+
+async function pollSlate(tickets) {
+  // No baseball leg on the card at all: nothing here to wait for or grade,
+  // so MLB isn't asked for anything -- not even the schedule. Without this an
+  // all-NFL or all-NHL card polled every live MLB game of the day, every
+  // poll, for nothing, and had to wait for them all to finish. "Done" here is
+  // only baseball's say: the other engines still decide when the card is over.
+  if (!mlbLegsOn(tickets)) {
+    return { results: Object.assign(emptyResults(), { ready: true, noGames: true }), done: true, settled: true };
+  }
+  const days = slateDays(tickets);
+  const games = (await Promise.all(days.map(getScheduleForDate))).flat();
   const allScheduledFinal = games.every(g => g.final);
 
-  if (games.length === 0) {
+  // A card can be all football. No MLB game that day is then the normal
+  // state, not an empty slate -- returning "done" here would park a live NFL
+  // card straight onto the Yesterday tab.
+  if (games.length === 0 && !NFL.has(tickets) && !NHL.has(tickets)) {
     return { results: Object.assign(emptyResults(), { ready: true, noGames: true }), done: true, settled: true };
   }
 
@@ -1505,7 +2807,7 @@ async function pollSlate(date) {
   homeRuns.sort((a, b) => String(b.time).localeCompare(String(a.time))); // newest first, across games
   const results = { hitNames, sbNames, appeared, inBox, rosterStatus, rosterSide, substitutedOut, homeRuns, gameInfo, teamState, batStats, pitchStats, teamScores, allGamesFinal: allFinal, ready: true, noGames: false };
   const anyFetchFailed = snapshots.some(s => !s);
-  return { results, done: allScheduledFinal || pastSafetyValve(date), settled: allScheduledFinal && !anyFetchFailed };
+  return { results, done: allScheduledFinal || pastSafetyValve(days[days.length - 1]), settled: allScheduledFinal && !anyFetchFailed };
 }
 
 // five possible states: hit, miss, na, live (game started, no HR yet), not_started
@@ -1556,6 +2858,72 @@ function stateForPlayer(playerName) {
 // morning and the slate still posts, still grades every leg it understands,
 // and says out loud which one it didn't.
 const MARKETS = {
+  // ---- NHL (2026-10-05) ----
+  // Keys carry an nhl_ prefix on purpose: "ml" and "total" already mean the
+  // BASEBALL graders here, keyed by team abbreviation, and TB is the Rays as
+  // well as the Lightning. A hockey leg grades off the NHL engine, never off
+  // a baseball scoreboard that happens to share an abbreviation.
+  // An anytime goal is the default for a hockey leg naming a player (as a
+  // touchdown is for football, a home run for baseball). Boxscore goals, so a
+  // SHOOTOUT goal never counts -- the books' rule too.
+  nhl_goal:    { label: "Anytime Goal",  subject: "player", sport: "nhl", grade: leg => stateForNhlStat(leg, "g") },
+  nhl_points:  { label: "Points",        subject: "player", sport: "nhl", grade: leg => stateForNhlStat(leg, "pts") },
+  nhl_assists: { label: "Assists",       subject: "player", sport: "nhl", grade: leg => stateForNhlStat(leg, "a") },
+  nhl_sog:     { label: "Shots on Goal", subject: "player", sport: "nhl", grade: leg => stateForNhlStat(leg, "sog") },
+  nhl_saves:   { label: "Saves",         subject: "player", sport: "nhl", grade: leg => stateForNhlStat(leg, "sv") },
+  // Team bets settle on the FINAL score, overtime and shootout included -- the
+  // standard moneyline / puck line / total rule. A total's OVER can settle
+  // early: goals are never taken off the board.
+  nhl_ml:      { label: "Moneyline",     subject: "team",   sport: "nhl", grade: leg => stateForNhlLine(leg) },
+  nhl_pl:      { label: "Puck Line",     subject: "team",   sport: "nhl", grade: leg => stateForNhlLine(leg) },
+  nhl_total:   { label: "Total Goals",   subject: "game",   sport: "nhl", grade: leg => stateForNhlLine(leg) },
+  // ---- NFL ----
+  // "td" is the only one that can be FOLLOWED. The yardage props are listed
+  // so the parser's market word survives onto the page and the leg grades to
+  // untracked -- shown, named, in neither column, unable to kill a parlay.
+  // Leaving them out would be the same thing; listing them is what lets the
+  // leg say what it actually is instead of "not tracked".
+  td:     { label: "Anytime TD",      subject: "player", sport: "nfl",
+            grade: leg => NFL.state(leg) },
+  // Counted football stats. ESPN publishes both -- sacks in the DEFENSIVE
+  // boxscore category, touchdowns in the TD column already being summed --
+  // so these grade the same way a baseball stat prop does: an over settles
+  // the moment it clears, an under can only settle at the whistle unless it
+  // has already busted.
+  sacks:     { label: "Sacks",          subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "sacks") },
+  // "2+ Touchdowns", and the combined form naming several players -- their
+  // touchdowns are ADDED, exactly as a combined baseball prop sums its names.
+  td_count:  { label: "Touchdowns",     subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "td") },
+  // "Each team to score all four quarters", which needs the per-quarter
+  // linescore for BOTH named teams.
+  // ONE team scoring in ONE quarter -- the leg an "each team scores in every
+  // quarter" bet is written as when it is laid out leg by leg (eight of
+  // them). Settled the moment that team puts points up in that quarter, or
+  // lost the moment the quarter ends without them.
+  q_score:   { label: "Scores in Q",    subject: "team",   sport: "nfl",
+               grade: leg => stateForQuarterScore(leg) },
+  quarters:  { label: "All 4 Quarters", subject: "team",   sport: "nfl",
+               grade: leg => stateForAllQuarters(leg) },
+  // Touchdowns THROWN. Its own column in the passing boxscore, and nothing
+  // to do with the anytime market -- a thrown one never cashes the passer.
+  pass_tds:  { label: "Passing TDs",    subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "passTd") },
+  rec_yds:   { label: "Receiving Yds",  subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "recYds") },
+  rush_yds:  { label: "Rushing Yds",    subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "rushYds") },
+  // "Most receiving yards on Sunday" -- not a line to beat but a field to
+  // win, so it is settled by comparing every receiver in every game on the
+  // slate, and only once they have ALL finished.
+  most_rec_yds: { label: "Most Rec Yds", subject: "player", sport: "nfl",
+                  grade: leg => stateForMostInLeague(leg, "recYds") },
+  pass_yds:  { label: "Passing Yds",    subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "passYds") },
+  receptions:{ label: "Receptions",     subject: "player", sport: "nfl",
+               grade: leg => stateForNflStat(leg, "rec") },
+
   // A home run leg is still graded from the play-by-play -- that's what makes
   // it resolve the INSTANT the ball lands, and what Pinch Hit Protection hangs
   // off. But a leg naming two players, or carrying a line ("1+ Total Homers"),
@@ -1590,6 +2958,10 @@ const MARKETS = {
   ml:     { label: "MONEYLINE",   subject: "team",   grade: leg => stateForMoneyline(leg) },
   spread: { label: "SPREAD",      subject: "team",   grade: leg => stateForSpread(leg) },
   total:  { label: "TOTAL",       subject: "game",   grade: leg => stateForTotal(leg) },
+  // ONE team's own runs ("Braves Over 3.5 Runs"), which is a different bet
+  // from the game total above -- that one adds both sides. teamScores has
+  // carried the per-team number all along; nothing read it this way.
+  team_total: { label: "TEAM TOTAL", subject: "team", grade: leg => stateForTeamTotal(leg) },
   // "First 5 innings under 3.5". Gradeable off the linescore's per-inning
   // runs -- the reason it wasn't, for a while, is that I assumed only the
   // final score was available and never looked.
@@ -1598,10 +2970,24 @@ const MARKETS = {
 
 function legMarket(leg) {
   const m = leg && leg.market;
-  return m && MARKETS[m] ? m : (m ? String(m) : "hr");
+  if (m) return MARKETS[m] ? m : String(m);
+  // Each sport's default: a touchdown, a goal, a home run.
+  return leg && leg.sport === "nfl" ? "td" : leg && leg.sport === "nhl" ? "nhl_goal" : "hr";
 }
-function marketDef(leg) { return MARKETS[legMarket(leg)] || null; }
-function marketSubject(leg) { const d = marketDef(leg); return d ? d.subject : "player"; }
+// A market belongs to ONE sport (no `sport` means baseball). A leg of another
+// sport carrying it -- "Lions Moneyline", which the parser writes as `ml` -- is
+// NOT that market: MLB's game-line graders read scores keyed by abbreviation,
+// and DET, SF, TB, MIN, HOU, PHI all name an MLB club too, so that leg was
+// graded off the Detroit TIGERS' final. Hockey dodged it with nhl_* keys.
+// Such a leg is untracked: shown by name, never graded off the wrong league.
+function marketForeign(leg) {
+  const d = MARKETS[legMarket(leg)];
+  return !!d && (d.sport || "mlb") !== ((leg && leg.sport) || "mlb");
+}
+function marketDef(leg) { return marketForeign(leg) ? null : MARKETS[legMarket(leg)] || null; }
+// What the leg is ABOUT is true whichever league it's in, so this one reads the
+// registry directly: an untracked Lions moneyline still names the Lions.
+function marketSubject(leg) { const d = MARKETS[legMarket(leg)]; return d ? d.subject : "player"; }
 
 // A leg can name more than one player -- "Schwarber/Olson 1+ Total Homers"
 // is one bet on their COMBINED total, which is how it grades.
@@ -1609,6 +2995,15 @@ function legPlayers(leg) {
   if (!leg) return [];
   if (Array.isArray(leg.players) && leg.players.length) return leg.players;
   return leg.player ? [leg.player] : [];
+}
+
+// The teams a leg is about. Most name one (`team`); a few name two, like
+// "Lions + Panthers each team to score all four quarters", and then BOTH
+// have to be graded rather than whichever one happened to resolve.
+function legTeams(leg) {
+  if (!leg) return [];
+  if (Array.isArray(leg.teams) && leg.teams.length) return leg.teams;
+  return [leg.team, leg.opponent].filter(Boolean);
 }
 
 // What this leg is ABOUT, for display. A player prop names the player; a game
@@ -1620,7 +3015,22 @@ function legSubjectName(leg) {
     const names = legPlayers(leg);
     return names.length > 1 ? names.join(" + ") : (names[0] || "");
   }
+  // A bet on TWO teams names both. "Each team to score all four quarters"
+  // read as plain "DET", so it looked like it was only following the Lions --
+  // the grader always checked both.
+  const teams = legTeams(leg);
+  if (teams.length > 1) return teams.join(" + ");
   return leg.team || leg.game || leg.player || "";
+}
+
+// A market's label for THIS leg: "Scores in Q2" needs the leg's quarter.
+function legMarketLabel(leg) {
+  const m = legMarket(leg);
+  const def = MARKETS[m];
+  if (m === "q_score") return `Scores in Q${leg && leg.quarter ? leg.quarter : "?"}`;
+  // "Anytime Goal OVER 1.5" reads wrong: two goals is a goals line.
+  if (m === "nhl_goal" && leg && Number(leg.line) >= 1.5) return "Goals";
+  return def && def.label ? def.label : "";
 }
 
 // "Over 1.5" -> the leg must reach 2. A market with no line stated behaves the
@@ -1725,6 +3135,162 @@ function stateForPartial(leg) {
   if (done < through) return row.status === "final" ? (under ? "hit" : "miss") : "live";
   if (soFar === line) return "na";                        // exact push
   return under ? "hit" : "miss";
+}
+
+// A counted football stat, summed across EVERY name on the leg -- the
+// combined form ("Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs Combined
+// TDs over 3.5") is one bet on three players' total, the same shape a
+// combined baseball prop already has.
+// A counted HOCKEY stat -- goals, assists, points, shots on goal, saves -- the
+// same shape as the football one below: an over settles the moment it clears,
+// an under waits for the final unless it has busted, nothing is live before
+// puck drop, and a man who never dressed is a refund.
+function stateForNhlStat(leg, key) {
+  const names = legPlayers(leg);
+  if (!names.length) return "untracked";
+  const rows = names.map(n => NHL.stat(n, key, leg.team));
+  if (rows.some(r => !r)) return "not_started";
+  if (rows.every(r => r.status === "preview")) return "not_started";
+  const total = rows.reduce((sum, r) => sum + r.value, 0);
+  const line = legLine(leg);
+  const over = legSide(leg) !== "under";
+  if (total > line) return over ? "hit" : "miss";
+  if (!rows.every(r => r.status === "final")) return "live";
+  if (!rows.some(r => r.played)) return "na";
+  return over ? "miss" : "hit";
+}
+
+// A hockey TEAM bet. Moneyline and puck line wait for the final score
+// (overtime and shootout included); a total's over can settle early.
+function stateForNhlLine(leg) {
+  const m = legMarket(leg);
+  const row = NHL.team(leg.team);
+  if (!row || row.status === "preview") return "not_started";
+  const final = row.status === "final";
+  if (m === "nhl_total") {
+    const goals = row.score + row.opp;
+    const line = legLine(leg);
+    const over = legSide(leg) !== "under";
+    if (goals > line) return over ? "hit" : "miss";
+    if (!final) return "live";
+    if (goals === line) return "na";
+    return over ? "miss" : "hit";
+  }
+  if (!final) return "live";
+  if (m === "nhl_ml") return row.score > row.opp ? "hit" : "miss";
+  const margin = row.score + legLine(leg) - row.opp;      // nhl_pl
+  return margin > 0 ? "hit" : margin < 0 ? "miss" : "na";
+}
+
+function stateForNflStat(leg, key) {
+  const names = legPlayers(leg);
+  if (!names.length) return "untracked";
+  const rows = names.map(n => NFL.stat(n, key));
+  if (rows.some(r => !r)) return "not_started";       // a game we can't find yet
+  // Before kickoff it is WAITING. Only "is every game final" was asked below,
+  // so a pre-game prop read "live" -- beside an anytime-TD leg on the same
+  // team correctly reading "not started" (2026-10-05, Falcons-Saints).
+  if (rows.every(r => r.status === "preview")) return "not_started";
+  const total = rows.reduce((sum, r) => sum + r.value, 0);
+  const line = legLine(leg);
+  const over = legSide(leg) !== "under";
+  // Settles the moment it clears, whichever side the bet is on.
+  if (total > line) return over ? "hit" : "miss";
+  // Everyone's game has to be over before a shortfall is final -- on a
+  // combined leg that is several different games.
+  if (!rows.every(r => r.status === "final")) return "live";
+  // Nobody got on the field at all: a refund, not a loss, the same rule a
+  // rostered-but-never-batted baseball leg gets.
+  if (!rows.some(r => r.played)) return "na";
+  return over ? "miss" : "hit";
+}
+
+// "Most receiving yards on Sunday." Won against the whole field, not against
+// a number, so it cannot be settled until every game on the slate is final --
+// a late kickoff can always overtake whoever led at four o'clock.
+function stateForMostInLeague(leg, key) {
+  const names = legPlayers(leg);
+  if (names.length !== 1) return "untracked";
+  const info = NFL.leaders(key);
+  if (!info || info.best < 0) return "not_started";
+  if (!info.allFinal) return "live";
+  if (!info.holders.size) return "na";
+  if (!info.holders.has(NFL.norm(names[0]))) return "miss";
+  // A tie is dead-heat territory and books settle it differently -- some
+  // reduce the payout, some void. Refunding is the honest answer rather than
+  // picking one of those and presenting it as the result.
+  return info.holders.size > 1 ? "na" : "hit";
+}
+
+// "Lions + Panthers each team to score all four quarters." Both teams, all
+// four. It can only FAIL early -- one scoreless completed quarter settles it
+// -- and can only succeed once four quarters have actually been played.
+// Has quarter `q` (1-4) finished for this team's game? Read off the CLOCK's
+// quarter -- ESPN's period, plus whether it is at a quarter break -- rather
+// than how many linescore entries exist, so a scoreless quarter is called
+// lost at the break, not whenever the next one's first entry appears. A
+// snapshot without a period (an older fixture, a feed that dropped it) falls
+// back to the linescore: every entry before the last is a quarter played.
+function quarterOver(row, q) {
+  if (row.status === "final") return true;
+  if (row.status !== "live") return false;
+  if (!row.period) return q <= Math.max(0, row.quarters.length - 1);
+  return row.period > q || (row.period === q && row.periodOver);
+}
+// Which quarter is being played (or has just stopped), 1-4, 5+ in overtime.
+function quarterNow(row) {
+  if (!row || row.status !== "live") return 0;
+  return row.period || row.quarters.length || 0;
+}
+
+function stateForQuarterScore(leg) {
+  const q = Number(leg.quarter);
+  if (!leg.team || !(q >= 1 && q <= 4)) return "untracked";
+  const row = NFL.quarters(leg.team);
+  if (!row || row.status === "preview") return "not_started";
+  if ((row.quarters[q - 1] || 0) > 0) return "hit";
+  if (quarterOver(row, q)) return "miss";
+  // The game is on but this quarter hasn't come round yet.
+  return quarterNow(row) >= q ? "live" : "not_started";
+}
+
+function stateForAllQuarters(leg) {
+  const teams = legTeams(leg);
+  if (teams.length < 2) return "untracked";
+  const rows = teams.map(t => NFL.quarters(t));
+  if (rows.some(r => !r)) return "not_started";
+  // Before kickoff it is WAITING, not under way. Only "is every game final"
+  // was asked below, so a game not yet started fell through to "live".
+  if (rows.every(r => r.status === "preview")) return "not_started";
+  for (const r of rows) {
+    // A quarter that has been PLAYED and scored nothing kills it outright,
+    // whatever happens in the rest of the game. Same clock-based reading as
+    // the per-quarter leg, so the two bets can never disagree about a quarter.
+    for (let q = 1; q <= 4; q++) {
+      if (quarterOver(r, q) && !r.quarters[q - 1]) return "miss";
+    }
+  }
+  if (!rows.every(r => r.status === "final")) return "live";
+  return rows.every(r => r.quarters.slice(0, 4).every(q => q > 0)) ? "hit" : "miss";
+}
+
+// A TEAM's own total. Unlike the game total it can settle EARLY, exactly as a
+// stat prop does: once the Braves have 4 with a line of 3.5, the over is good
+// whatever happens next. An UNDER still has to wait for the final, because
+// any later run can bust it -- unless it already has.
+function stateForTeamTotal(leg) {
+  const row = teamScoreFor(leg);
+  if (!row) return "not_started";
+  // Same gap as the NFL stat props: a game not yet begun is not "live".
+  if (row.status === "preview" || row.runs === null) return "not_started";
+  const line = legLine(leg);
+  const final = row.status === "final";
+  const over = legSide(leg) !== "under";
+  if (over && row.runs > line) return "hit";
+  if (!over && row.runs > line) return "miss";
+  if (!final) return "live";
+  if (row.runs === line) return "na";          // exact push
+  return over === (row.runs > line) ? "hit" : "miss";
 }
 
 function stateForTotal(leg) {
@@ -2029,12 +3595,81 @@ function playerStatusLine(playerName, state, market, team) {
 // sense when both are true -- no point flagging "batting now" on a leg
 // that's already resolved, or on a parlay that's already dead from
 // another leg missing. Returns "" when there's nothing to show.
+// A football pick's own always-on line. Same contract as playerStatusLine:
+// there is ALWAYS something, because "" on screen is indistinguishable from
+// the page having no idea -- and a hit is the one state that says nothing,
+// since the green check already did.
+// A hockey player's line under his pick: where he is right now, the score
+// and clock, the power play, and his line so far.
+function nhlStatusLine(leg, state) {
+  if (state === "hit") return "";
+  if (state === "na") return statusLineHtml("Didn't play &mdash; void / refunded.");
+  const ctx = NHL.context(leg);
+  if (!ctx || ctx.status === "preview") return statusLineHtml("Game hasn't started yet.");
+  const stat = ctx.statLine ? ` &middot; ${escapeHtml(ctx.statLine)}` : "";
+  if (ctx.status === "final") return statusLineHtml(`Game final${ctx.statLine ? ` &mdash; ${escapeHtml(ctx.statLine)}` : ""}.`);
+  const where = `${escapeHtml(ctx.score || "")}${ctx.clockLabel ? ` &middot; ${escapeHtml(ctx.clockLabel)}` : ""}`;
+  const pp = ctx.powerPlay === "pp" ? " &middot; <b>POWER PLAY</b>" : ctx.powerPlay === "sh" ? " &middot; shorthanded" : "";
+  if (ctx.goalie) return `<div class="leg-live-context"><span class="leg-action-tag now">IN NET</span> ${where}${pp}${stat}</div>`;
+  if (ctx.onIce === true) return `<div class="leg-live-context"><span class="leg-action-tag now">ON THE ICE</span> ${where}${pp}${stat}</div>`;
+  if (ctx.onIce === false) return statusLineHtml(`On the bench &mdash; ${where}${pp}${stat}`);
+  return statusLineHtml(`Game on &mdash; ${where}${pp}${stat}`);
+}
+
+// A hockey team bet's line: the score and what it still needs.
+function nhlTeamStatusLine(state, leg) {
+  if (state === "hit" || !leg) return "";
+  const m = legMarket(leg);
+  const row = NHL.team(leg.team);
+  if (!row || row.status === "preview") return statusLineHtml("Game hasn't started yet.");
+  const score = `${escapeHtml(leg.team)} ${row.score}&ndash;${row.opp} ${escapeHtml(row.oppAbbr || "")}`;
+  if (state === "na") return statusLineHtml(`Final ${score} &mdash; push, refunded.`);
+  if (state === "miss") return statusLineHtml(`Final ${score} &mdash; didn't get there.`);
+  if (m === "nhl_total") {
+    const goals = row.score + row.opp;
+    return statusLineHtml(`${escapeHtml(row.clockLabel)} &middot; ${goals} goal${goals === 1 ? "" : "s"} so far` +
+      (legSide(leg) === "under" ? `, needs to stay under ${legLine(leg)}.` : `, needs ${Math.floor(legLine(leg)) + 1}.`));
+  }
+  return statusLineHtml(`${escapeHtml(row.clockLabel)} &middot; ${score} &mdash; settles at the final (OT and shootout count).`);
+}
+
+function nflStatusLine(leg, state) {
+  if (state === "hit") return "";
+  const line = txt => `<div class="leg-live-context">${txt}</div>`;
+  if (state === "na") return statusLineHtml("On the roster but never got in the game &mdash; void / refunded.");
+
+  const ctx = NFL.context(leg);
+  if (!ctx || ctx.status === "preview") return statusLineHtml("Game hasn't started yet.");
+  if (ctx.status === "final") {
+    return statusLineHtml(ctx.statLine
+      ? `Game final &mdash; no touchdown (${escapeHtml(ctx.statLine)}).`
+      : "Game final &mdash; no touchdown.");
+  }
+
+  const where = `${escapeHtml(ctx.score || "")}${ctx.clockLabel ? ` &middot; ${escapeHtml(ctx.clockLabel)}` : ""}`;
+  const stat = ctx.statLine ? ` &middot; ${escapeHtml(ctx.statLine)}` : "";
+  if (ctx.onOffense) {
+    const tag = ctx.redZone ? "RED ZONE" : "ON OFFENSE";
+    const cls = ctx.redZone ? "now rz" : "now";
+    return line(`<span class="leg-action-tag ${cls}">${tag}</span> ${escapeHtml(ctx.downDistance || "Ball on offense")} &middot; ${where}${stat}`);
+  }
+  if (ctx.takingFieldSoon) {
+    return line(`<span class="leg-action-tag soon">TAKING THE FIELD SOON</span> ${where}${stat}`);
+  }
+  // His side is on defense. Said plainly rather than left blank, and
+  // deliberately NOT given a tag -- green anywhere here would claim he can
+  // score on a play his team doesn't have the ball for.
+  return statusLineHtml(`Game on &mdash; his side is on defense. ${where}${stat}`);
+}
+
 function liveContextHtml(playerName, state, betIsOpen, market, team, leg) {
   // Markets whose subject is a TEAM or a GAME have no player, so none of the
   // batting-order machinery below applies. They get their own plain line.
   const def = MARKETS[market];
   if (def && def.subject !== "player") return gameLineStatusLine(state, market, team, leg);
   if (state === "untracked") return playerStatusLine(playerName, state, market, team);
+  if (leg && leg.sport === "nfl") return nflStatusLine(leg, state);
+  if (leg && leg.sport === "nhl") return nhlStatusLine(leg, state);
   if (market === "sb") return stealContextHtml(playerName, state, betIsOpen, team);
   const norm = normalizeName(playerName);
   const ownHit = RESULTS.hitNames && RESULTS.hitNames.has(norm);
@@ -2130,9 +3765,10 @@ function marketTag(market, leg) {
     const raw = escapeHtml(String(market).toUpperCase().slice(0, 18));
     return ` <span class="mkt-tag unknown" title="This market isn't tracked yet -- shown, but not graded">${raw}${line}</span>`;
   }
-  if (!def.label) return "";
+  const label = leg ? legMarketLabel(leg) : def.label;
+  if (!label) return "";
   const cls = market === "sb" ? "sb" : (def.subject === "player" ? "prop" : "line");
-  return ` <span class="mkt-tag ${cls}" title="${escapeHtml(def.label)} bet">${escapeHtml(def.label)}${line}</span>`;
+  return ` <span class="mkt-tag ${cls}" title="${escapeHtml(label)} bet">${escapeHtml(label)}${line}</span>`;
 }
 
 // "O1.5" / "U8.5" / "-1.5". Only shown when the card actually stated a line:
@@ -2141,7 +3777,7 @@ function lineText(leg) {
   if (!leg || leg.line === undefined || leg.line === null) return "";
   const n = Number(leg.line);
   if (!Number.isFinite(n)) return "";
-  if (legMarket(leg) === "spread") return ` ${n > 0 ? "+" : ""}${n}`;
+  if (legMarket(leg) === "spread" || legMarket(leg) === "nhl_pl") return ` ${n > 0 ? "+" : ""}${n}`;
   // Spelled out, not "O1.5"/"U8.5": a single letter jammed against a number
   // is genuinely hard to read at tag size, and this is the part of the tag
   // that says which way the bet goes.
@@ -2151,8 +3787,38 @@ function lineText(leg) {
 // The always-on line for a market whose subject is a team or a game. Same
 // contract as playerStatusLine(): it never returns "" except on a hit, where
 // the green check has already said it.
+// A FOOTBALL team bet, quarter by quarter. MLB's game-line wording ("settles
+// at the final") was wrong for both of these: they settle a quarter at a
+// time.
+function nflTeamStatusLine(state, market, leg) {
+  if (state === "hit" || !leg) return "";
+  if (state === "untracked") return statusLineHtml("This market isn't tracked yet &mdash; shown here, but not graded.");
+  const teams = legTeams(leg);
+  const rows = teams.map(t => NFL.quarters(t));
+  const row = rows[0];
+  if (!row || row.status === "preview") return statusLineHtml("Game hasn't kicked off yet.");
+  const now = quarterNow(row);
+  const nowLabel = now > 4 ? "Overtime" : `Q${now}`;
+  if (market === "q_score") {
+    const q = Number(leg.quarter), team = escapeHtml(leg.team || "");
+    if (state === "miss") return statusLineHtml(`Q${q} ended without a ${team} score.`);
+    if (state === "not_started") return statusLineHtml(`Game on (${nowLabel}) &mdash; Q${q} hasn't started yet.`);
+    const ctx = NFL.teamContext(leg.team);
+    const where = ctx && ctx.onOffense ? ` &mdash; ${team} has the ball${ctx.downDistance ? ", " + escapeHtml(ctx.downDistance) : ""}` : "";
+    return statusLineHtml(`Q${q} under way &mdash; ${team} still needs to score${where}.`);
+  }
+  // Each team to score all four quarters.
+  if (state === "miss") return statusLineHtml("A quarter ended with one of them not scoring.");
+  const owed = teams.filter((t, i) => rows[i] && !(rows[i].quarters[now - 1] > 0)).map(escapeHtml);
+  if (now > 4) return statusLineHtml("All four quarters are in.");
+  return statusLineHtml(owed.length ? `${nowLabel}: ${owed.join(" &amp; ")} still need${owed.length === 1 ? "s" : ""} to score.`
+                                    : `${nowLabel}: both have scored${now < 4 ? ` &middot; ${4 - now} to go` : ""}.`);
+}
+
 function gameLineStatusLine(state, market, team, leg) {
   if (!RESULTS.ready) return statusLineHtml("Waiting on live results&hellip;");
+  if (leg && leg.sport === "nfl" && (market === "q_score" || market === "quarters")) return nflTeamStatusLine(state, market, leg);
+  if (leg && leg.sport === "nhl") return nhlTeamStatusLine(state, leg);
   if (state === "hit") return "";
   if (state === "untracked") {
     return statusLineHtml("This market isn't tracked yet &mdash; shown here, but not graded.");
@@ -2184,8 +3850,8 @@ function ordinal(n) {
 
 const BOMB_MS = 4200;          // how long one overlay stays up
 const BOMB_CASH_MS = 6500;     // ...longer when it also cashed a bet: there's more to read
-const LS_OVERLAY = "bmbs.notif.overlay";
-const LS_PUSH = "bmbs.notif.push";
+const LS_OVERLAY = "bmbs.hk.notif.overlay";
+const LS_PUSH = "bmbs.hk.notif.push";
 let OVERLAY_ON = true;         // default: overlay yes, push no (push needs an opt-in gesture)
 let PUSH_ON = false;
 // Bomb notifications are scoped to the live ("today") slate and reset when a
@@ -2307,11 +3973,11 @@ function initNotifPrefs() {
 // peak measured; raw they ranged about 10x in loudness, which made the quiet
 // one easy to miss entirely. These bring them to a common level. If you change
 // an envelope, re-measure -- don't eyeball it.
-const LS_SOUND = "bmbs.notif.sound";
+const LS_SOUND = "bmbs.hk.notif.sound";
 let SOUND_ON = false;         // default off: a page that makes noise unasked is worse than one that doesn't
 let AC = null;
 const SOUND_VOL = 0.45;
-const SOUND_TRIM = { bomb: 0.93, swipe: 1.27, cash: 1.08 };
+const SOUND_TRIM = { bomb: 0.93, swipe: 1.27, kick: 0.72, cash: 1.08 };
 
 // Browsers refuse to start audio until the page has been interacted with, so
 // this is only reached from the toggle's own change event, or from a later
@@ -2390,7 +4056,13 @@ function sndCash(ac, out, t, v) {
   });
 }
 
-const SOUNDS = { bomb: sndBomb, swipe: sndSwipe, cash: sndCash };
+// 0.15s -- leather crack over a low thud
+function sndKick(ac, out, t, v) {
+  sndBurst(ac, out, t, { filter: "highpass", from: 1200, peak: 0.65 * v, attack: 0.003, decay: 0.1, dur: 0.12 });
+  sndTone(ac, out, t, { type: "triangle", from: 190, to: 70, peak: 0.75 * v, attack: 0.005, decay: 0.22 });
+}
+
+const SOUNDS = { bomb: sndBomb, swipe: sndSwipe, kick: sndKick, cash: sndCash };
 
 // `kind` is 'bomb' | 'swipe' | 'cash'. When the play also CASHED something, the register
 // REPLACES the event sound -- one noise, never two back to back. That mirrors
@@ -2465,7 +4137,9 @@ function moneyRainHtml() {
 // alerts say so, which is true of both).
 function betsCashedBy(slate, playerName, market) {
   const norm = normalizeName(playerName);
-  const mkt = market === "sb" ? "sb" : "hr";
+  const savedNfl = NFL.swap(slate.nfl);
+  const savedNhl = NHL.swap(slate.nhl);
+  const mkt = market === "sb" ? "sb" : market === "td" ? "td" : "hr";
   // only bets he's on IN THIS MARKET: his steal mustn't announce a parlay his
   // home run leg finished an hour ago
   const mine = l => normalizeName(l.player) === norm && legMarket(l) === mkt;
@@ -2489,6 +4163,7 @@ function betsCashedBy(slate, playerName, market) {
     return cashed;
   } finally {
     RESULTS = saved;
+    NFL.swap(savedNfl); NHL.swap(savedNhl);
   }
 }
 
@@ -2525,14 +4200,15 @@ function showNextBomb() {
     BOMB_SHOWING_REPLAY = false;
     return;
   }
-  const { name, cash, steal, prop } = next;
+  const { name, cash, steal, td, prop } = next;
   BOMB_SHOWING_REPLAY = !!next.replay;
-  // `prop` is any other leg -- a stat line cleared, a game line won. Its
-  // emoji is chosen by code from a fixed set, never read back from storage,
-  // so it is safe as markup; its word is escaped.
-  const emoji = prop ? prop.emoji : steal ? "&#127939;" : "&#128163;";
-  const word = prop ? escapeHtml(prop.word) : steal ? `STOLE ${escapeHtml(String(steal.base || "a base").toUpperCase())}!` : "BOMB!";
-  const kindCls = prop ? " prop" : steal ? " steal" : "";
+  // `prop` is any other leg -- a stat line cleared, a game line won, all four
+  // quarters scored. Its emoji is chosen by code from a fixed set, never read
+  // back from storage, so it is safe as markup; its word is escaped.
+  const emoji = prop ? prop.emoji : td ? "&#127944;" : steal ? "&#127939;" : "&#128163;";
+  const word = prop ? escapeHtml(prop.word) : td ? "TOUCHDOWN!"
+    : steal ? `STOLE ${escapeHtml(String(steal.base || "a base").toUpperCase())}!` : "BOMB!";
+  const kindCls = prop ? " prop" : td ? " td" : steal ? " steal" : "";
   host.innerHTML = cash
     ? `<div class="bomb-flash cash"></div>${moneyRainHtml()}
     <div class="bomb-card cash${kindCls}">
@@ -2568,6 +4244,23 @@ function fireBomb(playerName, cash) {
 }
 
 // The steal twin of fireBomb(): same two channels, same queue, its own look.
+function fireTouchdown(playerName, cash) {
+  playAlertSound("kick", !!cash);
+  const ball = String.fromCodePoint(0x1F3C8), bag = String.fromCodePoint(0x1F4B0);
+  if (PUSH_ON && supportsNotification() && window.Notification.permission === "granted") {
+    try {
+      new window.Notification(`${playerName} TOUCHDOWN! ${ball}${cash ? bag : ""}`, {
+        body: cash ? `${cash.label}${cash.amount ? ` - ${cash.amount}` : ""} - bmbs.bet` : "Touchdown - bmbs.bet",
+        tag: `td-${playerName}`
+      });
+    } catch (e) { /* some browsers throw when constructed outside a SW */ }
+  }
+  if (OVERLAY_ON && document.visibilityState === "visible") {
+    BOMB_QUEUE.push({ name: playerName, cash: cash || null, td: true });
+    if (!bombTimer) showNextBomb();
+  }
+}
+
 function fireSteal(playerName, base, cash) {
   playAlertSound("swipe", !!cash);
   const runner = String.fromCodePoint(0x1F3C3), bag = String.fromCodePoint(0x1F4B0);
@@ -2593,6 +4286,8 @@ function fireSteal(playerName, base, cash) {
 // counts and short-circuits the (more expensive) parlay check.
 function betsStillOpenFor(slate, playerName, market) {
   const norm = normalizeName(playerName);
+  const savedNfl = NFL.swap(slate.nfl);
+  const savedNhl = NHL.swap(slate.nhl);
   const mine = l => normalizeName(l.player) === norm && legMarket(l) === market;
   const saved = RESULTS;
   RESULTS = slate.results;
@@ -2605,6 +4300,7 @@ function betsStillOpenFor(slate, playerName, market) {
     }));
   } finally {
     RESULTS = saved;
+    NFL.swap(savedNfl); NHL.swap(savedNhl);
   }
 }
 
@@ -2628,15 +4324,20 @@ function pickedNamesOf(tickets, market) {
 // (the user's rule, 2026-10-04: every leg that hits gets a tile change AND a
 // popup). These are keyed on the leg's STATE turning to hit, since there is no
 // single play to point at.
-const OWN_ALERT_MARKETS = new Set(["hr", "sb"]);
+const OWN_ALERT_MARKETS = new Set(["hr", "sb", "td"]);
 const BASEBALL_EMOJI = "&#9918;", FOOTBALL_EMOJI = "&#127944;", CASH_EMOJI = "&#127881;";
-function propSound(leg) { return "swipe"; }
+function propSound(leg) { return leg && (leg.sport === "nfl" || leg.sport === "nhl") ? "kick" : "swipe"; }
+const HOCKEY_EMOJI = "&#127954;", GOAL_LIGHT_EMOJI = "&#128680;";
+function sportEmoji(sport, market) {
+  if (sport === "nhl") return market === "nhl_goal" ? GOAL_LIGHT_EMOJI : HOCKEY_EMOJI;
+  return sport === "nfl" ? FOOTBALL_EMOJI : BASEBALL_EMOJI;
+}
 
 // Who the alert names. A team bet names the team, a game bet both sides, and
 // a player bet every player on it ("Schwarber + Olson").
 function legAlertName(leg) {
   const subj = marketSubject(leg);
-  if (subj === "team") return ([leg.team]).filter(Boolean).join(" + ");
+  if (subj === "team") return (Array.isArray(leg.teams) && leg.teams.length ? leg.teams : [leg.team]).filter(Boolean).join(" + ");
   if (subj === "game") return [leg.team, leg.opponent].filter(Boolean).join(" + ");
   return legPlayers(leg).join(" + ") || leg.team || "";
 }
@@ -2644,6 +4345,12 @@ function legAlertName(leg) {
 // What it says: "2+ HITS!", "UNDER 4.5 K!", "WON!", "ALL 4 QUARTERS!".
 function legHitWord(leg) {
   const m = legMarket(leg);
+  if (m === "nhl_goal" && !(Number(leg.line) >= 1.5)) return "GOAL!";
+  if (m === "nhl_ml") return "WON!";
+  if (m === "nhl_pl") return "COVERED!";
+  if (m === "nhl_goal") return `${Math.floor(Number(leg.line)) + 1}+ GOALS!`;
+  if (m === "nhl_total") return legSide(leg) === "under" ? `UNDER ${leg.line}!` : `OVER ${leg.line}!`;
+  if (m === "q_score") return `SCORED IN Q${leg.quarter}!`;
   const def = marketDef(leg) || {};
   const label = (PROGRESS_LABEL[m] || def.label || String(m)).toUpperCase();
   const n = leg.line === null || leg.line === undefined ? NaN : Number(leg.line);
@@ -2664,7 +4371,7 @@ function legAlertEntry(leg, base) {
   if (m === "hr") return { name };
   if (m === "sb") return { name, steal: { base: base || "a base" } };
   if (m === "td") return { name, td: true };
-  return { name, prop: { emoji: leg.sport === "nfl" ? FOOTBALL_EMOJI : BASEBALL_EMOJI, word: legHitWord(leg) } };
+  return { name, prop: { emoji: sportEmoji(leg.sport, m), word: legHitWord(leg) } };
 }
 
 function propKey(leg) {
@@ -2781,6 +4488,24 @@ function checkForBombs() {
     freshSteals.push({ display, base });
   });
 
+  // Touchdowns. Same shape as the two above and the same flood guard: the
+  // first poll for a slate records without announcing, so opening the page at
+  // half time doesn't replay the afternoon. Names are keyed with the NFL
+  // engine's normalizer because that is what its hitNames are keyed with.
+  const tdNames = (slate.nfl && slate.nfl.hitNames) || new Set();
+  const freshTds = [];
+  const pickedTd = new Map();
+  const takeTd = l => {
+    if (l && l.sport === "nfl" && l.player && legMarket(l) === "td") pickedTd.set(NFL.norm(l.player), l.player);
+  };
+  (slate.tickets.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(takeTd)));
+  (slate.tickets.singles || []).forEach(takeTd);
+  pickedTd.forEach((display, norm) => {
+    if (!tdNames.has(norm) || BOMB_STATE.notified.has("td:" + norm)) return;
+    BOMB_STATE.notified.add("td:" + norm);
+    if (betsStillOpenFor(slate, display, "td")) freshTds.push(display);
+  });
+
   // Every other market, through the same notified set and so the same
   // seeding: opening the page mid-game records what already hit, silently.
   const freshProps = [];
@@ -2796,6 +4521,7 @@ function checkForBombs() {
   }
   fresh.forEach(name => fireBomb(name, cashSummary(betsCashedBy(slate, name, "hr"))));
   freshSteals.forEach(({ display, base }) => fireSteal(display, base, cashSummary(betsCashedBy(slate, display, "sb"))));
+  freshTds.forEach(name => fireTouchdown(name, cashSummary(betsCashedBy(slate, name, "td"))));
   freshProps.forEach(ev => fireLegHit(slate, ev.leg, cashSummary(ev.cashed)));
 }
 
@@ -2863,11 +4589,141 @@ function zoneGridHtml(zone) {
 // inning-specific total can't be followed from a final score, so a tile could
 // only ever show a number that means nothing.
 const LIVE_TILE_KIND = {
+  // NFL. Every prop the page can GRADE live it can also follow live -- the
+  // numbers come off the same boxscore. This used to be anytime-TD only, on
+  // the reasoning that a yardage prop "can't be followed from what ESPN
+  // publishes live"; that stopped being true when these were wired up for
+  // grading, and the exclusion outlived its reason. A passing-TD leg never
+  // appeared at all, at 0 thrown or at 2.
+  td: "drive", td_count: "drive", pass_tds: "drive", pass_yds: "drive",
+  rec_yds: "drive", rush_yds: "drive", receptions: "drive", most_rec_yds: "drive",
+  // A sack happens while his side DEFENDS, which is the inverse of every
+  // other pick here -- so it gets its own kind, and a tile on those snaps.
+  sacks: "defense",
+  // Two TEAMS and four quarters, not a player and not a final score -- so its
+  // own kind, filed under the pair rather than under either team.
+  quarters: "quarters",
+  // One team, one quarter: followed like a touchdown pick -- on the wall while
+  // THAT TEAM has the ball in that quarter, gone once it has scored.
+  q_score: "team_drive",
+  // HOCKEY: a skater or goalie prop gets an "ice" tile -- on the ice, on the
+  // bench, in net, with the power play named -- and a team bet a "rink" tile
+  // with the score and what it still needs.
+  nhl_goal: "ice", nhl_points: "ice", nhl_assists: "ice", nhl_sog: "ice", nhl_saves: "ice",
+  nhl_ml: "rink", nhl_pl: "rink", nhl_total: "rink",
   hr: "bat", sb: "base", hrr: "bat", hits: "bat", rbi: "bat", runs: "bat",
   tb: "bat", doubles: "bat", xbh: "bat", k: "mound", er: "mound", win: "mound", outs: "mound",
   ml: "game", spread: "game", total: "game", f5: "game",
 };
-function liveTileKind(leg) { return LIVE_TILE_KIND[legMarket(leg)] || null; }
+// What a football prop counts, and what to call it on a tile.
+const NFL_PROGRESS = {
+  pass_tds: ["passTd", "passing TDs"], pass_yds: ["passYds", "pass yds"],
+  rec_yds: ["recYds", "rec yds"], rush_yds: ["rushYds", "rush yds"],
+  receptions: ["rec", "catches"], td_count: ["td", "TDs"], sacks: ["sacks", "sacks"],
+  // Anytime TD too: "0 of 1 TD" says what the tile is waiting for, the same
+  // as any other prop's count (the user's rule, 2026-10-04).
+  td: ["td", "TD"],
+};
+// "2 of 3 passing TDs". Over 2.5 needs 3, so the target is floor(line) + 1.
+// Skipped for a leg naming several players: this tile is ONE of them, and
+// his own count against a combined line would read as further from cashing
+// than the bet really is.
+function nflProgress(pick, dctx) {
+  if (!dctx) return "";
+  // No stat line yet just means he hasn't touched the ball: that is a zero,
+  // not a reason to say nothing.
+  const have = dctx.line || {};
+  return [...new Set((pick.entries || []).map(e => {
+    const spec = NFL_PROGRESS[e.market];
+    if (!spec || (e.names && e.names.length > 1)) return "";
+    const line = (e.line === null || e.line === undefined) ? 0.5 : Number(e.line);
+    // An under has a number to stay below, not a count to reach.
+    if (e.side === "under") return `${have[spec[0]] || 0} ${spec[1]} (under ${line})`;
+    return `${have[spec[0]] || 0} of ${Math.floor(line) + 1} ${spec[1]}`;
+  }).filter(Boolean))].join(" \u00b7 ");
+}
+
+// What a hockey prop counts, and what to call it on a tile.
+const NHL_PROGRESS = {
+  nhl_goal: ["g", "goals"], nhl_assists: ["a", "assists"], nhl_points: ["pts", "points"],
+  nhl_sog: ["sog", "SOG"], nhl_saves: ["sv", "saves"],
+};
+function nhlProgress(pick, ctx) {
+  const have = (ctx && ctx.line) || {};
+  return [...new Set((pick.entries || []).map(e => {
+    const spec = NHL_PROGRESS[e.market];
+    if (!spec || (e.names && e.names.length > 1)) return "";
+    const line = (e.line === null || e.line === undefined) ? 0.5 : Number(e.line);
+    if (e.side === "under") return `${have[spec[0]] || 0} ${spec[1]} (under ${line})`;
+    return `${have[spec[0]] || 0} of ${Math.floor(line) + 1} ${spec[1]}`;
+  }).filter(Boolean))].join(" \u00b7 ");
+}
+function nhlHitProgress(e) {
+  const spec = NHL_PROGRESS[e.market];
+  if (!spec) return null;
+  const have = (e.names || []).reduce((sum, n) => {
+    const r = NHL.stat(n, spec[0], e.team);
+    return sum + (r ? r.value : 0);
+  }, 0);
+  const line = (e.line === null || e.line === undefined) ? 0.5 : Number(e.line);
+  return { text: e.side === "under" ? `${have} ${spec[1]} (under ${line})` : `${have} of ${Math.floor(line) + 1} ${spec[1]}` };
+}
+
+// A HOCKEY player. The tag says where he is: IN NET for a goalie, ON THE ICE
+// (green) when ESPN lists him in play, ON THE BENCH (grey) when it lists him
+// not, and plain LIVE when it says nothing -- never a guess. A power play is
+// named whichever it is, since it is when goals come.
+function nhlIceTile(pick, ctx) {
+  const pp = ctx.powerPlay === "pp" ? " &middot; <b>POWER PLAY</b>" : ctx.powerPlay === "sh" ? " &middot; shorthanded" : "";
+  const tag = ctx.goalie ? "IN NET" : ctx.intermission ? "INTERMISSION" : ctx.onIce === true ? "ON THE ICE"
+    : ctx.onIce === false ? "ON THE BENCH" : "LIVE";
+  const cls = (ctx.goalie || ctx.onIce === true) && !ctx.intermission ? "now" : "soon";
+  return labTileShell(cls, tag, pick, ctx.link, `
+    <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}${pp}</div>
+    ${pick.progress ? `<div class="ab-line">${escapeHtml(pick.progress)}</div>` : ""}
+    <div class="ab-line faint">${escapeHtml([ctx.statLine, pick.whos.join(", ")].filter(Boolean).join(" \u00b7 "))}</div>`);
+}
+// HOCKEY team bets: ONE tile per team (or per game, for a total), with a
+// line for every bet on it -- a moneyline and a puck line on the Lightning are
+// one team to watch, and filing both under "TB" used to show only one of them.
+function nhlRinkNeed(e, row) {
+  const line = e.line === null || e.line === undefined ? null : Number(e.line);
+  if (e.market === "nhl_total" && line !== null) {
+    const goals = row.score + row.opp;
+    return e.side === "under" ? `${goals} goals, needs under ${line}` : `${goals} goals, needs ${Math.floor(line) + 1}`;
+  }
+  if (e.market === "nhl_pl" && line !== null) {
+    const margin = row.score + line - row.opp;
+    return margin > 0 ? `covering by ${margin}` : `${Math.abs(margin)} short of covering`;
+  }
+  return row.score > row.opp ? "ahead" : row.score < row.opp ? "behind" : "tied";
+}
+function nhlRinkTile(pick, entries, row) {
+  const label = e => ((MARKETS[e.market] && MARKETS[e.market].label) || "Team bet").toUpperCase();
+  const tag = entries.length === 1 ? label(entries[0]) : "TEAM BETS";
+  const needs = entries.map(e => (entries.length > 1 ? `${label(e)}${e.market === "nhl_pl" ? lineText(e) : ""}: ` : "") + nhlRinkNeed(e, row));
+  const totalOnly = entries.every(e => e.market === "nhl_total");
+  return labTileShell("game", tag, pick, NHL.gameUrl(row.gamePk), `
+    <div class="ab-line">${escapeHtml(row.clockLabel)}</div>
+    <div class="ab-countrow"><span class="ab-count">${row.score}&ndash;${row.opp}</span><span class="ab-pitches faint">${escapeHtml(needs[0])}</span></div>
+    ${needs.slice(1).map(n => `<div class="ab-line">${escapeHtml(n)}</div>`).join("")}
+    <div class="ab-line faint">${totalOnly ? "An over settles the moment it clears." : "Settles at the final &mdash; OT and shootout count."}</div>`);
+}
+
+// The same count for a leg that has just HIT, for its result tile -- summed
+// over every name on it, since a finished leg is shown once for all of them.
+function nflHitProgress(e) {
+  const spec = NFL_PROGRESS[e.market];
+  if (!spec) return null;
+  const have = (e.names || []).reduce((sum, n) => {
+    const r = NFL.stat(n, spec[0]);
+    return sum + (r ? r.value : 0);
+  }, 0);
+  const line = (e.line === null || e.line === undefined) ? 0.5 : Number(e.line);
+  return { text: e.side === "under" ? `${have} ${spec[1]} (under ${line})` : `${have} of ${Math.floor(line) + 1} ${spec[1]}` };
+}
+
+function liveTileKind(leg) { return marketForeign(leg) ? null : LIVE_TILE_KIND[legMarket(leg)] || null; }
 
 // The stat columns a market counts, so a tile can show progress toward the
 // line. Mirrors the MARKETS registry's graders -- change one, change the
@@ -2973,31 +4829,80 @@ function hrRowHtml(hr, isOurs) {
   </div>`;
 }
 
+// Home runs and touchdowns in one list, newest first. Both carry an ISO
+// timestamp, so they sort against each other directly.
+function scoringPlays() {
+  const hrs = ((RESULTS && RESULTS.homeRuns) || []).map(h => ({ nfl: false, at: h.time || "", row: h }));
+  const tds = (NFL.scoring() || []).map(t => ({ nfl: true, at: t.time || "", row: t }));
+  const goals = (NHL.goals() || []).map(g => ({ nhl: true, at: g.time || "", row: g }));
+  return hrs.concat(tds, goals).sort((a, b) => (b.at || "").localeCompare(a.at || ""));
+}
+
+// A touchdown row's own onclick names toggleTdRow, which lives INSIDE the NFL
+// module. The host has to carry a shim: an inline handler is resolved against
+// window when the row is clicked, long after the closure that could have
+// supplied it has gone.
+function toggleTdRow(id) { NFL.toggleRow(id); renderHrLog(); }
+function toggleGoalRow(id) { NHL.toggleRow(id); renderHrLog(); }
+
+function scoringIsOurs(entry, relevant, nflNames) {
+  if (entry.nhl) return nhlPickNames().has(NHL.norm(entry.row.scorer));
+  return entry.nfl ? nflNames.has(NFL.norm(entry.row.scorer))
+                   : relevant.has(normalizeName(entry.row.batter));
+}
+
+// This slate's football picks, normalized. Uses the NFL engine's normalizer,
+// which strips generational suffixes -- ESPN writes "Marvin Harrison Jr." and
+// the card does not. Using the host's would mark his touchdown as somebody
+// else's.
+function nflPickNames() {
+  const set = new Set();
+  if (!TICKETS) return set;
+  const add = l => { if (l && l.sport === "nfl" && l.player) set.add(NFL.norm(l.player)); };
+  (TICKETS.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(add)));
+  (TICKETS.singles || []).forEach(add);
+  return set;
+}
+
+// This slate's hockey goal picks, by the NHL engine's own normalizer.
+function nhlPickNames() {
+  const set = new Set();
+  if (!TICKETS) return set;
+  const add = l => { if (l && l.sport === "nhl" && l.player && legMarket(l) === "nhl_goal") set.add(NHL.norm(l.player)); };
+  (TICKETS.windows || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(add)));
+  (TICKETS.singles || []).forEach(add);
+  return set;
+}
+
 function renderHrLog() {
   const list = document.getElementById("hrlog-list");
   if (!list) return;
   document.getElementById("hrlog-btn-picks").classList.toggle("active", HR_FILTER === "picks");
   document.getElementById("hrlog-btn-all").classList.toggle("active", HR_FILTER === "all");
 
-  const all = (RESULTS && RESULTS.homeRuns) || [];
+  const all = scoringPlays();
   const relevant = relevantHrNames();
-  const ourCount = all.filter(hr => relevant.has(normalizeName(hr.batter))).length;
+  const nflNames = nflPickNames();
+  const ourCount = all.filter(e => scoringIsOurs(e, relevant, nflNames)).length;
   const countEl = document.getElementById("hrlog-count");
   // Share of the day's home runs that came off a bat we picked. Plain
   // ours/total -- no attempt to weight by how many legs named him.
   const pct = all.length ? Math.round((ourCount / all.length) * 100) : 0;
   if (countEl) countEl.textContent = all.length ? `${ourCount} OURS · ${all.length} TOTAL · ${pct}%` : "";
 
-  const rows = HR_FILTER === "picks" ? all.filter(hr => relevant.has(normalizeName(hr.batter))) : all;
+  const rows = HR_FILTER === "picks" ? all.filter(e => scoringIsOurs(e, relevant, nflNames)) : all;
 
   if (rows.length === 0) {
     const msg = all.length === 0
-      ? "No home runs hit yet."
-      : "None of this slate's picks have gone deep yet &mdash; switch to <b>All Home Runs</b> to see the rest of the league.";
+      ? "Nothing has been scored yet."
+      : "None of this slate's picks have scored yet &mdash; switch to <b>Everything</b> to see the rest of both leagues.";
     list.innerHTML = `<p class="hr-empty">${msg}</p>`;
     return;
   }
-  list.innerHTML = rows.map(hr => hrRowHtml(hr, relevant.has(normalizeName(hr.batter)))).join("");
+  list.innerHTML = rows.map(e => {
+    const ours = scoringIsOurs(e, relevant, nflNames);
+    return e.nhl ? NHL.rowHtml(e.row, ours) : e.nfl ? NFL.rowHtml(e.row, ours) : hrRowHtml(e.row, ours);
+  }).join("");
 }
 
 function toggleHrRow(id) {
@@ -3014,8 +4919,8 @@ function hrLogSubText() {
   const collapsed = document.getElementById("hrlog-section").classList.contains("collapsed");
   const day = ACTIVE_TAB === "today" ? "today" : "that day";
   return collapsed
-    ? `Tap to expand &mdash; see every home run hit ${day}, or just your picks.`
-    : "Newest first. Tap any home run for the full Statcast detail.";
+    ? `Tap to expand &mdash; every home run and touchdown ${day}, or just your picks.`
+    : "Newest first. Tap any score for the full detail.";
 }
 
 function toggleHrLog() {
@@ -3029,7 +4934,7 @@ const LAB_RESULT_MS = 9000;   // a finished at-bat's result holds its tile this 
 const LAB_HOMER_MS = 14000;   // ...a home run earns a longer look,
 const LAB_BOMB_MS = 3200;     // the first stretch of which the tile is just a bomb
 const LAB_STALE_MS = 180000;  // an at-bat that ended longer ago than this isn't news
-const LS_LIVEAB = "bmbs.liveab.open";
+const LS_LIVEAB = "bmbs.hk.liveab.open";
 
 // seen:         every finished at-bat already accounted for, so each is announced once
 // prevEligible: who had a live leg as of the previous poll -- a hitter who just
@@ -3087,6 +4992,8 @@ function labEligiblePicks() {
       market, line: leg && leg.line !== undefined ? leg.line : null,
       side: (leg && leg.side) || "over", odds,
       names: leg ? legPlayers(leg) : [player], team: (leg && leg.team) || "", kind,
+      teams: leg ? legTeams(leg) : [],
+      quarter: leg && leg.quarter ? Number(leg.quarter) : null,
     });
     const who = whoDisplayName(rawWho);
     if (who && !pick.whos.includes(who)) pick.whos.push(who);
@@ -3099,6 +5006,15 @@ function labEligiblePicks() {
     const kind = liveTileKind(leg);
     if (!kind) return;
     if (kind === "game") { add(leg.team || "", odds, rawWho, iron, legMarket(leg), leg); return; }
+    // ONE tile for "DET + CAR", not one per team: it is one bet, and either
+    // side failing to score in a quarter loses all of it.
+    if (kind === "quarters") { add(legTeams(leg).join(" + "), odds, rawWho, iron, legMarket(leg), leg); return; }
+    if (kind === "team_drive") { add(leg.team || "", odds, rawWho, iron, legMarket(leg), leg); return; }
+    // A hockey team bet: the team, or both for a game total.
+    if (kind === "rink") {
+      add(legMarket(leg) === "nhl_total" ? legTeams(leg).join(" + ") : (leg.team || ""), odds, rawWho, iron, legMarket(leg), leg);
+      return;
+    }
     legPlayers(leg).forEach(name => add(name, odds, rawWho, iron, legMarket(leg), leg));
   }
   EVALUATED.forEach(({ tk, states, evalRes }) => {
@@ -3220,7 +5136,9 @@ function labOddsHtml(pick, tag) {
   (pick.entries || []).forEach(e => {
     if (e.market === "hr" || e.market === "sb") return;
     const def = MARKETS[e.market];
-    const label = (def && def.label) || String(e.market).toUpperCase();
+    // "Scores in Q" alone doesn't say which quarter: the entry carries it.
+    const label = (e.market === "q_score" && e.quarter ? `Scores in Q${e.quarter}` : def && def.label)
+      || String(e.market).toUpperCase();
     // Case-blind: the registry says "All 4 Quarters", a tag says "ALL 4
     // QUARTERS", and the same word twice is the thing being avoided.
     if (tag && label.toUpperCase() === String(tag).toUpperCase()) {
@@ -3286,6 +5204,40 @@ function labMoundTile(pick, gamePk, inningLabel, gamedayLink) {
 
 // A GAME LINE. No player at all: the live score is the state, and the tile
 // says plainly that nothing settles until the final -- a lead is not a win.
+// One row per team, one cell per quarter, and a line saying what is still
+// owed in the quarter being played -- which is the only thing that can still
+// go wrong for this bet right now.
+function quartersTile(pick, rows, link) {
+  const e = (pick.entries || []).find(x => x.market === "quarters") || {};
+  const teams = e.teams || [];
+  const owed = [];
+  let current = 0;
+  const cells = teams.map((t, i) => {
+    const r = rows[i] || { quarters: [], status: "preview" };
+    const q = r.quarters || [];
+    // While the game is on, the LAST entry is the quarter being played;
+    // ESPN adds it when the quarter starts, at zero.
+    const live = r.status === "live" ? q.length : 0;
+    if (live > current) current = live;
+    const row = [1, 2, 3, 4].map(n => {
+      const pts = q[n - 1];
+      if (pts > 0) return `<span class="q-cell q-yes">&#10003;</span>`;
+      if (n === live) { owed.push(t); return `<span class="q-cell q-owed">&middot;&middot;</span>`; }
+      return `<span class="q-cell">&ndash;</span>`;
+    }).join("");
+    return `<span class="q-team">${escapeHtml(t)}</span>${row}`;
+  }).join("");
+  const label = current ? (current > 4 ? "Overtime" : `Q${current}`) : "";
+  const need = !current ? ""
+    : current > 4 ? "All four quarters are in."
+    : owed.length === 0 ? `${label}: both have scored${current < 4 ? ` &middot; ${4 - current} to go` : " &middot; that&rsquo;s all four"}`
+    : owed.length === teams.length ? `${label}: both still need to score`
+    : `${label}: ${escapeHtml(owed.join(" & "))} still needs to score`;
+  return labTileShell("game", "ALL 4 QUARTERS", pick, link, `
+    <div class="q-grid"><span></span><span class="q-head">Q1</span><span class="q-head">Q2</span><span class="q-head">Q3</span><span class="q-head">Q4</span>${cells}</div>
+    <div class="ab-line ${owed.length ? "" : "faint"}">${need}</div>`);
+}
+
 function labGameTile(pick, row, inningLabel, gamedayLink) {
   const e = (pick.entries || [])[0] || {};
   const def = MARKETS[e.market];
@@ -3403,13 +5355,14 @@ function flashLegHit(leg, entry, cash) {
   const now = Date.now();
   const players = legPlayers(leg);
   const e = { market: legMarket(leg), line: leg.line === undefined ? null : leg.line, side: legSide(leg),
-              odds: leg.odds || "", names: players, team: leg.team || "", kind: liveTileKind(leg) };
+              odds: leg.odds || "", names: players, team: leg.team || "", kind: liveTileKind(leg),
+              quarter: leg.quarter ? Number(leg.quarter) : null };
   const who = whoDisplayName(leg.who);
   const pick = { norm: "hit:" + propKey(leg), player: entry.name, odds: [], oddsSb: [], whos: who ? [who] : [],
                  iron: false, hr: false, sb: false, entries: [e], kinds: new Set() };
   // The progress line is worked out NOW, against the slate that just hit;
   // by the time the tile renders RESULTS may be following another tab.
-  const prog = labProgress(e);
+  const prog = labProgress(e) || nflHitProgress(e) || nhlHitProgress(e);
   LAB.flashes.set(pick.norm, { pick, cleared: { word: entry.prop.word, emoji: entry.prop.emoji, cash: cash || null,
                                                detail: prog ? prog.text : "" },
                                norms: players.map(normalizeName), burst: true, at: now, until: now + LAB_HOMER_MS });
@@ -3492,7 +5445,7 @@ function liveAbSubText(collapsed, nowCount, soonCount, onCount) {
     return `${head}Filtered to <b>${escapeHtml(filtered)}</b>: ${counts || "nobody up or due"}.`;
   }
   if (!collapsed && steals) return `Home run picks at the plate or due up, steal picks on base. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
-  if (!collapsed) return `Your picks at the plate or guaranteed to bat this inning, pitch by pitch. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
+  if (!collapsed) return `Your picks in games now &mdash; on the ice, on the bench, in net, and every power play. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
   if (!nowCount && !soonCount && !onCount) return "Tap to expand &mdash; none of your picks are due up right now.";
   const bits = [];
   if (nowCount) bits.push(`<b>${nowCount}</b> at the plate`);
@@ -3546,8 +5499,93 @@ function renderLiveAtBats() {
       tiles.push({ rank: 1, order: on.nextOpen ? 0 : 2, html: labOnBaseTile(pick, on) });
       return;
     }
+    // AN NFL PICK. Green here means what it means on the football page and
+    // nothing looser: his side has the ball, their drive is open, and that
+    // drive has not already ended. Possession alone is stale right after a
+    // score, an open drive alone is stale right after a punt, and a finished
+    // drive still named as current IS the kickoff window -- the NFL engine's
+    // own liveContextForPlayer checks all three.
+    // A HOCKEY player: on the wall the whole time his game is live, ordered
+    // on-the-ice and power play first, then the bench.
+    if (pick.kinds && pick.kinds.has("ice")) {
+      const e = (pick.entries || []).find(x => NHL_PROGRESS[x.market]) || {};
+      const hctx = NHL.context({ player: pick.player, team: e.team });
+      if (hctx && hctx.status === "live") {
+        const tp = Object.assign({}, pick, { progress: nhlProgress(pick, hctx) });
+        const active = hctx.goalie || hctx.onIce === true;
+        if (active) nowCount++; else soonCount++;
+        tiles.push({ rank: active ? 1 : hctx.onIce === false ? 3 : 2, order: hctx.powerPlay === "pp" ? 0 : 1, html: nhlIceTile(tp, hctx) });
+      }
+      return;
+    }
+    if (pick.kinds && pick.kinds.has("rink")) {
+      const es = [...new Map((pick.entries || []).filter(x => MARKETS[x.market] && MARKETS[x.market].sport === "nhl")
+        .map(x => [x.market + "|" + x.line + "|" + x.side, x])).values()];
+      const row = es.length ? NHL.team(es[0].team) : null;
+      if (row && row.status === "live") {
+        gameCount++;
+        tiles.push({ rank: 4, order: 0, html: nhlRinkTile(pick, es, row) });
+      }
+      return;
+    }
+    // A TEAM to score in a quarter. Only the quarter being played reaches
+    // here (a later one grades not_started, an earlier one is settled), and
+    // only while the leg is unscored -- so the tile is there exactly while
+    // that team has the ball and still owes the points.
+    if (pick.kinds && pick.kinds.has("team_drive")) {
+      const dctx = NFL.teamContext(pick.player);
+      const e = (pick.entries || []).find(x => x.market === "q_score") || {};
+      const tp = Object.assign({}, pick, { progress: `needs a score in Q${e.quarter}` });
+      if (dctx && dctx.status === "live") {
+        if (dctx.onOffense) {
+          nowCount++;
+          tiles.push({ rank: dctx.redZone ? 1 : 2, order: dctx.yardsToEndzone === null ? 99 : dctx.yardsToEndzone,
+                       html: NFL.ballTile(tp, dctx) });
+        } else if (dctx.takingFieldSoon) {
+          soonCount++;
+          tiles.push({ rank: 3, order: 0, html: NFL.waitTile(tp, dctx) });
+        }
+      }
+      return;
+    }
+    if (pick.kinds && (pick.kinds.has("drive") || pick.kinds.has("defense"))) {
+      const dctx = NFL.context(pick);
+      // A copy, so the progress line rides along to the tile without being
+      // left on a pick object that is rebuilt every render anyway.
+      const tp = Object.assign({}, pick, { progress: nflProgress(pick, dctx) });
+      if (dctx && dctx.status === "live" && pick.kinds.has("defense") && dctx.onDefense) {
+        nowCount++;
+        tiles.push({ rank: 2, order: 50, html: NFL.defenseTile(tp, dctx) });
+      } else if (dctx && dctx.status === "live" && pick.kinds.has("drive")) {
+        if (dctx.onOffense) {
+          nowCount++;
+          tiles.push({ rank: dctx.redZone ? 1 : 2,                       // closest to the goal line first
+                       order: dctx.yardsToEndzone === null ? 99 : dctx.yardsToEndzone,
+                       html: NFL.ballTile(tp, dctx) });
+        } else if (dctx.takingFieldSoon) {
+          soonCount++;
+          tiles.push({ rank: 3, order: 0, html: NFL.waitTile(tp, dctx) });
+        }
+        // Nothing at all while his defence is on the field. Baseball has
+        // never shown a tile for a player whose side isn't batting, and a
+        // tile he cannot score from is noise.
+      }
+      return;
+    }
     // A GAME LINE has no player, so none of the batting machinery below can
     // place it. It gets a tile whenever its game is actually under way.
+    // Each team to score all four quarters: on the wall while EITHER game
+    // is being played, since a quarter in either can still settle it.
+    if (pick.kinds && pick.kinds.has("quarters")) {
+      const e = (pick.entries || []).find(x => x.market === "quarters") || {};
+      const rows = (e.teams || []).map(t => NFL.quarters(t));
+      if (rows.length && rows.every(Boolean) && rows.some(r => r.status === "live")) {
+        gameCount++;
+        const pk = rows[0].gamePk;
+        tiles.push({ rank: 4, order: 0, html: quartersTile(pick, rows, pk ? NFL.gameUrl(pk) : "") });
+      }
+      return;
+    }
     if (pick.kinds && pick.kinds.has("game")) {
       const row = RESULTS.teamScores && RESULTS.teamScores.get((pick.player || "").toUpperCase());
       if (row && row.runs !== null && row.status !== "preview") {
@@ -3717,9 +5755,19 @@ function computeAll() {
   const bettorCountEl = document.getElementById("bettor-count");
   if (bettorCountEl) bettorCountEl.textContent = rows.length ? `${rows.length} ${rows.length === 1 ? "BETTOR" : "BETTORS"}` : "";
 
-  const mixed = slateHasSteals();
-  document.getElementById("legend-hit").textContent = mixed ? "Home run / steal" : "Home run";
-  document.getElementById("legend-miss").textContent = mixed ? "Game final, missed" : "Game final, no HR";
+  const legs = [];
+  (TICKETS && TICKETS.windows || []).forEach(w => (w.tickets || []).forEach(t => legs.push(...(t.legs || []))));
+  (TICKETS && TICKETS.singles || []).forEach(x => legs.push(x));
+  const hasNfl = legs.some(l => l.sport === "nfl");
+  const hasNhl = legs.some(l => l.sport === "nhl");
+  const hasMlb = legs.some(l => l.sport !== "nfl" && l.sport !== "nhl");
+  const words = [];
+  if (hasMlb) words.push(slateHasSteals() ? "Home run / steal" : "Home run");
+  if (hasNfl) words.push("touchdown");
+  if (hasNhl) words.push("goal");
+  document.getElementById("legend-hit").textContent = words.join(" / ") || "Home run";
+  document.getElementById("legend-miss").textContent =
+    (hasNfl || hasNhl || slateHasSteals()) ? "Game final, missed" : "Game final, no HR";
 
   // Parser warnings only. The old "Auto-tracked against live MLB results."
   // copy was dropped as redundant with the LIVE FROM MLB eyebrow, but a real
@@ -3750,7 +5798,7 @@ function legPassesFilters(state, rawWho) {
 // The two bet lists are collapsible sections like the panels above them, and
 // both start CLOSED: the slate summary up top is what most people want at a
 // glance. Whichever a visitor opens is remembered per browser.
-const LS_CARDS = { parlays: "bmbs.cards.parlays", singles: "bmbs.cards.singles" };
+const LS_CARDS = { parlays: "bmbs.hk.cards.parlays", singles: "bmbs.hk.cards.singles" };
 const CARDS_OPEN = { parlays: false, singles: false };
 
 function loadCardsOpen() {
@@ -4026,11 +6074,33 @@ function render() {
 
 // ---------------- slates / tabs / boot ----------------
 
-async function refreshSlate(date) {
+async function refreshSlate(tickets) {
+  const date = tickets.date;
   let entry = SLATE_POLLS.get(date);
   if (entry && entry.settled) return entry;
   try {
-    entry = await pollSlate(date);
+    // Both leagues, in parallel, every poll. The slate is DONE only when both
+    // are -- the rule for a combined card is "every game on the card", which
+    // is deliberately not the NFL tab's "the whole week" (a football slate IS
+    // an NFL week; this one is one card that happens to span two leagues).
+    NFL.register(tickets);
+    NHL.register(tickets);
+    const [mlb, nfl, nhl] = await Promise.all([
+      pollSlate(tickets),
+      NFL.has(tickets) ? NFL.poll(tickets)
+                       : Promise.resolve({ results: NFL.empty(), done: true, settled: true }),
+      // Hockey the same way: only its own legs, and done only when every
+      // hockey game ON THE CARD is.
+      NHL.has(tickets) ? NHL.poll(tickets)
+                       : Promise.resolve({ results: NHL.empty(), done: true, settled: true })
+    ]);
+    entry = {
+      results: mlb.results,
+      nfl: nfl.results,
+      nhl: nhl.results,
+      done: mlb.done && nfl.done && nhl.done,
+      settled: mlb.settled && nfl.settled && nhl.settled
+    };
     SLATE_POLLS.set(date, entry);
   } catch (e) {
     if (!entry) throw e; // otherwise keep last-known results through a transient failure
@@ -4046,8 +6116,8 @@ async function refreshSlate(date) {
 // Once every slate is finished, Today falls back to its waiting state.
 async function refreshEverything() {
   const [current, previous] = await Promise.all([
-    loadTicketsFile("data/tickets.json"),
-    loadTicketsFile("data/tickets-previous.json")
+    loadTicketsFile("../data/hockey/tickets.json"),
+    loadTicketsFile("../data/hockey/tickets-previous.json")
   ]);
   if (current && !current.date) current.date = todayET(); // file predates date stamping; gone after the next upload
 
@@ -4061,12 +6131,12 @@ async function refreshEverything() {
   for (const tickets of files) {
     let entry;
     try {
-      entry = await refreshSlate(tickets.date);
+      entry = await refreshSlate(tickets);
     } catch (e) {
       firstError = firstError || e;
-      entry = { results: emptyResults(), done: false };
+      entry = { results: emptyResults(), nfl: NFL.empty(), nhl: NHL.empty(), done: false };
     }
-    slates.push({ tickets, results: entry.results, done: entry.done });
+    slates.push({ tickets, results: entry.results, nfl: entry.nfl || NFL.empty(), nhl: entry.nhl || NHL.empty(), done: entry.done });
   }
 
   const liveIdx = slates.findIndex(s => !s.done);
@@ -4084,6 +6154,8 @@ function applyActiveTab() {
   const slate = SLATES[ACTIVE_TAB];
   TICKETS = slate ? slate.tickets : null;
   RESULTS = slate ? slate.results : emptyResults();
+  NFL.use(slate ? slate.nfl : null);
+  NHL.use(slate ? slate.nhl : null);
 
   document.getElementById("tab-btn-today").classList.toggle("active", ACTIVE_TAB === "today");
   document.getElementById("tab-btn-yesterday").classList.toggle("active", ACTIVE_TAB === "yesterday");
@@ -4117,7 +6189,7 @@ function applyActiveTab() {
   document.getElementById("notif-note").style.display = showNotifControls ? "" : "none";
 
   if (ACTIVE_TAB === "today") {
-    document.getElementById("eyebrow-text").innerHTML = showSlate ? "TODAY'S SLATE &middot; LIVE FROM MLB" : "TODAY'S SLATE";
+    document.getElementById("eyebrow-text").innerHTML = showSlate ? "TODAY'S SLATE &middot; LIVE FROM ESPN" : "TODAY'S SLATE";
     document.getElementById("waiting-title").textContent = "Waiting for today's picks";
     document.getElementById("waiting-text").textContent = SLATES.yesterday
       ? "Yesterday's results are in the other tab. This page picks up the new slate automatically once it's posted."
@@ -4147,7 +6219,8 @@ function updateSyncLine() {
   if (!slate) { el.textContent = ACTIVE_TAB === "today" ? "Waiting for today's picks" : ""; return; }
   const when = fmtSlateDate(slate.tickets.date);
   if (ACTIVE_TAB === "yesterday") {
-    el.textContent = slate.results.noGames ? `No MLB games were scheduled for ${when}` : `Final results for ${when}`;
+    // Only a card WITH baseball on it can be short of baseball games.
+    el.textContent = slate.results.noGames && mlbLegsOn(slate.tickets) ? `No MLB games were scheduled for ${when}` : `Final results for ${when}`;
     return;
   }
   const now = new Date();
@@ -4203,19 +6276,28 @@ document.addEventListener("visibilitychange", () => {
 });
 
 
-const BELL_KEY = "bmbs.bell";
-function bellReady(slate) { return !!(slate.results && slate.results.ready); }
+const BELL_KEY = "bmbs.hk.bell";
+function bellReady(slate) {
+  return !!((slate.results && slate.results.ready) || (slate.nfl && slate.nfl.ready));
+}
 function bellLegState(leg) { return stateForLeg(leg); }
 function bellWhat(leg) {
+  if (legMarket(leg) === "q_score") return legMarketLabel(leg);
   const m = legMarket(leg);
   const def = marketDef(leg);
-  const base = def && def.label ? def.label : (m === "hr" ? "Home run" : String(m).toUpperCase());
+  const base = def && def.label ? def.label
+    : (m === "hr" ? "Home run" : m === "td" ? "Anytime TD" : String(m).toUpperCase());
   return (base + lineText(leg)).trim();
 }
+// BOTH leagues' results have to be today's for the scan, or a mixed parlay
+// is graded with one league's numbers from today and the other's from
+// whichever tab is open -- the same swap the alert helpers make.
 function bellWithToday(slate, fn) {
   const saved = RESULTS;
+  const savedNfl = NFL.swap(slate.nfl);
+  const savedNhl = NHL.swap(slate.nhl);
   RESULTS = slate.results;
-  try { fn(); } finally { RESULTS = saved; }
+  try { fn(); } finally { RESULTS = saved; NFL.swap(savedNfl); NHL.swap(savedNhl); }
 }
 
 // ---------------- when did it happen ----------------
@@ -4261,6 +6343,9 @@ function whenCountReached(plays, need, countOf) {
   return null;
 }
 function legHitTime(leg) {
+  // A football leg's time comes from the NFL engine, off ESPN's play-by-play.
+  if (leg.sport === "nfl") return NFL.hitTime(leg);
+  if (leg.sport === "nhl") return NHL.hitTime(leg);
   const m = legMarket(leg);
   const names = new Set(legPlayers(leg).map(normalizeName));
   const lineN = leg.line === null || leg.line === undefined ? NaN : Number(leg.line);
@@ -4514,8 +6599,8 @@ function bellReplay(id) {
   if (a.m === "hr") { playAlertSound("bomb", false); replayOverlay({ name }); return; }
   if (a.m === "sb") { playAlertSound("swipe", false); replayOverlay({ name, steal: { base: a.base || "a base" } }); return; }
   if (a.m === "td") { playAlertSound("kick", false); replayOverlay({ name, td: true }); return; }
-  playAlertSound(a.sport === "nfl" ? "kick" : "swipe", false);
-  replayOverlay({ name, prop: { emoji: a.sport === "nfl" ? FOOTBALL_EMOJI : BASEBALL_EMOJI,
+  playAlertSound(a.sport === "nfl" || a.sport === "nhl" ? "kick" : "swipe", false);
+  replayOverlay({ name, prop: { emoji: sportEmoji(a.sport, a.m),
                                 word: a.word || `${item.what} hit!`.toUpperCase() } });
 }
 

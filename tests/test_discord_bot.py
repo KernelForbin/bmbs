@@ -370,7 +370,7 @@ on_message_test("C5 no attachment at all is ignored (not even a reply)", msg, ex
 msg = FakeMessage(FakeUser(14), FakeChannel(), [FakeAttachment("readme.pdf", b"stuff")])
 on_message_test("C6 a non-.txt attachment gets a reply naming the file, not a prompt", msg, expect_prompted=False, expect_reply_contains="readme.pdf")
 
-msg = FakeMessage(FakeUser(15), FakeChannel(), [FakeAttachment("hockey_picks.txt", b"stuff")])
+msg = FakeMessage(FakeUser(15), FakeChannel(), [FakeAttachment("golf_picks.txt", b"stuff")])
 on_message_test("C7 a filename that names no sport asks for a rename, doesn't guess", msg, expect_prompted=False, expect_reply_contains="upload it again")
 
 msg = FakeMessage(FakeUser(16), FakeChannel(), [FakeAttachment("baseball_empty.txt", b"   \n  ")])

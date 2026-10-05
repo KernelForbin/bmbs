@@ -10,6 +10,11 @@ bookmarked features link carries, the `baseball*`/`football*` file-name
 prefixes the bot routes on, and every element id, CSS class and `--sport` CLI
 value are addresses rather than names and were deliberately left alone.
 
+**The third tab is ALL SPORTS** (renamed from "NFL+MLB" on 2026-10-05, when
+hockey joined it). Same rule: the label changed; `/all/`, `data/combined/`,
+the `sports_*` upload prefix and `?sport=combined` did not. **There is a
+fourth, HIDDEN, tracker: NHL at `/hockey/`** -- see "The NHL tracker" below.
+
 ## Architecture
 
 - **`index.html`** — the entire live site. Single self-contained file:
@@ -19,8 +24,12 @@ value are addresses rather than names and were deliberately left alone.
   this repo alongside the two single-sport ones. Tracks a card that can hold
   MLB and NFL bets at once, **including a single parlay with a leg in each**.
   Assembled ONCE from `index.html` (2026-10-04) and independent from here, the
-  same rule `football/index.html` lives under. See "The NFL+MLB tracker" below
+  same rule `football/index.html` lives under. See "The ALL SPORTS tracker" below
   before changing anything in it.
+- **`hockey/index.html`** — the **NHL** tracker at `/hockey/`, a complete
+  working page that is deliberately in NO page's sport switch (the user's
+  call, 2026-10-05: "I may want to unhide it later"). Generated from
+  `all/index.html` and independent since. See "The NHL tracker" below.
 - **`features/index.html`** — a static, plain-language "what this site can
   do" page for end users (the friend group), reusing `index.html`'s exact
   color tokens/fonts so it reads as the same product. Lives at the clean
@@ -1133,7 +1142,7 @@ feed's boxscore `battingOrder` field, combined with a negative-binomial
 model using a league-average 68.5% out rate (NOT the specific hitter's real
 stats — this is disclosed in the UI, don't remove that framing).
 
-## The NFL+MLB tracker -- the third site, and the only one that mixes sports
+## The ALL SPORTS tracker (was NFL+MLB) -- the third site, and the only one that mixes sports
 
 `all/index.html` at `/all/`, added 2026-10-04. The sport switch at the top of
 all three pages is now three-way: **MLB / NFL / NFL+MLB**.
@@ -1304,6 +1313,109 @@ in this project and adding one would change what deploying means. The file is
 INDEPENDENT now: a fix that applies to it and to `index.html` is made twice,
 on purpose, exactly as with football.
 
+## The NHL tracker -- built in full, HIDDEN (2026-10-05)
+
+The user's words: "Build an NHL section ... But hide it ... I may want to
+unhide it later, so it should be a full functioning page. Add the NHL
+functionality to the NFL+MLB tab, rename this tab to ALL SPORTS." So hockey
+exists in TWO places, graded identically:
+
+- **On the ALL SPORTS page** (`all/index.html`), as a third sealed engine
+  beside football's: `const NHL = (function () { ... })()`, same seal and same
+  reason (its own suffix-stripping `normalizeName`, its own `RESULTS`). It
+  exports `has/register/poll/use/swap/empty/stat/team/context/teamContext/
+  hitTime/goals/rowHtml/toggleRow/gameUrl/norm`.
+- **On `/hockey/`**, a page GENERATED from `all/index.html` by a scratchpad
+  script (not a build step -- same as the combined page's own assembly): title
+  and switch say NHL, data from `data/hockey/`, every storage key `bmbs.hk.*`,
+  footer credits ESPN only. A hockey-only card simply makes the MLB and NFL
+  engines stand down. It was regenerated while uncommitted; **from the first
+  commit on it is INDEPENDENT**, and a fix that applies to both is made twice.
+
+**Hidden means: in no page's sport switch.** Its own switch shows all four
+tabs (with a comment saying how to unhide), but `/`, `/football/` and `/all/`
+link nothing to it, and `test_hockey.py` A3 fails if one does. It is NOT
+secret: a `hockey_*.txt` upload's Discord message links `/hockey/`, and
+`/features/` deliberately doesn't mention it. **Unhiding = adding the NHL tab
+to the other three switches, deleting A3, and adding a features section.**
+
+**Data: ESPN `site.web.api.espn.com/.../hockey/nhl`** -- `scoreboard` and
+`summary`, from the browser, same CORS reasoning as football. The NHL's own
+`api-web.nhle.com` sends no CORS header to a browser and is unusable here.
+
+**Markets are `nhl_*`, ALWAYS prefixed**: `nhl_goal` (the default for a hockey
+leg with no market), `nhl_points`, `nhl_assists`, `nhl_sog`, `nhl_saves`,
+`nhl_ml`, `nhl_pl` (puck line), `nhl_total`. Not `ml`/`total`: those are
+baseball's graders, which read scores keyed by team abbreviation, and TB is
+the Rays AND the Lightning. Player props settle an OVER the moment it clears;
+an UNDER, and the team bets, at the final. Overtime and the shootout count
+(that's how books grade them); a push is `na`; a rostered player with no stat
+line at the final is void.
+
+**The foreign-market guard** (`marketForeign()`, same day): a leg whose `sport`
+differs from its market's (no `sport` on a market = baseball) is `untracked`.
+This was a real hole on the ALL SPORTS page before hockey: the parser writes a
+football "Lions Moneyline" as `ml`, which was graded off the Detroit TIGERS'
+final. `marketSubject()` deliberately reads the registry directly -- an
+untracked Lions moneyline still names the Lions. `test_combined_page.py` U5/U6.
+
+**Live Bet Tracker.** A player leg's tile (`ice`) carries his count toward the
+line plus one of: **IN NET** (a goalie), **ON THE ICE** / **ON THE BENCH**
+from the summary's `onIce` list ("In Play" whereabouts), or plain **LIVE**
+when that list is absent. **`onIce` has only been seen in fixtures shaped from
+a pre-game payload -- NOT yet confirmed to update during a live game.** The
+code never infers "benched" from a missing list (C9 pins it); if `onIce` turns
+out to be static, every skater should read LIVE, never a stale ON THE ICE --
+check that against a real game before trusting the two tags. **POWER PLAY** /
+**SHORT-HANDED** come from the latest play's `strength`, relative to the team
+that play belongs to. Team bets (`rink`) get ONE tile per team listing every
+bet on it ("TEAM BETS": a moneyline and a puck line on the Lightning are one
+team to watch -- filed by team alone, the second bet vanished), and a total
+gets its own with the goal count.
+
+**Scoring Log, alerts, bell.** Goals join the log (tagged PPG / SHG / EN /
+GOAL, assists in the detail), a goal has its own alert (🚨, the kick sound),
+and `NHL.swap()` is called alongside `NFL.swap()` everywhere the alert and
+bell helpers swap in today's results.
+
+**Rollover**: done only when every engine with legs on the card is done --
+MLB, NFL and NHL. `mlbLegsOn()` makes MLB's `pollSlate()` return done BEFORE
+it fetches even the schedule when the card has no baseball leg; without that
+an all-hockey card polled every live MLB game of the day, every poll.
+
+**Parsing** (`parse_combined_picks.py`, shared by both): `nhl_record()` runs
+BEFORE the MLB/NFL decision. Hockey evidence is a hockey market word, an NHL
+team, or a name only the NHL roster knows. Four traps, all pinned in section P:
+- **Name first, market second.** "Brayden Point Anytime Goal" was read as a
+  POINTS bet off his surname. The longest roster-name prefix is taken first,
+  and the market is only looked for after it.
+- **Shared nicknames need their city.** Panthers, Jets and Rangers
+  belong to other leagues too; `nhl_team_words()` only accepts a nickname no
+  other league uses ("Lightning", "Hurricanes"), and full names always.
+- **"Shots on Goal" is not a goal and a kicker's "Field Goal" is not hockey**:
+  `NHL_MARKET_ALIASES` is ordered most-specific first and the goal pattern
+  excludes "field".
+- **A `hockey_*.txt` card forces every leg to hockey** (`only_sport="nhl"`):
+  Will Smith is a Dodgers catcher AND a Sharks centre, and nothing on the line
+  says which. On an ALL SPORTS card he stays the catcher. A forced card's
+  dated title ("... OCTOBER 6, 2026") ends in a bare number and used to come
+  out as an unresolvable player; a line reached only through an UNSIGNED
+  trailing number that names nobody is dropped quietly, the rule the MLB/NFL
+  path already had.
+
+`scripts/parse_hockey_picks.py` is a thin wrapper (`only_sport="nhl"`, sports
+`["nhl"]`, archive-on-a-new-day); `.github/workflows/parse-hockey-picks.yml`
+fires on `data/hockey/incoming_picks.txt` and commits only
+`data/hockey/tickets*` (`test_workflow_yaml.py` B3e/B3f/C2c/D2d/D2e).
+`scripts/build_hockey_roster.py` -> `data/hockey/roster.json` from ESPN's NHL
+rosters, MERGING like baseball's (a player on IR is kept) -- on no schedule,
+rebuild when a name won't resolve.
+
+**Not built** (deferred, say so if asked): no auto-fix-on-failure support for
+hockey uploads, no hockey results archive or History page, and no real hockey
+card has arrived yet -- `tests/fixtures/hockey_format.txt` is written to the
+generator's current shape, so treat the first real one as a template incident.
+
 ## Combined picks: `sports_*.txt`
 
 **`scripts/parse_combined_picks.py`** -> `data/combined/tickets.json`, fired by
@@ -1431,7 +1543,8 @@ script), and the Discord bot's routing. Keep it that way:
   assertions per template, same pattern as `test_parser.py`).
 - **The Discord bot routes by FILE NAME only**: `baseball*.txt` ->
   `data/incoming_picks.txt`, `football*.txt` -> `data/football/incoming_picks.txt`,
-  `sports*.txt` -> `data/combined/incoming_picks.txt` (the NFL+MLB tab),
+  `sports*.txt` -> `data/combined/incoming_picks.txt` (the ALL SPORTS tab),
+  `hockey*.txt` -> `data/hockey/incoming_picks.txt` (the hidden NHL page),
   anything else is refused with a rename hint. It never inspects the text --
   the cards share a template, and a guess would eventually overwrite the wrong
   sport's slate.
@@ -1769,13 +1882,13 @@ after a dash during parsing — don't reintroduce this).
    picks multiple times because "copy the zip contents over the repo" also
    copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
    and `data/incoming_picks.txt` (plus their `data/football/` and
-   `data/combined/` twins) are live user data, managed only through
+   `data/combined/` and `data/hockey/` twins) are live user data, managed only through
    the picks-upload → GitHub Actions pipeline. `data/history.json` is pipeline data too (only
    `scripts/import_history.py` writes it), and so are `data/results/`,
    `data/football/results/` and `data/football/history.json` (only the two
    `record_*_results.py` scripts write them). Code changes should only
    ever touch `index.html`, `football/index.html`, `all/index.html`,
-   `history/`, `features/`, `scripts/`,
+   `hockey/index.html`, `history/`, `features/`, `scripts/`,
    `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
    `tests/test_live_data_schema.py` is a deliberate, narrow exception: it
    **reads** whatever is currently committed under `data/` to check it against
@@ -1949,6 +2062,18 @@ on failure:
   drive fixture had the pick already SCORING, which makes him ineligible for a
   tile anyway, so the drive logic was never exercised and a mutation against
   it passed.
+- `tests/test_hockey.py` — `hockey/index.html` AND hockey on `all/index.html`,
+  in Chromium, fully offline (ESPN NHL scoreboard/summary from fixtures, MLB
+  aborted). The page is hidden from every other page's switch (A3), keeps to
+  `bmbs.hk.*` (A4), never asks MLB for anything on a hockey-only card (A5);
+  live grading of every market, the tiles (ON THE ICE / ON THE BENCH / IN NET
+  / POWER PLAY / a missing `onIce` reading plain LIVE / one TEAM BETS tile per
+  team), a power-play goal's hit, alert, log row and bell time, the final
+  (moneyline, puck line, total, void), and the All Sports page grading the
+  same legs. The hockey PARSER is `test_combined_parser.py` section P (the
+  Brayden Point name-vs-market case, the Florida/Carolina Panthers split, the
+  Will Smith Dodgers/Sharks collision, the roster merge, the CLI). Thirteen
+  mutations, all caught.
 - `tests/test_bell.py` section I — the Play overlay button on all three pages:
   present on every entry as a real `<button>`, plays with the overlay toggle
   off, a second tap replaces rather than queues, a bet replays as a cash,
@@ -2077,7 +2202,7 @@ on failure:
 pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py && python tests/test_steals.py
-python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py
+python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py && python tests/test_hockey.py
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py

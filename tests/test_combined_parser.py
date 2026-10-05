@@ -601,8 +601,11 @@ check("O9 one man on two different bets keeps each its own line -- Bellinger's H
       find("Cody Bellinger", "hrr").get("line") == 2.5 and find("Cody Bellinger").get("market") in (None, "hr"),
       [(l.get("market"), l.get("line")) for l in bl if l["player"] == "Cody Bellinger"])
 lt = find("Tampa Bay Lightning")
-check("O10 the NHL leg is shown as hockey and graded by nobody: no team to mistake for the Bucs or Rays",
-      lt.get("sport") == "nhl" and lt.get("market") == "puck line +1.5" and not lt.get("team") and "line" not in lt, lt)
+# Shown-but-untracked was the stopgap until hockey was built (later the same
+# day): it is now a real puck line on the LIGHTNING, never the Bucs or Rays.
+check("O10 the NHL leg is hockey: the Lightning's puck line, +1.5",
+      lt.get("sport") == "nhl" and lt.get("market") == "nhl_pl" and lt.get("team") == "TB"
+      and lt.get("line") == 1.5, lt)
 check("O11 ...so the slate is today only -- the Bucs' Thursday game is not on this card",
       out12["date"] == out12["endDate"], (out12["date"], out12["endDate"]))
 _untouched = "Ticket 4\n8 pays 96.91\n5 Pays 228.46\n"
@@ -614,6 +617,89 @@ check("O13 ...or a count that already says '+', or a decimal line",
 check("O14 a team word only ONE league uses breaks a shared-city tie",
       cp.decide_sport("Tampa Bay Rays", "spread", "", "Tampa Bay Rays +1.5", MLB, NFL, None)[0] == "mlb"
       and cp.decide_sport("Tampa Bay Buccaneers", "spread", "", "Tampa Bay Buccaneers +3.5", MLB, NFL, None)[0] == "nfl")
+
+
+# ================= P. hockey (2026-10-05) =====================================
+# A hockey_*.txt card through parse_hockey_picks (every leg forced to NHL), and
+# hockey legs on an All Sports card, where nothing forces anything. Written to
+# the generator's current shape, not observed -- no real hockey card yet.
+import parse_hockey_picks as hp            # noqa: E402
+import build_hockey_roster as bhr          # noqa: E402
+import subprocess                          # noqa: E402
+HOCKEY = (REPO / "tests" / "fixtures" / "hockey_format.txt").read_text(encoding="utf-8")
+HNOW = datetime(2026, 10, 6, 11, 0, tzinfo=ZoneInfo("America/New_York"))
+hk = hp.build(HOCKEY, HNOW, no_network)
+hl = [l for w in hk["windows"] for t in w["tickets"] for l in t["legs"]] + hk["singles"]
+def hfind(player):
+    return next((l for l in hl if l["player"] == player), {})
+check("P1 the hockey card parses: 2 parlays, 2 singles, every leg NHL, nothing flagged -- not even its title",
+      sum(len(w["tickets"]) for w in hk["windows"]) == 2 and len(hk["singles"]) == 2
+      and all(l.get("sport") == "nhl" for l in hl) and hk["note"] == "" and hk["sports"] == ["nhl"],
+      (len(hl), hk["note"], hk["sports"]))
+bp = hfind("Brayden Point")
+check("P2 'Brayden Point Anytime Goal' is a GOAL bet -- his surname is not a points prop",
+      bp.get("market") == "nhl_goal" and bp.get("team") == "TB" and bp.get("athleteId"), bp)
+check("P3 shots on goal and points carry their lines; neither is read as a goal",
+      hfind("Auston Matthews").get("market") == "nhl_sog" and hfind("Auston Matthews").get("line") == 3.5
+      and hfind("Connor McDavid").get("market") == "nhl_points" and hfind("Connor McDavid").get("line") == 1.5,
+      (hfind("Auston Matthews"), hfind("Connor McDavid")))
+check("P4 a team bet: 'Lightning Moneyline' is the Lightning's moneyline",
+      hfind("Tampa Bay Lightning").get("market") == "nhl_ml" and hfind("Tampa Bay Lightning").get("team") == "TB",
+      hfind("Tampa Bay Lightning"))
+tot = next((l for l in hl if l.get("market") == "nhl_total"), {})
+check("P5 two teams joined by '/' with an over is the GAME's total goals, both teams kept",
+      tot.get("line") == 6.5 and tot.get("side") == "over" and tot.get("teams") == ["BOS", "TOR"], tot)
+check("P6 a signed half-goal on a team is the puck line, sign kept",
+      hfind("Carolina Hurricanes").get("market") == "nhl_pl" and hfind("Carolina Hurricanes").get("line") == -1.5,
+      hfind("Carolina Hurricanes"))
+check("P7 singles: a goalie's saves and a skater's assists",
+      hfind("Andrei Vasilevskiy").get("market") == "nhl_saves" and hfind("Andrei Vasilevskiy").get("line") == 27.5
+      and hfind("David Pastrnak").get("market") == "nhl_assists", (hfind("Andrei Vasilevskiy"), hfind("David Pastrnak")))
+_bad = hp.build("Parlay 1\n* Zed Nobodyson Anytime Goal (+300) — Tampa Bay Lightning (Kenny) 7:00 PM\n"
+                "* Brayden Point Anytime Goal (+210) — Tampa Bay Lightning (Kenny) 7:00 PM\n"
+                "$5.00 Bet | Potential Payout: $50.00 (Kenny)\n", HNOW, no_network)
+check("P8 ...but a PRICED leg naming nobody on the roster is still reported, never dropped",
+      "Zed Nobodyson" in _bad["note"], _bad["note"])
+check("P9 the market words: 'Shots on Goal' is shots, a kicker's 'Field Goals' is not hockey at all",
+      cp.detect_nhl_market("Shots on Goal Over 3.5")[0] == "nhl_sog"
+      and cp.detect_nhl_market("Field Goals Made Over 1.5")[0] is None
+      and cp.detect_nhl_market("Anytime Goal Scorer")[0] == "nhl_goal")
+_mixed = cp.build("Parlay 1\n* Florida Panthers Moneyline (-140) — Florida Panthers (Memo) 7:00 PM\n"
+                  "* Carolina Panthers Moneyline (+150) — Carolina Panthers (Memo) 1:00 PM\n"
+                  "* Aaron Judge (+390) — New York Yankees (Memo) 7:10 PM\n"
+                  "$5.00 Bet | Potential Payout: $60.00 (Memo)\n", MLB, NFL, NOW, no_network)
+_ml = {l["player"]: l for w in _mixed["windows"] for t in w["tickets"] for l in t["legs"]}
+check("P10 on an All Sports card 'Panthers' needs its city: Florida's are hockey, Carolina's football, Judge baseball",
+      (_ml.get("Florida Panthers") or {}).get("sport") == "nhl"
+      and (_ml.get("Carolina Panthers") or {}).get("sport") == "nfl"
+      and (_ml.get("Aaron Judge") or {}).get("sport") == "mlb", {k: v.get("sport") for k, v in _ml.items()})
+check("P11 ...and the slate declares all three", _mixed["sports"] == ["mlb", "nfl", "nhl"], _mixed["sports"])
+_old = {"team_by_name": {"a": "TB", "b": "BOS"}, "canonical_name_by_norm": {"a": "A", "b": "B"},
+        "id_by_norm": {"a": "1", "b": "2"}, "pos_by_norm": {"a": "C", "b": "D"}, "team_names": {"TB": "Tampa Bay Lightning"}}
+_new = {"team_by_name": {"a": "TOR"}, "canonical_name_by_norm": {"a": "A"},
+        "id_by_norm": {"a": "1"}, "pos_by_norm": {"a": "C"}, "team_names": {"TOR": "Toronto Maple Leafs"}}
+_m = bhr.merge_rosters(_old, _new)
+check("P12 a roster rebuild merges: a player ESPN stopped listing (IR) is kept, a moved one takes his new team",
+      _m["team_by_name"] == {"a": "TOR", "b": "BOS"} and _m["id_by_norm"]["b"] == "2"
+      and set(_m["team_names"]) == {"TB", "TOR"}, _m)
+with tempfile.TemporaryDirectory() as td:
+    src, out_p, prev_p = Path(td, "in.txt"), Path(td, "t.json"), Path(td, "p.json")
+    src.write_text(HOCKEY, encoding="utf-8")
+    r = subprocess.run([sys.executable, str(REPO / "scripts" / "parse_hockey_picks.py"), "--file", str(src),
+                        "--out", str(out_p), "--prev", str(prev_p), "--no-network"],
+                       capture_output=True, text=True, encoding="utf-8", env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"})
+    written = json.loads(out_p.read_text(encoding="utf-8")) if out_p.exists() else {}
+    check("P13 the CLI writes exactly where it's told, as hockey", r.returncode == 0 and written.get("sports") == ["nhl"],
+          (r.returncode, r.stderr[-300:]))
+# Will Smith catches for the Dodgers AND centres for the Sharks. Nothing on the
+# line says hockey -- only the file it came in on -- and a hockey_*.txt card
+# is hockey, while the same line on an All Sports card is the catcher.
+_ws = "🎯 Longshot (LS) Straight Bets (Single Legs)\nKenny: Will Smith (+400) | (SJ @ ANA) 7:00 PM ET • $5.00 bet | PP: $25.00\n"
+_h = (hp.build(_ws, HNOW, no_network)["singles"] or [{}])[0]
+_a = (cp.build(_ws, MLB, NFL, HNOW, no_network)["singles"] or [{}])[0]
+check("P14 a hockey card's name shared with another league is the HOCKEY player -- the Sharks' Will Smith, his id, a goal bet",
+      _h.get("sport") == "nhl" and _h.get("team") == "SJ" and _h.get("athleteId") and _h.get("market") == "nhl_goal"
+      and _a.get("sport") == "mlb" and _a.get("team") == "LAD", (_h, _a))
 
 print()
 if failures:

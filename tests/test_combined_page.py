@@ -462,11 +462,11 @@ with sync_playwright() as p:
     # raises rather than failing the check, so take only the label node.
     sports = page.eval_on_selector_all(
         ".sport-switch .sport", "els => els.map(e => e.lastChild.textContent.trim())")
-    check("F1 the sport switch offers all three trackers", sports == ["MLB", "NFL", "NFL+MLB"], sports)
+    check("F1 the sport switch offers all three trackers", sports == ["MLB", "NFL", "ALL SPORTS"], sports)
     check("F2 this page is the one marked active",
           page.get_attribute(".sport-switch .sport.active", "href") == "/all/")
     check("F3 the title names the combined tracker",
-          page.inner_text("h1") == "BMBS Tracker — NFL+MLB", page.inner_text("h1"))
+          page.inner_text("h1") == "BMBS Tracker — All Sports", page.inner_text("h1"))
     check("F4 the eyebrow says where the data comes from",
           "MLB + ESPN" in page.inner_text("#eyebrow-text"), page.inner_text("#eyebrow-text"))
     browser.close()
@@ -1434,6 +1434,17 @@ with sync_playwright() as p:
     # as a Rays run line just because it says "Tampa Bay".
     nhl = page.evaluate("stateForLeg({sport: 'nhl', market: 'puck line +1.5', player: 'Tampa Bay Lightning', team: ''})")
     check("U4 an NHL leg is untracked, never graded as something else", nhl == "untracked", nhl)
+    # A football moneyline arrives as `ml` -- baseball's key, whose grader
+    # reads MLB scores by abbreviation. "Lions Moneyline" was graded off the
+    # Tigers. Same team code, same live game: baseball's leg is graded, the
+    # football one is left alone.
+    both = page.evaluate("""[stateForLeg({market: 'ml', team: 'HME', player: null}),
+                             stateForLeg({sport: 'nfl', market: 'ml', team: 'HME', player: null}),
+                             liveTileKind({sport: 'nfl', market: 'ml', team: 'HME'}),
+                             legSubjectName({sport: 'nfl', market: 'ml', team: 'HME', player: null})]""")
+    check("U5 another sport's market is untracked, never graded off a baseball club with the same code",
+          both[0] != "untracked" and both[1] == "untracked", both)
+    check("U6 ...gets no tile, and still names its team", both[2] is None and both[3] == "HME", both)
     check("U3 no JavaScript errors", not errors, errors[:3])
     browser.close()
 

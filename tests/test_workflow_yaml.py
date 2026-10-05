@@ -73,6 +73,7 @@ files = {
     "parse-picks.yml": WORKFLOWS / "parse-picks.yml",
     "parse-football-picks.yml": WORKFLOWS / "parse-football-picks.yml",
     "parse-combined-picks.yml": WORKFLOWS / "parse-combined-picks.yml",
+    "parse-hockey-picks.yml": WORKFLOWS / "parse-hockey-picks.yml",
     "import-history.yml": WORKFLOWS / "import-history.yml",
 }
 texts = {}
@@ -142,6 +143,14 @@ check("B3d the combined notify step is gated on a real commit too",
       re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
                 r"--tickets data/combined/tickets\.json --sport combined",
                 texts["parse-combined-picks.yml"], re.S) is not None)
+check("B3e parse-hockey-picks.yml parses exactly its hockey script, against exactly its hockey "
+      "trigger, then notifies Discord the same way",
+      parse_scripts["parse-hockey-picks.yml"] ==
+      [("scripts/parse_hockey_picks.py", "data/hockey/incoming_picks.txt"), ("scripts/notify_discord.py", "")],
+      parse_scripts["parse-hockey-picks.yml"])
+check("B3f the hockey notify step is gated on a real commit too",
+      re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
+                r"--tickets data/hockey/tickets\.json --sport hockey", texts["parse-hockey-picks.yml"], re.S) is not None)
 check("B4 import-history.yml runs all three of its scripts (baseball record, baseball history, football record), no --file arg needed",
       [s for s, _ in parse_scripts["import-history.yml"]] ==
       ["scripts/record_results.py", "scripts/import_history.py", "scripts/record_football_results.py"],
@@ -158,6 +167,9 @@ check("C2 parse-football-picks.yml triggers on exactly the file it parses",
 check("C2b parse-combined-picks.yml triggers on exactly the file it parses",
       trigger_paths(texts["parse-combined-picks.yml"]) == ["data/combined/incoming_picks.txt"],
       trigger_paths(texts["parse-combined-picks.yml"]))
+check("C2c parse-hockey-picks.yml triggers on exactly the file it parses",
+      trigger_paths(texts["parse-hockey-picks.yml"]) == ["data/hockey/incoming_picks.txt"],
+      trigger_paths(texts["parse-hockey-picks.yml"]))
 check("C3 import-history.yml is schedule/manual only -- it must NOT trigger on a picks upload (that's a race, not its job)",
       trigger_paths(texts["import-history.yml"]) == [] and "cron:" in texts["import-history.yml"])
 cron = re.search(r'cron:\s*"([^"]+)"', texts["import-history.yml"])
@@ -186,9 +198,16 @@ check("D2c ...and neither of the single-sport parsers can write the combined sla
       not any(p.startswith("data/combined") for p in
               committed["parse-picks.yml"] | committed["parse-football-picks.yml"]),
       committed["parse-picks.yml"] | committed["parse-football-picks.yml"])
+check("D2d parse-hockey-picks.yml only ever commits the HOCKEY tickets files",
+      committed["parse-hockey-picks.yml"]
+      and all(p.startswith("data/hockey/tickets") for p in committed["parse-hockey-picks.yml"]),
+      committed["parse-hockey-picks.yml"])
+check("D2e ...and no other parser can write the hockey slate",
+      not any(p.startswith("data/hockey") for p in
+              committed["parse-picks.yml"] | committed["parse-football-picks.yml"] | committed["parse-combined-picks.yml"]))
 forbidden = {"data/tickets.json", "data/tickets-previous.json", "data/football/tickets.json",
              "data/football/tickets-previous.json", "data/combined/tickets.json",
-             "data/combined/tickets-previous.json"}
+             "data/combined/tickets-previous.json", "data/hockey/tickets.json", "data/hockey/tickets-previous.json"}
 check("D3 import-history.yml NEVER commits a live tickets file -- results/history only",
       not (committed["import-history.yml"] & forbidden), committed["import-history.yml"] & forbidden)
 check("D4 import-history.yml's commits stay within its documented set (history.json, results/, football's twins)",
@@ -393,7 +412,8 @@ check("G9 the success message says the picks are LIVE now, not that they should 
 for wf_name, tickets, parse_step in (
         ("parse-picks.yml", "data/tickets.json", "Parse data/incoming_picks.txt"),
         ("parse-football-picks.yml", "data/football/tickets.json", "Parse data/football/incoming_picks.txt"),
-        ("parse-combined-picks.yml", "data/combined/tickets.json", "Parse data/combined/incoming_picks.txt")):
+        ("parse-combined-picks.yml", "data/combined/tickets.json", "Parse data/combined/incoming_picks.txt"),
+        ("parse-hockey-picks.yml", "data/hockey/tickets.json", "Parse data/hockey/incoming_picks.txt")):
     body = (WORKFLOWS / wf_name).read_text(encoding="utf-8")
     keep = body.find(f'cp {tickets} "$RUNNER_TEMP/live-before.json"')
     check(f"H1 {wf_name} saves the live slate BEFORE it parses",

@@ -76,7 +76,7 @@
   <nav class="sport-switch" aria-label="Sport">
     <button type="button" class="sport active" id="switch-baseball" onclick="showSport('baseball')"><span class="ico">&#9918;</span>MLB</button>
     <button type="button" class="sport" id="switch-football" onclick="showSport('football')"><span class="ico">&#127944;</span>NFL</button>
-    <button type="button" class="sport" id="switch-combined" onclick="showSport('combined')"><span class="ico">&#127919;</span>NFL+MLB</button>
+    <button type="button" class="sport" id="switch-combined" onclick="showSport('combined')"><span class="ico">&#127919;</span>ALL SPORTS</button>
   </nav>
 
   <div id="baseball-content">
@@ -175,7 +175,7 @@
         <li>Props grade off the box score as the game goes. An <i>over</i> turns green the moment it clears &mdash; two hits is two hits whether or not the game's finished &mdash; and an <i>under</i> goes red the moment it's busted, then settles when the game ends. Same rule as everything else here: a player who never got into the game is voided, not marked a loss.</li>
         <li>Game lines only settle at the <b>final</b>. A team up 7&ndash;1 in the sixth hasn't won anything yet, so the page says "settles at the final" rather than calling it early. A spread or total that lands exactly on the number is a <b>push</b> and gets refunded.</li>
         <li>One parlay can mix any of it &mdash; a home run leg, a steal, and a run line on the same card all grade independently and the payout works out the same way it always has.</li>
-        <li>If a card has a bet type the site doesn't know how to grade yet, it still <b>shows up</b> with its name on it and a note saying it isn't being tracked. It's never quietly dropped and never guessed at. A <b>hockey</b> leg on the NFL+MLB card works this way for now: it shows on its card, untracked. A bet carrying one of those gets a <b>NOT FULLY TRACKED</b> marker, and the site won't claim it cashed &mdash; though if one of its other legs actually missed, it'll still show as dead, because that part is certain.</li>
+        <li>If a card has a bet type the site doesn't know how to grade yet, it still <b>shows up</b> with its name on it and a note saying it isn't being tracked. It's never quietly dropped and never guessed at. A bet carrying one of those gets a <b>NOT FULLY TRACKED</b> marker, and the site won't claim it cashed &mdash; though if one of its other legs actually missed, it'll still show as dead, because that part is certain.</li>
       </ul>
     </section>
 
@@ -237,7 +237,7 @@
         <li>A leg that cashes a bet shows up <b>twice, on purpose</b> &mdash; once as the leg (who, what hit, which bets he&rsquo;s on) and once as the bet itself (how much was staked, what it paid, and everyone on it). One player on several bets is a single entry that lists them all.</li>
         <li>Unlike the pop-up alerts, it <b>does</b> catch you up: open the page late and everything that already hit is waiting in the list. Newest is on top, and every entry shows the time it actually happened, in ET &mdash; the time of the play itself, even for things that landed before you opened the page.</li>
         <li>Every entry has a small <b>replay</b> icon under its time &mdash; a bell inside a circling arrow &mdash; that shows its alert again &mdash; the gold cash version for a bet &mdash; as many times as you like, even with the overlay switched off.</li>
-        <li>It survives a refresh, starts fresh when the next slate goes up, and each tracker &mdash; MLB, NFL and NFL+MLB &mdash; keeps its own count.</li>
+        <li>It survives a refresh, starts fresh when the next slate goes up, and each tracker &mdash; MLB, NFL and All Sports &mdash; keeps its own count.</li>
       </ul>
     </section>
 
@@ -467,7 +467,7 @@
         <li>A leg that cashes a bet shows up <b>twice, on purpose</b> &mdash; once as the leg (who, what hit, which bets he&rsquo;s on) and once as the bet itself (how much was staked, what it paid, and everyone on it). One player on several bets is a single entry that lists them all.</li>
         <li>Unlike the pop-up alerts, it <b>does</b> catch you up: open the page late and everything that already hit is waiting in the list. Newest is on top, and every entry shows the time it actually happened, in ET &mdash; the time of the play itself, even for things that landed before you opened the page.</li>
         <li>Every entry has a small <b>replay</b> icon under its time &mdash; a bell inside a circling arrow &mdash; that shows its alert again &mdash; the gold cash version for a bet &mdash; as many times as you like, even with the overlay switched off.</li>
-        <li>It survives a refresh, starts fresh when the next slate goes up, and each tracker &mdash; MLB, NFL and NFL+MLB &mdash; keeps its own count.</li>
+        <li>It survives a refresh, starts fresh when the next slate goes up, and each tracker &mdash; MLB, NFL and All Sports &mdash; keeps its own count.</li>
       </ul>
     </section>
 
@@ -556,7 +556,7 @@
 
   <div id="combined-content" style="display:none">
   <header class="hero">
-    <h1>What the NFL+MLB Tracker Can Do</h1>
+    <h1>What the All Sports Tracker Can Do</h1>
   </header>
 
   <div class="sections">
@@ -564,25 +564,25 @@
     <section class="card-item">
       <div class="card-head">
         <span class="icon-badge"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span>
-        <h2>One card, both sports</h2>
+        <h2>One card, every sport</h2>
       </div>
-      <p>This tab tracks a single card that can hold baseball and football bets at the same time. Everything the other two tabs do &mdash; the payout estimate, the Open / Hit / Missed / N&nbsp;A counts, Irons, the Bettor Tracker, the filters, the collapsible bet lists &mdash; works here exactly the same way.</p>
+      <p>This tab tracks a single card that can hold baseball, football and hockey bets at the same time. Everything the other two tabs do &mdash; the payout estimate, the Open / Hit / Missed / N&nbsp;A counts, Irons, the Bettor Tracker, the filters, the collapsible bet lists &mdash; works here exactly the same way.</p>
     </section>
 
     <section class="card-item">
       <div class="card-head">
         <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16"/></svg></span>
-        <h2>Parlays can mix the two</h2>
+        <h2>Parlays can mix them</h2>
       </div>
-      <p>A single parlay can have a home run leg and a touchdown leg on it. Each leg is graded off its own sport's live data, and the card cashes when all of them land &mdash; no different from any other parlay on the site. Every leg is labelled with what it's going for &mdash; <b>HOME RUN</b>, <b>ANYTIME TD</b>, <b>PASSING TDS OVER 2.5</b> &mdash; so you can tell the two sports' legs apart at a glance. A bet like <b>each team to score in every quarter</b> can be written as one leg per team per quarter: each one turns green the moment that team scores in that quarter, and red if the quarter ends without it.</p>
+      <p>A single parlay can have a home run leg, a touchdown leg and a hockey goal on it. Each leg is graded off its own sport's live data, and the card cashes when all of them land &mdash; no different from any other parlay on the site. Every leg is labelled with what it's going for &mdash; <b>HOME RUN</b>, <b>ANYTIME TD</b>, <b>ANYTIME GOAL</b>, <b>PASSING TDS OVER 2.5</b> &mdash; so you can tell the sports' legs apart at a glance. Hockey covers goals, points, assists, shots on goal, a goalie&rsquo;s saves, and the moneyline, puck line and total goals &mdash; overtime and the shootout count. A bet like <b>each team to score in every quarter</b> can be written as one leg per team per quarter: each one turns green the moment that team scores in that quarter, and red if the quarter ends without it.</p>
     </section>
 
     <section class="card-item">
       <div class="card-head">
         <span class="icon-badge"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
-        <h2>Live Bet Tracker, both sports at once</h2>
+        <h2>Live Bet Tracker, every sport at once</h2>
       </div>
-      <p>One wall of tiles. A hitter who is at the plate or due up this inning gets his tile the usual way; a football pick gets one whenever his side has the ball, marked <b>RED ZONE</b> inside the 20, <b>ON OFFENSE</b> otherwise, and <b>TAKING THE FIELD SOON</b> in the gap after his team takes the ball back. That covers every football prop, not just touchdowns &mdash; passing TDs, yards, catches &mdash; and the tile shows how close it is, like <b>&ldquo;2 of 3 passing TDs&rdquo;</b> &mdash; an anytime-TD pick reads <b>&ldquo;0 of 1 TD&rdquo;</b>, and a home run pick <b>&ldquo;0 of 1 HR&rdquo;</b>. A bet on a <b>team scoring in a given quarter</b> shows that team whenever it has the ball in that quarter and still needs points &mdash; and drops off the moment they score. A sack bet is the one exception: it shows while his side is <b>ON DEFENSE</b>, because that&rsquo;s the only time he can get one. An <b>each team to score all four quarters</b> bet gets one tile for the pair: a box per quarter for each team, ticked once they&rsquo;ve scored in it, and a line saying who still owes the quarter being played.</p>
+      <p>One wall of tiles. A hitter who is at the plate or due up this inning gets his tile the usual way; a football pick gets one whenever his side has the ball, marked <b>RED ZONE</b> inside the 20, <b>ON OFFENSE</b> otherwise, and <b>TAKING THE FIELD SOON</b> in the gap after his team takes the ball back. That covers every football prop, not just touchdowns &mdash; passing TDs, yards, catches &mdash; and the tile shows how close it is, like <b>&ldquo;2 of 3 passing TDs&rdquo;</b> &mdash; an anytime-TD pick reads <b>&ldquo;0 of 1 TD&rdquo;</b>, and a home run pick <b>&ldquo;0 of 1 HR&rdquo;</b>. A bet on a <b>team scoring in a given quarter</b> shows that team whenever it has the ball in that quarter and still needs points &mdash; and drops off the moment they score. A sack bet is the one exception: it shows while his side is <b>ON DEFENSE</b>, because that&rsquo;s the only time he can get one. An <b>each team to score all four quarters</b> bet gets one tile for the pair: a box per quarter for each team, ticked once they&rsquo;ve scored in it, and a line saying who still owes the quarter being played. A hockey pick gets a tile while his game is on, with his count toward the bet: <b>IN NET</b> for a goalie, <b>ON THE ICE</b> or <b>ON THE BENCH</b> for a skater whenever ESPN&rsquo;s live feed says which, and a <b>POWER PLAY</b> flag when his team is a man up. Hockey team bets get one tile per team with the score and what each bet still needs, like <b>&ldquo;1 short of covering&rdquo;</b>.</p>
     </section>
 
     <section class="card-item">
@@ -590,7 +590,7 @@
         <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>
         <h2>Scoring Log</h2>
       </div>
-      <p>Every home run and every touchdown from the slate, newest first, in one list. Your picks are highlighted; switch to <b>Everything</b> to see the rest of both leagues. Tap any row for the detail &mdash; Statcast numbers on a home run, the drive and who threw it on a touchdown.</p>
+      <p>Every home run, touchdown and goal from the slate, newest first, in one list. Your picks are highlighted; switch to <b>Everything</b> to see the rest of both leagues. Tap any row for the detail &mdash; Statcast numbers on a home run, the drive and who threw it on a touchdown, the assists on a goal. Power-play, short-handed and empty-net goals are tagged as such.</p>
     </section>
 
     <section class="card-item">
@@ -598,7 +598,7 @@
         <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2"/><circle cx="12" cy="12" r="5"/></svg></span>
         <h2>Alerts for whichever sport scored</h2>
       </div>
-      <p>A home run sets off the usual bomb, a touchdown its own alert, and every other leg &mdash; a yardage or passing-TD prop clearing, all four quarters scored, a hits prop &mdash; gets its own alert the moment it hits, plus a green <b>HIT</b> tile on the tracker. Any of them turns gold with the cash register when it finishes off a bet. Same three switches at the top of the page &mdash; on-screen, push and sound &mdash; and the same rule: opening the page mid-slate never replays what has already happened.</p>
+      <p>A home run sets off the usual bomb, a touchdown and a goal their own alerts, and every other leg &mdash; a yardage or passing-TD prop clearing, all four quarters scored, a hits prop &mdash; gets its own alert the moment it hits, plus a green <b>HIT</b> tile on the tracker. Any of them turns gold with the cash register when it finishes off a bet. Same three switches at the top of the page &mdash; on-screen, push and sound &mdash; and the same rule: opening the page mid-slate never replays what has already happened.</p>
     </section>
     <section class="card-item">
       <div class="card-head">
@@ -606,12 +606,12 @@
         <h2>Notifications bell</h2>
       </div>
       <ul>
-        <li>The bell at the top right keeps a running list of everything that has happened on the NFL+MLB tracker: every <b>leg that hits</b> and every <b>bet that cashes</b>. The red badge counts what you haven&rsquo;t looked at yet, and goes up on its own as home runs and touchdowns land.</li>
+        <li>The bell at the top right keeps a running list of everything that has happened on the All Sports tracker: every <b>leg that hits</b> and every <b>bet that cashes</b>. The red badge counts what you haven&rsquo;t looked at yet, and goes up on its own as home runs, touchdowns and goals land.</li>
         <li>Tap the bell to open the list, and the badge clears. Anything new since you last looked is highlighted while you read it.</li>
         <li>A leg that cashes a bet shows up <b>twice, on purpose</b> &mdash; once as the leg (who, what hit, which bets he&rsquo;s on) and once as the bet itself (how much was staked, what it paid, and everyone on it). One player on several bets is a single entry that lists them all.</li>
         <li>Unlike the pop-up alerts, it <b>does</b> catch you up: open the page late and everything that already hit is waiting in the list. Newest is on top, and every entry shows the time it actually happened, in ET &mdash; the time of the play itself, even for things that landed before you opened the page.</li>
         <li>Every entry has a small <b>replay</b> icon under its time &mdash; a bell inside a circling arrow &mdash; that shows its alert again &mdash; the gold cash version for a bet &mdash; as many times as you like, even with the overlay switched off.</li>
-        <li>It survives a refresh, starts fresh when the next slate goes up, and each tracker &mdash; MLB, NFL and NFL+MLB &mdash; keeps its own count.</li>
+        <li>It survives a refresh, starts fresh when the next slate goes up, and each tracker &mdash; MLB, NFL and All Sports &mdash; keeps its own count.</li>
       </ul>
     </section>
 
@@ -639,8 +639,8 @@ var SPORTS = {
               back: "the NFL tracker", source: "ESPN's free public NFL data",
               title: "What the NFL Tracker Can Do" },
   combined: { pane: "combined-content", btn: "switch-combined", href: "/all/",
-              back: "the NFL+MLB tracker", source: "MLB and ESPN's free public live data",
-              title: "What the NFL+MLB Tracker Can Do" }
+              back: "the All Sports tracker", source: "MLB and ESPN's free public live data",
+              title: "What the All Sports Tracker Can Do" }
 };
 
 function showSport(sport) {

@@ -40,6 +40,7 @@ ROOT = Path(__file__).resolve().parent.parent
 MLB_ROSTER = ROOT / "data" / "roster.json"
 NFL_ROSTER = ROOT / "data" / "football" / "roster.json"
 OUT_PATH = ROOT / "data" / "combined" / "tickets.json"
+NHL_ROSTER = ROOT / "data" / "hockey" / "roster.json"
 PREV_PATH = ROOT / "data" / "combined" / "tickets-previous.json"
 
 # ---------------------------------------------------------------------------
@@ -218,21 +219,6 @@ def normalize_card(text):
     return "\n".join(out) + ("\n" if text.endswith("\n") else "")
 
 
-# ---- hockey: shown, not tracked (the user's call, 2026-10-05) ----
-# A full NHL team name, or a nickname no NFL or MLB team shares. "Panthers",
-# "Jets" and "Rangers" are deliberately NOT here alone -- each is also an NFL
-# or MLB team -- so they only count with their city. Without this, "Tampa
-# Bay Lightning" was read as the BUCCANEERS (it says Tampa Bay), which also
-# stretched the slate to the Bucs' next game, Thursday.
-NHL_TEAMS_RE = re.compile(
-    r"\b(lightning|bruins|canadiens|maple\s+leafs|red\s+wings|blackhawks|penguins|flyers|"
-    r"capitals|hurricanes|islanders|devils|sabres|senators|oilers|flames|canucks|kraken|"
-    r"golden\s+knights|avalanche|blue\s+jackets|predators|mammoth|utah\s+hockey\s+club|"
-    r"florida\s+panthers|winnipeg\s+jets|new\s+york\s+rangers|"
-    r"(?:dallas\s+)?stars|(?:minnesota\s+)?wild|(?:st\.?\s+louis\s+)?blues|"
-    r"(?:anaheim\s+)?ducks|(?:san\s+jose\s+)?sharks|(?:los\s+angeles\s+|la\s+)kings)\b",
-    re.IGNORECASE)
-
 # A bare "Yards" doesn't say which kind; his POSITION does. A QB's yards are
 # passing, a back's rushing, a receiver's receiving.
 YARDS_BY_POS = {"QB": "pass_yds", "RB": "rush_yds", "FB": "rush_yds",
@@ -273,6 +259,139 @@ def nfl_team_in(text):
         if re.search(rf"(?<![A-Za-z]){re.escape(abbr)}(?![A-Za-z])", text):
             return abbr
     return None
+
+
+def load_nhl_roster():
+    """data/hockey/roster.json, or an empty roster when it isn't there yet."""
+    try:
+        return json.loads(NHL_ROSTER.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"team_by_name": {}, "canonical_name_by_norm": {}, "id_by_norm": {}, "pos_by_norm": {}, "team_names": {}}
+
+
+# ---- hockey (2026-10-05) ----
+# Market words, most specific first: "Shots on Goal" must not be read as a
+# goal, and a kicker's "Field Goal" is football.
+NHL_MARKET_ALIASES = [
+    ("nhl_sog",     r"shots?\s+on\s+goal|\bsog\b|\bshots?\b"),
+    ("nhl_points",  r"\bpoints?\b|\bpts\b"),
+    ("nhl_assists", r"\bassists?\b"),
+    ("nhl_saves",   r"\bsaves?\b"),
+    ("nhl_pl",      r"puck\s*line"),
+    ("nhl_total",   r"total\s+goals?"),
+    ("nhl_goal",    r"anytime\s+goal(?:\s*scorer)?|goal\s*scorer|to\s+score\s+a\s+goal|(?<!field\s)\bgoals?\b"),
+]
+NHL_MARKET_RE = [(k, re.compile(pat, re.IGNORECASE)) for k, pat in NHL_MARKET_ALIASES]
+NHL_TWO_WORD = ("maple leafs", "red wings", "golden knights", "blue jackets")
+
+
+def detect_nhl_market(text):
+    for key, rx in NHL_MARKET_RE:
+        if rx.search(text):
+            return key, re.sub(r"\s{2,}", " ", rx.sub(" ", text, count=1)).strip(" -|:\u2013\u2014")
+    return None, text
+
+
+def nhl_team_words(nhl, mlb):
+    """word -> NHL abbr: every full team name, and every nickname NO other
+    league uses. "Panthers", "Jets" and "Rangers" are NFL or MLB teams too, so
+    they only count with their city ("Florida Panthers")."""
+    others = set(NFL_TEAM_WORDS) | set((mlb or {}).get("abbr_by_team_word") or {})
+    words = {}
+    for abbr, full in ((nhl or {}).get("team_names") or {}).items():
+        low = full.lower()
+        words[low] = abbr
+        nick = next((t for t in NHL_TWO_WORD if low.endswith(t)), low.split()[-1])
+        if nick not in others:
+            words[nick] = abbr
+    return words
+
+
+def nhl_teams_in(text, words):
+    """Every NHL team the text names, in order, longest phrase first."""
+    low = f" {str(text).lower()} "
+    found = []
+    for w in sorted(words, key=len, reverse=True):
+        for m in re.finditer(rf"(?<![\w]){re.escape(w)}(?![\w])", low):
+            if not any(a <= m.start() < b for a, b, _ in found):
+                found.append((m.start(), m.end(), words[w]))
+    out = []
+    for _a, _b, abbr in sorted(found):
+        if abbr not in out:
+            out.append(abbr)
+    return out
+
+
+def nhl_record(candidate, rest, nhl, mlb, nfl, words, force=False):
+    """A hockey leg's record, or None when nothing says this leg is hockey."""
+    # The NAME first, market words only after it: "Brayden Point Anytime
+    # Goal" is a goal bet on Brayden Point, and reading the market across the
+    # whole line called it a POINTS bet off his surname.
+    words_ = candidate.split()
+    named = 0
+    for k in range(min(len(words_), 5), 1, -1):
+        if nfl_parser.norm_key(" ".join(words_[:k])) in nhl["team_by_name"]:
+            named = k
+            break
+    if named:
+        market, after_name = detect_nhl_market(" ".join(words_[named:]))
+        after = " ".join(words_[:named] + ([after_name] if after_name else []))
+    else:
+        market, after = detect_nhl_market(candidate)
+    teams = nhl_teams_in(candidate, words)
+    subject = strip_when(QTY_RE.sub(" ", after))
+    subject = re.sub(r"\b(?:over|under|o|u)\s*\d+(?:\.\d+)?\b|[+-]\d+(?:\.\d+)?|\bml\b|money\s*line|to\s+win\b",
+                     " ", subject, flags=re.IGNORECASE)
+    subject = PAREN_TEAM_RE.sub(" ", subject)
+    subject = " ".join(subject.split()).strip(" -|:,")
+    key = nfl_parser.norm_key(subject)
+    on_nhl = key in nhl["team_by_name"]
+    on_other = _in_roster(mlb_parser.normalize_name(subject), mlb) or _in_roster(key, nfl)
+    if not (force or market or teams or (on_nhl and not on_other)):
+        return None
+
+    _k, line, side, _c = mlb_parser.detect_market(candidate)
+    qty = QTY_RE.search(candidate)
+    if qty and line is None:
+        line, side = float(qty.group(0).rstrip("+ ").strip()) - 0.5, "over"
+    rec = {"sport": "nhl", "line": line, "side": side, "why": "hockey"}
+
+    # A TEAM bet: the subject is a team, not a player.
+    if teams and not on_nhl:
+        abbr = teams[0]
+        signed = re.search(r"([+-]\d+(?:\.\d+)?)", candidate)
+        if market in ("nhl_pl", "nhl_total"):
+            m = market
+        elif len(teams) > 1 or re.search(r"\b(?:over|under)\b|\bo\s*\d|\bu\s*\d", candidate, re.IGNORECASE):
+            m = "nhl_total"
+        elif signed and abs(float(signed.group(1))) < 10:
+            m = "nhl_pl"
+        else:
+            m = "nhl_ml"
+        if m == "nhl_pl" and signed:
+            rec["line"], rec["side"] = float(signed.group(1)), None
+        if m == "nhl_ml":
+            rec["line"], rec["side"] = None, None
+        rec.update({"market": m, "team": abbr, "is_team": True,
+                    "name": " / ".join(nhl.get("team_names", {}).get(t, t) for t in teams[:2]) if m == "nhl_total"
+                    else nhl.get("team_names", {}).get(abbr, abbr)})
+        if len(teams) > 1:
+            rec["opponent"], rec["teams"] = teams[1], teams[:2]
+        return rec
+
+    # A PLAYER: exact, then a near spelling -- within the team the line names
+    # when it names one, so a typo can't land on a different club's player.
+    if not on_nhl:
+        pool = ([k for k, v in nhl["team_by_name"].items() if v == teams[0]] if teams else nhl["team_by_name"].keys())
+        near = difflib.get_close_matches(key, pool, n=2, cutoff=0.82)
+        if len(near) == 1:
+            print(f"NOTE: read {subject!r} as {nhl['canonical_name_by_norm'].get(near[0], near[0])!r}.", file=sys.stderr)
+            key, on_nhl = near[0], True
+    rec.update({"market": market or "nhl_goal",
+                "name": nhl["canonical_name_by_norm"].get(key, subject),
+                "team": nhl["team_by_name"].get(key, teams[0] if teams else ""),
+                "athleteId": (nhl.get("id_by_norm") or {}).get(key, ""), "is_player": on_nhl})
+    return rec
 
 
 def load_rosters():
@@ -361,13 +480,15 @@ def pp_key_for(line, odds, tail):
     return (leg or {}).get("player") or ""
 
 
-def scan_card(text, mlb, nfl):
+def scan_card(text, mlb, nfl, nhl=None, only_sport=None):
     """Pre-pass: read the RAW card and work out each leg's sport and market.
 
     -> ({normalized raw player text: record}, [ambiguity warnings])
     """
     found, warnings = {}, []
     section_hint = None
+    nhl = nhl or load_nhl_roster()
+    nhl_words = nhl_team_words(nhl, mlb)
 
     for raw_line in text.splitlines():
         line = raw_line.rstrip()
@@ -437,20 +558,27 @@ def scan_card(text, mlb, nfl):
         if not odds and tail is None:
             cleaned = candidate      # the subject was never the market
 
-        nhl = NHL_TEAMS_RE.search(candidate)
-        if nhl:
-            # Hockey: shown by name with what the card said, graded by nobody.
-            # A market word the page doesn't know is UNTRACKED there -- unable
-            # to kill or cash anything -- and no team is set, so nothing can
-            # mistake it for the Bucs or the Rays.
-            hm = re.search(r"([+-]\d+(?:\.\d+)?)", candidate)
-            subject = candidate[:hm.start()].strip() if hm else cleaned
-            label = f"puck line {hm.group(1)}" if hm else "nhl"
-            rec = {"sport": "nhl", "market": label, "line": None, "side": None,
-                   "name": subject, "team": "", "why": "an NHL team"}
-            for key in (candidate, subject, cleaned, pp_key_for(line, odds, tail)):
+        # HOCKEY, before the MLB/NFL decision: a hockey market word, an NHL
+        # team, or a name only the NHL roster knows. "Tampa Bay Lightning"
+        # says Tampa Bay, which is also the Bucs and the Rays -- read that way
+        # it was once graded as football and stretched the slate to Thursday.
+        hrec = nhl_record(candidate, rest, nhl, mlb, nfl, nhl_words, force=(only_sport == "nhl"))
+        if hrec:
+            unknown = hrec.get("is_player") is False and not hrec.get("is_team")
+            if unknown and tail is not None:
+                # Reached only through an UNSIGNED trailing number and naming
+                # nobody: a heading ("NHL CARD -- OCTOBER 6, 2026"), not a
+                # leg. The same rule the MLB/NFL path applies below. On a
+                # hockey-only card every line is forced to hockey, so the
+                # title used to come out as an unresolvable player.
+                continue
+            if unknown:
+                warnings.append(f"{hrec['name']!r} is not on the NHL roster -- "
+                                f"check the spelling, it can't be graded as typed")
+            for key in (candidate, hrec["name"], cleaned, pp_key_for(line, odds, tail)):
                 if key:
-                    found.setdefault(mlb_parser.normalize_name(key), rec)
+                    found.setdefault(mlb_parser.normalize_name(key), hrec)
+            found[(mlb_parser.normalize_name(hrec["name"]), hrec["market"])] = hrec
             continue
 
         sport, why = decide_sport(cleaned, market, rest, head, mlb, nfl, section_hint)
@@ -698,7 +826,7 @@ def scan_card(text, mlb, nfl):
     return found, warnings
 
 
-def apply_sports(windows, singles, found):
+def apply_sports(windows, singles, found, default_sport="mlb"):
     """Post-pass: stamp sport/market/team onto every leg parse_picks produced."""
     touched = 0
 
@@ -719,19 +847,25 @@ def apply_sports(windows, singles, found):
             rec = found.get((norm_player, leg.get("market") or "hr"))
         if rec is None:
             # Nothing in the pre-pass claimed it: parse_picks resolved it
-            # against the MLB roster and that stands.
-            leg["sport"] = "mlb"
+            # against the MLB roster and that stands (on a hockey-only card,
+            # it is still hockey -- just a line nobody could read).
+            leg["sport"] = default_sport
             return
         touched += 1
         leg["sport"] = rec["sport"]
         if rec["sport"] == "nhl":
-            # Shown, not graded: its market text says it all ("puck line
-            # +1.5"). A leftover line or team would print twice on the page, or
-            # point a grader at the Bucs or the Rays.
-            leg["market"], leg["player"], leg["team"] = rec["market"], rec["name"], ""
-            leg.pop("line", None); leg.pop("side", None)
-            bits = [b for b in [leg.get("who")] if b]
-            leg["meta"] = " &middot; ".join(["NHL"] + bits)
+            leg["market"], leg["player"], leg["team"] = rec["market"], rec["name"], rec.get("team", "")
+            for k in ("line", "side"):
+                if rec.get(k) is not None:
+                    leg[k] = rec[k]
+                else:
+                    leg.pop(k, None)
+            for k in ("opponent", "teams", "athleteId"):
+                if rec.get(k):
+                    leg[k] = rec[k]
+            who = leg.get("who")
+            bits = [b for b in [rec.get("team"), None if who and who == owner else who] if b]
+            leg["meta"] = " &middot; ".join(bits)
             return
         # "2+ Touchdowns" is NOT an anytime-TD bet. The td market grades
         # binary -- did he reach the end zone at all -- so a leg needing two
@@ -847,10 +981,50 @@ def leg_times(legs):
     return [l.get("time") or "" for l in legs if l.get("time")]
 
 
+NHL_SCOREBOARD = "https://site.web.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard?dates={ymd}"
+
+
+def nhl_span(teams, now, fetcher=None):
+    """(first, last) day a picked NHL team plays -- the same rule as
+    nfl_span(): its NEXT game, counting today's finished ones while a picked
+    team still plays today."""
+    from datetime import timedelta
+    teams = {t for t in teams if t}
+    if not teams:
+        return None, None
+    fetch = fetcher or nfl_parser.fetch_json
+    games = []
+    try:
+        for offset in range(4):
+            day = now.date() + timedelta(days=offset)
+            data = fetch(NHL_SCOREBOARD.format(ymd=day.strftime("%Y%m%d")))
+            for ev in data.get("events", []):
+                comp = (ev.get("competitions") or [{}])[0]
+                abbrs = {c.get("team", {}).get("abbreviation") for c in comp.get("competitors", [])}
+                st = ((ev.get("status") or {}).get("type") or {}).get("state")
+                games.append((day.isoformat(), abbrs, st == "post"))
+    except Exception as e:          # a card must still parse
+        print(f"NOTE: couldn't read the NHL schedule ({e}); dating the hockey legs today.", file=sys.stderr)
+        return now.date().isoformat(), now.date().isoformat()
+    today = now.date().isoformat()
+    today_on = any(d == today and not fin and (a & teams) for d, a, fin in games)
+    nxt = {}
+    for d, abbrs, fin in games:
+        if fin and not (today_on and d == today):
+            continue
+        for t in abbrs & teams:
+            nxt.setdefault(t, d)
+    if not nxt:
+        return today, today
+    days = sorted(nxt.values())
+    return days[0], days[-1]
+
+
 def slate_span(legs, now, fetcher=None):
     """(date, end_date) for a card holding either sport, or both."""
-    mlb_legs = [l for l in legs if l.get("sport") != "nfl"]
+    mlb_legs = [l for l in legs if l.get("sport") not in ("nfl", "nhl")]
     nfl_legs = [l for l in legs if l.get("sport") == "nfl"]
+    nhl_legs = [l for l in legs if l.get("sport") == "nhl"]
 
     days = []
     if mlb_legs:
@@ -858,6 +1032,10 @@ def slate_span(legs, now, fetcher=None):
     if nfl_legs:
         first, last = nfl_span({l.get("team") for l in nfl_legs},
                                leg_times(nfl_legs), now, fetcher)
+        days += [d for d in (first, last) if d]
+    if nhl_legs:
+        teams = {l.get("team") for l in nhl_legs} | {l.get("opponent") for l in nhl_legs}
+        first, last = nhl_span(teams, now, fetcher)
         days += [d for d in (first, last) if d]
     if not days:
         days = [now.date().isoformat()]
@@ -882,17 +1060,17 @@ def archive_previous_slate(new_date, out_path, prev_path):
     return True
 
 
-def build(text, mlb, nfl, now, fetcher=None):
+def build(text, mlb, nfl, now, fetcher=None, nhl=None, only_sport=None):
     """The whole pipeline, as a pure-ish function so the tests can drive it."""
     text = normalize_card(text)
-    found, warnings = scan_card(text, mlb, nfl)
+    found, warnings = scan_card(text, mlb, nfl, nhl, only_sport)
     windows, singles, _raw = mlb_parser.parse(
         text, mlb["team_by_name"], mlb["canonical_name_by_norm"])
     if not windows and not singles:
         raise SystemExit("WARNING: parsed nothing -- this is a NEW TEMPLATE, "
                          "not a regression. Get the raw card and add a fixture.")
 
-    apply_sports(windows, singles, found)
+    apply_sports(windows, singles, found, default_sport=only_sport or "mlb")
     legs = [l for w in windows for t in w["tickets"] for l in t["legs"]] + list(singles)
     by_sport = {"mlb": 0, "nfl": 0, "nhl": 0}
     for leg in legs:
@@ -914,11 +1092,11 @@ def build(text, mlb, nfl, now, fetcher=None):
         "date": date,
         "endDate": end_date,
         "note": " · ".join(bits),
-        "sports": [k for k in ("mlb", "nfl") if by_sport[k]],
+        "sports": [k for k in ("mlb", "nfl", "nhl") if by_sport[k]],
         "windows": windows,
         "singles": singles,
     }
-    print(f"{sum(by_sport.values())} legs ({by_sport['mlb']} MLB, {by_sport['nfl']} NFL) "
+    print(f"{sum(by_sport.values())} legs ({by_sport['mlb']} MLB, {by_sport['nfl']} NFL, {by_sport['nhl']} NHL) "
           f"in {sum(len(w['tickets']) for w in windows)} ticket(s) and "
           f"{len(singles)} single(s); slate {date}"
           + (f"..{end_date}" if end_date != date else ""), file=sys.stderr)

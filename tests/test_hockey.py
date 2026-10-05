@@ -244,6 +244,14 @@ with sync_playwright() as p:
                  cut: [...t.querySelectorAll('.ab-line')].some(l => l.scrollWidth > l.clientWidth + 1) }; })""")
     check("C7d a team tile's score stays on ONE line and none of its lines is cut off",
           fit and all(f["oneLine"] and not f["cut"] for f in fit), fit)
+    # Also seen live: "ahead" / "covering by 2.5" beside the score rendered at
+    # the body's 16px, bigger than every other tile's words. Same size as the
+    # tile's own status lines.
+    sizes = page.evaluate("""() => [...document.querySelectorAll('#liveab-grid .ab-tile.game')].map(t => {
+        const n = t.querySelector('.ab-countrow .ab-pitches'), l = t.querySelector('.ab-line');
+        return n && l ? [getComputedStyle(n).fontSize, getComputedStyle(l).fontSize] : null; })""")
+    check("C7e the words beside a team tile's score are status-line size, not body size",
+          sizes and all(s and s[0] == s[1] for s in sizes), sizes)
     raw = [(n, t["text"]) for n, t in tl.items() if re.search(r"&(?:[a-z]+|#\d+);", t["text"])]
     check("C7c no tile shows a raw HTML entity as text", not raw, raw)
     # ESPN's `onIce` is the one feed field not yet seen in a LIVE game. When

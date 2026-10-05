@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BMBS Tracker — All Sports</title>
+<title>BMBS Tracker — College Football</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -516,7 +516,11 @@
   <nav class="sport-switch" aria-label="Sport">
     <a class="sport" href="/"><span class="ico">&#9918;</span>MLB</a>
     <a class="sport" href="/football/"><span class="ico">&#127944;</span>NFL</a>
-    <a class="sport active" href="/all/" aria-current="page"><span class="ico">&#127919;</span>ALL SPORTS</a>
+    <!-- College football is HIDDEN (the user's call, 2026-10-05): this page is complete,
+         but no other page's switch links here yet. Unhiding it = adding this
+         same tab to the switch on /, /football/ and /all/. -->
+    <a class="sport active" href="/cfb/" aria-current="page"><span class="ico">&#127944;</span>CFB</a>
+    <a class="sport" href="/all/"><span class="ico">&#127919;</span>ALL SPORTS</a>
   </nav>
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-today" onclick="activateTab('today')">Today's Picks<span class="tab-date" id="tab-date-today"></span></button>
@@ -524,8 +528,8 @@
   </div>
   <div class="queued-note" id="queued-note"></div>
   <header>
-    <h1>BMBS Tracker &mdash; All Sports</h1>
-    <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM MLB</span></p>
+    <h1>BMBS Tracker &mdash; College Football</h1>
+    <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM ESPN</span></p>
     <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
     <!-- Only a parser warning lands here now. The old "Auto-tracked against
          live MLB results." copy was removed as redundant with the eyebrow
@@ -680,12 +684,19 @@
 
   </div>
 
-  <footer id="footer-line">all times ET &middot; results pulled directly from the MLB Stats API and ESPN &middot; <a href="/features/?sport=combined" style="color:inherit;">what this site can do</a></footer>
+  <footer id="footer-line">all times ET &middot; results pulled directly from ESPN</footer>
 </div>
 
 <div id="bomb-overlay" role="status" aria-live="polite"></div>
 
 <script>
+// cfb/index.html -- the college-football tracker at /cfb/. HIDDEN: complete
+// and working, deliberately not in any other page's sport switch (2026-10-05).
+// Assembled ONCE from all/index.html (the football engine was built into that page
+// first, so the two grade a basketball leg identically) and independent from
+// here: data/cfb/, storage under bmbs.cf.*. A college-only card means
+// every other engine simply stand down -- they only ever run for
+// their own legs. See CLAUDE.md, "The college-football tracker".
 // 10s, matching what the API itself asks for: every live feed carries
 // `metaData.wait: 10`, and responses ship `Cache-Control: max-age=10`, so
 // polling faster than this is served the same cached bytes. Measured
@@ -4358,8 +4369,8 @@ function ordinal(n) {
 
 const BOMB_MS = 4200;          // how long one overlay stays up
 const BOMB_CASH_MS = 6500;     // ...longer when it also cashed a bet: there's more to read
-const LS_OVERLAY = "bmbs.all.notif.overlay";
-const LS_PUSH = "bmbs.all.notif.push";
+const LS_OVERLAY = "bmbs.cf.notif.overlay";
+const LS_PUSH = "bmbs.cf.notif.push";
 let OVERLAY_ON = true;         // default: overlay yes, push no (push needs an opt-in gesture)
 let PUSH_ON = false;
 // Bomb notifications are scoped to the live ("today") slate and reset when a
@@ -4481,7 +4492,7 @@ function initNotifPrefs() {
 // peak measured; raw they ranged about 10x in loudness, which made the quiet
 // one easy to miss entirely. These bring them to a common level. If you change
 // an envelope, re-measure -- don't eyeball it.
-const LS_SOUND = "bmbs.all.notif.sound";
+const LS_SOUND = "bmbs.cf.notif.sound";
 let SOUND_ON = false;         // default off: a page that makes noise unasked is worse than one that doesn't
 let AC = null;
 const SOUND_VOL = 0.45;
@@ -5538,7 +5549,7 @@ const LAB_RESULT_MS = 9000;   // a finished at-bat's result holds its tile this 
 const LAB_HOMER_MS = 14000;   // ...a home run earns a longer look,
 const LAB_BOMB_MS = 3200;     // the first stretch of which the tile is just a bomb
 const LAB_STALE_MS = 180000;  // an at-bat that ended longer ago than this isn't news
-const LS_LIVEAB = "bmbs.all.liveab.open";
+const LS_LIVEAB = "bmbs.cf.liveab.open";
 
 // seen:         every finished at-bat already accounted for, so each is announced once
 // prevEligible: who had a live leg as of the previous poll -- a hitter who just
@@ -6055,7 +6066,7 @@ function liveAbSubText(collapsed, nowCount, soonCount, onCount) {
     return `${head}Filtered to <b>${escapeHtml(filtered)}</b>: ${counts || "nobody up or due"}.`;
   }
   if (!collapsed && steals) return `Home run picks at the plate or due up, steal picks on base. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
-  if (!collapsed) return `Your picks at the plate or guaranteed to bat this inning, pitch by pitch. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
+  if (!collapsed) return `Your picks in games now &mdash; on offense, in the red zone, and every quarter bet. Updates every ${Math.round(POLL_MS / 1000)} seconds &mdash; tap a tile for Gameday.`;
   if (!nowCount && !soonCount && !onCount) return "Tap to expand &mdash; none of your picks are due up right now.";
   const bits = [];
   if (nowCount) bits.push(`<b>${nowCount}</b> at the plate`);
@@ -6437,7 +6448,7 @@ function legPassesFilters(state, rawWho) {
 // The two bet lists are collapsible sections like the panels above them, and
 // both start CLOSED: the slate summary up top is what most people want at a
 // glance. Whichever a visitor opens is remembered per browser.
-const LS_CARDS = { parlays: "bmbs.all.cards.parlays", singles: "bmbs.all.cards.singles" };
+const LS_CARDS = { parlays: "bmbs.cf.cards.parlays", singles: "bmbs.cf.cards.singles" };
 const CARDS_OPEN = { parlays: false, singles: false };
 
 function loadCardsOpen() {
@@ -6767,8 +6778,8 @@ async function refreshSlate(tickets) {
 // Once every slate is finished, Today falls back to its waiting state.
 async function refreshEverything() {
   const [current, previous] = await Promise.all([
-    loadTicketsFile("../data/combined/tickets.json"),
-    loadTicketsFile("../data/combined/tickets-previous.json")
+    loadTicketsFile("../data/cfb/tickets.json"),
+    loadTicketsFile("../data/cfb/tickets-previous.json")
   ]);
   if (current && !current.date) current.date = todayET(); // file predates date stamping; gone after the next upload
 
@@ -6843,7 +6854,7 @@ function applyActiveTab() {
   document.getElementById("notif-note").style.display = showNotifControls ? "" : "none";
 
   if (ACTIVE_TAB === "today") {
-    document.getElementById("eyebrow-text").innerHTML = showSlate ? "TODAY'S SLATE &middot; LIVE FROM MLB + ESPN" : "TODAY'S SLATE";
+    document.getElementById("eyebrow-text").innerHTML = showSlate ? "TODAY'S SLATE &middot; LIVE FROM ESPN" : "TODAY'S SLATE";
     document.getElementById("waiting-title").textContent = "Waiting for today's picks";
     document.getElementById("waiting-text").textContent = SLATES.yesterday
       ? "Yesterday's results are in the other tab. This page picks up the new slate automatically once it's posted."
@@ -6930,7 +6941,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 
-const BELL_KEY = "bmbs.all.bell";
+const BELL_KEY = "bmbs.cf.bell";
 function bellReady(slate) {
   return !!((slate.results && slate.results.ready) || (slate.nfl && slate.nfl.ready));
 }

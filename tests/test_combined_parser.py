@@ -816,6 +816,69 @@ check("R4 on an All Sports card 'Rebounds' (an NBA-only word) still goes by the 
 check("R5 'NY' is two teams: the Liberty's spread is WNBA, the Knicks' NBA",
       (_w.get("New York Liberty") or {}).get("sport") == "wnba" and (_w.get("New York Knicks") or {}).get("sport") == "nba"
       and _wm["sports"] == ["nba", "wnba"], (_w, _wm["sports"]))
+# ================= S. college football (2026-10-05) ===========================
+# The NFL's markets and parsing path with the college roster. What must not
+# happen is an NFL leg pulled into college (or the reverse) because a school
+# shares a word with a pro team, or a player's name holds a school's.
+import parse_cfb_picks as fp               # noqa: E402
+import build_cfb_roster as bcr             # noqa: E402
+FCARD = (REPO / "tests" / "fixtures" / "cfb_format.txt").read_text(encoding="utf-8")
+fk = fp.build(FCARD, HNOW, no_network)
+fl = [l for w in fk["windows"] for t in w["tickets"] for l in t["legs"]] + fk["singles"]
+def ffind(player, market=None):
+    return next((l for l in fl if l["player"] == player and (market is None or l.get("market") == market)), {})
+check("S1 the college card parses: 2 parlays, 1 single, every leg college, nothing flagged -- not even its dated title",
+      sum(len(w["tickets"]) for w in fk["windows"]) == 2 and len(fk["singles"]) == 1
+      and all(l.get("sport") == "cfb" for l in fl) and fk["note"] == "" and fk["sports"] == ["cfb"],
+      (len(fl), fk["note"], fk["sports"]))
+check("S2 the NFL's markets, read the NFL's way: anytime TD, 2+ TDs, passing / receiving / rushing yards",
+      ffind("Arch Manning", "td").get("team") == "TEX" and ffind("Nate Frazier").get("market") == "td_count"
+      and ffind("Gunner Stockton").get("market") == "pass_yds" and ffind("Jeremiah Smith", "rec_yds").get("line") == 89.5
+      and ffind("Arch Manning", "rush_yds").get("line") == 34.5, fl)
+check("S3 a quarterback missing from ESPN's school roster resolves anyway, off the box scores",
+      ffind("Gunner Stockton").get("team") == "UGA" and ffind("Gunner Stockton").get("athleteId"), ffind("Gunner Stockton"))
+_fm = cp.build("""Parlay 1
+* Jeremiah Smith Anytime TD (+120) — Ohio State Buckeyes (Memo) 12:00 PM
+* Josh Allen Anytime TD (+180) — Buffalo Bills (Memo) 8:20 PM
+* Rashee Rice Anytime TD (+150) — Kansas City Chiefs (Memo) 4:25 PM
+* James Conner Anytime TD (+140) — Arizona Cardinals (Memo) 4:05 PM
+$5.00 Bet | Potential Payout: $60.00 (Memo)
+""", MLB, NFL, HNOW, no_network)
+_f = {l["player"]: l for w in _fm["windows"] for t in w["tickets"] for l in t["legs"]}
+check("S4 on an All Sports card: an Ohio State player is college; Bills, Chiefs and Cardinals stay NFL "
+      "-- 'Buffalo', 'Kansas' and 'Arizona' are schools too, and 'Rice' is one inside a player's name",
+      (_f.get("Jeremiah Smith") or {}).get("sport") == "cfb"
+      and all((_f.get(n) or {}).get("sport") == "nfl" for n in ("Josh Allen", "Rashee Rice", "James Conner")),
+      {k: v.get("sport") for k, v in _f.items()})
+_cw = cp.cfb_team_words(cp.load_nba_roster(cp.CFB_ROSTER), cp.other_team_text(MLB, cp.load_nhl_roster(), cp.load_nba_roster(),
+                                                                                cp.load_nba_roster(cp.WNBA_ROSTER)))
+check("S5 school words: 'Buckeyes' and 'Georgia' are schools; 'Bulldogs' (a dozen schools) and 'Arizona' (a pro city) are not",
+      _cw.get("buckeyes") == "OSU" and _cw.get("georgia") == "UGA" and "bulldogs" not in _cw and "arizona" not in _cw
+      and _cw.get("arizona wildcats") == "ARIZ", {k: _cw.get(k) for k in ("buckeyes", "georgia", "bulldogs", "arizona")})
+_two = {"team_by_name": {"jeremiah smith": "OSU"}, "canonical_name_by_norm": {"jeremiah smith": "Jeremiah Smith"},
+        "id_by_norm": {"jeremiah smith": "1"}, "pos_by_norm": {"jeremiah smith": "WR"},
+        "others_by_norm": {"jeremiah smith": [["Jeremiah Smith", "LT", "2", "LB"]]},
+        "team_names": {"OSU": "Ohio State Buckeyes", "LT": "Louisiana Tech Bulldogs"},
+        "team_aliases": {"OSU": ["Ohio State", "Ohio State", "Buckeyes"], "LT": ["Louisiana Tech", "Louisiana Tech", "Bulldogs"]}}
+_ltc = fp.build("""Parlay 1
+* Jeremiah Smith Anytime TD (+900) — Louisiana Tech Bulldogs (Kenny) 7:00 PM
+$5.00 Bet | Potential Payout: $50.00 (Kenny)
+""", HNOW, no_network, cfb=_two)
+_lt = ([l for w in _ltc["windows"] for t in w["tickets"] for l in t["legs"]] + _ltc["singles"] or [{}])[0]
+check("S6 two players share a name: the one at the school the line names (Louisiana Tech's, not Ohio State's)",
+      _lt.get("team") == "LT" and _lt.get("athleteId") == "2", _lt)
+_mr = bcr.merge_rosters({"team_by_name": {"a": "UGA"}, "others_by_norm": {"x": [["X", "UGA", "9", ""]]}, "team_names": {}},
+                        {"team_by_name": {"b": "TEX"}, "team_names": {"TEX": "Texas Longhorns"}})
+_nv = cp.build("""Parlay 1
+* Navy Smithers Anytime TD (+500) — Kansas City Chiefs (Memo) 4:25 PM
+* Josh Allen Anytime TD (+180) — Buffalo Bills (Memo) 8:20 PM
+$5.00 Bet | Potential Payout: $60.00 (Memo)
+""", MLB, NFL, HNOW, no_network)
+_nvl = next((l for w in _nv["windows"] for t in w["tickets"] for l in t["legs"] if "Smithers" in l["player"]), {})
+check("S8 a name nobody's roster knows that HOLDS a school's word ('Navy') is not made a Navy bet -- the Chiefs named "
+      "after the price say NFL", _nvl.get("sport") == "nfl", _nvl)
+check("S7 the college roster rebuild merges: nobody known dropped, shared names kept",
+      _mr["team_by_name"] == {"a": "UGA", "b": "TEX"} and "x" in _mr["others_by_norm"], _mr)
 check("Q10 the NBA roster rebuild merges the same way: nobody known is dropped", _m2["team_by_name"] == {"a": "TOR", "b": "BOS"}, _m2)
 
 print()

@@ -12,10 +12,10 @@ value are addresses rather than names and were deliberately left alone.
 
 **The third tab is ALL SPORTS** (renamed from "NFL+MLB" on 2026-10-05, when
 hockey joined it). Same rule: the label changed; `/all/`, `data/combined/`,
-the `sports_*` upload prefix and `?sport=combined` did not. **There are three
-more, HIDDEN, trackers: NHL at `/hockey/`, NBA at `/basketball/` and WNBA at
-`/wnba/`** -- see "The NHL tracker", "The NBA tracker" and "The WNBA tracker"
-below.
+the `sports_*` upload prefix and `?sport=combined` did not. **There are four
+more, HIDDEN, trackers: NHL at `/hockey/`, NBA at `/basketball/`, WNBA at
+`/wnba/` and college football at `/cfb/`** -- see "The NHL tracker", "The NBA
+tracker", "The WNBA tracker" and "The college-football tracker" below.
 
 ## Architecture
 
@@ -36,6 +36,8 @@ below.
   exactly like the NHL one. See "The NBA tracker" below.
 - **`wnba/index.html`** — the **WNBA** tracker at `/wnba/`, hidden the same
   way, on the NBA's engine. See "The WNBA tracker" below.
+- **`cfb/index.html`** — the **college-football** tracker at `/cfb/`, hidden
+  the same way, on the NFL's engine. See "The college-football tracker".
 - **`features/index.html`** — a static, plain-language "what this site can
   do" page for end users (the friend group), reusing `index.html`'s exact
   color tokens/fonts so it reads as the same product. Lives at the clean
@@ -758,7 +760,7 @@ both. Football has always had `bmbs.fb.*` for exactly this reason. Every key
 the combined page writes is now `bmbs.all.*`; `test_bell.py` E10 fails on any
 `bmbs.` key there that isn't. **A new key on any page needs its own
 namespace** -- `bmbs.` (MLB), `bmbs.fb.` (NFL), `bmbs.all.` (ALL SPORTS),
-`bmbs.hk.` (NHL), `bmbs.bb.` (NBA), `bmbs.wb.` (WNBA).
+`bmbs.hk.` (NHL), `bmbs.bb.` (NBA), `bmbs.wb.` (WNBA), `bmbs.cf.` (college football).
 
 ## Bet markets: a registry, not a list of special cases
 
@@ -1527,6 +1529,58 @@ leagues, plus section G (both leagues on one card, both directions).
 **The 2026 season looks over** (last game Oct 1), so nothing WNBA has been
 seen live, including `active`. Same rule as the NBA: unknown means LIVE.
 
+## The college-football tracker -- built in full, HIDDEN (2026-10-05)
+
+"Add the same hidden page for college football." Built the WNBA way: ESPN's
+college summary is the NFL one field for field (checked on VAN @ UGA,
+2026-10-03), so the NFL IIFE became `makeFootballEngine(SLUG, SPORT)` and the
+ALL SPORTS page builds `NFL = makeFootballEngine("nfl", "nfl")` and
+`CFB = makeFootballEngine("college-football", "cfb")`. A college leg is
+`sport: "cfb"` with the NFL's markets (`marketForeign()` maps cfb to nfl);
+`gridiron(leg)` picks the engine wherever the host reads one, touchdown alerts
+loop over both engines (college under `cfbtd:` notified keys), and the Scoring
+Log carries college touchdowns. College team tiles are keyed `CFB <abbr>`: the
+Miami Hurricanes and the Dolphins are both "MIA" (`test_cfb.py` E).
+
+**Three things are different about college, each read off real data:**
+- **ESPN never sets `didNotPlay` on a college per-game roster** (128 listed, 0
+  flagged), so the NFL's miss-vs-void rule would grade every scratch a MISS.
+  For college, "played" is `starter`: a starter with no stat line is a miss,
+  anyone else with none is VOID -- ESPN can't say he got in. A judgment call,
+  flagged to the user; `test_cfb.py` D3/D4.
+- **A Saturday is 50+ FBS games** (the scoreboard's default IS the FBS slate),
+  so a college game no pick is in is never fetched -- not even once for the
+  touchdown log, which the NFL engine does. An unresolvable college name does
+  not open every game either (`watchEverything` is NFL-only). D/A5.
+- **ESPN's school rosters are incomplete**: on VAN @ UGA, 12 of the 63 players
+  in the box score -- Georgia's starting QB Gunner Stockton among them -- were
+  on no roster. `build_cfb_roster.py` (FBS only, group 80: 138 schools) tops
+  the rosters up from the last two weeks of box scores (`--days`): 732 players
+  added, 14,214 total. Names collide (209 held by several players): the plain
+  maps keep a skill player, `others_by_norm` lists the rest, and the parser
+  takes the one at the school the line names (S6). Rebuild it weekly in season.
+
+**Parser**: a college leg takes the NFL path in `scan_card` with the college
+roster swapped in (`fb`, `fb_team_in`) -- combined players, typos, quarter
+bets, yards-by-position all come along. `cfb_claim()` decides it IS college,
+BEFORE the MLB/NFL decision, on college evidence only: the player at the
+school the line names, a school named after the price with nobody from another
+league, or a name only the college roster knows. School words
+(`cfb_team_words`): full names always; a location / short name / nickname only
+when exactly ONE school has it ("Bulldogs" is a dozen) and -- on an All Sports
+card -- no other league's team name contains it ("Arizona" would pull in the
+Cardinals, "Kansas" the Chiefs, "Buffalo" the Bills). The team is read from
+the text AFTER the price first, never a player's name ("Rashee Rice" holds a
+school's). A dated card title is skipped on a college-only card, as on hockey's.
+Slate span: the picked schools' next game within EIGHT days (a Saturday card
+goes up on Monday).
+
+`/cfb/` (`bmbs.cf.*`, `data/cfb/`), `parse_cfb_picks.py`, `parse-cfb-picks.yml`,
+bot route `cfb`, `notify_discord.py --sport cfb`, `tests/test_cfb.py`,
+`test_combined_parser.py` S. Not built, as for the others: auto-fix support,
+a results archive. FCS games (group 81) are not on the scoreboard the engine
+reads; an FCS pick would sit not-started.
+
 ## Combined picks: `sports_*.txt`
 
 **`scripts/parse_combined_picks.py`** -> `data/combined/tickets.json`, fired by
@@ -1658,6 +1712,7 @@ script), and the Discord bot's routing. Keep it that way:
   `hockey*.txt` -> `data/hockey/incoming_picks.txt` (the hidden NHL page),
   `basketball*.txt` -> `data/basketball/incoming_picks.txt` (the hidden NBA page),
   `wnba*.txt` -> `data/wnba/incoming_picks.txt` (the hidden WNBA page),
+  `cfb*.txt` -> `data/cfb/incoming_picks.txt` (the hidden college-football page),
   anything else is refused with a rename hint. It never inspects the text --
   the cards share a template, and a guess would eventually overwrite the wrong
   sport's slate.
@@ -1995,13 +2050,13 @@ after a dash during parsing — don't reintroduce this).
    picks multiple times because "copy the zip contents over the repo" also
    copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
    and `data/incoming_picks.txt` (plus their `data/football/` and
-   `data/combined/`, `data/hockey/`, `data/basketball/` and `data/wnba/` twins) are live user data, managed only through
+   `data/combined/`, `data/hockey/`, `data/basketball/`, `data/wnba/` and `data/cfb/` twins) are live user data, managed only through
    the picks-upload → GitHub Actions pipeline. `data/history.json` is pipeline data too (only
    `scripts/import_history.py` writes it), and so are `data/results/`,
    `data/football/results/` and `data/football/history.json` (only the two
    `record_*_results.py` scripts write them). Code changes should only
    ever touch `index.html`, `football/index.html`, `all/index.html`,
-   `hockey/index.html`, `basketball/index.html`, `wnba/index.html`, `history/`, `features/`, `scripts/`,
+   `hockey/index.html`, `basketball/index.html`, `wnba/index.html`, `cfb/index.html`, `history/`, `features/`, `scripts/`,
    `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
    `tests/test_live_data_schema.py` is a deliberate, narrow exception: it
    **reads** whatever is currently committed under `data/` to check it against
@@ -2322,7 +2377,7 @@ on failure:
 pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py && python tests/test_steals.py
-python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py && python tests/test_hockey.py && python tests/test_basketball.py && python tests/test_wnba.py
+python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py && python tests/test_hockey.py && python tests/test_basketball.py && python tests/test_wnba.py && python tests/test_cfb.py
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py

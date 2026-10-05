@@ -62,6 +62,8 @@ ROUTES = {
     "basketball": {"path": "data/basketball/incoming_picks.txt", "sport": "NBA", "site": "https://bmbs.bet/basketball/"},
     # The WNBA tracker at /wnba/, hidden the same way (2026-10-05).
     "wnba": {"path": "data/wnba/incoming_picks.txt", "sport": "WNBA", "site": "https://bmbs.bet/wnba/"},
+    # The college-football tracker at /cfb/, hidden the same way (2026-10-05).
+    "cfb": {"path": "data/cfb/incoming_picks.txt", "sport": "College football", "site": "https://bmbs.bet/cfb/"},
 }
 
 

@@ -32,7 +32,8 @@ import urllib.request
 SITE_URL = {"baseball": "https://bmbs.bet/", "football": "https://bmbs.bet/football/",
             "combined": "https://bmbs.bet/all/", "hockey": "https://bmbs.bet/hockey/",
             "basketball": "https://bmbs.bet/basketball/",
-            "wnba": "https://bmbs.bet/wnba/"}
+            "wnba": "https://bmbs.bet/wnba/",
+            "cfb": "https://bmbs.bet/cfb/"}
 
 
 class NotifyFailed(Exception):
@@ -201,7 +202,7 @@ def _span(data, sport):
     return data["date"]
 
 
-LABEL = {"football": "NFL picks", "combined": "All Sports picks", "hockey": "NHL picks", "basketball": "NBA picks", "wnba": "WNBA picks"}
+LABEL = {"football": "NFL picks", "combined": "All Sports picks", "hockey": "NHL picks", "basketball": "NBA picks", "wnba": "WNBA picks", "cfb": "College football picks"}
 
 
 def _update_message(data, before, sport, fixed):
@@ -230,7 +231,7 @@ def main():
 
     s = sub.add_parser("success")
     s.add_argument("--tickets", required=True)
-    s.add_argument("--sport", required=True, choices=["baseball", "football", "combined", "hockey", "basketball", "wnba"])
+    s.add_argument("--sport", required=True, choices=["baseball", "football", "combined", "hockey", "basketball", "wnba", "cfb"])
     s.add_argument("--mention", default="", help="Discord user id to @, if known.")
     s.add_argument("--before", default="",
                    help="The live tickets file as it was BEFORE this parse. When it holds the "

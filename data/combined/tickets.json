@@ -4,7 +4,8 @@
   "note": "",
   "sports": [
     "mlb",
-    "nfl"
+    "nfl",
+    "nhl"
   ],
   "windows": [
     {
@@ -145,12 +146,13 @@
             {
               "id": "p0-c3-l1",
               "player": "Tampa Bay Lightning",
-              "team": "",
+              "team": "TB",
               "who": "",
-              "meta": "NHL",
+              "meta": "TB",
               "odds": "+114",
               "time": "",
-              "market": "puck line +1.5",
+              "market": "nhl_pl",
+              "line": 1.5,
               "sport": "nhl"
             },
             {

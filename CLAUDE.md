@@ -1546,8 +1546,10 @@ Miami Hurricanes and the Dolphins are both "MIA" (`test_cfb.py` E).
 - **ESPN never sets `didNotPlay` on a college per-game roster** (128 listed, 0
   flagged), so the NFL's miss-vs-void rule would grade every scratch a MISS.
   For college, "played" is `starter`: a starter with no stat line is a miss,
-  anyone else with none is VOID -- ESPN can't say he got in. A judgment call,
-  flagged to the user; `test_cfb.py` D3/D4.
+  anyone else with none is VOID -- ESPN can't say he got in. **The user's
+  rule, confirmed 2026-10-05** (offered "no stat line = miss for everyone"
+  instead, and kept this); don't change it without asking. `test_cfb.py`
+  D3/D4, on both pages.
 - **A Saturday is 50+ FBS games** (the scoreboard's default IS the FBS slate),
   so a college game no pick is in is never fetched -- not even once for the
   touchdown log, which the NFL engine does. An unresolvable college name does

@@ -185,16 +185,16 @@
     ],
     "adams": [
       [
+        "blake adams",
+        "COL"
+      ],
+      [
         "mason adams",
         "COL"
       ],
       [
         "travis adams",
         "MIN"
-      ],
-      [
-        "blake adams",
-        "COL"
       ]
     ],
     "adell": [
@@ -212,7 +212,7 @@
     "aguiar": [
       [
         "julian aguiar",
-        "CIN"
+        "CHC"
       ]
     ],
     "ahlstrom": [
@@ -231,6 +231,10 @@
       [
         "sandy alcantara",
         "MIA"
+      ],
+      [
+        "kevin alcantara",
+        "CHC"
       ]
     ],
     "aldegheri": [
@@ -247,12 +251,12 @@
     ],
     "alexander": [
       [
-        "tyler alexander",
-        "TEX"
-      ],
-      [
         "blaze alexander",
         "BAL"
+      ],
+      [
+        "tyler alexander",
+        "TEX"
       ]
     ],
     "alfonzo": [
@@ -263,12 +267,12 @@
     ],
     "allen": [
       [
-        "nick allen",
-        "HOU"
-      ],
-      [
         "logan allen",
         "CLE"
+      ],
+      [
+        "nick allen",
+        "HOU"
       ]
     ],
     "alonso": [
@@ -303,12 +307,12 @@
         "NYM"
       ],
       [
-        "yordan alvarez",
-        "HOU"
-      ],
-      [
         "nacho alvarez jr",
         "LAA"
+      ],
+      [
+        "yordan alvarez",
+        "HOU"
       ]
     ],
     "amador": [
@@ -329,16 +333,16 @@
         "DET"
       ],
       [
-        "kade anderson",
-        "SEA"
+        "grant anderson",
+        "MIL"
       ],
       [
         "jack anderson",
         "MIN"
       ],
       [
-        "grant anderson",
-        "MIL"
+        "kade anderson",
+        "SEA"
       ]
     ],
     "andujar": [
@@ -415,12 +419,12 @@
     ],
     "arroyo": [
       [
-        "michael arroyo",
-        "SEA"
-      ],
-      [
         "edwin arroyo",
         "CIN"
+      ],
+      [
+        "michael arroyo",
+        "SEA"
       ]
     ],
     "ashby": [
@@ -431,12 +435,12 @@
     ],
     "ashcraft": [
       [
-        "graham ashcraft",
-        "CIN"
-      ],
-      [
         "braxton ashcraft",
         "PIT"
+      ],
+      [
+        "graham ashcraft",
+        "CIN"
       ]
     ],
     "assad": [
@@ -457,6 +461,12 @@
         "LAA"
       ]
     ],
+    "backhus": [
+      [
+        "kyle backhus",
+        "PHI"
+      ]
+    ],
     "baddoo": [
       [
         "akil baddoo",
@@ -465,12 +475,12 @@
     ],
     "baez": [
       [
-        "javier baez",
-        "DET"
-      ],
-      [
         "henry baez",
         "ATH"
+      ],
+      [
+        "javier baez",
+        "DET"
       ],
       [
         "joshua baez",
@@ -759,12 +769,12 @@
     ],
     "black": [
       [
-        "tyler black",
-        "MIL"
-      ],
-      [
         "mason black",
         "KC"
+      ],
+      [
+        "tyler black",
+        "MIL"
       ]
     ],
     "blackburn": [
@@ -955,12 +965,12 @@
     ],
     "burgos": [
       [
-        "raymond burgos",
-        "BOS"
-      ],
-      [
         "juan burgos",
         "AZ"
+      ],
+      [
+        "raymond burgos",
+        "BOS"
       ]
     ],
     "burke": [
@@ -1075,6 +1085,12 @@
       [
         "junior caminero",
         "TB"
+      ]
+    ],
+    "campbell": [
+      [
+        "kristian campbell",
+        "BOS"
       ]
     ],
     "campero": [
@@ -1207,6 +1223,12 @@
         "TOR"
       ]
     ],
+    "chace": [
+      [
+        "moises chace",
+        "PHI"
+      ]
+    ],
     "chandler": [
       [
         "bubba chandler",
@@ -1222,6 +1244,12 @@
     "chapman": [
       [
         "aroldis chapman",
+        "BOS"
+      ]
+    ],
+    "cheng": [
+      [
+        "tsung-che cheng",
         "BOS"
       ]
     ],
@@ -1287,6 +1315,10 @@
       [
         "gerrit cole",
         "NYY"
+      ],
+      [
+        "zach cole",
+        "HOU"
       ]
     ],
     "collins": [
@@ -1349,6 +1381,10 @@
       [
         "carlos cortes",
         "ATH"
+      ],
+      [
+        "nestor cortes",
+        "PHI"
       ]
     ],
     "cowser": [
@@ -1505,6 +1541,12 @@
         "SF"
       ]
     ],
+    "dean": [
+      [
+        "justin dean",
+        "CHC"
+      ]
+    ],
     "degrom": [
       [
         "jacob degrom",
@@ -1533,6 +1575,12 @@
       [
         "reid detmers",
         "LAA"
+      ]
+    ],
+    "dezenzo": [
+      [
+        "zach dezenzo",
+        "HOU"
       ]
     ],
     "diaz": [
@@ -1655,6 +1703,10 @@
     ],
     "duran": [
       [
+        "carlos duran",
+        "KC"
+      ],
+      [
         "ezequiel duran",
         "TEX"
       ],
@@ -1665,10 +1717,6 @@
       [
         "jhoan duran",
         "PHI"
-      ],
-      [
-        "carlos duran",
-        "KC"
       ]
     ],
     "durbin": [
@@ -1801,6 +1849,12 @@
       [
         "ryan feltner",
         "COL"
+      ]
+    ],
+    "ferguson": [
+      [
+        "tyler ferguson",
+        "CHC"
       ]
     ],
     "fermin": [
@@ -2041,6 +2095,14 @@
         "AZ"
       ],
       [
+        "jhostynxon garcia",
+        "PIT"
+      ],
+      [
+        "julian garcia",
+        "CIN"
+      ],
+      [
         "luis garcia jr",
         "NYY"
       ],
@@ -2055,14 +2117,12 @@
       [
         "robert garcia",
         "TEX"
-      ],
+      ]
+    ],
+    "garrett": [
       [
-        "jhostynxon garcia",
-        "PIT"
-      ],
-      [
-        "julian garcia",
-        "CIN"
+        "braxton garrett",
+        "CHC"
       ]
     ],
     "gasper": [
@@ -2181,6 +2241,10 @@
     ],
     "gonzalez": [
       [
+        "gabriel gonzalez",
+        "MIN"
+      ],
+      [
         "jacob gonzalez",
         "PIT"
       ],
@@ -2189,8 +2253,8 @@
         "MIA"
       ],
       [
-        "gabriel gonzalez",
-        "MIN"
+        "romy gonzalez",
+        "BOS"
       ]
     ],
     "goodman": [
@@ -2395,6 +2459,10 @@
         "SD"
       ],
       [
+        "hayden harris",
+        "COL"
+      ],
+      [
         "hogan harris",
         "ATH"
       ],
@@ -2405,20 +2473,16 @@
       [
         "trent harris",
         "SF"
-      ],
-      [
-        "hayden harris",
-        "COL"
       ]
     ],
     "harrison": [
       [
-        "kyle harrison",
-        "MIL"
-      ],
-      [
         "devereaux harrison",
         "TOR"
+      ],
+      [
+        "kyle harrison",
+        "MIL"
       ]
     ],
     "hart": [
@@ -2489,6 +2553,12 @@
       [
         "josh hendrickson",
         "HOU"
+      ]
+    ],
+    "henriquez": [
+      [
+        "edgardo henriquez",
+        "LAD"
       ]
     ],
     "hentges": [
@@ -2625,6 +2695,12 @@
         "KC"
       ]
     ],
+    "hoffmann": [
+      [
+        "andrew hoffmann",
+        "PHI"
+      ]
+    ],
     "holderman": [
       [
         "colin holderman",
@@ -2641,6 +2717,12 @@
       [
         "gavin hollowell",
         "CHC"
+      ]
+    ],
+    "holman": [
+      [
+        "grant holman",
+        "PHI"
       ]
     ],
     "holmes": [
@@ -2681,6 +2763,12 @@
       [
         "rhys hoskins",
         "CLE"
+      ]
+    ],
+    "houck": [
+      [
+        "tanner houck",
+        "BOS"
       ]
     ],
     "house": [
@@ -2813,6 +2901,10 @@
     ],
     "johnson": [
       [
+        "ivan johnson",
+        "CIN"
+      ],
+      [
         "pierce johnson",
         "CIN"
       ],
@@ -2827,10 +2919,6 @@
       [
         "ty johnson",
         "TB"
-      ],
-      [
-        "ivan johnson",
-        "CIN"
       ]
     ],
     "johnston": [
@@ -3335,16 +3423,16 @@
         "ATH"
       ],
       [
+        "leandro lopez",
+        "TEX"
+      ],
+      [
         "nicky lopez",
         "TEX"
       ],
       [
         "otto lopez",
         "MIA"
-      ],
-      [
-        "leandro lopez",
-        "TEX"
       ]
     ],
     "lord": [
@@ -3515,12 +3603,12 @@
         "AZ"
       ],
       [
-        "yunior marte",
-        "SF"
-      ],
-      [
         "noelvi marte",
         "CIN"
+      ],
+      [
+        "yunior marte",
+        "SF"
       ]
     ],
     "martin": [
@@ -3533,12 +3621,12 @@
         "CWS"
       ],
       [
-        "trevor martin",
-        "LAA"
-      ],
-      [
         "rudy martin jr",
         "TOR"
+      ],
+      [
+        "trevor martin",
+        "LAA"
       ]
     ],
     "martinez": [
@@ -3583,6 +3671,10 @@
       [
         "zebby matthews",
         "MIN"
+      ],
+      [
+        "brice matthews",
+        "HOU"
       ]
     ],
     "mattson": [
@@ -3741,6 +3833,12 @@
         "ATH"
       ]
     ],
+    "mead": [
+      [
+        "curtis mead",
+        "BOS"
+      ]
+    ],
     "meckler": [
       [
         "wade meckler",
@@ -3785,12 +3883,12 @@
     ],
     "mendez": [
       [
-        "miguel mendez",
-        "SF"
-      ],
-      [
         "hendry mendez",
         "MIN"
+      ],
+      [
+        "miguel mendez",
+        "SF"
       ]
     ],
     "merrill": [
@@ -3831,6 +3929,10 @@
     ],
     "miller": [
       [
+        "bobby miller",
+        "LAD"
+      ],
+      [
         "bryce miller",
         "SEA"
       ],
@@ -3839,16 +3941,12 @@
         "BOS"
       ],
       [
-        "mason miller",
-        "SD"
-      ],
-      [
         "jake miller",
         "DET"
       ],
       [
-        "bobby miller",
-        "LAD"
+        "mason miller",
+        "SD"
       ]
     ],
     "milner": [
@@ -3867,6 +3965,12 @@
       [
         "jacob misiorowski",
         "MIL"
+      ]
+    ],
+    "misner": [
+      [
+        "kameron misner",
+        "PHI"
       ]
     ],
     "mitchell": [
@@ -3955,12 +4059,12 @@
     ],
     "morales": [
       [
-        "yohandy morales",
-        "WSH"
-      ],
-      [
         "luis morales",
         "ATH"
+      ],
+      [
+        "yohandy morales",
+        "WSH"
       ]
     ],
     "moran": [
@@ -4059,6 +4163,16 @@
       [
         "sean murphy",
         "ATL"
+      ]
+    ],
+    "murray": [
+      [
+        "bj murray jr",
+        "CHC"
+      ],
+      [
+        "jayden murray",
+        "CHC"
       ]
     ],
     "musgrove": [
@@ -4213,6 +4327,12 @@
       [
         "kazuma okamoto",
         "TOR"
+      ]
+    ],
+    "okert": [
+      [
+        "steven okert",
+        "HOU"
       ]
     ],
     "olds": [
@@ -4457,12 +4577,12 @@
     ],
     "perkins": [
       [
-        "jack perkins",
-        "ATH"
-      ],
-      [
         "blake perkins",
         "CLE"
+      ],
+      [
+        "jack perkins",
+        "ATH"
       ]
     ],
     "peters": [
@@ -4479,12 +4599,12 @@
     ],
     "peterson": [
       [
-        "david peterson",
-        "CHC"
-      ],
-      [
         "austin peterson",
         "CLE"
+      ],
+      [
+        "david peterson",
+        "CHC"
       ]
     ],
     "petty": [
@@ -4549,6 +4669,12 @@
         "SD"
       ]
     ],
+    "porter": [
+      [
+        "logan porter",
+        "LAA"
+      ]
+    ],
     "povich": [
       [
         "cade povich",
@@ -4565,6 +4691,12 @@
       [
         "cooper pratt",
         "MIL"
+      ]
+    ],
+    "price": [
+      [
+        "collin price",
+        "HOU"
       ]
     ],
     "prielipp": [
@@ -4645,6 +4777,12 @@
         "NYY"
       ]
     ],
+    "rangel": [
+      [
+        "alan rangel",
+        "PHI"
+      ]
+    ],
     "rasmussen": [
       [
         "drew rasmussen",
@@ -4659,12 +4797,12 @@
     ],
     "ray": [
       [
-        "robbie ray",
-        "SD"
-      ],
-      [
         "dylan ray",
         "AZ"
+      ],
+      [
+        "robbie ray",
+        "SD"
       ]
     ],
     "raya": [
@@ -4721,6 +4859,12 @@
         "STL"
       ]
     ],
+    "rincones": [
+      [
+        "gabriel rincones jr",
+        "PHI"
+      ]
+    ],
     "ritchie": [
       [
         "jr ritchie",
@@ -4749,6 +4893,12 @@
       [
         "luis robert jr",
         "BAL"
+      ]
+    ],
+    "roberts": [
+      [
+        "ethan roberts",
+        "CHC"
       ]
     ],
     "robles": [
@@ -4821,6 +4971,10 @@
         "CIN"
       ],
       [
+        "johnathan rodriguez",
+        "ATH"
+      ],
+      [
         "jose rodriguez",
         "TOR"
       ],
@@ -4831,10 +4985,6 @@
       [
         "manuel rodriguez",
         "TB"
-      ],
-      [
-        "johnathan rodriguez",
-        "ATH"
       ]
     ],
     "rogers": [
@@ -4861,12 +5011,12 @@
         "KC"
       ],
       [
-        "miguel rojas",
-        "LAD"
-      ],
-      [
         "kendry rojas",
         "MIN"
+      ],
+      [
+        "miguel rojas",
+        "LAD"
       ]
     ],
     "rolison": [
@@ -4911,12 +5061,12 @@
         "MIN"
       ],
       [
-        "shawn ross",
-        "TOR"
-      ],
-      [
         "dylan ross",
         "NYM"
+      ],
+      [
+        "shawn ross",
+        "TOR"
       ]
     ],
     "roupp": [
@@ -5011,6 +5161,12 @@
         "ATL"
       ]
     ],
+    "samaniego": [
+      [
+        "tyler samaniego",
+        "BOS"
+      ]
+    ],
     "sanchez": [
       [
         "ali sanchez",
@@ -5059,6 +5215,12 @@
         "MIA"
       ]
     ],
+    "santa": [
+      [
+        "alimber santa",
+        "HOU"
+      ]
+    ],
     "santana": [
       [
         "dennis santana",
@@ -5081,12 +5243,12 @@
         "HOU"
       ],
       [
-        "yerry de los santos",
-        "NYY"
-      ],
-      [
         "winston santos",
         "TEX"
+      ],
+      [
+        "yerry de los santos",
+        "NYY"
       ]
     ],
     "sasaki": [
@@ -5189,6 +5351,12 @@
       [
         "andrew sears",
         "DET"
+      ]
+    ],
+    "seigler": [
+      [
+        "anthony seigler",
+        "BOS"
       ]
     ],
     "semien": [
@@ -5683,6 +5851,12 @@
         "WSH"
       ]
     ],
+    "teng": [
+      [
+        "kai-wei teng",
+        "HOU"
+      ]
+    ],
     "teodo": [
       [
         "emiliano teodo",
@@ -5705,6 +5879,14 @@
       [
         "connor thomas",
         "KC"
+      ],
+      [
+        "colby thomas",
+        "PHI"
+      ],
+      [
+        "lane thomas",
+        "ATL"
       ]
     ],
     "thompson": [
@@ -5717,6 +5899,10 @@
       [
         "zac thornton",
         "NYM"
+      ],
+      [
+        "trent thornton",
+        "CHC"
       ]
     ],
     "tidwell": [
@@ -5729,6 +5915,12 @@
       [
         "ricky tiedemann",
         "TOR"
+      ]
+    ],
+    "toglia": [
+      [
+        "michael toglia",
+        "SEA"
       ]
     ],
     "tolbert": [
@@ -5799,6 +5991,12 @@
       [
         "jose trevino",
         "CIN"
+      ]
+    ],
+    "triantos": [
+      [
+        "james triantos",
+        "CHC"
       ]
     ],
     "trimble": [
@@ -5881,12 +6079,12 @@
     ],
     "valdez": [
       [
-        "framber valdez",
-        "DET"
-      ],
-      [
         "esmerlyn valdez",
         "PIT"
+      ],
+      [
+        "framber valdez",
+        "DET"
       ]
     ],
     "valencia": [
@@ -6105,22 +6303,28 @@
     ],
     "watson": [
       [
+        "kahlil watson",
+        "CLE"
+      ],
+      [
         "ryan watson",
         "LAA"
       ],
       [
         "troy watson",
         "SEA"
-      ],
-      [
-        "kahlil watson",
-        "CLE"
       ]
     ],
     "way": [
       [
         "beck way",
         "KC"
+      ]
+    ],
+    "weathers": [
+      [
+        "ryan weathers",
+        "NYY"
       ]
     ],
     "weaver": [
@@ -6199,18 +6403,24 @@
     ],
     "white": [
       [
-        "tommy white",
-        "ATH"
-      ],
-      [
         "josh white",
         "MIA"
+      ],
+      [
+        "tommy white",
+        "ATH"
       ]
     ],
     "whitlock": [
       [
         "garrett whitlock",
         "BOS"
+      ]
+    ],
+    "wicks": [
+      [
+        "jordan wicks",
+        "CHC"
       ]
     ],
     "wilcox": [
@@ -6231,6 +6441,10 @@
         "ATH"
       ],
       [
+        "carson williams",
+        "TB"
+      ],
+      [
         "devin williams",
         "NYM"
       ],
@@ -6239,16 +6453,12 @@
         "CLE"
       ],
       [
-        "trevor williams",
-        "TEX"
-      ],
-      [
-        "carson williams",
-        "TB"
-      ],
-      [
         "luke williams",
         "ATL"
+      ],
+      [
+        "trevor williams",
+        "TEX"
       ]
     ],
     "williamson": [
@@ -6385,6 +6595,12 @@
         "PIT"
       ]
     ],
+    "yoshida": [
+      [
+        "masataka yoshida",
+        "BOS"
+      ]
+    ],
     "young": [
       [
         "brandon young",
@@ -6448,6 +6664,7 @@
     "aj minter": "A.J. Minter",
     "aj smith-shawver": "AJ Smith-Shawver",
     "akil baddoo": "Akil Baddoo",
+    "alan rangel": "Alan Rangel",
     "alan roden": "Alan Roden",
     "albert suarez": "Albert Suárez",
     "alec bohm": "Alec Bohm",
@@ -6467,6 +6684,7 @@
     "alexander cornielle": "Alexander Cornielle",
     "ali sanchez": "Ali Sánchez",
     "alika williams": "Alika Williams",
+    "alimber santa": "Alimber Santa",
     "amed rosario": "Amed Rosario",
     "andre pallante": "Andre Pallante",
     "andres chaparro": "Andrés Chaparro",
@@ -6475,6 +6693,7 @@
     "andrew abbott": "Andrew Abbott",
     "andrew alvarez": "Andrew Alvarez",
     "andrew benintendi": "Andrew Benintendi",
+    "andrew hoffmann": "Andrew Hoffmann",
     "andrew kittredge": "Andrew Kittredge",
     "andrew knizner": "Andrew Knizner",
     "andrew morris": "Andrew Morris",
@@ -6492,6 +6711,7 @@
     "anthony kay": "Anthony Kay",
     "anthony molina": "Anthony Molina",
     "anthony nunez": "Anthony Nunez",
+    "anthony seigler": "Anthony Seigler",
     "anthony volpe": "Anthony Volpe",
     "antonio senzatela": "Antonio Senzatela",
     "antwone kelly": "Antwone Kelly",
@@ -6515,6 +6735,7 @@
     "ben williamson": "Ben Williamson",
     "bennett sousa": "Bennett Sousa",
     "billy cook": "Billy Cook",
+    "bj murray jr": "BJ Murray Jr.",
     "blade tidwell": "Blade Tidwell",
     "blake adams": "Blake Adams",
     "blake perkins": "Blake Perkins",
@@ -6553,6 +6774,7 @@
     "brant hurter": "Brant Hurter",
     "braxton ashcraft": "Braxton Ashcraft",
     "braxton fulford": "Braxton Fulford",
+    "braxton garrett": "Braxton Garrett",
     "braxton roxby": "Braxton Roxby",
     "brayan bello": "Brayan Bello",
     "brayan rocchio": "Brayan Rocchio",
@@ -6574,6 +6796,7 @@
     "brewer hicklen": "Brewer Hicklen",
     "brian navarreto": "Brian Navarreto",
     "brian serven": "Brian Serven",
+    "brice matthews": "Brice Matthews",
     "brice turang": "Brice Turang",
     "brock burke": "Brock Burke",
     "brock rodden": "Brock Rodden",
@@ -6678,6 +6901,7 @@
     "cody bellinger": "Cody Bellinger",
     "cody bradford": "Cody Bradford",
     "cody freeman": "Cody Freeman",
+    "colby thomas": "Colby Thomas",
     "cole carrigg": "Cole Carrigg",
     "cole sulser": "Cole Sulser",
     "cole wilcox": "Cole Wilcox",
@@ -6685,6 +6909,7 @@
     "coleman crow": "Coleman Crow",
     "colin holderman": "Colin Holderman",
     "colin rea": "Colin Rea",
+    "collin price": "Collin Price",
     "colson montgomery": "Colson Montgomery",
     "colt keith": "Colt Keith",
     "colton cowser": "Colton Cowser",
@@ -6709,6 +6934,7 @@
     "cristian javier": "Cristian Javier",
     "cristian pache": "Cristian Pache",
     "cristopher sanchez": "Cristopher Sánchez",
+    "curtis mead": "Curtis Mead",
     "dalton rushing": "Dalton Rushing",
     "dane myers": "Dane Myers",
     "daniel duarte": "Daniel Duarte",
@@ -6770,6 +6996,7 @@
     "dylan smith": "Dylan Smith",
     "easton mcgee": "Easton McGee",
     "eddy yean": "Eddy Yean",
+    "edgardo henriquez": "Edgardo Henriquez",
     "edmundo sosa": "Edmundo Sosa",
     "eduard bazardo": "Eduard Bazardo",
     "eduardo rodriguez": "Eduardo Rodriguez",
@@ -6800,6 +7027,7 @@
     "esmerlyn valdez": "Esmerlyn Valdez",
     "esteury ruiz": "Esteury Ruiz",
     "ethan pecko": "Ethan Pecko",
+    "ethan roberts": "Ethan Roberts",
     "ethan salas": "Ethan Salas",
     "eugenio suarez": "Eugenio Suárez",
     "eury perez": "Eury Pérez",
@@ -6824,6 +7052,7 @@
     "gabriel gonzalez": "Gabriel Gonzalez",
     "gabriel hughes": "Gabriel Hughes",
     "gabriel moreno": "Gabriel Moreno",
+    "gabriel rincones jr": "Gabriel Rincones Jr.",
     "gage jump": "Gage Jump",
     "garrett acton": "Garrett Acton",
     "garrett cleavinger": "Garrett Cleavinger",
@@ -6851,6 +7080,7 @@
     "graham ashcraft": "Graham Ashcraft",
     "graham pauley": "Graham Pauley",
     "grant anderson": "Grant Anderson",
+    "grant holman": "Grant Holman",
     "grant holmes": "Grant Holmes",
     "grant mccray": "Grant McCray",
     "grant taylor": "Grant Taylor",
@@ -6942,6 +7172,7 @@
     "jakob marsee": "Jakob Marsee",
     "james mcarthur": "James McArthur",
     "james mccann": "James McCann",
+    "james triantos": "James Triantos",
     "james wood": "James Wood",
     "jameson taillon": "Jameson Taillon",
     "janson junk": "Janson Junk",
@@ -6958,6 +7189,7 @@
     "javier assad": "Javier Assad",
     "javier baez": "Javier Báez",
     "javier sanoja": "Javier Sanoja",
+    "jayden murray": "Jayden Murray",
     "jazz chisholm jr": "Jazz Chisholm Jr.",
     "jedixson paez": "Jedixson Paez",
     "jeferson quero": "Jeferson Quero",
@@ -7012,6 +7244,7 @@
     "jordan montgomery": "Jordan Montgomery",
     "jordan romano": "Jordan Romano",
     "jordan walker": "Jordan Walker",
+    "jordan wicks": "Jordan Wicks",
     "jorge barrosa": "Jorge Barrosa",
     "jorge mateo": "Jorge Mateo",
     "jose a ferrer": "José A. Ferrer",
@@ -7065,6 +7298,7 @@
     "junior caminero": "Junior Caminero",
     "justin bruihl": "Justin Bruihl",
     "justin crawford": "Justin Crawford",
+    "justin dean": "Justin Dean",
     "justin foscue": "Justin Foscue",
     "justin hagenman": "Justin Hagenman",
     "justin martinez": "Justin Martinez",
@@ -7075,6 +7309,8 @@
     "kade strowd": "Kade Strowd",
     "kaelen culpepper": "Kaelen Culpepper",
     "kahlil watson": "Kahlil Watson",
+    "kai-wei teng": "Kai-Wei Teng",
+    "kameron misner": "Kameron Misner",
     "kazuma okamoto": "Kazuma Okamoto",
     "kebryan hayes": "Ke'Bryan Hayes",
     "keibert ruiz": "Keibert Ruiz",
@@ -7083,6 +7319,7 @@
     "kenley jansen": "Kenley Jansen",
     "kenny piper": "Kenny Piper",
     "ketel marte": "Ketel Marte",
+    "kevin alcantara": "Kevin Alcántara",
     "kevin gausman": "Kevin Gausman",
     "kevin ginkel": "Kevin Ginkel",
     "kevin kelly": "Kevin Kelly",
@@ -7095,7 +7332,9 @@
     "kohl drake": "Kohl Drake",
     "konnor griffin": "Konnor Griffin",
     "kris bubic": "Kris Bubic",
+    "kristian campbell": "Kristian Campbell",
     "kumar rocker": "Kumar Rocker",
+    "kyle backhus": "Kyle Backhus",
     "kyle farmer": "Kyle Farmer",
     "kyle finnegan": "Kyle Finnegan",
     "kyle freeland": "Kyle Freeland",
@@ -7115,6 +7354,7 @@
     "lake bachar": "Lake Bachar",
     "lamonte wade jr": "LaMonte Wade Jr.",
     "landen roupp": "Landen Roupp",
+    "lane thomas": "Lane Thomas",
     "lars nootbaar": "Lars Nootbaar",
     "lawrence butler": "Lawrence Butler",
     "lazaro montes": "Lazaro Montes",
@@ -7129,6 +7369,7 @@
     "logan gilbert": "Logan Gilbert",
     "logan henderson": "Logan Henderson",
     "logan ohoppe": "Logan O'Hoppe",
+    "logan porter": "Logan Porter",
     "logan vanwey": "Logan VanWey",
     "logan webb": "Logan Webb",
     "louis varland": "Louis Varland",
@@ -7166,6 +7407,7 @@
     "mark manfredi": "Mark Manfredi",
     "mark vientos": "Mark Vientos",
     "martin perez": "Martín Pérez",
+    "masataka yoshida": "Masataka Yoshida",
     "mason adams": "Mason Adams",
     "mason barnett": "Mason Barnett",
     "mason black": "Mason Black",
@@ -7205,6 +7447,7 @@
     "michael rucker": "Michael Rucker",
     "michael soroka": "Michael Soroka",
     "michael stefanic": "Michael Stefanic",
+    "michael toglia": "Michael Toglia",
     "michael wacha": "Michael Wacha",
     "michel otanez": "Michel Otañez",
     "mickey gasper": "Mickey Gasper",
@@ -7221,6 +7464,7 @@
     "mitch farris": "Mitch Farris",
     "mitch spence": "Mitch Spence",
     "moises ballesteros": "Moisés Ballesteros",
+    "moises chace": "Moisés Chace",
     "mookie betts": "Mookie Betts",
     "munetaka murakami": "Munetaka Murakami",
     "myles straw": "Myles Straw",
@@ -7235,6 +7479,7 @@
     "nathan lukes": "Nathan Lukes",
     "nathaniel lowe": "Nathaniel Lowe",
     "nelson velazquez": "Nelson Velázquez",
+    "nestor cortes": "Nestor Cortes",
     "nick allen": "Nick Allen",
     "nick fortes": "Nick Fortes",
     "nick frasso": "Nick Frasso",
@@ -7327,6 +7572,7 @@
     "robinson ortiz": "Robinson Ortiz",
     "roki sasaki": "Roki Sasaki",
     "roman anthony": "Roman Anthony",
+    "romy gonzalez": "Romy Gonzalez",
     "ronald acuna jr": "Ronald Acuña Jr.",
     "ronan kopp": "Ronan Kopp",
     "ronel blanco": "Ronel Blanco",
@@ -7351,6 +7597,7 @@
     "ryan waldschmidt": "Ryan Waldschmidt",
     "ryan walker": "Ryan Walker",
     "ryan watson": "Ryan Watson",
+    "ryan weathers": "Ryan Weathers",
     "ryan yarbrough": "Ryan Yarbrough",
     "ryan zeferjahn": "Ryan Zeferjahn",
     "ryne nelson": "Ryne Nelson",
@@ -7405,12 +7652,14 @@
     "steven cruz": "Steven Cruz",
     "steven kwan": "Steven Kwan",
     "steven matz": "Steven Matz",
+    "steven okert": "Steven Okert",
     "steven zobac": "Steven Zobac",
     "sung-mun song": "Sung-Mun Song",
     "taj bradley": "Taj Bradley",
     "tanner banks": "Tanner Banks",
     "tanner bibee": "Tanner Bibee",
     "tanner gordon": "Tanner Gordon",
+    "tanner houck": "Tanner Houck",
     "tanner scott": "Tanner Scott",
     "tarik skubal": "Tarik Skubal",
     "tatsuya imai": "Tatsuya Imai",
@@ -7448,6 +7697,7 @@
     "trea turner": "Trea Turner",
     "trent grisham": "Trent Grisham",
     "trent harris": "Trent Harris",
+    "trent thornton": "Trent Thornton",
     "trevor larnach": "Trevor Larnach",
     "trevor martin": "Trevor Martin",
     "trevor megill": "Trevor Megill",
@@ -7464,6 +7714,7 @@
     "troy melton": "Troy Melton",
     "troy taylor": "Troy Taylor",
     "troy watson": "Troy Watson",
+    "tsung-che cheng": "Tsung-Che Cheng",
     "turner hill": "Turner Hill",
     "ty france": "Ty France",
     "ty johnson": "Ty Johnson",
@@ -7472,6 +7723,7 @@
     "tyler black": "Tyler Black",
     "tyler callihan": "Tyler Callihan",
     "tyler davis": "Tyler Davis",
+    "tyler ferguson": "Tyler Ferguson",
     "tyler glasnow": "Tyler Glasnow",
     "tyler heineman": "Tyler Heineman",
     "tyler holton": "Tyler Holton",
@@ -7479,6 +7731,7 @@
     "tyler mahle": "Tyler Mahle",
     "tyler phillips": "Tyler Phillips",
     "tyler rogers": "Tyler Rogers",
+    "tyler samaniego": "Tyler Samaniego",
     "tyler stephenson": "Tyler Stephenson",
     "tyler tolbert": "Tyler Tolbert",
     "tyler wells": "Tyler Wells",
@@ -7543,6 +7796,8 @@
     "zac veen": "Zac Veen",
     "zach agnos": "Zach Agnos",
     "zach brzykcy": "Zach Brzykcy",
+    "zach cole": "Zach Cole",
+    "zach dezenzo": "Zach Dezenzo",
     "zach maxwell": "Zach Maxwell",
     "zach mccambley": "Zach McCambley",
     "zach mckinstry": "Zach McKinstry",
@@ -7573,6 +7828,7 @@
     "aj minter": "MIN",
     "aj smith-shawver": "ATL",
     "akil baddoo": "MIL",
+    "alan rangel": "PHI",
     "alan roden": "MIN",
     "albert suarez": "BAL",
     "alec bohm": "PHI",
@@ -7592,6 +7848,7 @@
     "alexander cornielle": "NYY",
     "ali sanchez": "NYY",
     "alika williams": "ATH",
+    "alimber santa": "HOU",
     "amed rosario": "NYY",
     "andre pallante": "STL",
     "andres chaparro": "WSH",
@@ -7600,6 +7857,7 @@
     "andrew abbott": "CIN",
     "andrew alvarez": "WSH",
     "andrew benintendi": "CWS",
+    "andrew hoffmann": "PHI",
     "andrew kittredge": "BAL",
     "andrew knizner": "SF",
     "andrew morris": "MIN",
@@ -7617,6 +7875,7 @@
     "anthony kay": "CWS",
     "anthony molina": "SF",
     "anthony nunez": "BAL",
+    "anthony seigler": "BOS",
     "anthony volpe": "NYY",
     "antonio senzatela": "MIL",
     "antwone kelly": "PIT",
@@ -7640,6 +7899,7 @@
     "ben williamson": "TB",
     "bennett sousa": "HOU",
     "billy cook": "PIT",
+    "bj murray jr": "CHC",
     "blade tidwell": "SF",
     "blake adams": "COL",
     "blake perkins": "CLE",
@@ -7678,6 +7938,7 @@
     "brant hurter": "DET",
     "braxton ashcraft": "PIT",
     "braxton fulford": "COL",
+    "braxton garrett": "CHC",
     "braxton roxby": "SF",
     "brayan bello": "BOS",
     "brayan rocchio": "CLE",
@@ -7699,6 +7960,7 @@
     "brewer hicklen": "ATL",
     "brian navarreto": "MIA",
     "brian serven": "ATH",
+    "brice matthews": "HOU",
     "brice turang": "MIL",
     "brock burke": "CIN",
     "brock rodden": "SEA",
@@ -7803,6 +8065,7 @@
     "cody bellinger": "NYY",
     "cody bradford": "TEX",
     "cody freeman": "TEX",
+    "colby thomas": "PHI",
     "cole carrigg": "COL",
     "cole sulser": "TB",
     "cole wilcox": "SEA",
@@ -7810,6 +8073,7 @@
     "coleman crow": "MIL",
     "colin holderman": "CLE",
     "colin rea": "CHC",
+    "collin price": "HOU",
     "colson montgomery": "CWS",
     "colt keith": "DET",
     "colton cowser": "BAL",
@@ -7834,6 +8098,7 @@
     "cristian javier": "HOU",
     "cristian pache": "NYM",
     "cristopher sanchez": "PHI",
+    "curtis mead": "BOS",
     "dalton rushing": "LAD",
     "dane myers": "CIN",
     "daniel duarte": "NYM",
@@ -7895,6 +8160,7 @@
     "dylan smith": "SF",
     "easton mcgee": "KC",
     "eddy yean": "WSH",
+    "edgardo henriquez": "LAD",
     "edmundo sosa": "PHI",
     "eduard bazardo": "SEA",
     "eduardo rodriguez": "AZ",
@@ -7925,6 +8191,7 @@
     "esmerlyn valdez": "PIT",
     "esteury ruiz": "MIA",
     "ethan pecko": "HOU",
+    "ethan roberts": "CHC",
     "ethan salas": "SD",
     "eugenio suarez": "CIN",
     "eury perez": "MIA",
@@ -7949,6 +8216,7 @@
     "gabriel gonzalez": "MIN",
     "gabriel hughes": "COL",
     "gabriel moreno": "AZ",
+    "gabriel rincones jr": "PHI",
     "gage jump": "ATH",
     "garrett acton": "MIN",
     "garrett cleavinger": "TB",
@@ -7976,6 +8244,7 @@
     "graham ashcraft": "CIN",
     "graham pauley": "MIA",
     "grant anderson": "MIL",
+    "grant holman": "PHI",
     "grant holmes": "ATL",
     "grant mccray": "SF",
     "grant taylor": "CWS",
@@ -8067,6 +8336,7 @@
     "jakob marsee": "MIA",
     "james mcarthur": "KC",
     "james mccann": "AZ",
+    "james triantos": "CHC",
     "james wood": "WSH",
     "jameson taillon": "TOR",
     "janson junk": "MIA",
@@ -8083,6 +8353,7 @@
     "javier assad": "CHC",
     "javier baez": "DET",
     "javier sanoja": "MIA",
+    "jayden murray": "CHC",
     "jazz chisholm jr": "NYY",
     "jedixson paez": "BOS",
     "jeferson quero": "MIL",
@@ -8137,6 +8408,7 @@
     "jordan montgomery": "TEX",
     "jordan romano": "COL",
     "jordan walker": "STL",
+    "jordan wicks": "CHC",
     "jorge barrosa": "HOU",
     "jorge mateo": "TB",
     "jose a ferrer": "SEA",
@@ -8183,13 +8455,14 @@
     "juan mejia": "COL",
     "juan morillo": "AZ",
     "juan soto": "NYM",
-    "julian aguiar": "CIN",
+    "julian aguiar": "CHC",
     "julian garcia": "CIN",
     "julio rodriguez": "SEA",
     "jung hoo lee": "SF",
     "junior caminero": "TB",
     "justin bruihl": "STL",
     "justin crawford": "PHI",
+    "justin dean": "CHC",
     "justin foscue": "TEX",
     "justin hagenman": "NYM",
     "justin martinez": "AZ",
@@ -8200,6 +8473,8 @@
     "kade strowd": "AZ",
     "kaelen culpepper": "MIN",
     "kahlil watson": "CLE",
+    "kai-wei teng": "HOU",
+    "kameron misner": "PHI",
     "kazuma okamoto": "TOR",
     "kebryan hayes": "CIN",
     "keibert ruiz": "WSH",
@@ -8208,6 +8483,7 @@
     "kenley jansen": "DET",
     "kenny piper": "TB",
     "ketel marte": "AZ",
+    "kevin alcantara": "CHC",
     "kevin gausman": "CHC",
     "kevin ginkel": "AZ",
     "kevin kelly": "TB",
@@ -8220,7 +8496,9 @@
     "kohl drake": "AZ",
     "konnor griffin": "PIT",
     "kris bubic": "LAD",
+    "kristian campbell": "BOS",
     "kumar rocker": "TEX",
+    "kyle backhus": "PHI",
     "kyle farmer": "ATL",
     "kyle finnegan": "DET",
     "kyle freeland": "COL",
@@ -8240,6 +8518,7 @@
     "lake bachar": "PIT",
     "lamonte wade jr": "HOU",
     "landen roupp": "SF",
+    "lane thomas": "ATL",
     "lars nootbaar": "AZ",
     "lawrence butler": "ATH",
     "lazaro montes": "SEA",
@@ -8254,6 +8533,7 @@
     "logan gilbert": "SEA",
     "logan henderson": "MIL",
     "logan ohoppe": "TEX",
+    "logan porter": "LAA",
     "logan vanwey": "HOU",
     "logan webb": "SF",
     "louis varland": "TOR",
@@ -8291,6 +8571,7 @@
     "mark manfredi": "COL",
     "mark vientos": "NYM",
     "martin perez": "ATL",
+    "masataka yoshida": "BOS",
     "mason adams": "COL",
     "mason barnett": "ATH",
     "mason black": "KC",
@@ -8330,6 +8611,7 @@
     "michael rucker": "SEA",
     "michael soroka": "AZ",
     "michael stefanic": "ATH",
+    "michael toglia": "SEA",
     "michael wacha": "KC",
     "michel otanez": "TEX",
     "mickey gasper": "BOS",
@@ -8346,6 +8628,7 @@
     "mitch farris": "LAA",
     "mitch spence": "KC",
     "moises ballesteros": "LAA",
+    "moises chace": "PHI",
     "mookie betts": "LAD",
     "munetaka murakami": "CWS",
     "myles straw": "TOR",
@@ -8360,6 +8643,7 @@
     "nathan lukes": "TOR",
     "nathaniel lowe": "CLE",
     "nelson velazquez": "HOU",
+    "nestor cortes": "PHI",
     "nick allen": "HOU",
     "nick fortes": "TB",
     "nick frasso": "COL",
@@ -8452,6 +8736,7 @@
     "robinson ortiz": "SEA",
     "roki sasaki": "LAD",
     "roman anthony": "BOS",
+    "romy gonzalez": "BOS",
     "ronald acuna jr": "ATL",
     "ronan kopp": "LAD",
     "ronel blanco": "HOU",
@@ -8476,6 +8761,7 @@
     "ryan waldschmidt": "AZ",
     "ryan walker": "SF",
     "ryan watson": "LAA",
+    "ryan weathers": "NYY",
     "ryan yarbrough": "NYY",
     "ryan zeferjahn": "CHC",
     "ryne nelson": "AZ",
@@ -8530,12 +8816,14 @@
     "steven cruz": "KC",
     "steven kwan": "CLE",
     "steven matz": "TB",
+    "steven okert": "HOU",
     "steven zobac": "KC",
     "sung-mun song": "SD",
     "taj bradley": "MIN",
     "tanner banks": "PHI",
     "tanner bibee": "CLE",
     "tanner gordon": "COL",
+    "tanner houck": "BOS",
     "tanner scott": "LAD",
     "tarik skubal": "LAD",
     "tatsuya imai": "HOU",
@@ -8573,6 +8861,7 @@
     "trea turner": "PHI",
     "trent grisham": "NYY",
     "trent harris": "SF",
+    "trent thornton": "CHC",
     "trevor larnach": "MIN",
     "trevor martin": "LAA",
     "trevor megill": "MIL",
@@ -8589,6 +8878,7 @@
     "troy melton": "DET",
     "troy taylor": "SEA",
     "troy watson": "SEA",
+    "tsung-che cheng": "BOS",
     "turner hill": "SF",
     "ty france": "SD",
     "ty johnson": "TB",
@@ -8597,6 +8887,7 @@
     "tyler black": "MIL",
     "tyler callihan": "PIT",
     "tyler davis": "CWS",
+    "tyler ferguson": "CHC",
     "tyler glasnow": "LAD",
     "tyler heineman": "LAA",
     "tyler holton": "DET",
@@ -8604,6 +8895,7 @@
     "tyler mahle": "ATL",
     "tyler phillips": "MIA",
     "tyler rogers": "TOR",
+    "tyler samaniego": "BOS",
     "tyler stephenson": "CIN",
     "tyler tolbert": "KC",
     "tyler wells": "TB",
@@ -8668,6 +8960,8 @@
     "zac veen": "COL",
     "zach agnos": "COL",
     "zach brzykcy": "MIA",
+    "zach cole": "HOU",
+    "zach dezenzo": "HOU",
     "zach maxwell": "CIN",
     "zach mccambley": "CIN",
     "zach mckinstry": "DET",

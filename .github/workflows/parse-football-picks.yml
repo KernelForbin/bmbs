@@ -42,6 +42,12 @@ jobs:
 
       # Reads the NFL schedule from ESPN to date the slate; falls back to the
       # card's own kickoff times if ESPN can't be reached.
+      # The live slate as it stands BEFORE this parse. If the new card is the
+      # same slate, the Discord ping says it was UPDATED (and what changed)
+      # instead of announcing it as newly live. Absent is fine: a first card.
+      - name: Keep the live slate as it was
+        run: cp data/football/tickets.json "$RUNNER_TEMP/live-before.json" 2>/dev/null || true
+
       - name: Parse data/football/incoming_picks.txt into data/football/tickets.json
         if: steps.gate.outputs.run == 'yes'
         run: python scripts/parse_football_picks.py --file data/football/incoming_picks.txt
@@ -96,4 +102,4 @@ jobs:
         if: steps.commit.outputs.committed == 'yes'
         env:
           DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
-        run: python scripts/notify_discord.py success --tickets data/football/tickets.json --sport football --mention "${{ steps.who.outputs.uploader }}"
+        run: python scripts/notify_discord.py success --tickets data/football/tickets.json --sport football --mention "${{ steps.who.outputs.uploader }}" --before "$RUNNER_TEMP/live-before.json"

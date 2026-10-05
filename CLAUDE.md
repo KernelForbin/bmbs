@@ -2058,6 +2058,21 @@ the mention is what makes the uploader see it. The uploader id comes from
 that route exists and what happens when it's absent. Deterministic and safe by
 construction.
 
+**A correction is announced as one** (2026-10-04, the user's call). A card
+changed after its picks were already live -- a bet added, a leg fixed -- used to
+get the same "are now LIVE ... Tracking has started" ping as a brand-new slate.
+Every parse workflow (and the auto-fixer) now copies the live tickets file to
+`$RUNNER_TEMP/live-before.json` BEFORE parsing and passes it as `--before`.
+When it holds the SAME slate (`slate_key()`: the date, or for football the
+`weekEnds` week, since a second card in a week replaces the first), the message
+says the card was UPDATED with corrected information and lists what changed
+(`what_changed()`: cards added/removed, legs corrected, stake/payout fixed;
+"details on the existing bets were corrected" when only something behind the
+bets moved). A different slate, or no earlier file, is "now LIVE" as before.
+The auto-fixer's success goes through the same message with `--fixed`.
+Not to be confused with `tickets-previous.json` -- that is the ARCHIVED prior
+slate, a different thing. `test_notify_discord.py` E, `test_workflow_yaml.py` H.
+
 **The failure path: `.github/workflows/auto-fix-parse-failure.yml`.**
 First attempt (2026-09-20) was to fire an unattended Claude Code AGENT off
 a `workflow_run` failure event (`RemoteTrigger`, `action: "create"`) --

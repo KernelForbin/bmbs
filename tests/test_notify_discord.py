@@ -247,6 +247,96 @@ check("D3c ...and with no --mention it posts without one",
       cli_calls[-1][2] is None, cli_calls[-1])
 p.unlink()
 
+
+# ---------------- E. a correction says so ----------------
+# The user's call (2026-10-04): when a card is changed after its picks are
+# already live -- a bet added, a leg fixed -- the ping must say the card was
+# UPDATED with corrected information, not repeat "are now LIVE ... Tracking
+# has started", which read as though nothing had been live before.
+def leg(player, team="DET", market="q_score", quarter=1, who="Kenny"):
+    return {"player": player, "team": team, "market": market, "quarter": quarter, "who": who, "odds": None}
+
+
+def card(name, legs, stake=8.0, payout=80.0):
+    return {"name": name, "legs": legs, "stake": stake, "payout": payout}
+
+
+BEFORE = {"date": "2026-10-04", "endDate": "2026-10-04",
+          "windows": [{"title": "x", "tickets": [card("Ticket 1", [leg("A"), leg("B")]),
+                                                  card("Ticket 2", [leg("C"), leg("D")])]}],
+          "singles": [leg("S1")]}
+
+
+def after(**changes):
+    d = json.loads(json.dumps(BEFORE))
+    d.update(changes)
+    return d
+
+
+b = write_tmp("before", BEFORE)
+
+added = after()
+added["windows"][0]["tickets"].append(card("Ticket 12", [leg("Lions"), leg("Panthers", team="CAR")]))
+a = write_tmp("after", added)
+msg = nd.summarize(a, "combined", b)
+check("E1 the same slate again is an UPDATE, not a new slate going live",
+      "UPDATED" in msg and "now LIVE" not in msg and "Tracking has started" not in msg, msg)
+check("E2 ...that says it was corrected, and what changed",
+      "corrected information" in msg and "Ticket 12 added" in msg, msg)
+check("E3 ...and what the card holds now", "3 parlay cards and 1 single (6 legs)" in msg, msg)
+
+fixed_leg = after()
+fixed_leg["windows"][0]["tickets"][1]["legs"][0] = leg("C", market="rec_yds")
+a = write_tmp("after", fixed_leg)
+msg = nd.summarize(a, "combined", b)
+check("E4 a leg changed on a card already there is a corrected leg", "1 leg corrected" in msg, msg)
+
+money = after()
+money["windows"][0]["tickets"][0]["payout"] = 92.5
+a = write_tmp("after", money)
+msg = nd.summarize(a, "combined", b)
+check("E5 a corrected payout is named too", "stake/payout corrected on 1 card" in msg, msg)
+
+quiet = after(endDate="2026-10-04")
+quiet["windows"][0]["tickets"][0]["legs"][0]["meta"] = "DET"   # display only
+a = write_tmp("after", quiet)
+msg = nd.summarize(a, "combined", b)
+check("E6 a fix to nothing on the bets themselves still says it was an update, plainly",
+      "UPDATED" in msg and "details on the existing bets were corrected" in msg, msg)
+
+new_day = after(date="2026-10-05", endDate="2026-10-05")
+a = write_tmp("after", new_day)
+msg = nd.summarize(a, "combined", b)
+check("E7 a DIFFERENT slate is still announced as newly live", "are now LIVE" in msg and "UPDATED" not in msg, msg)
+
+msg = nd.summarize(a, "combined", REPO_TMP / "_scratch_does_not_exist.json")
+check("E8 no earlier file (a first card) is a new slate, not an error", "are now LIVE" in msg, msg)
+
+wk_before = write_tmp("wk_before", {"date": "2026-10-01", "endDate": "2026-10-06", "weekEnds": "2026-10-06",
+                                    "windows": [], "singles": [leg("X")]})
+wk_after = write_tmp("wk_after", {"date": "2026-10-04", "endDate": "2026-10-06", "weekEnds": "2026-10-06",
+                                  "windows": [], "singles": [leg("X"), leg("Y")]})
+msg = nd.summarize(wk_after, "football", wk_before)
+check("E9 football: a second card in the same NFL WEEK is an update, though its first day differs",
+      "UPDATED" in msg and "1 single added" in msg, msg)
+
+a = write_tmp("after", added)
+msg = nd.summarize(a, "combined", b, fixed=True)
+check("E10 the auto-fixer's success says it fixed it AND that it updated a live card",
+      msg.startswith("\U0001F6E0️ Fixed automatically") and "UPDATED" in msg, msg)
+msg = nd.summarize(a, "combined", None, fixed=True)
+check("E11 ...and a fixed NEW slate says fixed and now live",
+      msg.startswith("\U0001F6E0️ Fixed automatically") and "are now LIVE" in msg, msg)
+
+sys.argv = ["notify_discord.py", "success", "--tickets", str(a), "--sport", "combined", "--before", str(b)]
+nd.main()
+check("E12 the CLI's --before reaches the message", "UPDATED" in cli_calls[-1][1], cli_calls[-1])
+sys.argv = ["notify_discord.py", "success", "--tickets", str(a), "--sport", "combined", "--before", str(b), "--fixed"]
+nd.main()
+check("E13 ...and so does --fixed", cli_calls[-1][1].startswith("\U0001F6E0"), cli_calls[-1])
+for f in (a, b, wk_before, wk_after):
+    f.unlink()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

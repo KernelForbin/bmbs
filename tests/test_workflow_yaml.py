@@ -385,6 +385,32 @@ nd_src = (SCRIPTS / "notify_discord.py").read_text(encoding="utf-8")
 check("G9 the success message says the picks are LIVE now, not that they should be soon",
       "are now LIVE on" in nd_src and "Tracking has started" in nd_src)
 
+# ---- H. a correction is announced as one ---------------------------------
+# A card changed after its picks went live used to get the same "are now LIVE
+# ... Tracking has started" ping as a brand-new slate. Telling the two apart
+# needs the live file as it stood BEFORE the parse rewrote it -- so it must be
+# saved before the parse step, and handed to the notifier.
+for wf_name, tickets, parse_step in (
+        ("parse-picks.yml", "data/tickets.json", "Parse data/incoming_picks.txt"),
+        ("parse-football-picks.yml", "data/football/tickets.json", "Parse data/football/incoming_picks.txt"),
+        ("parse-combined-picks.yml", "data/combined/tickets.json", "Parse data/combined/incoming_picks.txt")):
+    body = (WORKFLOWS / wf_name).read_text(encoding="utf-8")
+    keep = body.find(f'cp {tickets} "$RUNNER_TEMP/live-before.json"')
+    check(f"H1 {wf_name} saves the live slate BEFORE it parses",
+          keep != -1 and keep < body.find(f"- name: {parse_step}"), wf_name)
+    check(f"H2 {wf_name}'s success ping is given it",
+          re.search(r"notify_discord\.py success [^\n]*--before \"\$RUNNER_TEMP/live-before\.json\"", body) is not None,
+          wf_name)
+keep = af_text.find('cp "$TICKETS" "$RUNNER_TEMP/live-before.json"')
+check("H3 the auto-fixer saves the live slate before IT re-parses",
+      keep != -1 and keep < af_text.find("- name: Attempt an automatic fix"))
+check("H4 ...and its success uses the same message, marked as fixed, with that file",
+      re.search(r'notify_discord\.py success --tickets "\$TICKETS" --sport "\$SPORT"[^\n]*\n[^\n]*'
+                r'--before "\$RUNNER_TEMP/live-before\.json" --fixed', af_text) is not None)
+check("H5 ...and only on the branch where the fix was resolved AND pushed",
+      re.search(r'RESOLVED"\s*=\s*"yes"\s*\]\s*&&\s*\[\s*"\$COMMIT_OUTCOME"\s*=\s*"success"\s*\];\s*then'
+                r'(?:\s*#[^\n]*)*\s*python scripts/notify_discord\.py success', af_text) is not None)
+
 
 print()
 if failures:

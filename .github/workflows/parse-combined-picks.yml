@@ -26,6 +26,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      # The live slate as it stands BEFORE this parse. If the new card is the
+      # same slate, the Discord ping says it was UPDATED (and what changed)
+      # instead of announcing it as newly live. Absent is fine: a first card.
+      - name: Keep the live slate as it was
+        run: cp data/combined/tickets.json "$RUNNER_TEMP/live-before.json" 2>/dev/null || true
+
       - name: Parse data/combined/incoming_picks.txt into data/combined/tickets.json
         run: python scripts/parse_combined_picks.py --file data/combined/incoming_picks.txt
 
@@ -76,4 +82,4 @@ jobs:
         if: steps.commit.outputs.committed == 'yes'
         env:
           DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
-        run: python scripts/notify_discord.py success --tickets data/combined/tickets.json --sport combined --mention "${{ steps.who.outputs.uploader }}"
+        run: python scripts/notify_discord.py success --tickets data/combined/tickets.json --sport combined --mention "${{ steps.who.outputs.uploader }}" --before "$RUNNER_TEMP/live-before.json"

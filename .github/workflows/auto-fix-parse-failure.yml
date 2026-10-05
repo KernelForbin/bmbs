@@ -112,6 +112,14 @@ jobs:
           pip install -r tests/requirements.txt
           python -m playwright install --with-deps chromium
 
+      # The live slate before the fixer re-parses (and so rewrites) it -- see
+      # the parse workflows. Lets the success message say UPDATED when the
+      # upload was a correction to a card already live.
+      - name: Keep the live slate as it was
+        env:
+          TICKETS: ${{ steps.sport.outputs.tickets }}
+        run: cp "$TICKETS" "$RUNNER_TEMP/live-before.json" 2>/dev/null || true
+
       - name: Attempt an automatic fix
         id: fix
         env:
@@ -170,9 +178,15 @@ jobs:
           # 'transport' means every attempt died before the model answered, so
           # the upload was never actually judged -- see below.
           REASON: ${{ steps.fix.outputs.reason }}
+          TICKETS: ${{ steps.sport.outputs.tickets }}
         run: |
           if [ "$RESOLVED" = "yes" ] && [ "$COMMIT_OUTCOME" = "success" ]; then
-            TEXT="✅ Fixed automatically — your ${SPORT} card is parsed and live on bmbs.bet."
+            # The same message a first-pass parse posts, marked as fixed -- so a
+            # correction to a card already live says UPDATED and what changed,
+            # not "now live" as though nothing had been there before.
+            python scripts/notify_discord.py success --tickets "$TICKETS" --sport "$SPORT" \
+              --mention "$UPLOADER" --before "$RUNNER_TEMP/live-before.json" --fixed
+            exit 0
           elif [ "$RESOLVED" = "yes" ]; then
             TEXT="⚠️ Found a fix for the ${SPORT} upload but couldn't push it -- needs a look. Check the Actions tab."
           elif [ "$REASON" = "transport" ]; then

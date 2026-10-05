@@ -438,6 +438,13 @@ with sync_playwright() as p:
         check(f"I1 {path}: every entry has its own Play overlay button",
               n_rows > 0 and pg.locator(".bell-item button.bell-replay").count() == n_rows,
               (n_rows, pg.locator(".bell-item button.bell-replay").count()))
+        btn = pg.locator(".bell-item button.bell-replay").first
+        # Wordless on purpose (2026-10-04, "more subtle"): an icon, no label on
+        # screen -- but still a named control for a screen reader and on hover.
+        check(f"I1b {path}: the replay control is an icon, not words, and still says what it does",
+              btn.inner_text().strip() == "" and btn.locator("svg").count() == 1
+              and "Replay" in (btn.get_attribute("aria-label") or "") and btn.get_attribute("title"),
+              (btn.inner_text(), btn.get_attribute("aria-label")))
         replay(pg, "leg")
         txt = overlay_text(pg)
         want = leg_word or ("TOUCHDOWN!" if "TOUCHDOWN!" in txt else "BOMB!")

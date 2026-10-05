@@ -650,7 +650,9 @@ whistle), and football I8/I9 pin both halves.
 
 ## Notification bell (all three pages)
 
-**Every entry has a Play overlay button** (2026-10-04) that shows its alert
+**Every entry has a replay control** (2026-10-04) -- a wordless icon under its
+time, a bell inside a circling arrow (it was a "Play overlay" text pill until
+the user asked for something subtler; `aria-label`/`title` still name it) -- that shows its alert
 again -- the gold cash card for a bet entry -- repeatably and with the overlay
 toggle OFF, since tapping it is the request. A replay goes to the FRONT of the
 queue and replaces a replay already on screen (`BOMB_SHOWING_REPLAY`), so two

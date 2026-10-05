@@ -404,10 +404,15 @@
   .mkt-tag { font-family:'Inter',sans-serif; font-size:9px; font-weight:700; letter-spacing:.07em; border-radius:4px; padding:1px 5px; vertical-align:2px;
     color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
   .bell-meta { font-size: 11.5px; color: var(--text-faint); margin-top: 4px; }
-  .bell-replay { margin-top: 6px; font: 600 11px 'Inter', sans-serif; letter-spacing: .02em;
-    color: var(--text-dim); background: transparent; border: 1px solid var(--panel-line);
-    border-radius: 999px; padding: 3px 10px; cursor: pointer; }
-  .bell-replay:hover, .bell-replay:focus-visible { color: var(--text); border-color: var(--text-dim); }
+  /* Replay: a wordless icon -- a bell inside a circling arrow -- under the
+     time. It was a "Play overlay" pill under every entry, which was the
+     loudest thing in the list; the user asked for something subtler. The
+     label and tooltip still say what it does, for screen readers and hover. */
+  .bell-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .bell-replay { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+    margin-right: -5px; padding: 0; border: 0; border-radius: 50%; background: transparent;
+    color: var(--text-faint); cursor: pointer; opacity: .75; }
+  .bell-replay:hover, .bell-replay:focus-visible { color: var(--text); opacity: 1; background: var(--panel-line); }
   .bell-time { flex: 0 0 auto; font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 </style>
 </head>
@@ -2952,9 +2957,8 @@ function bellItemHtml(item, unread) {
         <div class="bell-title">${escapeHtml(item.name)} cashed</div>
         <div class="bell-sub">${escapeHtml(legs)}${money ? " \u00b7 " + escapeHtml(money) : ""}</div>
         <div class="bell-meta">${item.book ? "Bet by " + escapeHtml(item.book) + " \u00b7 " : ""}${escapeHtml((item.on || []).join(" + "))}</div>
-        <button type="button" class="bell-replay" data-replay="${escapeHtml(item.id)}">&#9654; Play overlay</button>
       </div>
-      <div class="bell-time">${escapeHtml(bellTime(item))}</div>
+      <div class="bell-side"><div class="bell-time">${escapeHtml(bellTime(item))}</div><button type="button" class="bell-replay" data-replay="${escapeHtml(item.id)}" aria-label="Replay this notification" title="Replay this notification"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/><path d="M12 8.2a2.6 2.6 0 0 0-2.6 2.6c0 2.3-.9 3-.9 3h7s-.9-.7-.9-3A2.6 2.6 0 0 0 12 8.2z"/><path d="M11.25 15.9a.85.85 0 0 0 1.5 0"/></svg></button></div>
     </div>`;
   }
   const meta = [item.team, item.odds, item.bettor].filter(Boolean).join(" \u00b7 ");
@@ -2965,9 +2969,8 @@ function bellItemHtml(item, unread) {
       <div class="bell-title">${escapeHtml(item.who)}</div>
       <div class="bell-sub">${escapeHtml(item.what)} hit</div>
       <div class="bell-meta">${escapeHtml([meta, on].filter(Boolean).join(" \u00b7 "))}</div>
-      <button type="button" class="bell-replay" data-replay="${escapeHtml(item.id)}">&#9654; Play overlay</button>
     </div>
-    <div class="bell-time">${escapeHtml(bellTime(item))}</div>
+    <div class="bell-side"><div class="bell-time">${escapeHtml(bellTime(item))}</div><button type="button" class="bell-replay" data-replay="${escapeHtml(item.id)}" aria-label="Replay this notification" title="Replay this notification"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/><path d="M12 8.2a2.6 2.6 0 0 0-2.6 2.6c0 2.3-.9 3-.9 3h7s-.9-.7-.9-3A2.6 2.6 0 0 0 12 8.2z"/><path d="M11.25 15.9a.85.85 0 0 0 1.5 0"/></svg></button></div>
   </div>`;
 }
 

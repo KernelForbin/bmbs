@@ -1387,6 +1387,30 @@ with sync_playwright() as p:
     check("T23 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
+# ---------- T2. a football stat prop is WAITING before kickoff ----------
+# It read "live" pre-game -- only "is every game final" was asked -- while an
+# anytime-TD leg on the same team read "not started" (2026-10-05).
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [
+                     card(96, [nfl_leg_m(1, "Big Catch", "PHI", "rec_yds", 29.5, "21"),
+                               nfl_leg(2, "Big Run", "PHI", "23")])]}], "singles": []}
+FX["mlb_sched"][DAY] = {"dates": []}
+t_game("pre", [[], []])
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    ls = leg_states(page)
+    check("T2a before kickoff a yardage prop is not started, the same as a TD leg on his team",
+          ls.get("O1") == "not_started" and ls.get("L2") == "not_started", ls)
+    FX["espn_summaries"]["9001"] = espn_summary(
+        "9001", "in", {"PHI": [("21", "Big Catch", "receiving", (2, 18, 0, 3))]}, (7, 0),
+        quarters=[[7], [0]])
+    FX["espn_events"] = {"9001": espn_event("9001", "in", (7, 0), [[7], [0]])}
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    check("T2b ...and live once the game is on", leg_states(page).get("O1") == "live", leg_states(page))
+    check("T2c no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
 # ---------- U. the side that hasn't batted yet ----------
 # Top of the 1st: the home side has no plate appearances, so its next hitter
 # couldn't be worked out and every home pick had no batting context -- the

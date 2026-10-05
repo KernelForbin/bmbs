@@ -2650,6 +2650,10 @@ function stateForNflStat(leg, key) {
   if (!names.length) return "untracked";
   const rows = names.map(n => NFL.stat(n, key));
   if (rows.some(r => !r)) return "not_started";       // a game we can't find yet
+  // Before kickoff it is WAITING. Only "is every game final" was asked below,
+  // so a pre-game prop read "live" -- beside an anytime-TD leg on the same
+  // team correctly reading "not started" (2026-10-05, Falcons-Saints).
+  if (rows.every(r => r.status === "preview")) return "not_started";
   const total = rows.reduce((sum, r) => sum + r.value, 0);
   const line = legLine(leg);
   const over = legSide(leg) !== "under";
@@ -2740,6 +2744,8 @@ function stateForAllQuarters(leg) {
 function stateForTeamTotal(leg) {
   const row = teamScoreFor(leg);
   if (!row) return "not_started";
+  // Same gap as the NFL stat props: a game not yet begun is not "live".
+  if (row.status === "preview" || row.runs === null) return "not_started";
   const line = legLine(leg);
   const final = row.status === "final";
   const over = legSide(leg) !== "under";

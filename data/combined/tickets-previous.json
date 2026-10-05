@@ -1,0 +1,581 @@
+{
+  "date": "2026-10-04",
+  "endDate": "2026-10-04",
+  "note": "",
+  "sports": [
+    "mlb",
+    "nfl"
+  ],
+  "windows": [
+    {
+      "title": "Parlay Cards",
+      "tickets": [
+        {
+          "name": "Ticket 1",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$81.87</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 81.87,
+          "legs": [
+            {
+              "id": "p0-c0-l0",
+              "player": "Braelon Allen",
+              "team": "NYJ",
+              "who": "",
+              "meta": "NYJ",
+              "odds": "+130",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4685247"
+            },
+            {
+              "id": "p0-c0-l1",
+              "player": "Keon Coleman",
+              "team": "BUF",
+              "who": "",
+              "meta": "BUF",
+              "odds": "+106",
+              "time": "",
+              "market": "rec_yds",
+              "line": 14.5,
+              "sport": "nfl",
+              "athleteId": "4635008"
+            },
+            {
+              "id": "p0-c0-l2",
+              "player": "Braves",
+              "team": "ATL",
+              "who": "",
+              "meta": "ATL",
+              "odds": "+118",
+              "time": "",
+              "market": "team_total",
+              "line": 3.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 2",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$115.15</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 115.15,
+          "legs": [
+            {
+              "id": "p0-c1-l0",
+              "player": "Zay Flowers",
+              "team": "BAL",
+              "who": "",
+              "meta": "BAL",
+              "odds": "+135",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4429615"
+            },
+            {
+              "id": "p0-c1-l1",
+              "player": "Puka Nacua",
+              "team": "LAR",
+              "who": "",
+              "meta": "LAR",
+              "odds": "+150",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4426515"
+            },
+            {
+              "id": "p0-c1-l2",
+              "player": "Mookie Betts",
+              "team": "LAD",
+              "who": "",
+              "meta": "LAD",
+              "odds": "+145",
+              "time": "",
+              "market": "tb",
+              "line": 1.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 3",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$132.50</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 132.5,
+          "legs": [
+            {
+              "id": "p0-c2-l0",
+              "player": "Dalton Kincaid",
+              "team": "BUF",
+              "who": "",
+              "meta": "BUF",
+              "odds": "+160",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4385690"
+            },
+            {
+              "id": "p0-c2-l1",
+              "player": "Parker Washington",
+              "team": "JAX",
+              "who": "",
+              "meta": "JAX",
+              "odds": "+145",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4432620"
+            },
+            {
+              "id": "p0-c2-l2",
+              "player": "Fernando Tatis Jr.",
+              "team": "SD",
+              "who": "",
+              "meta": "SD",
+              "odds": "+160",
+              "time": "",
+              "market": "hrr",
+              "line": 2.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 4",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$126.19</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 126.19,
+          "legs": [
+            {
+              "id": "p0-c3-l0",
+              "player": "Christian Watson",
+              "team": "GB",
+              "who": "",
+              "meta": "GB",
+              "odds": "+170",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4248528"
+            },
+            {
+              "id": "p0-c3-l1",
+              "player": "Jeremiyah Love",
+              "team": "ARI",
+              "who": "",
+              "meta": "ARI",
+              "odds": "+154",
+              "time": "",
+              "market": "rush_yds",
+              "line": 79.5,
+              "sport": "nfl",
+              "athleteId": "4870808"
+            },
+            {
+              "id": "p0-c3-l2",
+              "player": "Manny Machado",
+              "team": "SD",
+              "who": "",
+              "meta": "SD",
+              "odds": "+130",
+              "time": "",
+              "market": "tb",
+              "line": 1.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 5",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$159.00</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 159.0,
+          "legs": [
+            {
+              "id": "p0-c4-l0",
+              "player": "DJ Moore",
+              "team": "BUF",
+              "who": "",
+              "meta": "BUF",
+              "odds": "+150",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "3915416"
+            },
+            {
+              "id": "p0-c4-l1",
+              "player": "Luther Burden III",
+              "team": "CHI",
+              "who": "",
+              "meta": "CHI",
+              "odds": "+200",
+              "time": "",
+              "market": "td",
+              "sport": "nfl",
+              "athleteId": "4685278"
+            },
+            {
+              "id": "p0-c4-l2",
+              "player": "Matt Olson",
+              "team": "",
+              "who": "",
+              "meta": "",
+              "odds": null,
+              "time": "",
+              "market": "tb",
+              "line": 1.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 6",
+          "sub": "3-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$282.47</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 282.47,
+          "legs": [
+            {
+              "id": "p0-c5-l0",
+              "player": "Josh Allen",
+              "team": "BUF",
+              "who": "",
+              "meta": "BUF",
+              "odds": "+235",
+              "time": "",
+              "market": "pass_tds",
+              "line": 2.5,
+              "sport": "nfl",
+              "athleteId": "3918298"
+            },
+            {
+              "id": "p0-c5-l1",
+              "player": "Derrick Henry",
+              "team": "BAL",
+              "who": "",
+              "meta": "BAL",
+              "odds": "+240",
+              "time": "",
+              "market": "td_count",
+              "line": 1.5,
+              "sport": "nfl",
+              "athleteId": "3043078"
+            },
+            {
+              "id": "p0-c5-l2",
+              "player": "Justin Herbert",
+              "team": "LAC",
+              "who": "",
+              "meta": "LAC",
+              "odds": "+210",
+              "time": "",
+              "market": "pass_tds",
+              "line": 1.5,
+              "sport": "nfl",
+              "athleteId": "4038941"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 7",
+          "sub": "2-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$255.36</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 255.36,
+          "legs": [
+            {
+              "id": "p0-c6-l0",
+              "player": "Jake Bauers",
+              "team": "MIL",
+              "who": "",
+              "meta": "MIL",
+              "odds": "+460",
+              "time": "",
+              "line": 0.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c6-l1",
+              "player": "Austin Riley",
+              "team": "ATL",
+              "who": "",
+              "meta": "ATL",
+              "odds": "+470",
+              "time": "",
+              "line": 0.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 8",
+          "sub": "2-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$182.00</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 182.0,
+          "legs": [
+            {
+              "id": "p0-c7-l0",
+              "player": "Fernando Tatis Jr.",
+              "team": "SD",
+              "who": "",
+              "meta": "SD",
+              "odds": "+411",
+              "time": "",
+              "line": 0.5,
+              "sport": "mlb"
+            },
+            {
+              "id": "p0-c7-l1",
+              "player": "Shohei Ohtani",
+              "team": "LAD",
+              "who": "",
+              "meta": "LAD",
+              "odds": "+344",
+              "time": "",
+              "line": 0.5,
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 9",
+          "sub": "2-Leg",
+          "foot": "<b>$8.00</b> bet &middot; Potential payout <b>$146.32</b>",
+          "stake": 8.0,
+          "book": "",
+          "payout": 146.32,
+          "legs": [
+            {
+              "id": "p0-c8-l0",
+              "player": "Amon-Ra St. Brown, Chuba Hubbard, Jahmyr Gibbs",
+              "team": "DET",
+              "who": "",
+              "meta": "DET",
+              "odds": "+210",
+              "time": "",
+              "market": "td_count",
+              "line": 3.5,
+              "sport": "nfl",
+              "players": [
+                "Amon-Ra St. Brown",
+                "Chuba Hubbard",
+                "Jahmyr Gibbs"
+              ],
+              "athleteIds": [
+                "4374302",
+                "4241416",
+                "4429795"
+              ]
+            },
+            {
+              "id": "p0-c8-l1",
+              "player": "Brice Turang",
+              "team": "MIL",
+              "who": "",
+              "meta": "MIL",
+              "odds": "+490",
+              "time": "",
+              "market": "doubles",
+              "sport": "mlb"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 11",
+          "sub": "3-Leg",
+          "foot": "<b>$4.00</b> bet &middot; Potential payout <b>$510.64</b>",
+          "stake": 4.0,
+          "book": "",
+          "payout": 510.64,
+          "legs": [
+            {
+              "id": "p0-c9-l0",
+              "player": "Lions/Panthers Each team to score",
+              "team": "DET",
+              "who": "",
+              "meta": "DET",
+              "odds": "+500",
+              "time": "",
+              "market": "quarters",
+              "players": [
+                "Lions",
+                "Panthers Each team to score all four quarters"
+              ],
+              "sport": "nfl",
+              "teams": [
+                "DET",
+                "CAR"
+              ]
+            },
+            {
+              "id": "p0-c9-l1",
+              "player": "Deone Walker",
+              "team": "BUF",
+              "who": "",
+              "meta": "BUF",
+              "odds": "+308",
+              "time": "",
+              "market": "sacks",
+              "line": 0.5,
+              "sport": "nfl",
+              "athleteId": "4831989"
+            },
+            {
+              "id": "p0-c9-l2",
+              "player": "David Bailey",
+              "team": "NYJ",
+              "who": "",
+              "meta": "NYJ",
+              "odds": "+249",
+              "time": "",
+              "market": "sacks",
+              "line": 0.5,
+              "sport": "nfl",
+              "athleteId": "4685248"
+            }
+          ]
+        },
+        {
+          "name": "Ticket 12",
+          "sub": "8-Leg",
+          "foot": "<b>$9.88</b> bet by Kenny &middot; Potential payout <b>$84.00</b>",
+          "stake": 9.88,
+          "book": "Kenny",
+          "payout": 84.0,
+          "legs": [
+            {
+              "id": "p0-c10-l0",
+              "player": "Lions",
+              "team": "DET",
+              "who": "Kenny",
+              "meta": "DET",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 1
+            },
+            {
+              "id": "p0-c10-l1",
+              "player": "Panthers",
+              "team": "CAR",
+              "who": "Kenny",
+              "meta": "CAR",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 1
+            },
+            {
+              "id": "p0-c10-l2",
+              "player": "Lions",
+              "team": "DET",
+              "who": "Kenny",
+              "meta": "DET",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 2
+            },
+            {
+              "id": "p0-c10-l3",
+              "player": "Panthers",
+              "team": "CAR",
+              "who": "Kenny",
+              "meta": "CAR",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 2
+            },
+            {
+              "id": "p0-c10-l4",
+              "player": "Lions",
+              "team": "DET",
+              "who": "Kenny",
+              "meta": "DET",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 3
+            },
+            {
+              "id": "p0-c10-l5",
+              "player": "Panthers",
+              "team": "CAR",
+              "who": "Kenny",
+              "meta": "CAR",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 3
+            },
+            {
+              "id": "p0-c10-l6",
+              "player": "Lions",
+              "team": "DET",
+              "who": "Kenny",
+              "meta": "DET",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 4
+            },
+            {
+              "id": "p0-c10-l7",
+              "player": "Panthers",
+              "team": "CAR",
+              "who": "Kenny",
+              "meta": "CAR",
+              "odds": null,
+              "time": "",
+              "market": "q_score",
+              "sport": "nfl",
+              "quarter": 4
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "singles": [
+    {
+      "id": "single-0",
+      "who": "",
+      "player": "Jaxon Smith-Njigba",
+      "team": "SEA",
+      "meta": "SEA",
+      "odds": null,
+      "stake": 4.0,
+      "payout": 52.0,
+      "pp": "PP $52.00",
+      "market": "most_rec_yds",
+      "sport": "nfl",
+      "athleteId": "4430878"
+    }
+  ]
+}

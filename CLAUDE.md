@@ -682,12 +682,32 @@ his total-bases leg are still separate.
 **It BACKFILLS, the opposite of the alerts' flood guard, on purpose** (the
 user's choice). The overlay must never replay an afternoon at you; a log you
 open when you like should let you catch up. So the first scan after a page
-load logs everything already hit -- labelled **"Earlier"**, because this
-browser only knows when it NOTICED those, not when they happened. Anything
-found on a later scan gets a clock time, which with 10-second polling is
-close to when it really happened. Times pass `timeZone` (see the sync-line
-note above) -- `test_bell.py` G1 pins it from a Pacific browser, because this
-machine is on Eastern and an un-zoned format passes here.
+load logs everything already hit.
+
+**Every entry is stamped with when it HAPPENED, and sorted on it** (2026-10-04,
+the user's rule: newest on top, the ET time shown on every entry). Entries were
+first stamped with when this browser NOTICED them, so everything caught on
+opening shared one moment, read "Earlier", and sorted arbitrarily -- a 7:40
+leg could sit under a 7:10 one. `legHitTime(leg)` -> `{t, approx}` reads the
+play-by-play the page already fetches:
+- MLB: home runs and steals carry their own time; a stat prop is the play on
+  which the running count reached its line (`snapshot.timeline`: each finished
+  play's time, batter, pitcher, event, RBI and SCORERS -- `isScoringEvent` was
+  added to `FEED_FIELDS` for runs, and `test_feed_fields.py` now compares the
+  timeline); a team or game total, the play that pushed the runs past it; an
+  under, a win, a moneyline or a spread, the final out.
+- NFL (`NFL.hitTime`, off `snapshot.playLog`: every drive play's wallclock,
+  quarter, score, yardage, text): a touchdown's scoring play; "team to score in
+  Q2" the play in that quarter where its score went up; yards / catches /
+  sacks summed from the play TEXT ("pass ... to K.Coleman"), since ESPN names
+  nobody on a play anywhere else -- `textKey()` builds ESPN's "F.Last".
+- A bet cashed when its LAST leg landed (`betWhen`).
+- `approx` ("~") is a guess -- the final whistle when nothing better was found.
+  Nothing placeable at all falls back to when the browser saw it: exact to a
+  poll if it was watching, else "by 8:00 PM ET" -- an honest bound, never an
+  invented time. A time can sharpen on a later scan, so it is refreshed.
+Times pass `timeZone` (see the sync-line note above) -- `test_bell.py` G1 pins
+it from a Pacific browser. J1-J12 pin the rest, AA17/18 the MLB stat timing.
 
 **It follows `SLATES.today || SLATES.yesterday`, never today alone.** Scanning
 only today meant a slate that had finished -- rolled to Yesterday, Today empty
@@ -1205,6 +1225,17 @@ tidy fixture `player` let the mutation through. A grid per team (scored /
 owed in the quarter being played / not reached) plus one line on what is
 still owed. On the wall while either game is live; no player, so it counts
 toward the game tiles.
+
+**A tile's header never cuts off its status, and drops a market label the
+progress line already says** (2026-10-04). "LEADS OFF NEXT" was ellipsised to
+"LEAD..." to make room for "TOTAL BASES +145 🧇" -- the user asked whether the
+blue label was needed, since "0 of 2 total bases" under the name is what tracks
+the bet. It isn't: with ONE kind of bet on a man, the odds row is just the
+price. Labels stay only when he carries two kinds (HR +390 and HITS +150),
+where bare prices couldn't be told apart. The status is never truncated; the
+prices wrap to a second line instead (all three pages' CSS). The due-up line
+also says where he bats ("Top 5 · batting 1st"). `test_live_at_bats.py`
+AB6/AB7, Z3/Z13, `test_steals.py` A8/A8b.
 
 **The tile's odds row lists HR prices from HR entries only** (`labOddsHtml`,
 both pages). It used to print `pick.odds` -- every non-steal price -- under an

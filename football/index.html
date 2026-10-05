@@ -146,9 +146,12 @@
   .drives-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:7px; margin-top:10px; }
   .drives-empty { grid-column:1 / -1; font-size:12px; color:var(--text-faint); padding:6px 2px 2px; }
   .ab-tile { position:relative; display:block; text-decoration:none; color:inherit; background:var(--bg); border:1px solid var(--panel-line); border-radius:9px; padding:8px 9px 8px; overflow:hidden; }
-  .ab-top { display:flex; align-items:center; justify-content:space-between; gap:6px; }
-  .ab-tag { font-size:9px; font-weight:700; letter-spacing:.07em; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
-  .ab-odds { font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; color:var(--amber); white-space:nowrap; flex:none; }
+  /* The status (LEADS OFF NEXT, ON DECK...) is never cut off: it keeps its full
+     width, and when the prices don't fit beside it they drop to a second line,
+     right-aligned. It was ellipsised to "LEAD..." with no way to read it. */
+  .ab-top { display:flex; align-items:center; justify-content:space-between; gap:2px 6px; flex-wrap:wrap; }
+  .ab-tag { font-size:9px; font-weight:700; letter-spacing:.07em; color:var(--text-dim); flex:0 0 auto; max-width:100%; }
+  .ab-odds { font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; color:var(--amber); white-space:nowrap; flex:none; margin-left:auto; }
   .ab-name { font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; line-height:1.15; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ab-line { font-size:10.5px; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ab-line.faint { color:var(--text-faint); }
@@ -2798,6 +2801,10 @@ function bellScan() {
         ev = { id: key, kind: "leg", who: bellPlain(who), what, team: leg.team || "",
                odds: bellOdds(leg.odds), bettor: bellPlain(leg.who || ""), bets: [] };
         legEvents.set(key, ev);
+        // When it HAPPENED, off the play-by-play -- not when this browser
+        // noticed. Worked out once, the first time the leg is seen.
+        const hit = legHitTime(leg);
+        if (hit) { ev.when = hit.t; ev.approx = !!hit.approx; }
       }
       const b = bellPlain(betName);
       if (b && !ev.bets.includes(b)) ev.bets.push(b);
@@ -2810,7 +2817,8 @@ function bellScan() {
       legs.forEach((leg, li) => { if (states[li] === "hit") noteLeg(leg, tk.name); });
       const res = evaluateTicket(tk, states);
       if (res.outcome === "hit") {
-        bets.push({ id: "bet:p:" + wi + ":" + ti + ":" + bellPlain(tk.name).toLowerCase(),
+        bets.push({ ...betWhen(legs.filter((l, i) => states[i] === "hit")),
+                    id: "bet:p:" + wi + ":" + ti + ":" + bellPlain(tk.name).toLowerCase(),
                     kind: "bet", name: bellPlain(tk.name), sub: bellPlain(tk.sub),
                     legs: legs.length, stake: tk.stake, payout: res.adjustedPayout || tk.payout,
                     book: bellPlain(tk.book || ""),
@@ -2827,7 +2835,7 @@ function bellScan() {
       // same rule as a leg that finishes a parlay.
       noteLeg(sg, "Single");
       if (singleOutcome(state) === "hit") {
-        bets.push({ id: "bet:s:" + si + ":" + bellPlain(sg.player).toLowerCase(),
+        bets.push({ ...betWhen([sg]), id: "bet:s:" + si + ":" + bellPlain(sg.player).toLowerCase(),
                     kind: "bet", name: "Single", sub: bellPlain(sg.player), legs: 1,
                     stake: sg.stake, payout: sg.payout, book: bellPlain(sg.who || ""),
                     on: [bellPlain(sg.player)] });
@@ -2840,6 +2848,11 @@ function bellScan() {
       if (prior) {
         // Already logged: keep its time and read state, but let a leg pick up
         // a bet it turned out to be on as well.
+        // The event time can sharpen later -- a guess replaced by the real
+        // play once it is in the feed -- so it is refreshed, never frozen.
+        if (item.when && (prior.when !== item.when || !!prior.approx !== !!item.approx)) {
+          prior.when = item.when; prior.approx = !!item.approx; changed = true;
+        }
         if (item.kind === "leg" && item.bets.length !== (prior.bets || []).length) {
           prior.bets = item.bets; changed = true;
         }
@@ -2889,17 +2902,43 @@ document.addEventListener("click", e => {
   if (btn) bellReplay(btn.getAttribute("data-replay"));
 });
 
+// When a leg actually HIT: his touchdown's own time, off the scoring play --
+// not the moment this browser noticed it, which for everything caught on
+// opening the page was one shared moment ("Earlier"), sorted arbitrarily.
+function legHitTime(leg) {
+  const norm = normalizeName(leg.player || "");
+  const mine = (RESULTS.touchdowns || [])
+    .filter(td => td.time && normalizeName(td.scorer) === norm && (!leg.team || !td.team || td.team === leg.team))
+    .map(td => Date.parse(td.time)).sort((a, b) => a - b);
+  return mine.length ? { t: mine[0], approx: false } : null;
+}
+
 function bellUnread() {
   const seen = new Set(BELL.seen);
   return BELL.items.filter(i => !seen.has(i.id)).length;
 }
 
-function bellTime(item) {
-  if (item.early) return "Earlier";
-  // timeZone is required: the whole site talks in ET, and without it this
-  // formats the VISITOR's clock under an ET label -- the sync-line bug.
-  return new Date(item.at).toLocaleTimeString("en-US",
+// A bet cashed when its LAST leg landed. Unknown if any leg's time is.
+function betWhen(legs) {
+  const hits = legs.map(legHitTime);
+  if (!hits.length || hits.some(h => !h)) return {};
+  return { when: Math.max(...hits.map(h => h.t)), approx: hits.some(h => h.approx) };
+}
+
+// The time it HAPPENED, in ET. Every entry gets one -- the user's rule
+// (2026-10-04): "Earlier" told you nothing. A time off the play-by-play is
+// shown as is; "~" marks a guess (the final out, when nothing better was
+// found). An entry the feed couldn't place falls back to when this browser
+// saw it: exact to a poll if it was watching, otherwise only a bound ("by").
+// timeZone is required: the whole site talks in ET, and without it this
+// formats the VISITOR's clock under an ET label -- the sync-line bug.
+function bellClock(ms) {
+  return new Date(ms).toLocaleTimeString("en-US",
     { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+}
+function bellTime(item) {
+  if (item.when) return (item.approx ? "~" : "") + bellClock(item.when);
+  return (item.early ? "by " : "") + bellClock(item.at);
 }
 
 function bellItemHtml(item, unread) {
@@ -2942,7 +2981,10 @@ function bellRender() {
   const panel = document.getElementById("bell-panel");
   if (panel.hidden) return;   // the list is only built when someone is looking at it
   const seen = new Set(BELL.seen);
-  const items = BELL.items.slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  // Newest first by when it HAPPENED. A bet and the leg that cashed it share
+  // a moment; the bet goes on top, since it is the consequence.
+  const items = BELL.items.slice().sort((a, b) =>
+    ((b.when || b.at || 0) - (a.when || a.at || 0)) || ((a.kind === "bet" ? 0 : 1) - (b.kind === "bet" ? 0 : 1)));
   document.getElementById("bell-count").textContent =
     items.length ? `${items.length} this slate` : "";
   document.getElementById("bell-list").innerHTML = items.length

@@ -1347,7 +1347,8 @@ with sync_playwright() as p:
     check("T14 a dead bet leaves the tracker entirely, whoever has the ball",
           not [t for t in team_tiles(page) if t["tag"] not in ("HIT", "CASHED")], team_tiles(page))
     check("T14b a leg's HIT tile names its quarter, not a bare 'Scores in Q'",
-          all("Scores in Q1" in t["text"] for t in team_tiles(page) if t["tag"] == "HIT")
+          all("SCORED IN Q1!" in t["text"] and "Scores in Q " not in t["text"]
+              for t in team_tiles(page) if t["tag"] == "HIT")
           and any(t["tag"] == "HIT" for t in team_tiles(page)), team_tiles(page))
     check("T15 the row says why", "Q1 ended without a NYG score" in t_rows(page).get("NYG Scores in Q1", ""),
           t_rows(page).get("NYG Scores in Q1"))

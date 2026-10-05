@@ -47,6 +47,23 @@ def mlb_schedule(games):
         for pk, st, t in games]}]}
 
 
+def ms(iso):
+    """An ISO time as the epoch milliseconds the page works in."""
+    from datetime import datetime
+    return int(datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp() * 1000)
+
+
+def hr_play(h):
+    """A home run play. `h` is a name, or (name, ISO end time) for a play that
+    carries the time it happened -- which is what the bell sorts and shows."""
+    name, t = (h, None) if isinstance(h, str) else h
+    play = {"result": {"eventType": "home_run"}, "about": {"isTopInning": True},
+            "matchup": {"batter": {"fullName": name}}}
+    if t:
+        play["about"].update({"endTime": t, "isComplete": True})
+    return play
+
+
 def mlb_feed(abstract, roster, hrs=()):
     sides = {"away": {}, "home": {}}
     for i, n in enumerate(roster):
@@ -55,9 +72,7 @@ def mlb_feed(abstract, roster, hrs=()):
                                  "stats": {"batting": {"plateAppearances": 3}}}
     return {"gameData": {"status": {"abstractGameState": abstract,
                                     "codedGameState": {"Final": "F", "Live": "I"}[abstract]}},
-            "liveData": {"plays": {"allPlays": [
-                {"result": {"eventType": "home_run"}, "about": {"isTopInning": True},
-                 "matchup": {"batter": {"fullName": n}}} for n in hrs]},
+            "liveData": {"plays": {"allPlays": [hr_play(h) for h in hrs]},
                 "boxscore": {"teams": {"away": {"players": sides["away"]},
                                        "home": {"players": sides["home"]}}},
                 "linescore": {}}}
@@ -123,7 +138,8 @@ def espn_summary(state, tds):
                 {"name": "rushing", "labels": ["CAR", "YDS", "AVG", "TD", "LONG"],
                  "athletes": [{"athlete": {"id": "1", "displayName": "Saquon Barkley"},
                                "stats": ["18", "92", "5.1", str(tds), "20"]}]}]}]},
-            "scoringPlays": [], "drives": {"previous": []}}
+            "scoringPlays": FX.get("scoring", []),
+            "drives": {"previous": [{"plays": FX["drive_plays"]}] if FX.get("drive_plays") else []}}
 
 
 NFL_TICKETS = {"sport": "football", "date": DAY, "endDate": DAY, "note": "",
@@ -267,8 +283,12 @@ with sync_playwright() as p:
     # What you SEE, not the stored flag. A11 above checks the flag, which stays
     # true even if the rendering ignores it and prints an invented clock time.
     times = page.eval_on_selector_all("#bell-list .bell-time", "els => els.map(e => e.textContent)")
-    check("B5b ...and the backfilled entries are shown as 'Earlier', not a clock time",
-          times and all(t == "Earlier" for t in times), times)
+    # These fixture plays carry no times, so nothing can be placed on the
+    # play-by-play: a backfilled entry then says what is actually known --
+    # it happened BY the time the page opened -- never a bare "Earlier"
+    # (the user's rule, 2026-10-04), and never an invented exact time.
+    check("B5b ...and a backfilled entry the feed can't place reads 'by <time> ET', not 'Earlier'",
+          times and all(t.startswith("by ") and t.endswith(" ET") for t in times), times)
     # The FIRST entry used to sit flush against its own top edge. It carried
     # the class "leg" -- the ticket-row class -- and the page's
     # ".leg:first-of-type { padding-top: 0 }" reached it. Measured, because
@@ -465,6 +485,77 @@ with sync_playwright() as p:
           pg.evaluate("BELL.items.map(i => [i.id, i.alert])"))
     check("I10 no JavaScript errors", not errs, errs[:3])
     rc.close()
+
+    # ================= J. ordered and stamped by when it HAPPENED =================
+    # The user's rule (2026-10-04): newest on top by the time the hit actually
+    # happened, with that time shown in ET -- even for what was already in by
+    # the time the page opened. Entries used to be stamped with the moment the
+    # browser NOTICED them, so everything caught on opening shared one moment,
+    # read "Earlier", and sorted arbitrarily. Judge homered at 7:10 PM ET and
+    # Soto at 7:40, and the page is opened at 8:00 with both already in.
+    FX["mlb"] = MLB_TICKETS
+    FX["sched"] = mlb_schedule([(5001, "Final", ["NYY", "BOS"]), (5002, "Final", ["NYM", "ATL"]),
+                                (5003, "Live", ["LAD", "SF"])])
+    FX["feeds"][5001] = mlb_feed("Final", ["Aaron Judge"] + [f"N{i}" for i in range(8)],
+                                 [("Aaron Judge", "2026-10-04T23:10:00Z")])
+    FX["feeds"][5002] = mlb_feed("Final", ["Juan Soto"] + [f"M{i}" for i in range(8)],
+                                 [("Juan Soto", "2026-10-04T23:40:00Z")])
+    FX["feeds"][5003] = mlb_feed("Live", ["Shohei Ohtani"] + [f"D{i}" for i in range(8)])
+    jc = browser.new_context(viewport={"width": 420, "height": 900})
+    pg, errs = boot(jc, "/")
+    pg.click("#bell-btn")
+    pg.wait_for_timeout(150)
+    rows = pg.eval_on_selector_all("#bell-list .bell-item", """els => els.map(e => ({
+        title: e.querySelector('.bell-title').textContent.trim(),
+        time: e.querySelector('.bell-time').textContent.trim()}))""")
+    by_title = {r["title"]: r["time"] for r in rows}
+    check("J1 a backfilled home run shows the time it was HIT, in ET -- not 'Earlier'",
+          by_title.get("Aaron Judge") == "7:10 PM ET" and by_title.get("Juan Soto") == "7:40 PM ET", rows)
+    order = [r["title"] for r in rows]
+    check("J2 newest on top: Soto's 7:40 home run above Judge's 7:10",
+          order.index("Juan Soto") < order.index("Aaron Judge"), order)
+    card1 = next((r for r in rows if r["title"].startswith("Card 1")), {})
+    check("J3 a bet cashed when its LAST leg landed -- Card 1 needed Soto, at 7:40",
+          card1.get("time") == "7:40 PM ET", card1)
+    check("J4 ...and sits above the leg that cashed it, which shares its moment",
+          order.index(card1.get("title")) < order.index("Juan Soto") if card1 else False, order)
+    check("J5 nothing with a known play time says 'Earlier' or 'by'",
+          not [r for r in rows if r["time"] == "Earlier" or r["time"].startswith("by ")], rows)
+    check("J6 no JavaScript errors", not errs, errs[:3])
+    jc.close()
+
+    # Football: a touchdown's time is its scoring play's own clock.
+    FX["espn_state"] = "post"
+    FX["scoring"] = [{"id": "s1", "type": {"text": "Rushing Touchdown"},
+                      "text": "Saquon Barkley 12 Yd Rush (Jake Elliott Kick)",
+                      "team": {"abbreviation": "PHI"}, "period": {"number": 2},
+                      "clock": {"value": 300, "displayValue": "5:00"}, "awayScore": 7, "homeScore": 0}]
+    FX["drive_plays"] = [
+        {"id": "p1", "wallclock": "2026-10-04T23:05:00Z", "period": {"number": 1}, "awayScore": 0, "homeScore": 0,
+         "statYardage": 15, "text": "(Shotgun) J.Hurts pass short right to A.Brown to NYG 40 for 15 yards (X.Defender)."},
+        {"id": "s1", "wallclock": "2026-10-04T23:20:00Z", "period": {"number": 2}, "awayScore": 7, "homeScore": 0,
+         "statYardage": 12, "text": "S.Barkley right end for 12 yards, TOUCHDOWN."}]
+    for path in ("/football/", "/all/"):
+        jc = browser.new_context(viewport={"width": 420, "height": 900})
+        pg, errs = boot(jc, path)
+        td = pg.evaluate("bellTime(BELL.items.find(i => i.kind === 'leg' && /Barkley/.test(i.who)) || {})")
+        check(f"J7 {path}: a backfilled touchdown shows the time it was scored", td == "7:20 PM ET", td)
+        check(f"J8 {path}: no JavaScript errors", not errs, errs[:3])
+        if path == "/all/":
+            got = pg.evaluate("""() => [
+                NFL.hitTime({sport: 'nfl', market: 'q_score', team: 'PHI', quarter: 2}),
+                NFL.hitTime({sport: 'nfl', market: 'q_score', team: 'NYG', quarter: 2}),
+                NFL.hitTime({sport: 'nfl', market: 'rec_yds', player: 'A.J. Brown', team: 'PHI', line: 14.5}),
+                NFL.hitTime({sport: 'nfl', market: 'rec_yds', player: 'A.J. Brown', team: 'PHI', line: 20.5})]""")
+            check("J9 a team's first score in a quarter is timed off the play where its score went up",
+                  got[0] and got[0]["t"] == ms("2026-10-04T23:20:00Z") and not got[0]["approx"], got[0])
+            check("J10 ...and a team that never scored that quarter has no time at all", got[1] is None or got[1]["approx"], got[1])
+            check("J11 a receiving-yards leg is timed off the catch that cleared its line",
+                  got[2] and got[2]["t"] == ms("2026-10-04T23:05:00Z") and not got[2]["approx"], got[2])
+            check("J12 ...and one the catches never reached is only a guess, never an exact time",
+                  got[3] is None or got[3]["approx"], got[3])
+        jc.close()
+    FX.pop("scoring"); FX.pop("drive_plays")
 
     browser.close()
 

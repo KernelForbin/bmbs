@@ -219,8 +219,15 @@ with sync_playwright() as p:
           page.evaluate("RESULTS.gameInfo.get(1302).steals.length") == 1)
     check("A7 the panel is the Live Bet Tracker now", "Live Bet Tracker" in page.inner_text(".liveab-title"))
     t = tiles(page)
+    # His only bet is the steal, so the price stands alone: the "0 of 1 SB"
+    # line under his name says what it is (2026-10-04 -- a label repeating it
+    # squeezed the status out of the tile's header).
     check("A8 a steal pick at the plate still gets his at-bat tile, priced as a steal (minus money shown as such)",
-          t[0]["player"] == "Speedy Steal" and t[0]["tag"] == "AT BAT" and t[0]["odds"].startswith("SB-120"), str(t))
+          t[0]["player"] == "Speedy Steal" and t[0]["tag"] == "AT BAT" and t[0]["odds"].startswith("-120")
+          and "0 of 1 SB" in t[0]["text"], str(t))
+    both = next((x for x in t if x["player"] == "Both Ways"), {})
+    check("A8b a man carrying BOTH bets keeps the labels -- two bare prices couldn't be told apart",
+          both.get("odds") == "HR+450 SB+150", both.get("odds"))
 
     # ---------- B. he reaches base ----------
     FX["feed"] = game([HOMERED, play(40, "Speedy Steal", event="Single", etype="single"), play(41, "Both Ways")],

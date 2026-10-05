@@ -86,6 +86,10 @@ NORMALIZE = """async (pk) => {
     nextUpSlot: s.nextUpSlot, currentlyBattingSide: s.currentlyBattingSide,
     currentAB: s.currentAB, recentABs: s.recentABs,   // Live At Bats: count, every pitch, results
     sbNames: [...s.sbNames].sort(), steals: s.steals, bases: s.bases,   // steal bets: every attempt, and who is on which base
+    // the bell's timestamps: every finished play's time, batter, pitcher,
+    // event, RBI and who SCORED (isScoringEvent) -- a lost field here would
+    // quietly time every runs leg as a guess
+    timeline: s.timeline, lastPlayTime: s.lastPlayTime,
   });
 }"""
 
@@ -147,7 +151,8 @@ with sync_playwright() as p:
             print(f"PASS  {pk}  status={s['status']:7s} roster={len(s['rosterNames']):3d} "
                   f"HRs={len(s['homeRuns'])} inning={s['inning']} recentABs={len(s.get('recentABs') or [])} "
                   f"atBat={ab.get('batter', '-')} {ab.get('balls', '')}-{ab.get('strikes', '')} pitches={len(ab.get('pitches') or [])} "
-                  f"steals={len(s.get('steals') or [])} onBase={sum(1 for v in (s.get('bases') or {}).values() if v)}")
+                  f"steals={len(s.get('steals') or [])} plays={len(s.get('timeline') or [])} "
+                  f"scored={sum(len(p['scorers']) for p in (s.get('timeline') or []))} onBase={sum(1 for v in (s.get('bases') or {}).values() if v)}")
         else:
             failures.append(pk)
             print(f"FAIL  {pk}  slim feed computed a DIFFERENT snapshot")

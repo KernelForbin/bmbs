@@ -159,9 +159,12 @@
   .liveab-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:7px; margin-top:10px; }
   .liveab-empty { grid-column:1 / -1; font-size:12px; color:var(--text-faint); padding:6px 2px 2px; }
   .ab-tile { position:relative; display:block; text-decoration:none; color:inherit; background:var(--bg); border:1px solid var(--panel-line); border-radius:9px; padding:8px 9px 8px; overflow:hidden; }
-  .ab-top { display:flex; align-items:center; justify-content:space-between; gap:6px; }
-  .ab-tag { font-size:9px; font-weight:700; letter-spacing:.07em; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
-  .ab-odds { font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; color:var(--amber); white-space:nowrap; flex:none; }
+  /* The status (LEADS OFF NEXT, ON DECK...) is never cut off: it keeps its full
+     width, and when the prices don't fit beside it they drop to a second line,
+     right-aligned. It was ellipsised to "LEAD..." with no way to read it. */
+  .ab-top { display:flex; align-items:center; justify-content:space-between; gap:2px 6px; flex-wrap:wrap; }
+  .ab-tag { font-size:9px; font-weight:700; letter-spacing:.07em; color:var(--text-dim); flex:0 0 auto; max-width:100%; }
+  .ab-odds { font-family:'Oswald',sans-serif; font-size:12.5px; font-weight:600; color:var(--amber); white-space:nowrap; flex:none; margin-left:auto; }
   .ab-name { font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; line-height:1.15; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ab-line { font-size:10.5px; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ab-line.faint { color:var(--text-faint); }
@@ -891,6 +894,9 @@ const FEED_FIELDS = [
   "innings", "num",
   // pitcher strikeouts, for a "5+ Strikeouts" leg
   "pitching", "strikeOuts", "earnedRuns", "wins",
+  // which runner SCORED on a play -- when a runs / H+R+RBI leg actually hit,
+  // for the bell's timestamps
+  "isScoringEvent",
 ].join(",");
 
 async function getGameSnapshot(gamePk) {
@@ -998,6 +1004,30 @@ async function getGameSnapshot(gamePk) {
       pitcher: (play.matchup && play.matchup.pitcher && play.matchup.pitcher.fullName) || ""
     });
   }));
+
+  // WHEN things happened, for the bell: every finished play in order, with
+  // who batted, who pitched, what it was, the RBI, and who scored. The bell
+  // used to stamp an entry with the moment this browser NOTICED it, so
+  // everything caught on opening the page shared one moment and sorted
+  // arbitrarily ("Earlier"). With this, a hits prop's time is the play on
+  // which the count reached its line.
+  const timeline = [];
+  plays.forEach(play => {
+    const about = play.about || {};
+    if (!about.isComplete || !about.endTime) return;
+    const result = play.result || {};
+    const mu = play.matchup || {};
+    const scorers = [...new Set((play.runners || [])
+      .filter(r => r && r.details && r.details.isScoringEvent && r.details.runner && r.details.runner.fullName)
+      .map(r => normalizeName(r.details.runner.fullName)))];
+    timeline.push({
+      t: about.endTime, ev: result.eventType || "", rbi: result.rbi || 0, scorers,
+      batter: normalizeName((mu.batter && mu.batter.fullName) || ""),
+      pitcher: normalizeName((mu.pitcher && mu.pitcher.fullName) || ""),
+      side: about.isTopInning ? "away" : "home", inning: about.inning || 0
+    });
+  });
+  const lastPlayTime = timeline.length ? timeline[timeline.length - 1].t : "";
 
   // At-bat detail for the Live At Bats panel. allPlays' last entry is the
   // plate appearance in progress (it IS liveData.plays.currentPlay -- checked
@@ -1223,14 +1253,14 @@ async function getGameSnapshot(gamePk) {
     teamScores.set(abbr, {
       runs: typeof mine.runs === "number" ? mine.runs : null,
       oppRuns: typeof theirs.runs === "number" ? theirs.runs : null,
-      opponent: oppAbbr || "", gamePk, status,
+      opponent: oppAbbr || "", gamePk, status, side,
       // Combined runs by inning, so a "first N innings" total can be graded.
       // innings[] is in order and only contains innings that have started.
       byInning: inningRuns, completeInnings,
     });
   });
 
-  return { status, hrNames, homeRuns, rosterNames, played, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk, currentAB, recentABs, sbNames, steals, bases, batStats, pitchStats, teamScores };
+  return { status, hrNames, homeRuns, rosterNames, played, orderSlot, slotHolders, inning, halfState, outs, nextUpSlot, currentlyBattingSide, gamePk, currentAB, recentABs, sbNames, steals, bases, batStats, pitchStats, teamScores, timeline, lastPlayTime };
 }
 
 // How many more outs a team's side needs to record before the (assumed
@@ -3192,6 +3222,16 @@ function labOddsHtml(pick, tag) {
     seen.add(key);
     others.push(`<span class="ab-mkt">${escapeHtml(label)}</span>${price}`);
   });
+  // ONE kind of bet on this man: just the price. The progress line under his
+  // name ("0 of 2 total bases") already says what it is, and the label
+  // repeated it while squeezing the status out of the header -- "LEAD..."
+  // with no way to read it. Labels only when he carries more than one kind
+  // of bet, where two bare prices couldn't be told apart.
+  const kinds = new Set((pick.entries || []).map(e => e.market));
+  if (kinds.size <= 1) {
+    const prices = [...new Set((pick.entries || []).map(e => e.odds).filter(Boolean))];
+    return prices.length ? escapeHtml(labOddsText(prices)) : "";
+  }
   const parts = [];
   if (hr) parts.push(sb || others.length ? `<span class="ab-mkt" style="color:var(--text-dim)">HR</span>${hr}` : hr);
   if (sb) parts.push(sb);
@@ -3329,7 +3369,7 @@ function labSoonTile(pick, ctx) {
     : (d === 0 ? "LEADS OFF NEXT" : d === 1 ? "DUE UP 2ND" : d === 2 ? "DUE UP 3RD" : "DUE UP");
   const facing = ctx.sideBatting && game.currentAB && game.currentAB.pitcher ? ` &middot; vs ${escapeHtml(labShortName(game.currentAB.pitcher))}` : "";
   return labTileShell(`soon${ctx.sideBatting && d === 1 ? " ondeck" : ""}`, tag, pick, ctx.gamedayLink, `
-    <div class="ab-line">${ctx.inningLabel} ${ctx.sideBatting ? labOutsDots(game.outs) : ""}${facing}${pick.whos.length ? ` &middot; ${escapeHtml(pick.whos.join(", "))}` : ""}</div>${labProgressHtml(pick)}`);
+    <div class="ab-line">${ctx.inningLabel} ${ctx.sideBatting ? labOutsDots(game.outs) : ""}${ctx.slot ? ` &middot; batting ${ordinal(ctx.slot)}` : ""}${facing}${pick.whos.length ? ` &middot; ${escapeHtml(pick.whos.join(", "))}` : ""}</div>${labProgressHtml(pick)}`);
 }
 
 function labResultTile(flash, now) {
@@ -4166,6 +4206,96 @@ function bellWithToday(slate, fn) {
   try { fn(); } finally { RESULTS = saved; }
 }
 
+// ---------------- when did it happen ----------------
+// The moment a leg HIT, for the bell: { t: ms, approx } or null when it can't
+// be pinned down. Read off the play-by-play the page already fetched, so it is
+// the time the PLAY happened, not when this browser happened to notice.
+// `approx` is set only for a guess (the final out, when nothing better was
+// found). Mirrors the graders: an over hits on the play that reaches its line,
+// an under and a game line settle at the final.
+const TB_FOR = { single: 1, double: 2, triple: 3, home_run: 4 };
+const K_EVENTS = new Set(["strikeout", "strikeout_double_play", "strikeout_triple_play"]);
+function playCount(market, p, names) {
+  const bat = names.has(p.batter);
+  const scored = p.scorers.filter(n => names.has(n)).length;
+  switch (market) {
+    case "hits": return bat && TB_FOR[p.ev] ? 1 : 0;
+    case "tb": return bat ? (TB_FOR[p.ev] || 0) : 0;
+    case "doubles": return bat && p.ev === "double" ? 1 : 0;
+    case "hr": return bat && p.ev === "home_run" ? 1 : 0;
+    case "rbi": return bat ? (p.rbi || 0) : 0;
+    case "runs": return scored;
+    case "hrr": return (bat && TB_FOR[p.ev] ? 1 : 0) + (bat ? (p.rbi || 0) : 0) + scored;
+    case "k": return names.has(p.pitcher) && K_EVENTS.has(p.ev) ? 1 : 0;
+  }
+  return 0;
+}
+function gameForLegTime(leg) {
+  for (const n of legPlayers(leg)) {
+    const loc = RESULTS.rosterSide && RESULTS.rosterSide.get(normalizeName(n));
+    if (loc && RESULTS.gameInfo.get(loc.gamePk)) return RESULTS.gameInfo.get(loc.gamePk);
+  }
+  const row = leg.team && RESULTS.teamScores && RESULTS.teamScores.get(String(leg.team).toUpperCase());
+  return (row && RESULTS.gameInfo.get(row.gamePk)) || null;
+}
+// The play on which a running count first reached `need`.
+function whenCountReached(plays, need, countOf) {
+  let have = 0;
+  for (const p of plays) {
+    have += countOf(p);
+    if (have >= need) return Date.parse(p.t);
+  }
+  return null;
+}
+function legHitTime(leg) {
+  const m = legMarket(leg);
+  const names = new Set(legPlayers(leg).map(normalizeName));
+  const lineN = leg.line === null || leg.line === undefined ? NaN : Number(leg.line);
+  const need = Number.isFinite(lineN) ? Math.floor(lineN) + 1 : 1;
+  const game = gameForLegTime(leg);
+  const plays = (game && game.timeline) || [];
+  const final = game && game.status === "final" && game.lastPlayTime ? Date.parse(game.lastPlayTime) : null;
+  const exact = t => (t ? { t, approx: false } : null);
+  // An under, a win, a moneyline or a spread is only ever settled at the final.
+  if (legSide(leg) === "under" || ["win", "er", "ml", "spread"].includes(m)) return exact(final);
+  if (m === "sb") {
+    const times = [];
+    RESULTS.gameInfo.forEach(g => (g.steals || []).forEach(st => {
+      if (!st.caught && st.time && names.has(normalizeName(st.runner))) times.push(Date.parse(st.time));
+    }));
+    times.sort((a, b) => a - b);
+    return exact(times[need - 1] || null);
+  }
+  if (m === "hr") {
+    const own = (RESULTS.homeRuns || []).filter(h => h.time && names.has(normalizeName(h.batter)))
+      .map(h => Date.parse(h.time)).sort((a, b) => a - b);
+    if (own[need - 1]) return exact(own[need - 1]);
+    // Credited through Pinch Hit Protection: the substitute's home run.
+    for (const n of legPlayers(leg)) {
+      const php = pinchHitProtection(n);
+      const sub = php && php.homeredBy && (RESULTS.homeRuns || []).find(h => h.time && normalizeName(h.batter) === normalizeName(php.homeredBy));
+      if (sub) return exact(Date.parse(sub.time));
+    }
+  }
+  if (["hits", "tb", "doubles", "hr", "rbi", "runs", "hrr", "k"].includes(m)) {
+    const t = whenCountReached(plays, need, p => playCount(m, p, names));
+    if (t) return exact(t);
+  }
+  if (m === "total" || m === "team_total") {
+    const row = RESULTS.teamScores && RESULTS.teamScores.get(String(leg.team || "").toUpperCase());
+    const side = m === "team_total" && row ? row.side : null;
+    const t = whenCountReached(plays, need, p => (side ? (p.side === side ? p.scorers.length : 0) : p.scorers.length));
+    if (t) return exact(t);
+  }
+  if (m === "f5") {
+    // settled once the fifth inning is in the book (or the over passed sooner)
+    const past = plays.findIndex(p => p.inning > 5);
+    if (past > 0) return exact(Date.parse(plays[past - 1].t));
+  }
+  // Nothing better: the final out, as a guess.
+  return final ? { t: final, approx: true } : null;
+}
+
 // ---------------- notification bell ----------------
 // A log of what has HIT on today's slate: every leg that lands, and every
 // bet that cashes, each as its own entry. A leg that cashes a bet produces
@@ -4254,6 +4384,10 @@ function bellScan() {
                odds: bellOdds(leg.odds), bettor: bellPlain(leg.who || ""), bets: [],
                alert: bellAlertOf(leg) };
         legEvents.set(key, ev);
+        // When it HAPPENED, off the play-by-play -- not when this browser
+        // noticed. Worked out once, the first time the leg is seen.
+        const hit = legHitTime(leg);
+        if (hit) { ev.when = hit.t; ev.approx = !!hit.approx; }
       }
       const b = bellPlain(betName);
       if (b && !ev.bets.includes(b)) ev.bets.push(b);
@@ -4266,7 +4400,8 @@ function bellScan() {
       legs.forEach((leg, li) => { if (states[li] === "hit") noteLeg(leg, tk.name); });
       const res = evaluateTicket(tk, states);
       if (res.outcome === "hit") {
-        bets.push({ id: "bet:p:" + wi + ":" + ti + ":" + bellPlain(tk.name).toLowerCase(),
+        bets.push({ ...betWhen(legs.filter((l, i) => states[i] === "hit")),
+                    id: "bet:p:" + wi + ":" + ti + ":" + bellPlain(tk.name).toLowerCase(),
                     kind: "bet", name: bellPlain(tk.name), sub: bellPlain(tk.sub),
                     legs: legs.length, stake: tk.stake, payout: res.adjustedPayout || tk.payout,
                     book: bellPlain(tk.book || ""),
@@ -4283,7 +4418,7 @@ function bellScan() {
       // same rule as a leg that finishes a parlay.
       noteLeg(sg, "Single");
       if (singleOutcome(state) === "hit") {
-        bets.push({ id: "bet:s:" + si + ":" + bellPlain(sg.player).toLowerCase(),
+        bets.push({ ...betWhen([sg]), id: "bet:s:" + si + ":" + bellPlain(sg.player).toLowerCase(),
                     kind: "bet", name: "Single", sub: bellPlain(sg.player), legs: 1,
                     stake: sg.stake, payout: sg.payout, book: bellPlain(sg.who || ""),
                     on: [bellPlain(sg.player)] });
@@ -4296,6 +4431,11 @@ function bellScan() {
       if (prior) {
         // Already logged: keep its time and read state, but let a leg pick up
         // a bet it turned out to be on as well.
+        // The event time can sharpen later -- a guess replaced by the real
+        // play once it is in the feed -- so it is refreshed, never frozen.
+        if (item.when && (prior.when !== item.when || !!prior.approx !== !!item.approx)) {
+          prior.when = item.when; prior.approx = !!item.approx; changed = true;
+        }
         if (item.kind === "leg" && item.bets.length !== (prior.bets || []).length) {
           prior.bets = item.bets; changed = true;
         }
@@ -4376,12 +4516,27 @@ function bellUnread() {
   return BELL.items.filter(i => !seen.has(i.id)).length;
 }
 
-function bellTime(item) {
-  if (item.early) return "Earlier";
-  // timeZone is required: the whole site talks in ET, and without it this
-  // formats the VISITOR's clock under an ET label -- the sync-line bug.
-  return new Date(item.at).toLocaleTimeString("en-US",
+// A bet cashed when its LAST leg landed. Unknown if any leg's time is.
+function betWhen(legs) {
+  const hits = legs.map(legHitTime);
+  if (!hits.length || hits.some(h => !h)) return {};
+  return { when: Math.max(...hits.map(h => h.t)), approx: hits.some(h => h.approx) };
+}
+
+// The time it HAPPENED, in ET. Every entry gets one -- the user's rule
+// (2026-10-04): "Earlier" told you nothing. A time off the play-by-play is
+// shown as is; "~" marks a guess (the final out, when nothing better was
+// found). An entry the feed couldn't place falls back to when this browser
+// saw it: exact to a poll if it was watching, otherwise only a bound ("by").
+// timeZone is required: the whole site talks in ET, and without it this
+// formats the VISITOR's clock under an ET label -- the sync-line bug.
+function bellClock(ms) {
+  return new Date(ms).toLocaleTimeString("en-US",
     { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+}
+function bellTime(item) {
+  if (item.when) return (item.approx ? "~" : "") + bellClock(item.when);
+  return (item.early ? "by " : "") + bellClock(item.at);
 }
 
 function bellItemHtml(item, unread) {
@@ -4424,7 +4579,10 @@ function bellRender() {
   const panel = document.getElementById("bell-panel");
   if (panel.hidden) return;   // the list is only built when someone is looking at it
   const seen = new Set(BELL.seen);
-  const items = BELL.items.slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  // Newest first by when it HAPPENED. A bet and the leg that cashed it share
+  // a moment; the bet goes on top, since it is the consequence.
+  const items = BELL.items.slice().sort((a, b) =>
+    ((b.when || b.at || 0) - (a.when || a.at || 0)) || ((a.kind === "bet" ? 0 : 1) - (b.kind === "bet" ? 0 : 1)));
   document.getElementById("bell-count").textContent =
     items.length ? `${items.length} this slate` : "";
   document.getElementById("bell-list").innerHTML = items.length

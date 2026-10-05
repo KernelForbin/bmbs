@@ -498,8 +498,10 @@ with sync_playwright() as p:
     up = tl.get("Up Now")
     check("Z1 a batting prop gets the ordinary AT BAT tile", bool(up) and up["kind"] == "now", sorted(tl))
     check("Z2 ...and shows progress toward its line", bool(up) and "1 of 2 hits" in up["text"], up and up["text"])
+    # Named by the progress line under his name, not a label in the header --
+    # that one repeated it and squeezed the status ("LEAD...") out of view.
     check("Z3 the market is named, not left looking like a home run bet",
-          bool(up) and "HITS" in up["text"], up and up["text"])
+          bool(up) and "1 of 2 hits" in up["text"] and "HR" not in up["odds"], up and up["text"])
 
     arm = tl.get("Ace Arm")
     check("Z4 a pitcher prop gets its own ON THE MOUND tile -- the batting "
@@ -555,9 +557,10 @@ with sync_playwright() as p:
     txt = lambda js: page.evaluate(
         "h => { const d = document.createElement('div'); d.innerHTML = h; return d.textContent; }",
         page.evaluate(js))
-    check("Z13 a prop tile's odds row does not call it a home run bet",
+    check("Z13 a prop tile's odds row does not call it a home run bet -- and with one kind of bet "
+          "it is just the price, since the progress line names the market",
           txt("labOddsHtml({odds:['+390'],oddsSb:[],entries:[{market:'hits',odds:'+390'}]}, 'AT BAT')")
-          == "HITS+390",
+          == "+390",
           txt("labOddsHtml({odds:['+390'],oddsSb:[],entries:[{market:'hits',odds:'+390'}]}, 'AT BAT')"))
     check("Z14 ...a plain home run still shows just its price",
           txt("labOddsHtml({odds:['+390'],oddsSb:[],entries:[{market:'hr',odds:'+390'}]}, 'AT BAT')")
@@ -652,6 +655,16 @@ with sync_playwright() as p:
     check("AA12 a cleared leg on a dead parlay changes no tile either",
           not [t for t in tl if t["player"] == "Home 5"], [t["player"] for t in tl])
 
+    # When it HAPPENED, for the bell: the play on which the count reached the
+    # line, not when the page noticed. On Deck's single (play 51) ended at NOW.
+    timed = page.evaluate("""() => [
+        legHitTime({player: 'On Deck', market: 'hits', line: 0.5}),
+        legHitTime({player: 'On Deck', market: 'tb', line: 1.5})]""")
+    check("AA17 a hits leg is timed off the play that reached its line",
+          bool(timed[0]) and timed[0]["t"] == int(NOW.timestamp() * 1000) and not timed[0]["approx"], timed[0])
+    check("AA18 ...and a line the plays never reached gets no exact time (a single is 1 total base, not 2)",
+          timed[1] is None or timed[1]["approx"], timed[1])
+
     advance(page, 15)
     left = [t["player"] for t in tiles(page) if t["tag"] in ("HIT", "CASHED")]
     check("AA13 the HIT tiles hold about as long as a home run's, then go", not left, left)
@@ -693,7 +706,9 @@ with sync_playwright() as p:
     page.route("**/*", handler)
     FX["state"] = "Live"
     FX["feed"] = game([play(1, "Next Half", True, COUNT_1_2[:1], strikes=1)], "Top", 0, "Next Half", inning=1)
-    TICKETS["windows"][0]["tickets"] = [card(1, [leg("Lead Off", "Kenny", "+400"), leg("Home 5", "Memo", "+500")])]
+    TICKETS["windows"][0]["tickets"] = [card(1, [leg("Lead Off", "Kenny", "+400"), leg("Home 5", "Memo", "+500")]),
+                                        # a second KIND of bet on him, so his header carries labels too
+                                        card(2, [dict(leg("Lead Off", "Kenny", "+145"), market="tb", line=1.5)])]
     TICKETS["singles"] = []
     page.goto("http://bmbs.test/index.html")
     boot(page)
@@ -710,6 +725,16 @@ with sync_playwright() as p:
     check("AB4 a hitter further down is placed too, just not guaranteed this half",
           (page.evaluate("liveContextForPlayer('Home 5')") or {}).get("slot") == 5,
           page.evaluate("liveContextForPlayer('Home 5')"))
+    # "LEAD..." with no way to read the rest: the status was ellipsised to make
+    # room for the prices. It is never cut now -- the prices wrap instead.
+    clip = page.evaluate("""() => [...document.querySelectorAll('#liveab-grid .ab-tile')]
+        .filter(t => t.dataset.player === 'Lead Off').map(t => { const g = t.querySelector('.ab-tag');
+          return {text: g.textContent, clipped: g.scrollWidth > g.clientWidth + 1,
+                  ellipsis: getComputedStyle(g).textOverflow === 'ellipsis'}; })""")
+    check("AB6 the tile's status is shown in full, even with prices for two kinds of bet beside it",
+          clip and clip[0]["text"] == "LEADS OFF NEXT" and not clip[0]["clipped"] and not clip[0]["ellipsis"], clip)
+    check("AB7 ...and the line under his name says where he bats",
+          "batting 1st" in tl.get("Lead Off", {}).get("text", ""), tl.get("Lead Off", {}).get("text"))
     check("AB5 no JS errors", not errors, errors)
     browser.close()
 

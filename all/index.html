@@ -5758,9 +5758,9 @@ function labMoundTile(pick, gamePk, inningLabel, gamedayLink) {
   const e = (pick.entries || []).find(x => labProgress(x)) || {};
   const unit = progressLabel(e.market);
   const line = !prog ? "On the mound"
-    : prog.under ? `${prog.have} ${unit} &middot; needs under ${prog.line}`
+    : prog.under ? `${prog.have} ${unit} · needs under ${prog.line}`
     : e.market === "win" ? "needs the win"
-    : `${prog.have} ${unit} &middot; needs ${prog.need}`;
+    : `${prog.have} ${unit} · needs ${prog.need}`;
   return labTileShell("mound", "ON THE MOUND", pick, gamedayLink, `
     <div class="ab-line">${escapeHtml(inningLabel || "")}</div>
     <div class="ab-countrow"><span class="ab-count">${prog ? prog.have : "\u2013"}</span><span class="ab-pitches faint">${escapeHtml(line)}</span></div>`);

@@ -508,6 +508,11 @@ with sync_playwright() as p:
           "order would never have surfaced him at all", bool(arm) and arm["kind"] == "mound", sorted(tl))
     check("Z5 ...showing the strikeout count and what it needs",
           bool(arm) and "needs 6" in arm["text"], arm and arm["text"])
+    # The line was built with "&middot;" and THEN escaped, so the tile read
+    # "6 K &middot; needs 9" live (Gavin Williams, 2026-10-05). Z5 passed
+    # right through it: "needs 6" is in the broken text too.
+    raw = [(t["player"], t["text"]) for t in tl.values() if re.search(r"&(?:[a-z]+|#\d+);", t["text"])]
+    check("Z5b no tile shows a raw HTML entity as text", not raw, raw)
 
     gl = tl.get("NYY")
     check("Z6 a game line gets a tile even though it has no player at all",

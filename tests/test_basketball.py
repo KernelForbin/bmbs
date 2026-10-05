@@ -239,6 +239,8 @@ with sync_playwright() as p:
           den.get("tag") == "TEAM BETS" and "MONEYLINE" in den.get("text", "") and "SPREAD -5.5: covering by 4.5" in den.get("text", ""), den)
     check("C6 ...and a game total gets its own, with the points so far", "150 pts, needs 221" in
           next((t["text"] for t in tl.values() if t["tag"] == "TOTAL POINTS"), ""), [t["tag"] for t in tl.values()])
+    raw = [(n, t["text"]) for n, t in tl.items() if re.search(r"&(?:[a-z]+|#\d+);", t["text"])]
+    check("C6b no tile shows a raw HTML entity as text", not raw, raw)
     check("C7 a hit leg's man with nothing else live gets no tile (Murray's threes are in)", "Jamal Murray" not in tl, list(tl))
     # `active` is the one field not yet seen in a LIVE game. When nobody is
     # marked active, the page says only what it knows: LIVE.

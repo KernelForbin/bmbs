@@ -234,6 +234,8 @@ with sync_playwright() as p:
           tb.get("tag") == "TEAM BETS" and "MONEYLINE" in tb.get("text", "") and "PUCK LINE -1.5" in tb.get("text", ""), tb)
     check("C7b ...and a game total gets its own, with the goal count", "2 goals, needs 6" in
           next((t["text"] for t in tl.values() if t["tag"] == "TOTAL GOALS"), ""), [t["tag"] for t in tl.values()])
+    raw = [(n, t["text"]) for n, t in tl.items() if re.search(r"&(?:[a-z]+|#\d+);", t["text"])]
+    check("C7c no tile shows a raw HTML entity as text", not raw, raw)
     # ESPN's `onIce` is the one feed field not yet seen in a LIVE game. When
     # it's missing the page must say only what it knows -- "LIVE" -- and never
     # call a skater benched off the absence of a list.

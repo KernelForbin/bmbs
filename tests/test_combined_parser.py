@@ -206,6 +206,32 @@ check("I3 no NFL legs means no NFL lookup at all",
       cp.nfl_span(set(), [], NOW, no_network) == (None, None))
 
 
+# A re-parse AFTER the early games ended. The real one (2026-10-04, 6:39 PM ET,
+# for the Sunday-night bet) skipped every finished game and found each of
+# those teams' NEXT one, a week out: the slate ran Oct 4 to Oct 11.
+def sched(rows):
+    """{day: [(teams, state)]} -> a fake ESPN scoreboard fetcher."""
+    def fetch(url):
+        ymd = url.split("dates=")[1][:8]
+        day = f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}"
+        return {"events": [{"competitions": [{"competitors": [{"team": {"abbreviation": t}} for t in teams]}],
+                            "status": {"type": {"state": st}}} for teams, st in rows.get(day, [])]}
+    return fetch
+
+
+SUNDAY = {"2026-10-04": [(("BUF", "NE"), "post"), (("DET", "CAR"), "pre")],
+          "2026-10-11": [(("BUF", "MIA"), "pre"), (("DET", "GB"), "pre")]}
+check("I4 a team whose game TODAY is already over still belongs to today's card, "
+      "while another picked team plays tonight",
+      cp.nfl_span({"BUF", "DET"}, [], NOW, sched(SUNDAY)) == ("2026-10-04", "2026-10-04"),
+      cp.nfl_span({"BUF", "DET"}, [], NOW, sched(SUNDAY)))
+DONE = {"2026-10-04": [(("BUF", "NE"), "post"), (("DET", "CAR"), "post")],
+        "2026-10-11": [(("BUF", "MIA"), "pre"), (("DET", "GB"), "pre")]}
+check("I5 ...but once every picked game today is over, a card is for the next ones",
+      cp.nfl_span({"BUF", "DET"}, [], NOW, sched(DONE)) == ("2026-10-11", "2026-10-11"),
+      cp.nfl_span({"BUF", "DET"}, [], NOW, sched(DONE)))
+
+
 # ================= J. archiving ============================================
 with tempfile.TemporaryDirectory() as td:
     out_p, prev_p = Path(td) / "tickets.json", Path(td) / "tickets-previous.json"
@@ -517,6 +543,8 @@ check("N3 each leg has ITS quarter and ITS team, in card order",
 check("N4 the owner named on the footer is the bettor on every leg and the ticket's book",
       all(l.get("who") == "Kenny" for l in q8) and tk11[0].get("book") == "Kenny",
       [l.get("who") for l in q8] + [tk11[0].get("book") if tk11 else None])
+check("N4b ...but the legs don't repeat it -- the footer already says who placed the bet",
+      all(l.get("meta") == l.get("team") for l in q8), [l.get("meta") for l in q8])
 check("N5 stake and payout come off the footer", tk11 and tk11[0]["stake"] == 9.88 and tk11[0]["payout"] == 84.0,
       tk11 and (tk11[0]["stake"], tk11[0]["payout"]))
 check("N6 nothing reported as unreadable, and no team mistaken for a missing player",

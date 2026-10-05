@@ -1317,7 +1317,17 @@ stores abbreviations only (no `abbr_by_team_word`, unlike baseball's) and a
 card writes "Philadelphia Eagles", never "PHI".
 
 **The span is the PICKED teams' games**, deliberately not the NFL tab's
-week-end rule, for the same reason the page's rollover isn't.
+week-end rule, for the same reason the page's rollover isn't. A FINISHED
+game is skipped (a card posted after a team's game is over is for its next
+one) -- EXCEPT today's, while a picked team still plays today. Without that, a
+re-parse after the early games ended (2026-10-04, 6:39 PM, for the Sunday-night
+bet) pushed every team that had already played to next week, and the slate ran
+Oct 4 to Oct 11: held on Today for a week. `test_combined_parser.py` I4/I5.
+
+**A leg doesn't repeat the ticket's owner.** Its sub-line is `team · bettor`,
+but when the bettor IS the owner the footer already names ("bet by Kenny"),
+it's left off -- eight legs all saying Kenny was noise. `who` stays on the leg
+for the Bettor Tracker. N4b.
 
 **No real `sports_` card has arrived yet.** `tests/fixtures/sports_combined_format.txt`
 is written to the shape the generator currently emits, not observed -- treat

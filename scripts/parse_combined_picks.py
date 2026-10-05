@@ -592,7 +592,7 @@ def apply_sports(windows, singles, found):
     """Post-pass: stamp sport/market/team onto every leg parse_picks produced."""
     touched = 0
 
-    def fix(leg):
+    def fix(leg, owner=""):
         nonlocal touched
         norm_player = mlb_parser.normalize_name(leg.get("player") or "")
         rec = found.get(norm_player)
@@ -660,13 +660,18 @@ def apply_sports(windows, singles, found):
             leg["athleteId"] = rec["athleteId"]
         # meta is a PREBUILT display string that still spells out whatever the
         # MLB roster guessed; rebuild it from what the leg actually is now.
-        bits = [b for b in [rec.get("team"), leg.get("who")] if b]
+        # The bettor is left OFF when he is simply the ticket's owner: the
+        # footer already says "bet by Kenny", and repeating it on all eight
+        # legs of one bet is noise (the user's call, 2026-10-04). `who`
+        # itself stays on the leg -- the Bettor Tracker and filters read it.
+        who = leg.get("who")
+        bits = [b for b in [rec.get("team"), None if who and who == owner else who] if b]
         leg["meta"] = " &middot; ".join(bits)
 
     for win in windows:
         for tk in win["tickets"]:
             for leg in tk["legs"]:
-                fix(leg)
+                fix(leg, tk.get("book") or "")
     for s in singles:
         fix(s)
     return touched
@@ -692,9 +697,19 @@ def nfl_span(teams, time_strs, now, fetcher=None):
               f"from the listed times instead.", file=sys.stderr)
         games = []
 
+    # A FINISHED game is skipped -- a card posted after a team's game is over
+    # is for its next one -- EXCEPT today's, while some picked team still has
+    # a game today to play: then this is TODAY's card, re-uploaded or added
+    # to after the early games ended. Skipping those pushed every team that
+    # had already played to NEXT WEEK, and the slate (2026-10-04, re-parsed at
+    # 6:39 PM for the Sunday-night bet) ran Oct 4 to Oct 11 -- held on Today
+    # for a week. Once every picked game today is over, the old rule stands.
+    today = now.date().isoformat()
+    today_still_on = any(day == today and not final and (abbrs & teams)
+                         for day, abbrs, final in games)
     next_game = {}
     for day, abbrs, final in games:          # already chronological
-        if final:
+        if final and not (today_still_on and day == today):
             continue
         for team in abbrs & teams:
             next_game.setdefault(team, day)

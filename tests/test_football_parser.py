@@ -223,6 +223,8 @@ check("a combined card never lands on a single-sport tab's slate",
       route("sports_2026-10-04.txt") not in ("data/incoming_picks.txt", "data/football/incoming_picks.txt"))
 check("hockey_*.txt -> the hidden NHL tracker's file",
       (bot.route_for("hockey_tonight.txt") or {}).get("path") == "data/hockey/incoming_picks.txt", bot.route_for("hockey_tonight.txt"))
+check("basketball_*.txt -> the hidden NBA tracker's file",
+      (bot.route_for("basketball_tonight.txt") or {}).get("path") == "data/basketball/incoming_picks.txt", bot.route_for("basketball_tonight.txt"))
 check("no two prefixes can ever be routed to the same file", len({r["path"] for r in bot.ROUTES.values()}) == len(bot.ROUTES))
 
 # ---------- 7. CLI writes only where it's told (temp copy of the repo layout) ----------

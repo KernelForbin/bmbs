@@ -12,8 +12,9 @@ value are addresses rather than names and were deliberately left alone.
 
 **The third tab is ALL SPORTS** (renamed from "NFL+MLB" on 2026-10-05, when
 hockey joined it). Same rule: the label changed; `/all/`, `data/combined/`,
-the `sports_*` upload prefix and `?sport=combined` did not. **There is a
-fourth, HIDDEN, tracker: NHL at `/hockey/`** -- see "The NHL tracker" below.
+the `sports_*` upload prefix and `?sport=combined` did not. **There are two
+more, HIDDEN, trackers: NHL at `/hockey/` and NBA at `/basketball/`** -- see
+"The NHL tracker" and "The NBA tracker" below.
 
 ## Architecture
 
@@ -30,6 +31,8 @@ fourth, HIDDEN, tracker: NHL at `/hockey/`** -- see "The NHL tracker" below.
   working page that is deliberately in NO page's sport switch (the user's
   call, 2026-10-05: "I may want to unhide it later"). Generated from
   `all/index.html` and independent since. See "The NHL tracker" below.
+- **`basketball/index.html`** — the **NBA** tracker at `/basketball/`, hidden
+  exactly like the NHL one. See "The NBA tracker" below.
 - **`features/index.html`** — a static, plain-language "what this site can
   do" page for end users (the friend group), reusing `index.html`'s exact
   color tokens/fonts so it reads as the same product. Lives at the clean
@@ -751,7 +754,8 @@ NFL+MLB switched it on in MLB, and collapsing cards on one collapsed them on
 both. Football has always had `bmbs.fb.*` for exactly this reason. Every key
 the combined page writes is now `bmbs.all.*`; `test_bell.py` E10 fails on any
 `bmbs.` key there that isn't. **A new key on any page needs its own
-namespace** -- `bmbs.` (MLB), `bmbs.fb.` (NFL), `bmbs.all.` (NFL+MLB).
+namespace** -- `bmbs.` (MLB), `bmbs.fb.` (NFL), `bmbs.all.` (ALL SPORTS),
+`bmbs.hk.` (NHL), `bmbs.bb.` (NBA).
 
 ## Bet markets: a registry, not a list of special cases
 
@@ -1416,6 +1420,76 @@ hockey uploads, no hockey results archive or History page, and no real hockey
 card has arrived yet -- `tests/fixtures/hockey_format.txt` is written to the
 generator's current shape, so treat the first real one as a template incident.
 
+## The NBA tracker -- built in full, HIDDEN (2026-10-05)
+
+Same request, same shape as the NHL tracker above ("Make an NBA page the same
+as NHL. Hidden. Trackable on all sports."): a third sealed engine on the ALL
+SPORTS page (`const NBA = (function () { ... })()`) and **`/basketball/`**, a
+page generated from `all/index.html` (`bmbs.bb.*` storage, `data/basketball/`)
+and independent from its first commit. Hidden the same way: in no page's
+switch, `test_basketball.py` A3 pins it, and the Discord message for a
+`basketball_*.txt` upload links it. Unhiding is the same three steps.
+
+**Data: ESPN `.../basketball/nba` `scoreboard` + `summary`.** Shapes were read
+off a real summary (UTAH @ DEN, 2026-10-04) before anything was built:
+- the boxscore labels are `MIN PTS FG 3PT FT REB AST TO STL BLK OREB DREB PF
+  +/-` ("3-7" for threes: made first), each row carrying `active`, `starter`,
+  `didNotPlay`, `reason`, and `stats: []` for a DNP;
+- a play's participants are ordered: the shooter / rebounder / ball-loser
+  FIRST, and the assister ("(Y assists)"), stealer ("(Y steals)") or blocker
+  ("Y blocks X's ...") SECOND; `scoreValue` is 1/2/3. `PLAY_CREDIT` reads
+  exactly that, which is what times a hit to the play for the bell.
+- **`active` is "on the court" only by assumption.** In a FINAL game it is
+  false for everyone; it has not been watched live yet. The engine trusts it
+  only while the game is live AND it names 1..10 players -- otherwise
+  `onCourt` is null and the page says LIVE, never ON THE BENCH. Check it
+  against a real game (five a side, changing with Substitution plays) before
+  trusting the two tags, exactly like hockey's `onIce`.
+
+**Markets are `nba_*`**: `nba_points`, `nba_rebounds`, `nba_assists`,
+`nba_threes`, `nba_steals`, `nba_blocks`, the combos `nba_pra` / `nba_pr` /
+`nba_pa` / `nba_ra` (an engine stat key may be a "+" sum), `nba_dd` / `nba_td`
+(categories in double digits among PTS REB AST STL BLK: 2 or 3), and
+`nba_ml` / `nba_spread` / `nba_total`. Graders are hockey's shape: an over
+settles when it clears, an under/team bet at the final (overtime counts),
+landing on the number is a push, a DNP is void. **There is NO default
+market**: "Jokic +150" says nothing gradeable, so a bare NBA leg is
+`nba_unknown` -> untracked, and the parser reports it ("no bet type stated").
+Tiles: `court` (ON THE COURT / ON THE BENCH / LIVE / HALFTIME / BREAK, his
+count, "N FOULS" from four on) and `hoop` (one per team, like `rink`). No
+Scoring Log entries: a basketball game is hundreds of baskets.
+
+**Parsing traps, all in `test_combined_parser.py` Q:**
+- **NBA runs BEFORE hockey** in `scan_card`. "Points" and "Assists" are hockey
+  markets too, and `nhl_record` claims any leg with a hockey market word -- so
+  "Nikola Jokic Points Over 25.5" was a hockey bet until basketball got first
+  look. Basketball claims a leg only on NBA evidence: the name on the NBA
+  roster (and on no other league's), a team, or an NBA-ONLY word
+  (`NBA_ONLY_MARKETS`: rebounds, threes, the combos, double/triple-double,
+  blocks). Steals is MLB's word too and is deliberately not on that list.
+- **"Kings" is both leagues'.** `nhl_team_words` and `nba_team_words` each
+  exclude the other's nicknames on an ALL SPORTS card, and `teams_for()` lets
+  a bare nickname before the price take its city from the team named AFTER it
+  ("Kings +6.5 -- Sacramento Kings") -- but only when the subject IS that
+  team's name, or a misspelt player would become a moneyline on his club. On a
+  single-sport card (`only_sport`) every own nickname counts: Kings is
+  Sacramento on a basketball card, Los Angeles on a hockey card.
+- Cross-league names exist (Jose Alvarado, Spencer Jones, Braden Smith,
+  Jaden Bradley, Jordan Miller); a `basketball_*.txt` card forces NBA. On an
+  ALL SPORTS card the team the line names settles it (`his_club`): "Jose
+  Alvarado (+300) -- New York Knicks" was first graded as the PHILLIES
+  pitcher's home run bet, because his name alone is on both rosters. With no
+  team written anywhere he stays baseball's, as before (Q12/Q12b).
+
+`scripts/parse_basketball_picks.py`, `.github/workflows/parse-basketball-picks.yml`
+(commits only `data/basketball/tickets*`, `test_workflow_yaml.py`
+B3g/B3h/C2d/D2f/D2g), `scripts/build_basketball_roster.py` (606 players, 30
+teams; merges like the others; NBA rosters are a flat list where hockey's are
+grouped), the bot's `basketball` route, `notify_discord.py --sport basketball`.
+Not built, as for hockey: auto-fix support, a results archive / History page.
+No real basketball card has arrived -- `tests/fixtures/basketball_format.txt`
+is written to the generator's shape.
+
 ## Combined picks: `sports_*.txt`
 
 **`scripts/parse_combined_picks.py`** -> `data/combined/tickets.json`, fired by
@@ -1545,6 +1619,7 @@ script), and the Discord bot's routing. Keep it that way:
   `data/incoming_picks.txt`, `football*.txt` -> `data/football/incoming_picks.txt`,
   `sports*.txt` -> `data/combined/incoming_picks.txt` (the ALL SPORTS tab),
   `hockey*.txt` -> `data/hockey/incoming_picks.txt` (the hidden NHL page),
+  `basketball*.txt` -> `data/basketball/incoming_picks.txt` (the hidden NBA page),
   anything else is refused with a rename hint. It never inspects the text --
   the cards share a template, and a guess would eventually overwrite the wrong
   sport's slate.
@@ -1882,13 +1957,13 @@ after a dash during parsing — don't reintroduce this).
    picks multiple times because "copy the zip contents over the repo" also
    copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
    and `data/incoming_picks.txt` (plus their `data/football/` and
-   `data/combined/` and `data/hockey/` twins) are live user data, managed only through
+   `data/combined/`, `data/hockey/` and `data/basketball/` twins) are live user data, managed only through
    the picks-upload → GitHub Actions pipeline. `data/history.json` is pipeline data too (only
    `scripts/import_history.py` writes it), and so are `data/results/`,
    `data/football/results/` and `data/football/history.json` (only the two
    `record_*_results.py` scripts write them). Code changes should only
    ever touch `index.html`, `football/index.html`, `all/index.html`,
-   `hockey/index.html`, `history/`, `features/`, `scripts/`,
+   `hockey/index.html`, `basketball/index.html`, `history/`, `features/`, `scripts/`,
    `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
    `tests/test_live_data_schema.py` is a deliberate, narrow exception: it
    **reads** whatever is currently committed under `data/` to check it against
@@ -2074,6 +2149,13 @@ on failure:
   Brayden Point name-vs-market case, the Florida/Carolina Panthers split, the
   Will Smith Dodgers/Sharks collision, the roster merge, the CLI). Thirteen
   mutations, all caught.
+- `tests/test_basketball.py` — `basketball/index.html` and basketball on
+  `all/index.html`, the twin of `test_hockey.py`: hidden (A3), `bmbs.bb.*`
+  (A4), no MLB/NHL/NFL requests (A5/A6), every market graded live and at the
+  final (DNP void, push, combos, triple-double), the tiles (ON THE COURT, ON
+  THE BENCH, plain LIVE when nobody is `active`, HALFTIME, foul trouble, one
+  TEAM BETS tile), a hit's alert words and its bell time off the play itself.
+  The parser is `test_combined_parser.py` section Q.
 - `tests/test_bell.py` section I — the Play overlay button on all three pages:
   present on every entry as a real `<button>`, plays with the overlay toggle
   off, a second tap replaces rather than queues, a bet replays as a cash,
@@ -2202,7 +2284,7 @@ on failure:
 pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py && python tests/test_steals.py
-python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py && python tests/test_hockey.py
+python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py && python tests/test_hockey.py && python tests/test_basketball.py
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py

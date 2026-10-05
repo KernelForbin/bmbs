@@ -58,6 +58,8 @@ ROUTES = {
     # The NHL tracker is HIDDEN from the site's sport switch (2026-10-05), but
     # complete -- a hockey_*.txt upload still lands and is tracked there.
     "hockey": {"path": "data/hockey/incoming_picks.txt", "sport": "NHL", "site": "https://bmbs.bet/hockey/"},
+    # The NBA tracker at /basketball/, hidden the same way (2026-10-05).
+    "basketball": {"path": "data/basketball/incoming_picks.txt", "sport": "NBA", "site": "https://bmbs.bet/basketball/"},
 }
 
 

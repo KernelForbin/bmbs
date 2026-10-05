@@ -701,6 +701,89 @@ check("P14 a hockey card's name shared with another league is the HOCKEY player 
       _h.get("sport") == "nhl" and _h.get("team") == "SJ" and _h.get("athleteId") and _h.get("market") == "nhl_goal"
       and _a.get("sport") == "mlb" and _a.get("team") == "LAD", (_h, _a))
 
+
+# ================= Q. basketball (2026-10-05) =================================
+# A basketball_*.txt card through parse_basketball_picks, and NBA legs on an
+# All Sports card beside hockey, where "Points", "Assists" and "Kings" mean
+# something in both leagues. Written to the generator's shape, not observed.
+import parse_basketball_picks as bp        # noqa: E402
+import build_basketball_roster as bbr      # noqa: E402
+HOOPS = (REPO / "tests" / "fixtures" / "basketball_format.txt").read_text(encoding="utf-8")
+bk = bp.build(HOOPS, HNOW, no_network)
+bl2 = [l for w in bk["windows"] for t in w["tickets"] for l in t["legs"]] + bk["singles"]
+def bfind(player, market=None):
+    return next((l for l in bl2 if l["player"] == player and (market is None or l.get("market") == market)), {})
+check("Q1 the basketball card parses: 2 parlays, 2 singles, every leg NBA, nothing flagged -- not even its title",
+      sum(len(w["tickets"]) for w in bk["windows"]) == 2 and len(bk["singles"]) == 2
+      and all(l.get("sport") == "nba" for l in bl2) and bk["note"] == "" and bk["sports"] == ["nba"],
+      (len(bl2), bk["note"], bk["sports"]))
+jp = bfind("Nikola Jokic", "nba_points")
+check("Q2 a points line on an NBA name is BASKETBALL points, with its id and line",
+      jp.get("line") == 25.5 and jp.get("team") == "DEN" and jp.get("athleteId"), jp)
+check("Q3 '4+ Threes' is threes over 3.5; assists keep their line",
+      bfind("Stephen Curry").get("market") == "nba_threes" and bfind("Stephen Curry").get("line") == 3.5
+      and bfind("Jalen Brunson").get("market") == "nba_assists" and bfind("Jalen Brunson").get("line") == 6.5,
+      (bfind("Stephen Curry"), bfind("Jalen Brunson")))
+check("Q4 a combo and a triple-double are their own markets, not points",
+      bfind("Shai Gilgeous-Alexander").get("market") == "nba_pra" and bfind("Shai Gilgeous-Alexander").get("line") == 40.5
+      and bfind("Nikola Jokic", "nba_td"), (bfind("Shai Gilgeous-Alexander"), bfind("Nikola Jokic", "nba_td")))
+check("Q5 team bets: a moneyline, a two-team total, and a signed spread",
+      bfind("Denver Nuggets").get("market") == "nba_ml"
+      and next((l for l in bl2 if l.get("market") == "nba_total"), {}).get("teams") == ["NY", "BOS"]
+      and bfind("Sacramento Kings").get("market") == "nba_spread" and bfind("Sacramento Kings").get("line") == 6.5,
+      [(l["player"], l.get("market"), l.get("line")) for l in bl2])
+_mx = cp.build("Parlay 1\n* Kings +6.5 (-110) — Sacramento Kings (Memo) 10:00 PM\n"
+               "* Kings Moneyline (+120) — Los Angeles Kings (Memo) 10:30 PM\n"
+               "* Nikola Jokicc Points Over 25.5 (-115) — Denver Nuggets (Memo) 9:00 PM\n"
+               "* Connor McDavid Points Over 1.5 (+120) — Edmonton Oilers (Joe) 10:00 PM\n"
+               "* Aaron Judge (+390) — New York Yankees (Memo) 7:10 PM\n"
+               "$5.00 Bet | Potential Payout: $60.00 (Memo)\n", MLB, NFL, HNOW, no_network)
+_x = {(l["player"], l["sport"]): l for w in _mx["windows"] for t in w["tickets"] for l in t["legs"]}
+check("Q6 on an All Sports card 'Kings' takes the city after the price: Sacramento's are NBA, Los Angeles' NHL",
+      (_x.get(("Sacramento Kings", "nba")) or {}).get("market") == "nba_spread"
+      and (_x.get(("Los Angeles Kings", "nhl")) or {}).get("market") == "nhl_ml", list(_x))
+check("Q7 'Points' goes by the NAME: Jokic (misspelt) is NBA points, McDavid NHL points, Judge still baseball",
+      (_x.get(("Nikola Jokic", "nba")) or {}).get("market") == "nba_points"
+      and (_x.get(("Connor McDavid", "nhl")) or {}).get("market") == "nhl_points"
+      and ("Aaron Judge", "mlb") in _x and _mx["sports"] == ["mlb", "nhl", "nba"], (list(_x), _mx["sports"]))
+_bare = bp.build("Parlay 1\n* Nikola Jokic (+150) — Denver Nuggets (Kenny) 9:00 PM\n"
+                 "* Jamal Murray Points Over 20.5 (-110) — Denver Nuggets (Kenny) 9:00 PM\n"
+                 "$5.00 Bet | Potential Payout: $30.00 (Kenny)\n", HNOW, no_network)
+_bj = next((l for w in _bare["windows"] for t in w["tickets"] for l in t["legs"] if l["player"] == "Nikola Jokic"), {})
+check("Q8 a basketball leg naming no bet type is kept with NO market (the page shows it untracked) and reported",
+      _bj.get("sport") == "nba" and "market" not in _bj and "no bet type" in _bare["note"], (_bj, _bare["note"]))
+check("Q9 the NBA-only market words are evidence on their own; points/assists/steals are not",
+      cp.detect_nba_market("Pts+Reb+Ast Over 40.5")[0] == "nba_pra" and cp.detect_nba_market("Triple-Double")[0] == "nba_td"
+      and cp.detect_nba_market("3-Pointers Made Over 2.5")[0] == "nba_threes"
+      and {"nba_points", "nba_assists", "nba_steals"}.isdisjoint(cp.NBA_ONLY_MARKETS))
+_m2 = bbr.merge_rosters(_old, _new)
+_s = """🎯 Longshot (LS) Straight Bets (Single Legs)
+Bailey: Kings +6.5 (-110) | (SAC @ LAL) 10:00 PM ET • $5.00 bet | PP: $9.55
+"""
+_kb = (bp.build(_s, HNOW, no_network)["singles"] or [{}])[0]
+_kh = (hp.build(_s.replace("+6.5", "Moneyline"), HNOW, no_network)["singles"] or [{}])[0]
+check("Q11 with no city anywhere, 'Kings' is the CARD's league's: Sacramento on a basketball card, Los Angeles on a hockey one",
+      _kb.get("team") == "SAC" and _kb.get("market") == "nba_spread" and _kh.get("team") == "LA" and _kh.get("market") == "nhl_ml",
+      (_kb, _kh))
+_ja = """🎯 Longshot (LS) Straight Bets (Single Legs)
+Kenny: Jose Alvarado (+300) | (NY @ BOS) 7:30 PM ET • $5.00 bet | PP: $20.00
+"""
+_jb = (bp.build(_ja, HNOW, no_network)["singles"] or [{}])[0]
+_jm = (cp.build(_ja, MLB, NFL, HNOW, no_network)["singles"] or [{}])[0]
+check("Q12 Jose Alvarado is a Knick AND a Phillies pitcher, and nothing on the line says which: a basketball card "
+      "makes him the Knick, an All Sports card leaves him baseball's",
+      _jb.get("sport") == "nba" and _jb.get("team") == "NY" and _jm.get("sport") == "mlb", (_jb, _jm))
+_jt = """Parlay 1
+* Jose Alvarado (+300) — New York Knicks (Kenny) 8:00 PM
+* Nikola Jokic Points Over 25.5 (-115) — Denver Nuggets (Kenny) 9:00 PM
+$5.00 Bet | Potential Payout: $30.00 (Kenny)
+"""
+_jk = next((l for w in cp.build(_jt, MLB, NFL, HNOW, no_network)["windows"] for t in w["tickets"] for l in t["legs"]
+            if "Alvarado" in l["player"]), {})
+check("Q12b ...but when the line names his NBA club, even an All Sports card makes him the Knick -- not a Phillies home run bet",
+      _jk.get("sport") == "nba" and _jk.get("team") == "NY", _jk)
+check("Q10 the NBA roster rebuild merges the same way: nobody known is dropped", _m2["team_by_name"] == {"a": "TOR", "b": "BOS"}, _m2)
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

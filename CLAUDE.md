@@ -12,9 +12,10 @@ value are addresses rather than names and were deliberately left alone.
 
 **The third tab is ALL SPORTS** (renamed from "NFL+MLB" on 2026-10-05, when
 hockey joined it). Same rule: the label changed; `/all/`, `data/combined/`,
-the `sports_*` upload prefix and `?sport=combined` did not. **There are two
-more, HIDDEN, trackers: NHL at `/hockey/` and NBA at `/basketball/`** -- see
-"The NHL tracker" and "The NBA tracker" below.
+the `sports_*` upload prefix and `?sport=combined` did not. **There are three
+more, HIDDEN, trackers: NHL at `/hockey/`, NBA at `/basketball/` and WNBA at
+`/wnba/`** -- see "The NHL tracker", "The NBA tracker" and "The WNBA tracker"
+below.
 
 ## Architecture
 
@@ -33,6 +34,8 @@ more, HIDDEN, trackers: NHL at `/hockey/` and NBA at `/basketball/`** -- see
   `all/index.html` and independent since. See "The NHL tracker" below.
 - **`basketball/index.html`** — the **NBA** tracker at `/basketball/`, hidden
   exactly like the NHL one. See "The NBA tracker" below.
+- **`wnba/index.html`** — the **WNBA** tracker at `/wnba/`, hidden the same
+  way, on the NBA's engine. See "The WNBA tracker" below.
 - **`features/index.html`** — a static, plain-language "what this site can
   do" page for end users (the friend group), reusing `index.html`'s exact
   color tokens/fonts so it reads as the same product. Lives at the clean
@@ -755,7 +758,7 @@ both. Football has always had `bmbs.fb.*` for exactly this reason. Every key
 the combined page writes is now `bmbs.all.*`; `test_bell.py` E10 fails on any
 `bmbs.` key there that isn't. **A new key on any page needs its own
 namespace** -- `bmbs.` (MLB), `bmbs.fb.` (NFL), `bmbs.all.` (ALL SPORTS),
-`bmbs.hk.` (NHL), `bmbs.bb.` (NBA).
+`bmbs.hk.` (NHL), `bmbs.bb.` (NBA), `bmbs.wb.` (WNBA).
 
 ## Bet markets: a registry, not a list of special cases
 
@@ -1490,6 +1493,40 @@ Not built, as for hockey: auto-fix support, a results archive / History page.
 No real basketball card has arrived -- `tests/fixtures/basketball_format.txt`
 is written to the generator's shape.
 
+## The WNBA tracker -- built in full, HIDDEN (2026-10-05)
+
+"Add WNBA same as nba." **It runs on the NBA's own engine**: ESPN's WNBA
+summary is the NBA one column for column (checked on the 2026-10-01 IND @ LV
+game -- same labels, `active`, participant order, flat roster list), so the
+NBA IIFE became `makeHoopsEngine(league)` and the ALL SPORTS page builds two:
+`const NBA = makeHoopsEngine("nba")`, `const WNBA = makeHoopsEngine("wnba")`.
+Each has its own closure -- RESULTS, picks, caches -- so a Knicks "NY" and a
+Liberty "NY" never meet. **A WNBA leg is `sport: "wnba"` with the SAME
+`nba_*` markets and graders**; `marketForeign()` treats wnba as nba, and
+`hoops(leg)` picks the engine everywhere the host reads one (graders, status
+lines, tiles, hit times). Tracker entries now carry `sport` for that. A WNBA
+team tile is keyed `WNBA <abbr>`, or a Liberty bet and a Knicks bet would
+share one tile (`test_basketball.py` G3, which a mutation proved).
+
+`/wnba/` is generated from `all/index.html` like the others (`bmbs.wb.*`,
+`data/wnba/`), hidden the same way. `basketball/index.html` was generated
+BEFORE the factory and keeps its own single-league engine -- it is
+independent, and was deliberately not regenerated.
+
+**Parser**: `nba_record(..., league="wnba", others=(nba,))`, and the WNBA gets
+FIRST look -- with narrower evidence: a WNBA name or team only. An NBA-only
+word ("Rebounds") is not WNBA evidence, and NBA-first would have pulled A'ja
+Wilson's rebounds into the NBA (`test_combined_parser.py` R4/R5).
+`build_basketball_roster.py --league wnba` -> `data/wnba/roster.json` (221
+players, 15 teams; no name shared with any other league's roster).
+`parse_wnba_picks.py`, `parse-wnba-picks.yml`, bot route `wnba`,
+`notify_discord.py --sport wnba`. **Tests: `tests/test_wnba.py` runs
+`test_basketball.py` with `HOOPS_LEAGUE=wnba`** -- one set of checks for both
+leagues, plus section G (both leagues on one card, both directions).
+
+**The 2026 season looks over** (last game Oct 1), so nothing WNBA has been
+seen live, including `active`. Same rule as the NBA: unknown means LIVE.
+
 ## Combined picks: `sports_*.txt`
 
 **`scripts/parse_combined_picks.py`** -> `data/combined/tickets.json`, fired by
@@ -1620,6 +1657,7 @@ script), and the Discord bot's routing. Keep it that way:
   `sports*.txt` -> `data/combined/incoming_picks.txt` (the ALL SPORTS tab),
   `hockey*.txt` -> `data/hockey/incoming_picks.txt` (the hidden NHL page),
   `basketball*.txt` -> `data/basketball/incoming_picks.txt` (the hidden NBA page),
+  `wnba*.txt` -> `data/wnba/incoming_picks.txt` (the hidden WNBA page),
   anything else is refused with a rename hint. It never inspects the text --
   the cards share a template, and a guess would eventually overwrite the wrong
   sport's slate.
@@ -1957,13 +1995,13 @@ after a dash during parsing — don't reintroduce this).
    picks multiple times because "copy the zip contents over the repo" also
    copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
    and `data/incoming_picks.txt` (plus their `data/football/` and
-   `data/combined/`, `data/hockey/` and `data/basketball/` twins) are live user data, managed only through
+   `data/combined/`, `data/hockey/`, `data/basketball/` and `data/wnba/` twins) are live user data, managed only through
    the picks-upload → GitHub Actions pipeline. `data/history.json` is pipeline data too (only
    `scripts/import_history.py` writes it), and so are `data/results/`,
    `data/football/results/` and `data/football/history.json` (only the two
    `record_*_results.py` scripts write them). Code changes should only
    ever touch `index.html`, `football/index.html`, `all/index.html`,
-   `hockey/index.html`, `basketball/index.html`, `history/`, `features/`, `scripts/`,
+   `hockey/index.html`, `basketball/index.html`, `wnba/index.html`, `history/`, `features/`, `scripts/`,
    `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
    `tests/test_live_data_schema.py` is a deliberate, narrow exception: it
    **reads** whatever is currently committed under `data/` to check it against
@@ -2284,7 +2322,7 @@ on failure:
 pip install -r tests/requirements.txt
 python -m playwright install chromium
 python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py && python tests/test_steals.py
-python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py && python tests/test_hockey.py && python tests/test_basketball.py
+python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py && python tests/test_hockey.py && python tests/test_basketball.py && python tests/test_wnba.py
 python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
 python tests/test_football_parser.py && python tests/test_football.py
 python tests/test_record_results.py && python tests/test_football_history.py

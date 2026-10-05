@@ -42,6 +42,7 @@ NFL_ROSTER = ROOT / "data" / "football" / "roster.json"
 OUT_PATH = ROOT / "data" / "combined" / "tickets.json"
 NHL_ROSTER = ROOT / "data" / "hockey" / "roster.json"
 NBA_ROSTER = ROOT / "data" / "basketball" / "roster.json"
+WNBA_ROSTER = ROOT / "data" / "wnba" / "roster.json"
 PREV_PATH = ROOT / "data" / "combined" / "tickets-previous.json"
 
 # ---------------------------------------------------------------------------
@@ -270,10 +271,11 @@ def load_nhl_roster():
         return {"team_by_name": {}, "canonical_name_by_norm": {}, "id_by_norm": {}, "pos_by_norm": {}, "team_names": {}}
 
 
-def load_nba_roster():
-    """data/basketball/roster.json, or an empty roster when it isn't there yet."""
+def load_nba_roster(path=None):
+    """data/basketball/roster.json (or the WNBA's), or an empty roster when it
+    isn't there yet."""
     try:
-        return json.loads(NBA_ROSTER.read_text(encoding="utf-8"))
+        return json.loads((path or NBA_ROSTER).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {"team_by_name": {}, "canonical_name_by_norm": {}, "id_by_norm": {}, "pos_by_norm": {}, "team_names": {}}
 
@@ -469,13 +471,14 @@ def nba_nicknames(nba):
     return out
 
 
-def nba_team_words(nba, mlb, nhl, exclusive=True):
-    """word -> NBA abbr: every full team name, and every nickname no other
-    league uses -- "Kings" is the NHL's too, so Sacramento needs its city."""
+def nba_team_words(nba, mlb, nhl, exclusive=True, league="nba"):
+    """word -> NBA (or WNBA) abbr: every full team name, and every nickname no
+    other league uses -- "Kings" is the NHL's too, so Sacramento needs its
+    city. The ESPN-vs-card spellings (`NBA_EXTRA_TEAM_WORDS`) are the NBA's."""
     others = (set(NFL_TEAM_WORDS) | set((mlb or {}).get("abbr_by_team_word") or {})
               | {next((t for t in NHL_TWO_WORD if f.lower().endswith(t)), f.lower().split()[-1])
                  for f in ((nhl or {}).get("team_names") or {}).values()})
-    words = dict(NBA_EXTRA_TEAM_WORDS)
+    words = dict(NBA_EXTRA_TEAM_WORDS) if league == "nba" else {}
     for abbr, full in ((nba or {}).get("team_names") or {}).items():
         low = full.lower()
         words[low] = abbr
@@ -485,12 +488,17 @@ def nba_team_words(nba, mlb, nhl, exclusive=True):
     return words
 
 
-def nba_record(candidate, rest, nba, mlb, nfl, nhl, words, force=False):
+def nba_record(candidate, rest, nba, mlb, nfl, nhl, words, force=False, league="nba", others=()):
     """A basketball leg's record, or None when nothing says this leg is
     basketball. The hockey shape, with one difference in what counts as
     evidence: "Points" and "Assists" are hockey markets too, so only an
     NBA-ONLY market word, an NBA team, or a name the NBA roster knows (and no
-    other league does) claims a leg."""
+    other league does) claims a leg.
+
+    The WNBA runs through here too (`league="wnba"`, `nba` = the WNBA roster,
+    `others` = the NBA's), with ONE difference: an NBA-only market word is not
+    WNBA evidence -- "Rebounds" says basketball, not which league. Only a WNBA
+    name or team claims a leg for the WNBA; the markets stay nba_*, shared."""
     words_ = candidate.split()
     named = 0
     for k in range(min(len(words_), 5), 1, -1):
@@ -511,8 +519,9 @@ def nba_record(candidate, rest, nba, mlb, nfl, nhl, words, force=False):
     teams, team_subject = teams_for(candidate, subject, rest, words, nba)
     on_nba = key in nba["team_by_name"]
     on_other = (_in_roster(mlb_parser.normalize_name(subject), mlb) or _in_roster(key, nfl)
-                or key in ((nhl or {}).get("team_by_name") or {}))
-    nba_only = market in NBA_ONLY_MARKETS
+                or key in ((nhl or {}).get("team_by_name") or {})
+                or any(key in ((o or {}).get("team_by_name") or {}) for o in others))
+    nba_only = league == "nba" and market in NBA_ONLY_MARKETS
     # A name on two leagues' rosters (Jose Alvarado: a Knick AND a Phillies
     # pitcher) is settled by the team the line names: his NBA club is NBA.
     his_club = on_nba and nba["team_by_name"].get(key) in teams
@@ -523,7 +532,7 @@ def nba_record(candidate, rest, nba, mlb, nfl, nhl, words, force=False):
     qty = QTY_RE.search(candidate)
     if qty and line is None:
         line, side = float(qty.group(0).rstrip("+ ").strip()) - 0.5, "over"
-    rec = {"sport": "nba", "line": line, "side": side, "why": "basketball"}
+    rec = {"sport": league, "line": line, "side": side, "why": "basketball"}
 
     # A TEAM bet: the subject is a team, not a player.
     if teams and team_subject and not on_nba:
@@ -652,7 +661,7 @@ def pp_key_for(line, odds, tail):
     return (leg or {}).get("player") or ""
 
 
-def scan_card(text, mlb, nfl, nhl=None, only_sport=None, nba=None):
+def scan_card(text, mlb, nfl, nhl=None, only_sport=None, nba=None, wnba=None):
     """Pre-pass: read the RAW card and work out each leg's sport and market.
 
     -> ({normalized raw player text: record}, [ambiguity warnings])
@@ -661,11 +670,13 @@ def scan_card(text, mlb, nfl, nhl=None, only_sport=None, nba=None):
     section_hint = None
     nhl = nhl or load_nhl_roster()
     nba = nba or load_nba_roster()
+    wnba = wnba or load_nba_roster(WNBA_ROSTER)
     # On a single-sport card every nickname is that league's: "Kings" on a
     # hockey card is Los Angeles, on a basketball card Sacramento. Only an All
     # Sports card, where it could be either, needs the city.
     nhl_words = nhl_team_words(nhl, mlb, nba, exclusive=only_sport != "nhl")
     nba_words = nba_team_words(nba, mlb, nhl, exclusive=only_sport != "nba")
+    wnba_words = nba_team_words(wnba, mlb, nhl, exclusive=only_sport != "wnba", league="wnba")
 
     for raw_line in text.splitlines():
         line = raw_line.rstrip()
@@ -739,15 +750,21 @@ def scan_card(text, mlb, nfl, nhl=None, only_sport=None, nba=None):
         # hockey also uses, and only the NBA roster can say whose it is. It
         # claims a leg only on NBA-specific evidence, so a hockey line still
         # falls through to the hockey check below.
+        # The WNBA first: its evidence is narrower (a WNBA name or team only),
+        # and an NBA-only word like "Rebounds" must not pull A'ja Wilson into
+        # the NBA.
         brec = None
-        if only_sport in (None, "nba"):
-            brec = nba_record(candidate, rest, nba, mlb, nfl, nhl, nba_words, force=(only_sport == "nba"))
+        if only_sport in (None, "wnba"):
+            brec = nba_record(candidate, rest, wnba, mlb, nfl, nhl, wnba_words, force=(only_sport == "wnba"),
+                              league="wnba", others=(nba,))
+        if brec is None and only_sport in (None, "nba"):
+            brec = nba_record(candidate, rest, nba, mlb, nfl, nhl, nba_words, force=(only_sport == "nba"), others=(wnba,))
         if brec:
             unknown = brec.get("is_player") is False and not brec.get("is_team")
             if unknown and tail is not None:
                 continue      # a dated heading, not a leg -- see hockey's note below
             if unknown:
-                warnings.append(f"{brec['name']!r} is not on the NBA roster -- "
+                warnings.append(f"{brec['name']!r} is not on the {brec['sport'].upper()} roster -- "
                                 f"check the spelling, it can't be graded as typed")
             elif not brec.get("market"):
                 warnings.append(f"{brec['name']!r}: no bet type stated (points, rebounds...) -- shown, not tracked")
@@ -761,7 +778,7 @@ def scan_card(text, mlb, nfl, nhl=None, only_sport=None, nba=None):
         # team, or a name only the NHL roster knows. "Tampa Bay Lightning"
         # says Tampa Bay, which is also the Bucs and the Rays -- read that way
         # it was once graded as football and stretched the slate to Thursday.
-        hrec = None if only_sport == "nba" else nhl_record(candidate, rest, nhl, mlb, nfl, nhl_words, force=(only_sport == "nhl"))
+        hrec = None if only_sport in ("nba", "wnba") else nhl_record(candidate, rest, nhl, mlb, nfl, nhl_words, force=(only_sport == "nhl"))
         if hrec:
             unknown = hrec.get("is_player") is False and not hrec.get("is_team")
             if unknown and tail is not None:
@@ -1052,7 +1069,7 @@ def apply_sports(windows, singles, found, default_sport="mlb"):
             return
         touched += 1
         leg["sport"] = rec["sport"]
-        if rec["sport"] in ("nhl", "nba"):
+        if rec["sport"] in ("nhl", "nba", "wnba"):
             leg["market"], leg["player"], leg["team"] = rec["market"], rec["name"], rec.get("team", "")
             if not rec["market"]:
                 leg.pop("market", None)
@@ -1184,6 +1201,7 @@ def leg_times(legs):
 
 NHL_SCOREBOARD = "https://site.web.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard?dates={ymd}"
 NBA_SCOREBOARD = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={ymd}"
+WNBA_SCOREBOARD = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard?dates={ymd}"
 
 
 def nhl_span(teams, now, fetcher=None):
@@ -1232,8 +1250,9 @@ def espn_span(scoreboard, league, teams, now, fetcher=None):
 
 def slate_span(legs, now, fetcher=None):
     """(date, end_date) for a card holding either sport, or both."""
-    mlb_legs = [l for l in legs if l.get("sport") not in ("nfl", "nhl", "nba")]
+    mlb_legs = [l for l in legs if l.get("sport") not in ("nfl", "nhl", "nba", "wnba")]
     nba_legs = [l for l in legs if l.get("sport") == "nba"]
+    wnba_legs = [l for l in legs if l.get("sport") == "wnba"]
     nfl_legs = [l for l in legs if l.get("sport") == "nfl"]
     nhl_legs = [l for l in legs if l.get("sport") == "nhl"]
 
@@ -1251,6 +1270,10 @@ def slate_span(legs, now, fetcher=None):
     if nba_legs:
         teams = {l.get("team") for l in nba_legs} | {l.get("opponent") for l in nba_legs}
         first, last = nba_span(teams, now, fetcher)
+        days += [d for d in (first, last) if d]
+    if wnba_legs:
+        teams = {l.get("team") for l in wnba_legs} | {l.get("opponent") for l in wnba_legs}
+        first, last = espn_span(WNBA_SCOREBOARD, "WNBA", teams, now, fetcher)
         days += [d for d in (first, last) if d]
     if not days:
         days = [now.date().isoformat()]
@@ -1275,10 +1298,10 @@ def archive_previous_slate(new_date, out_path, prev_path):
     return True
 
 
-def build(text, mlb, nfl, now, fetcher=None, nhl=None, only_sport=None, nba=None):
+def build(text, mlb, nfl, now, fetcher=None, nhl=None, only_sport=None, nba=None, wnba=None):
     """The whole pipeline, as a pure-ish function so the tests can drive it."""
     text = normalize_card(text)
-    found, warnings = scan_card(text, mlb, nfl, nhl, only_sport, nba)
+    found, warnings = scan_card(text, mlb, nfl, nhl, only_sport, nba, wnba)
     windows, singles, _raw = mlb_parser.parse(
         text, mlb["team_by_name"], mlb["canonical_name_by_norm"])
     if not windows and not singles:
@@ -1287,7 +1310,7 @@ def build(text, mlb, nfl, now, fetcher=None, nhl=None, only_sport=None, nba=None
 
     apply_sports(windows, singles, found, default_sport=only_sport or "mlb")
     legs = [l for w in windows for t in w["tickets"] for l in t["legs"]] + list(singles)
-    by_sport = {"mlb": 0, "nfl": 0, "nhl": 0, "nba": 0}
+    by_sport = {"mlb": 0, "nfl": 0, "nhl": 0, "nba": 0, "wnba": 0}
     for leg in legs:
         by_sport[leg.get("sport", "mlb")] += 1
 
@@ -1307,12 +1330,12 @@ def build(text, mlb, nfl, now, fetcher=None, nhl=None, only_sport=None, nba=None
         "date": date,
         "endDate": end_date,
         "note": " · ".join(bits),
-        "sports": [k for k in ("mlb", "nfl", "nhl", "nba") if by_sport[k]],
+        "sports": [k for k in ("mlb", "nfl", "nhl", "nba", "wnba") if by_sport[k]],
         "windows": windows,
         "singles": singles,
     }
     print(f"{sum(by_sport.values())} legs ({by_sport['mlb']} MLB, {by_sport['nfl']} NFL, {by_sport['nhl']} NHL, "
-          f"{by_sport['nba']} NBA) "
+          f"{by_sport['nba']} NBA, {by_sport['wnba']} WNBA) "
           f"in {sum(len(w['tickets']) for w in windows)} ticket(s) and "
           f"{len(singles)} single(s); slate {date}"
           + (f"..{end_date}" if end_date != date else ""), file=sys.stderr)

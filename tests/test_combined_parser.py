@@ -782,6 +782,40 @@ _jk = next((l for w in cp.build(_jt, MLB, NFL, HNOW, no_network)["windows"] for 
             if "Alvarado" in l["player"]), {})
 check("Q12b ...but when the line names his NBA club, even an All Sports card makes him the Knick -- not a Phillies home run bet",
       _jk.get("sport") == "nba" and _jk.get("team") == "NY", _jk)
+# ================= R. the WNBA (2026-10-05) ===================================
+# The same engine, markets and parser as the NBA; only the roster and the
+# league differ. What must not happen is a WNBA leg being read as the NBA.
+import parse_wnba_picks as wp              # noqa: E402
+WCARD = (REPO / "tests" / "fixtures" / "wnba_format.txt").read_text(encoding="utf-8")
+wk = wp.build(WCARD, HNOW, no_network)
+wl = [l for w in wk["windows"] for t in w["tickets"] for l in t["legs"]] + wk["singles"]
+def wfind(player, market=None):
+    return next((l for l in wl if l["player"] == player and (market is None or l.get("market") == market)), {})
+check("R1 the WNBA card parses: 2 parlays, 2 singles, every leg WNBA, nothing flagged",
+      sum(len(w["tickets"]) for w in wk["windows"]) == 2 and len(wk["singles"]) == 2
+      and all(l.get("sport") == "wnba" for l in wl) and wk["note"] == "" and wk["sports"] == ["wnba"],
+      (len(wl), wk["note"], wk["sports"]))
+check("R2 the WNBA shares basketball's markets: A'ja Wilson's points and double-double, Stewart's rebounds, Collier's PRA",
+      wfind("A'ja Wilson", "nba_points").get("line") == 24.5 and wfind("A'ja Wilson", "nba_dd")
+      and wfind("Breanna Stewart").get("market") == "nba_rebounds" and wfind("Napheesa Collier").get("market") == "nba_pra"
+      and wfind("A'ja Wilson", "nba_points").get("athleteId"), wl)
+check("R3 WNBA team bets: the Aces' moneyline, a Liberty/Lynx total, the Fever's spread",
+      wfind("Las Vegas Aces").get("market") == "nba_ml"
+      and next((l for l in wl if l.get("market") == "nba_total"), {}).get("teams") == ["NY", "MIN"]
+      and wfind("Indiana Fever").get("market") == "nba_spread", [(l["player"], l.get("market")) for l in wl])
+_wm = cp.build("""Parlay 1
+* A'ja Wilson Rebounds Over 9.5 (+110) — Las Vegas Aces (Memo) 8:00 PM
+* Nikola Jokic Rebounds Over 11.5 (-115) — Denver Nuggets (Memo) 9:00 PM
+* Liberty -3.5 (-110) — New York Liberty (Memo) 7:30 PM
+* Knicks -3.5 (-110) — New York Knicks (Memo) 7:30 PM
+$5.00 Bet | Potential Payout: $60.00 (Memo)
+""", MLB, NFL, HNOW, no_network)
+_w = {l["player"]: l for w in _wm["windows"] for t in w["tickets"] for l in t["legs"]}
+check("R4 on an All Sports card 'Rebounds' (an NBA-only word) still goes by the NAME: Wilson WNBA, Jokic NBA",
+      (_w.get("A'ja Wilson") or {}).get("sport") == "wnba" and (_w.get("Nikola Jokic") or {}).get("sport") == "nba", _w)
+check("R5 'NY' is two teams: the Liberty's spread is WNBA, the Knicks' NBA",
+      (_w.get("New York Liberty") or {}).get("sport") == "wnba" and (_w.get("New York Knicks") or {}).get("sport") == "nba"
+      and _wm["sports"] == ["nba", "wnba"], (_w, _wm["sports"]))
 check("Q10 the NBA roster rebuild merges the same way: nobody known is dropped", _m2["team_by_name"] == {"a": "TOR", "b": "BOS"}, _m2)
 
 print()

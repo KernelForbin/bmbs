@@ -15,8 +15,11 @@ rosters drop players who are released or two-way, and a missing player is the
 worst state there is -- his leg can never grade either way. Fresh data wins
 for anyone in both; `--replace` starts over.
 
+The WNBA roster comes from the same script (`--league wnba` ->
+data/wnba/roster.json): ESPN's WNBA API is the NBA one, shape for shape.
+
 Run:
-    python scripts/build_basketball_roster.py [--out FILE] [--replace]
+    python scripts/build_basketball_roster.py [--league nba|wnba] [--out FILE] [--replace]
 """
 import argparse
 import json
@@ -29,6 +32,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT_PATH = ROOT / "data" / "basketball" / "roster.json"
 API = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba"
+# league -> (ESPN API root, default output, how many teams it should have)
+LEAGUES = {
+    "nba": (API, OUT_PATH, 30),
+    "wnba": ("https://site.web.api.espn.com/apis/site/v2/sports/basketball/wnba",
+             ROOT / "data" / "wnba" / "roster.json", 15),
+}
 
 SUFFIX_RE = re.compile(r"\s+(jr|sr|ii|iii|iv|v)$")
 PLAYER_MAPS = ("team_by_name", "canonical_name_by_norm", "id_by_norm", "pos_by_norm")
@@ -57,11 +66,13 @@ def roster_athletes(roster):
     return out
 
 
-def build(fetcher=fetch):
-    listing = fetcher(f"{API}/teams?limit=40")
+def build(fetcher=fetch, league="nba"):
+    api, _out, expected = LEAGUES[league]
+    listing = fetcher(f"{api}/teams?limit=40")
     teams = [t["team"] for t in listing["sports"][0]["leagues"][0]["teams"]]
-    if len(teams) != 30:
-        print(f"WARNING: expected 30 NBA teams, got {len(teams)} -- check the roster for gaps.", file=sys.stderr)
+    if len(teams) != expected:
+        print(f"WARNING: expected {expected} {league.upper()} teams, got {len(teams)} -- check the roster for gaps.",
+              file=sys.stderr)
 
     players = {}     # key -> {name, team, id, pos}
     team_names = {}  # abbr -> "Denver Nuggets"
@@ -71,7 +82,7 @@ def build(fetcher=fetch):
             print(f"NOTE: team {team.get('displayName')!r} has no abbreviation, skipped", file=sys.stderr)
             continue
         team_names[abbr] = team.get("displayName") or abbr
-        for a in roster_athletes(fetcher(f"{API}/teams/{team['id']}/roster")):
+        for a in roster_athletes(fetcher(f"{api}/teams/{team['id']}/roster")):
             name = a.get("fullName") or a.get("displayName")
             if not name or not a.get("id"):
                 continue
@@ -108,19 +119,20 @@ def merge_rosters(old, new):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=str(OUT_PATH))
+    ap.add_argument("--league", choices=sorted(LEAGUES), default="nba")
+    ap.add_argument("--out", default=None, help="default: data/basketball/roster.json, or data/wnba/roster.json")
     ap.add_argument("--replace", action="store_true", help="start over instead of merging with the committed roster")
     args = ap.parse_args()
 
-    payload = build()
-    out = Path(args.out)
+    payload = build(league=args.league)
+    out = Path(args.out or LEAGUES[args.league][1])
     if not args.replace and out.exists():
         old = json.loads(out.read_text(encoding="utf-8"))
         kept = set(old.get("team_by_name") or {}) - set(payload["team_by_name"])
         payload = merge_rosters(old, payload)
         if kept:
             print(f"Merged with the existing roster: kept {len(kept)} name(s) ESPN no longer lists.")
-    print(f"Built NBA roster: {len(payload['id_by_norm'])} players across {len(payload['team_names'])} teams.")
+    print(f"Built {args.league.upper()} roster: {len(payload['id_by_norm'])} players across {len(payload['team_names'])} teams.")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=1, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     print(f"Wrote {out}")

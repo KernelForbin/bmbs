@@ -11,15 +11,25 @@ labels, `active` / `didNotPlay`, play participants and their order -- are
 copied from a real ESPN summary (UTAH @ DEN, 2026-10-04).
 
     python tests/test_basketball.py
+
+The WNBA runs on the same engine and is held to exactly the same checks:
+tests/test_wnba.py runs THIS file with HOOPS_LEAGUE=wnba, which swaps the
+page, its data and ESPN paths, its storage namespace and the legs' sport.
 """
 import json
+import os
 import re
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
-PAGES = {"/basketball/": REPO / "basketball" / "index.html", "/all/": REPO / "all" / "index.html"}
+LEAGUE = os.environ.get("HOOPS_LEAGUE", "nba")
+# league -> (page path, data dir, page title word, storage prefix, the OTHER basketball league)
+CONF = {"nba": ("/basketball/", "basketball", "NBA", "bmbs.bb.", "wnba"),
+        "wnba": ("/wnba/", "wnba", "WNBA", "bmbs.wb.", "nba")}[LEAGUE]
+PAGE, DATA, WORD, KEYS, OTHER = CONF
+PAGES = {PAGE: REPO / PAGE.strip("/") / "index.html", "/all/": REPO / "all" / "index.html"}
 DAY = "2026-10-05"
 NOW = "2026-10-06T01:50:00Z"          # 9:50 PM ET
 
@@ -74,7 +84,7 @@ def summary(state, score, den, utah, plays, period=3, clock="6:00", name=None):
 
 def leg(i, name, team, market, line=None, side=None, aid="", who="Kenny", odds="+200"):
     l = {"id": f"B{i}", "player": name, "team": team, "who": who, "meta": team, "odds": odds, "time": "",
-         "sport": "nba", "market": market}
+         "sport": LEAGUE, "market": market}
     if line is not None:
         l["line"] = line
     if side:
@@ -89,7 +99,7 @@ def card(n, legs, payout=100.0):
             "book": "Kenny", "payout": payout, "legs": legs}
 
 
-HOOPS = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nba"], "windows": [{"title": "Parlay Cards", "tickets": [
+HOOPS = {"date": DAY, "endDate": DAY, "note": "", "sports": [LEAGUE], "windows": [{"title": "Parlay Cards", "tickets": [
     card(1, [leg(1, "Nikola Jokic", "DEN", "nba_points", 25.5, "over", aid="1"),
              leg(2, "Nikola Jokic", "DEN", "nba_td", aid="1")]),
     card(2, [leg(3, "Jamal Murray", "DEN", "nba_threes", 2.5, "over", aid="2"),
@@ -143,15 +153,21 @@ def handler(route, request):
             return route.fulfill(status=200, content_type="text/html; charset=utf-8", body=page.read_bytes())
     if path.endswith("tickets-previous.json"):
         return route.fulfill(status=404, body="")
-    if path.endswith("/data/basketball/tickets.json"):
+    if path.endswith(f"/data/{DATA}/tickets.json"):
         return route.fulfill(status=200, content_type="application/json", body=json.dumps(FX["tickets"]))
     if path.endswith("/data/combined/tickets.json"):
         return route.fulfill(status=200, content_type="application/json", body=json.dumps(FX["all_tickets"]))
-    if "/basketball/nba/scoreboard" in url:
+    if f"/basketball/{LEAGUE}/scoreboard" in url:
         evs = [FX["event"]] if DAY.replace("-", "") in url else []
         return route.fulfill(status=200, content_type="application/json", body=json.dumps({"events": evs}))
-    if "/basketball/nba/summary" in url:
+    if f"/basketball/{LEAGUE}/summary" in url:
         return route.fulfill(status=200, content_type="application/json", body=json.dumps(FX["summary"]))
+    # The OTHER basketball league, only when section G gives it a game.
+    if FX.get("other_event") and f"/basketball/{OTHER}/scoreboard" in url:
+        evs = [FX["other_event"]] if DAY.replace("-", "") in url else []
+        return route.fulfill(status=200, content_type="application/json", body=json.dumps({"events": evs}))
+    if FX.get("other_summary") and f"/basketball/{OTHER}/summary" in url:
+        return route.fulfill(status=200, content_type="application/json", body=json.dumps(FX["other_summary"]))
     if "statsapi.mlb.com" in url and "/schedule" in url:
         return route.fulfill(status=200, content_type="application/json", body=json.dumps(FX["mlb_sched"]))
     if "fonts.g" in url:
@@ -192,20 +208,22 @@ def tiles(page):
 
 with sync_playwright() as p:
     # ================= A. the hidden page itself =================
-    browser, page, errors = open_page(p, "/basketball/")
-    check("A1 the NBA page loads as the NBA tracker", page.inner_text("h1") == "BMBS Tracker — NBA", page.inner_text("h1"))
+    browser, page, errors = open_page(p, PAGE)
+    check(f"A1 the {WORD} page loads as the {WORD} tracker", page.inner_text("h1") == f"BMBS Tracker — {WORD}", page.inner_text("h1"))
     sw = page.eval_on_selector_all(".sport-switch .sport", "els => els.map(e => [e.textContent.trim(), e.classList.contains('active')])")
-    check("A2 its own switch marks NBA active", any(n.endswith("NBA") and on for n, on in sw), sw)
-    hidden = {path: 'href="/basketball/"' in (REPO / path).read_text(encoding="utf-8")
-              for path in ("index.html", "football/index.html", "all/index.html", "hockey/index.html", "features/index.html")}
+    check(f"A2 its own switch marks {WORD} active", any(n.endswith(WORD) and on for n, on in sw), sw)
+    hidden = {path: f'href="{PAGE}"' in (REPO / path).read_text(encoding="utf-8")
+              for path in ("index.html", "football/index.html", "all/index.html", "hockey/index.html", "features/index.html",
+                           ("wnba" if LEAGUE == "nba" else "basketball") + "/index.html")}
     check("A3 ...and it is HIDDEN: no other page links to it", not any(hidden.values()), hidden)
     keys = page.evaluate("""() => [...document.scripts].map(s => s.textContent).join('').match(/"bmbs\\.[a-z]+\\./g) || []""")
-    check("A4 every storage key it writes is its own (bmbs.bb.*), never another page's",
-          keys and all(k == '"bmbs.bb.' for k in keys), sorted(set(keys)))
+    check(f"A4 every storage key it writes is its own ({KEYS}*), never another page's",
+          keys and all(k == f'"{KEYS}' for k in keys), sorted(set(keys)))
     check("A5 a basketball-only card never asks MLB for anything -- the baseball engine stands down",
           not [u for u in SEEN if "statsapi.mlb.com" in u], [u for u in SEEN if "statsapi" in u][:2])
-    check("A6 ...nor the NHL or the NFL", not [u for u in SEEN if "/hockey/nhl" in u or "/football/nfl" in u],
-          [u for u in SEEN if "/hockey/" in u or "/football/" in u][:2])
+    check("A6 ...nor the NHL, the NFL, or the other basketball league",
+          not [u for u in SEEN if "/hockey/nhl" in u or "/football/nfl" in u or f"/basketball/{OTHER}/" in u],
+          [u for u in SEEN if "/hockey/" in u or "/football/" in u or f"/{OTHER}/" in u][:2])
 
     # ================= B. grading, live =================
     ls = leg_states(page)
@@ -216,7 +234,7 @@ with sync_playwright() as p:
     check("B5 a moneyline and a spread wait for the final, however far ahead", ls.get("single-0") == "live" and ls.get("B5") == "live", ls)
     check("B6 a total's over isn't there yet at 150 points", ls.get("B6") == "live", ls)
     check("B7 a man who hasn't played yet is still live mid-game, not void", ls.get("B7") == "live", ls)
-    bare = page.evaluate("stateForLeg({sport: 'nba', player: 'Nikola Jokic', team: 'DEN', athleteId: '1'})")
+    bare = page.evaluate(f"stateForLeg({{sport: '{LEAGUE}', player: 'Nikola Jokic', team: 'DEN', athleteId: '1'}})")
     check("B8 a basketball leg naming NO bet type is untracked -- never guessed as points", bare == "untracked", bare)
     line = page.evaluate("nbaStatusLine(EVALUATED[0].tk.legs[0], 'live')")
     check("B9 the leg's status line: ON THE COURT, foul trouble named, his line so far",
@@ -234,7 +252,9 @@ with sync_playwright() as p:
     mark = tl.get("Lauri Markkanen", {})
     check("C4 a player not marked active is ON THE BENCH, with his combo count: 27 of 31",
           mark.get("tag") == "ON THE BENCH" and "27 of 31 pts+reb+ast" in mark.get("text", ""), mark)
-    den = tl.get("DEN", {})
+    # A WNBA team tile is filed apart ("WNBA NY"), or a Liberty bet and a
+    # Knicks bet -- both "NY" -- would share one tile on the All Sports wall.
+    den = tl.get(("WNBA " if LEAGUE == "wnba" else "") + "DEN", {})
     check("C5 a team's bets share ONE tile listing each -- the Nuggets' moneyline AND spread",
           den.get("tag") == "TEAM BETS" and "MONEYLINE" in den.get("text", "") and "SPREAD -5.5: covering by 4.5" in den.get("text", ""), den)
     check("C6 ...and a game total gets its own, with the points so far", "150 pts, needs 221" in
@@ -303,7 +323,7 @@ with sync_playwright() as p:
 
     # ================= F. basketball on the All Sports tab =================
     FX["summary"], FX["event"] = live_summary(), event("in", (70, 80))
-    FX["all_tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nba"],
+    FX["all_tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": [LEAGUE],
                          "windows": [{"title": "Parlay Cards", "tickets": [
                              card(10, [leg(1, "Nikola Jokic", "DEN", "nba_points", 25.5, "over", aid="1"),
                                        leg(3, "Jamal Murray", "DEN", "nba_threes", 2.5, "over", aid="2")])]}],
@@ -312,14 +332,53 @@ with sync_playwright() as p:
     browser, page, errors = open_page(p, "/all/")
     ls = leg_states(page)
     check("F1 the All Sports tracker grades basketball legs the same way", ls.get("B1") == "live" and ls.get("B3") == "hit", ls)
-    check("F2 ...and its switch has no NBA tab (hidden)", "NBA" not in page.inner_text(".sport-switch"),
+    check(f"F2 ...and its switch has no {WORD} tab (hidden)", "NBA" not in page.inner_text(".sport-switch"),
           page.inner_text(".sport-switch"))
     check("F3 a basketball-only card never asks MLB for anything", not [u for u in SEEN if "statsapi" in u])
     check("F4 no JS errors", not errors, errors[:3])
     browser.close()
 
+    # ================= G. both leagues on one card =================
+    # The same team code ("DEN") and the same player in BOTH leagues: this
+    # league's game live, the other's final. Each leg must be graded by its
+    # own league's engine, and the team tiles must not merge.
+    FX["summary"], FX["event"] = live_summary(), event("in", (70, 80))
+    FX["other_event"] = event("post", (60, 90), 4, "0:00")
+    FX["other_summary"] = summary("post", (60, 90), [player("1", "Nikola Jokic", pts=40, reb=10, ast=9, mins=36)],
+                                  utah_live(()), [], period=4, clock="0:00")
+    other_leg = lambda i, *a, **k: dict(leg(i, *a, **k), sport=OTHER)
+    FX["all_tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": sorted([LEAGUE, OTHER]),
+                         "windows": [{"title": "Parlay Cards", "tickets": [
+                             card(20, [leg(1, "Nikola Jokic", "DEN", "nba_points", 25.5, "over", aid="1"),
+                                       other_leg(2, "Nikola Jokic", "DEN", "nba_points", 25.5, "over", aid="1")]),
+                             card(21, [leg(5, "Denver", "DEN", "nba_spread", -5.5),
+                                       other_leg(6, "Denver", "DEN", "nba_spread", -5.5)])]}],
+                         "singles": []}
+    SEEN.clear()
+    browser, page, errors = open_page(p, "/all/")
+    ls = leg_states(page)
+    check(f"G1 one player, two leagues: the {WORD} leg is live at 23, the {OTHER.upper()} one HIT off its own final (40)",
+          ls.get("B1") == "live" and ls.get("B2") == "hit", ls)
+    check("G2 one team code, two leagues: this league's spread waits for its game, the other's settled off its final",
+          ls.get("B5") == "live" and ls.get("B6") == "hit", ls)
+    check("G2b no JS errors", not errors, errors[:3])
+    browser.close()
+    # Now both games live (a fresh page: a final game is cached for good):
+    # two "DEN" teams on one wall, two tiles.
+    FX["other_event"] = event("in", (60, 90))
+    FX["other_summary"] = summary("in", (60, 90), [player("1", "Nikola Jokic", pts=20, active=True)], utah_live(()), [])
+    browser, page, errors = open_page(p, "/all/")
+    page.evaluate("if (document.getElementById('liveab-section').classList.contains('collapsed')) toggleLiveAb()")
+    page.wait_for_timeout(200)
+    names = [t["name"] for t in tiles(page)]
+    check("G3 a Denver bet in each league gets its OWN tile -- 'DEN' and 'WNBA DEN', never one merged tile",
+          names.count("DEN") == 1 and names.count("WNBA DEN") == 1, names)
+    check("G4 no JS errors", not errors, errors[:3])
+    browser.close()
+    FX["other_event"] = FX["other_summary"] = None
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))
     raise SystemExit(1)
-print("all basketball checks passed")
+print(f"all basketball checks passed ({WORD})")

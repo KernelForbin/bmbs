@@ -225,6 +225,8 @@ check("hockey_*.txt -> the hidden NHL tracker's file",
       (bot.route_for("hockey_tonight.txt") or {}).get("path") == "data/hockey/incoming_picks.txt", bot.route_for("hockey_tonight.txt"))
 check("basketball_*.txt -> the hidden NBA tracker's file",
       (bot.route_for("basketball_tonight.txt") or {}).get("path") == "data/basketball/incoming_picks.txt", bot.route_for("basketball_tonight.txt"))
+check("wnba_*.txt -> the hidden WNBA tracker's file",
+      (bot.route_for("wnba_tonight.txt") or {}).get("path") == "data/wnba/incoming_picks.txt", bot.route_for("wnba_tonight.txt"))
 check("no two prefixes can ever be routed to the same file", len({r["path"] for r in bot.ROUTES.values()}) == len(bot.ROUTES))
 
 # ---------- 7. CLI writes only where it's told (temp copy of the repo layout) ----------

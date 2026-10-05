@@ -60,6 +60,8 @@ ROUTES = {
     "hockey": {"path": "data/hockey/incoming_picks.txt", "sport": "NHL", "site": "https://bmbs.bet/hockey/"},
     # The NBA tracker at /basketball/, hidden the same way (2026-10-05).
     "basketball": {"path": "data/basketball/incoming_picks.txt", "sport": "NBA", "site": "https://bmbs.bet/basketball/"},
+    # The WNBA tracker at /wnba/, hidden the same way (2026-10-05).
+    "wnba": {"path": "data/wnba/incoming_picks.txt", "sport": "WNBA", "site": "https://bmbs.bet/wnba/"},
 }
 
 

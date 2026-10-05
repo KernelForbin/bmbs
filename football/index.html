@@ -156,7 +156,10 @@
   .ab-line { font-size:10.5px; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ab-line.faint { color:var(--text-faint); }
   .ab-countrow { display:flex; align-items:center; gap:7px; margin-top:5px; }
-  .ab-count { font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; line-height:1; letter-spacing:.02em; }
+  .ab-count { font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; line-height:1; letter-spacing:.02em;
+              white-space:nowrap; flex-shrink:0; }   /* a score like 1–0 never splits across lines */
+  /* A game tile's lines wrap rather than end in "...": they are the whole point of the tile. */
+  .ab-tile.game .ab-line { white-space:normal; }
   /* his offense has the ball: lit up, everything else recedes */
   .ab-tile.now { border-color:var(--green); background:linear-gradient(160deg, var(--green-dim), var(--bg) 70%); box-shadow:0 0 0 1px var(--green-dim); }
   .ab-tile.now .ab-tag { color:var(--green); }

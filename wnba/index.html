@@ -169,7 +169,10 @@
   .ab-line { font-size:10.5px; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ab-line.faint { color:var(--text-faint); }
   .ab-countrow { display:flex; align-items:center; gap:7px; margin-top:5px; }
-  .ab-count { font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; line-height:1; letter-spacing:.02em; }
+  .ab-count { font-family:'Oswald',sans-serif; font-size:19px; font-weight:700; line-height:1; letter-spacing:.02em;
+              white-space:nowrap; flex-shrink:0; }   /* a score like 1–0 never splits across lines */
+  /* A game tile's lines wrap rather than end in "...": they are the whole point of the tile. */
+  .ab-tile.game .ab-line { white-space:normal; }
   .ab-pitches { display:flex; flex-wrap:wrap; gap:3px; min-width:0; }
   .ab-pitch { width:15px; height:15px; border-radius:50%; font-size:8.5px; font-weight:700; line-height:15px; text-align:center; border:1px solid var(--panel-line); color:var(--text-dim); box-sizing:content-box; }
   .ab-pitch.ball { border-color:var(--green); color:var(--green); }
@@ -5249,7 +5252,7 @@ function nbaHoopTile(pick, entries, row) {
     <div class="ab-line">${escapeHtml(row.clockLabel)}</div>
     <div class="ab-countrow"><span class="ab-count">${row.score}&ndash;${row.opp}</span><span class="ab-pitches faint">${escapeHtml(needs[0])}</span></div>
     ${needs.slice(1).map(n => `<div class="ab-line">${escapeHtml(n)}</div>`).join("")}
-    <div class="ab-line faint">${totalOnly ? "An over settles the moment it clears." : "Settles at the final &mdash; overtime counts."}</div>`);
+    <div class="ab-line faint">${totalOnly ? "An over settles the moment it clears." : "Settles at the final, OT included."}</div>`);
 }
 
 // A HOCKEY player. The tag says where he is: IN NET for a goalie, ON THE ICE
@@ -5290,7 +5293,7 @@ function nhlRinkTile(pick, entries, row) {
     <div class="ab-line">${escapeHtml(row.clockLabel)}</div>
     <div class="ab-countrow"><span class="ab-count">${row.score}&ndash;${row.opp}</span><span class="ab-pitches faint">${escapeHtml(needs[0])}</span></div>
     ${needs.slice(1).map(n => `<div class="ab-line">${escapeHtml(n)}</div>`).join("")}
-    <div class="ab-line faint">${totalOnly ? "An over settles the moment it clears." : "Settles at the final &mdash; OT and shootout count."}</div>`);
+    <div class="ab-line faint">${totalOnly ? "An over settles the moment it clears." : "Settles at the final, OT included."}</div>`);
 }
 
 // The same count for a leg that has just HIT, for its result tile -- summed

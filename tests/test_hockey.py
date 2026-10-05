@@ -234,6 +234,16 @@ with sync_playwright() as p:
           tb.get("tag") == "TEAM BETS" and "MONEYLINE" in tb.get("text", "") and "PUCK LINE -1.5" in tb.get("text", ""), tb)
     check("C7b ...and a game total gets its own, with the goal count", "2 goals, needs 6" in
           next((t["text"] for t in tl.values() if t["tag"] == "TOTAL GOALS"), ""), [t["tag"] for t in tl.values()])
+    # Seen live on a phone (2026-10-05): "covering by 2.5" squeezed the score
+    # "1-0" onto two lines, and the footer ended in "..." -- on a tile whose
+    # whole job is that score and that sentence. Measured, not read.
+    fit = page.evaluate("""() => [...document.querySelectorAll('#liveab-grid .ab-tile.game')].map(t => {
+        const c = t.querySelector('.ab-count');
+        return { name: t.querySelector('.ab-name').textContent.trim(),
+                 oneLine: !!c && c.getBoundingClientRect().height <= parseFloat(getComputedStyle(c).fontSize) * 1.3,
+                 cut: [...t.querySelectorAll('.ab-line')].some(l => l.scrollWidth > l.clientWidth + 1) }; })""")
+    check("C7d a team tile's score stays on ONE line and none of its lines is cut off",
+          fit and all(f["oneLine"] and not f["cut"] for f in fit), fit)
     raw = [(n, t["text"]) for n, t in tl.items() if re.search(r"&(?:[a-z]+|#\d+);", t["text"])]
     check("C7c no tile shows a raw HTML entity as text", not raw, raw)
     # ESPN's `onIce` is the one feed field not yet seen in a LIVE game. When

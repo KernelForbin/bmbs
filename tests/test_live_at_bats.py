@@ -676,6 +676,44 @@ with sync_playwright() as p:
     browser.close()
 
 
+# ================= AB: the side that hasn't batted yet =================
+# Top of the 1st: the HOME team has no plate appearances at all, so "the
+# last hitter's slot + 1" has nothing to work from. It was left blank, and
+# every home pick sat under "In the game -- waiting on the live feed" with no
+# batting context until the home side finally batted -- reported live on
+# Mookie Betts (2026-10-04), whose lineup was posted and whose game was on.
+# A side that hasn't batted leads off from slot 1.
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 390, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    FX["clock"] = NOW
+    page.clock.set_fixed_time(NOW)
+    page.route("**/*", handler)
+    FX["state"] = "Live"
+    FX["feed"] = game([play(1, "Next Half", True, COUNT_1_2[:1], strikes=1)], "Top", 0, "Next Half", inning=1)
+    TICKETS["windows"][0]["tickets"] = [card(1, [leg("Lead Off", "Kenny", "+400"), leg("Home 5", "Memo", "+500")])]
+    TICKETS["singles"] = []
+    page.goto("http://bmbs.test/index.html")
+    boot(page)
+    poll(page)
+    ctx = page.evaluate("liveContextForPlayer('Lead Off')")
+    check("AB1 before the home side has batted, its leadoff man still has a batting context",
+          bool(ctx) and ctx["slot"] == 1 and ctx["battersAway"] == 0, ctx)
+    check("AB2 ...so his line says where he bats, not 'waiting on the live feed'",
+          "waiting on the live feed" not in page.evaluate("document.getElementById('content').textContent"),
+          page.evaluate("[...document.querySelectorAll('.leg-live-context')].map(e => e.textContent)"))
+    tl = {t["player"]: t for t in tiles(page)}
+    check("AB3 ...and he gets his LEADS OFF NEXT tile", tl.get("Lead Off", {}).get("tag") == "LEADS OFF NEXT",
+          {k: v["tag"] for k, v in tl.items()})
+    check("AB4 a hitter further down is placed too, just not guaranteed this half",
+          (page.evaluate("liveContextForPlayer('Home 5')") or {}).get("slot") == 5,
+          page.evaluate("liveContextForPlayer('Home 5')"))
+    check("AB5 no JS errors", not errors, errors)
+    browser.close()
+
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + "; ".join(failures))

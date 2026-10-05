@@ -1030,6 +1030,16 @@ Three things learned from running against real live games, not mocks:
   further out (the stale-outs case) so the two bugs can't hide behind each
   other.
 
+**A side that hasn't batted yet leads off from slot 1** (2026-10-04). The next
+hitter is "the last batter's slot + 1", and with no plays at all for a side
+that was left null -- so the HOME team, every game, all through the top of the
+1st, had no batting context: no LEADS OFF NEXT tile, and a "waiting on the
+live feed" line under a pick whose lineup was posted (reported live on Mookie
+Betts). `mlb_feed()` in `test_combined_page.py` had been working AROUND it by
+always adding a play, with a comment describing the symptom. Only a side with
+NO plays defaults to 1; plays that name nobody in the lineup stay unknown.
+`test_live_at_bats.py` AB, `test_combined_page.py` U.
+
 It is pitch-by-pitch *as of the last poll*, not a live stream: several pitches
 can land at once, and a short at-bat can start and finish between polls (the
 result tile still shows). Pinch Hit Protection substitutes don't get tiles.

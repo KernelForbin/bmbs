@@ -1180,6 +1180,16 @@ async function getGameSnapshot(gamePk) {
       // too: it names the incoming hitter instead of the one who just left.
       const last = lastBatterSlot(side);
       slot = last ? (last % 9) + 1 : null;
+      // A side that hasn't come to the plate at all yet leads off from slot
+      // 1. Left null, the HOME team -- every game, all through the top of the
+      // 1st -- had no next hitter, so its picks got no batting context at all:
+      // no "leads off next" tile, and a "waiting on the live feed" line under
+      // a leg whose lineup was posted and whose game was plainly on. Only
+      // when there are NO plays for the side: plays that exist but name
+      // nobody in the lineup stay unknown, as before.
+      if (slot === null && status === "live" && !plays.some(pl => (pl.about && pl.about.isTopInning ? "away" : "home") === side)) {
+        slot = 1;
+      }
     }
     nextUpSlot[side] = slot;
   });

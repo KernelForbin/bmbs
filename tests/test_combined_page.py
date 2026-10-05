@@ -1386,6 +1386,27 @@ with sync_playwright() as p:
     check("T23 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
+# ---------- U. the side that hasn't batted yet ----------
+# Top of the 1st: the home side has no plate appearances, so its next hitter
+# couldn't be worked out and every home pick had no batting context -- the
+# exact thing mlb_feed()'s own comment works AROUND by always adding a play.
+# Seen live on Mookie Betts (2026-10-04). A side yet to bat leads off from 1.
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["mlb"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [
+                     card(95, [mlb_leg(1, "H1", "HME"), mlb_leg(2, "H5", "HME")])]}], "singles": []}
+FX["mlb_sched"][DAY] = mlb_schedule(DAY, [(6101, "Live", ["AWY", "HME"])])
+FX["mlb_feeds"][6101] = mlb_feed("Live", [f"A{i}" for i in range(1, 10)] + [f"H{i}" for i in range(1, 10)],
+                                 inning=1, state="Top", outs=0, batter="A1")
+FX["espn_events"] = {}
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    ctx = page.evaluate("liveContextForPlayer('H1')")
+    check("U1 the home leadoff man has a batting context before his side has batted",
+          bool(ctx) and ctx["slot"] == 1 and ctx["battersAway"] == 0, ctx)
+    check("U2 ...and so does a hitter further down", (page.evaluate("liveContextForPlayer('H5')") or {}).get("slot") == 5)
+    check("U3 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

@@ -184,6 +184,7 @@ def leg_states(page):
 def tiles(page):
     return page.eval_on_selector_all("#liveab-grid .ab-tile", """els => els.map(e => ({
         name: e.querySelector('.ab-name').textContent.trim(), tag: e.querySelector('.ab-tag').textContent.trim(),
+        covering: e.classList.contains('covering'),
         text: e.textContent.replace(/\\s+/g, ' ').replace(/[^\\x00-\\x7F]/g, '')}))""")
 
 
@@ -234,6 +235,20 @@ with sync_playwright() as p:
     tb = tl.get("TB", {})
     check("C7 a team's bets share ONE tile listing each -- the Lightning's moneyline AND puck line",
           tb.get("tag") == "TEAM BETS" and "MONEYLINE" in tb.get("text", "") and "PUCK LINE -1.5" in tb.get("text", ""), tb)
+    # A spread-type bet that would cash if the game ended now gets a dotted
+    # green outline (the user's rule, 2026-10-05). The Lightning are 1-1 on a
+    # -1.5 puck line: short, so no outline.
+    check("C7e a puck line that isn't covering has no 'covering' outline", tb.get("covering") is False, tb)
+    covers = page.evaluate("""[
+        spreadCovers([{ market: 'nhl_pl', line: -1.5 }], 3, 1),
+        spreadCovers([{ market: 'nhl_pl', line: -1.5 }], 2, 1),
+        spreadCovers([{ market: 'nhl_pl', line: -1 }], 2, 1),
+        spreadCovers([{ market: 'nhl_ml', line: null }], 3, 1),
+        spreadCovers([{ market: 'nhl_ml', line: null }, { market: 'nhl_pl', line: 1.5 }], 1, 2),
+        spreadCovers([{ market: 'nhl_pl', line: 1.5 }, { market: 'nhl_pl', line: -1.5 }], 2, 1)]""")
+    check("C7f 'covering' = would cash if it ended now: 3-1 on -1.5 yes, 2-1 no, a push on -1 no, a moneyline "
+          "alone never, a +1.5 down one yes, and only when EVERY spread on the tile covers",
+          covers == [True, False, False, False, True, False], covers)
     check("C7b ...and a game total gets its own, with the goal count", "2 goals, needs 6" in
           next((t["text"] for t in tl.values() if t["tag"] == "TOTAL GOALS"), ""), [t["tag"] for t in tl.values()])
     # Seen live on a phone (2026-10-05): "covering by 2.5" squeezed the score

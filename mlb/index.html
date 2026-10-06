@@ -173,6 +173,9 @@
               white-space:nowrap; flex-shrink:0; }   /* a score like 1–0 never splits across lines */
   /* A game tile's lines wrap rather than end in "...": they are the whole point of the tile. */
   .ab-tile.game .ab-line { white-space:normal; }
+  /* A spread / run line / puck line that would cash if the game ended now.
+     Faint on purpose: it can change on the next score. */
+  .ab-tile.covering { border-color:transparent; outline:2px dotted rgba(62, 207, 142, 0.5); outline-offset:-2px; }
   .ab-pitches { display:flex; flex-wrap:wrap; gap:3px; min-width:0; }
   /* Beside a big number the words ("ahead", "covering by 2.5", "needs 9") are
      a status line, so they read at status-line size -- not the body's 16px. */
@@ -3291,6 +3294,16 @@ function labMoundTile(pick, inningLabel, gamedayLink) {
 
 // A GAME LINE. No player at all: the live score is the state, and the tile
 // says plainly that nothing settles until the final -- a lead is not a win.
+// Every spread-type bet on a tile would cash if the game ended right now:
+// the team's score plus its line beats the other side. Landing exactly on the
+// number is a push -- a refund, not a cash -- so it doesn't count. Other bets
+// sharing the tile (a moneyline beside a puck line) don't decide it.
+const SPREAD_MARKETS = new Set(["spread", "nhl_pl", "nba_spread"]);
+function spreadCovers(entries, mine, theirs) {
+  const spreads = (entries || []).filter(e => SPREAD_MARKETS.has(e.market) && e.line !== null && e.line !== undefined);
+  return spreads.length > 0 && spreads.every(e => mine + Number(e.line) - theirs > 0);
+}
+
 function labGameTile(pick, row, inningLabel, gamedayLink) {
   const e = (pick.entries || [])[0] || {};
   const def = MARKETS[e.market];
@@ -3315,7 +3328,8 @@ function labGameTile(pick, row, inningLabel, gamedayLink) {
                               : `${soFar} runs thru ${through}, needs ${Math.floor(Number(e.line)) + 1}`;
     settles = `Settles after the ${ordinal(through)} inning.`;
   }
-  return labTileShell("game", (def && def.label) || "GAME LINE", pick, gamedayLink, `
+  const cls = "game" + (spreadCovers(pick.entries, mine, theirs) ? " covering" : "");
+  return labTileShell(cls, (def && def.label) || "GAME LINE", pick, gamedayLink, `
     <div class="ab-line">${escapeHtml(inningLabel || "")}</div>
     <div class="ab-countrow"><span class="ab-count">${mine}&ndash;${theirs}</span><span class="ab-pitches faint">${escapeHtml(need)}</span></div>
     <div class="ab-line faint">${settles}</div>`);

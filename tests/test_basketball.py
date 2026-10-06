@@ -203,6 +203,7 @@ def leg_states(page):
 def tiles(page):
     return page.eval_on_selector_all("#liveab-grid .ab-tile", """els => els.map(e => ({
         name: e.querySelector('.ab-name').textContent.trim(), tag: e.querySelector('.ab-tag').textContent.trim(),
+        covering: e.classList.contains('covering'),
         text: e.textContent.replace(/\\s+/g, ' ').replace(/[^\\x00-\\x7F]/g, '')}))""")
 
 
@@ -258,6 +259,7 @@ with sync_playwright() as p:
     den = tl.get(("WNBA " if LEAGUE == "wnba" else "") + "DEN", {})
     check("C5 a team's bets share ONE tile listing each -- the Nuggets' moneyline AND spread",
           den.get("tag") == "TEAM BETS" and "MONEYLINE" in den.get("text", "") and "SPREAD -5.5: covering by 4.5" in den.get("text", ""), den)
+    check("C5b ...and a spread that is covering right now wears the dotted green outline", den.get("covering") is True, den)
     check("C6 ...and a game total gets its own, with the points so far", "150 pts, needs 221" in
           next((t["text"] for t in tl.values() if t["tag"] == "TOTAL POINTS"), ""), [t["tag"] for t in tl.values()])
     raw = [(n, t["text"]) for n, t in tl.items() if re.search(r"&(?:[a-z]+|#\d+);", t["text"])]

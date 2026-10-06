@@ -444,6 +444,16 @@ player however many tickets; 🧇 if any is an Iron.
 ticket list uses (`ticketMatchesFilter`, `legPassesFilters`), filtered per bet
 before players are merged. HIT/MISSED leave nothing and the panel says so.
 
+### "Covering" outline on spread tiles
+
+A tile carrying a spread-type bet -- MLB `spread` (run line), `nhl_pl` (puck
+line), `nba_spread` -- gets a dotted, faint green outline (`.ab-tile.covering`,
+an outline so the tile doesn't shift) while EVERY spread on it would cash if the
+game ended right now (`spreadCovers()`: score + line beats the other side; a
+push is not a cover; a moneyline sharing the tile doesn't decide it). The
+user's rule, 2026-10-05. MLB page and every page with team tiles.
+`test_live_at_bats.py` Z7b, `test_hockey.py` C7e/C7f, `test_basketball.py` C5b.
+
 ### Tile kinds (`LIVE_TILE_KIND`, `liveTileKind()`)
 
 | Kind | Markets | Tile |

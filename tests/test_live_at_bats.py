@@ -519,6 +519,9 @@ with sync_playwright() as p:
           bool(gl) and gl["kind"] == "game", sorted(tl))
     check("Z7 ...with the live score and what it still needs",
           bool(gl) and "5" in (gl["count"] or "") and "cover" in gl["text"], gl and gl["text"])
+    check("Z7b a run line wears the dotted 'covering' outline exactly when it would cash right now",
+          bool(gl) and page.evaluate("document.querySelector('#liveab-grid .ab-tile.game').classList.contains('covering')")
+          == ("covering by" in gl["text"]), gl and gl["text"])
     check("Z8 ...and says plainly that nothing settles until the final",
           bool(gl) and "Settles at the final" in gl["text"], gl and gl["text"])
     # Both read a `gamedayLink` off the MLB snapshot, which never carries one,

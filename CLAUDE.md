@@ -678,9 +678,20 @@ regenerated.
 - **Team tiles are keyed with a league prefix** where abbreviations collide:
   `CFB MIA` vs the Dolphins, `WNBA NY` vs the Knicks (`test_cfb.py` E,
   `test_basketball.py` G3).
-- **The front page never ported football's drive-result flash tiles** ("Punt",
-  "TD — not him"); their dead code was removed 2026-10-05.
-  `football/index.html` still has them.
+- **Touchdown and drive-result tiles** (ported from the NFL page 2026-10-05,
+  the user's request): a pick's own touchdown turns his tile into TOUCHDOWN
+  (opening on a football, held 14s like a home run), and a drive of his
+  offense that ended holds his tile with its result for 9s ("Punt", "Field
+  Goal", "TD — not him"). The engine supplies the data and the tile
+  (`finishedDrives` off `drives.previous`, `tdFor`, `teamOf`, `drivesEnded`,
+  `resultTile`); the host's `trackLiveAtBats()` decides when, per football
+  engine, with each engine's own results swapped in and its own normalizer
+  for `hitNames`. Same once-only, seeded, stale (3 min) and off-tab guards as
+  the at-bats; a sack pick's tile ignores his own offense's drives; the flash
+  is keyed on the pick's norm, so it replaces his live tile while it holds.
+  `fbEngineOf()` picks the engine (`gridiron()` on the front page and `/cfb/`;
+  NFL alone on `/hockey/`, `/basketball/`, `/wnba/`, which predate the college
+  engine). `test_combined_page.py` V, seven mutations.
 - **No results archive and no History page** for All Sports yet (deferred by
   the user), so the footer does not link `/history/`.
 - It was assembled by scratchpad scripts, not a build step; don't add one.

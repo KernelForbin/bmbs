@@ -1463,6 +1463,103 @@ with sync_playwright() as p:
     check("U3 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
+
+# ---------- V. a touchdown, and a drive ending, hold the pick's tile ----------
+# The NFL page's Live Drives turns a pick's tile into TOUCHDOWN when he scores
+# and into DRIVE OVER ("Punt", "TD — not him") when his offense gives the ball
+# up. The front page never had either: a touchdown pick's tile just vanished
+# the moment he scored (ported 2026-10-05). The drive fixture is built by hand
+# because espn_drive() stamps every play 30 minutes before NOW, and a drive
+# that ended that long ago is history, not news (the stale guard, V5).
+
+def ended_drive(drive_id, team, result, at="2026-10-04T19:59:50Z", is_score=False):
+    return {"id": drive_id, "team": {"abbreviation": team}, "displayResult": result,
+            "description": "4 plays, 12 yards", "isScore": is_score,
+            "plays": [{"id": f"{drive_id}-p", "text": result, "wallclock": at,
+                       "end": {"team": {"id": TEAM_ID[team]}, "yardsToEndzone": 60, "downDistanceText": ""}}]}
+
+
+def v_summaries(barkley_td=False, previous=None, kc_previous=None):
+    phi = espn_summary("9001", "in", {"PHI": [("1", "Saquon Barkley", "rushing", (12, 60, 1 if barkley_td else 0))]},
+                       (21 if barkley_td else 14, 10),
+                       plays=[espn_scoring("vtd", "PHI", "Rushing Touchdown", "Saquon Barkley 3 Yd Run", 3, "1:10", 21, 10)]
+                       if barkley_td else [],
+                       current=espn_drive("v1", "PHI", 12, "1st & 10 at NYG 12") if not barkley_td else
+                       espn_drive("v9", "NYG", 75, "1st & 10 at NYG 25"))
+    phi["drives"]["previous"] = previous or []
+    kc = espn_summary("9002", "in", {"KC": [("2", "Travis Kelce", "receiving", (4, 40, 0, 5))]}, (14, 10),
+                      current=espn_drive("v2", "KC", 40, "2nd & 5 at DEN 40") if not kc_previous else
+                      espn_drive("v8", "DEN", 80, "1st & 10 at DEN 20"))
+    kc["drives"]["previous"] = kc_previous or []
+    return {"9001": phi, "9002": kc}
+
+
+def v_tiles(page):
+    return page.eval_on_selector_all("#liveab-grid .ab-tile", """els => Object.fromEntries(els.map(e => [
+        e.querySelector('.ab-name').textContent.trim(),
+        { tag: e.querySelector('.ab-tag').textContent.trim(),
+          result: (e.querySelector('.ab-result') || {}).textContent || '',
+          ball: !!e.querySelector('.ab-bomb'), href: e.getAttribute('href') || '' }]))""")
+
+
+FX["mlb_sched"] = {DAY: {"dates": []}}
+FX["mlb_feeds"] = {}
+FX["espn_events"] = {g: espn_event(g, "in", (14, 10)) for g in MAIN_GAMES}
+FX["espn_summaries"] = v_summaries()
+FX["tickets"] = TICKETS
+
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("toggleLiveAb()")
+    page.wait_for_timeout(200)
+    before = v_tiles(page)
+    check("V0 both picks are on the wall with their offense on the field",
+          before.get("Saquon Barkley", {}).get("tag") in ("RED ZONE", "ON OFFENSE")
+          and before.get("Travis Kelce", {}).get("tag") in ("RED ZONE", "ON OFFENSE"), before)
+
+    # Barkley runs it in; KC's drive ends in a punt.
+    FX["espn_summaries"] = v_summaries(barkley_td=True,
+                                       previous=[ended_drive("v1", "PHI", "Touchdown", is_score=True)],
+                                       kc_previous=[ended_drive("v2", "KC", "Punt")])
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    t = v_tiles(page)
+    bark = t.get("Saquon Barkley", {})
+    check("V1 the pick who scored keeps his tile, now reading TOUCHDOWN", bark.get("tag") == "TOUCHDOWN", t)
+    check("V2 ...opening on a football, and linking his game", bark.get("ball") and "espn.com" in bark.get("href", ""), bark)
+    check("V3 his own drive's end doesn't replace it -- the touchdown outranks the drive summary",
+          bark.get("result") == "Touchdown", bark)
+    kel = t.get("Travis Kelce", {})
+    check("V4 a pick whose offense just punted holds a DRIVE OVER tile with the result",
+          kel.get("tag") == "DRIVE OVER" and kel.get("result") == "Punt", t)
+
+    # Twenty seconds on: both results have expired, and KC's NEXT drive ends
+    # in a touchdown somebody else scored.
+    page.clock.set_fixed_time("2026-10-04T20:00:20Z")
+    FX["espn_summaries"] = v_summaries(barkley_td=True,
+                                       previous=[ended_drive("v1", "PHI", "Touchdown", is_score=True)],
+                                       kc_previous=[ended_drive("v2", "KC", "Punt"),
+                                                    ended_drive("v7", "KC", "Touchdown", at="2026-10-04T20:00:10Z", is_score=True),
+                                                    # DENVER's drive, ending last: nothing to do with Kelce
+                                                    ended_drive("v6", "DEN", "Interception", at="2026-10-04T20:00:12Z")])
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    t = v_tiles(page)
+    check("V5 a teammate's touchdown is said plainly: TD — not him -- and the other side's drive ending is not his",
+          t.get("Travis Kelce", {}).get("result") == "TD — not him", t)
+    check("V6 ...and the expired touchdown tile is gone", t.get("Saquon Barkley", {}).get("tag") != "TOUCHDOWN", t)
+    check("V7 no JavaScript errors", not errors, errors[:3])
+    browser.close()
+
+    # Opening the page AFTER all that: nothing is replayed.
+    browser, page, errors = open_page(p, at="2026-10-04T20:00:25Z")
+    page.evaluate("toggleLiveAb()")
+    page.wait_for_timeout(200)
+    t = v_tiles(page)
+    check("V8 opening the page mid-game replays no touchdown and no drive result",
+          not any(v["tag"] in ("TOUCHDOWN", "DRIVE OVER") for v in t.values()), t)
+    browser.close()
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

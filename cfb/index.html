@@ -969,6 +969,17 @@ async function getGameSnapshot(game) {
     }
   }
 
+  // ---- drives that have ended, for the Live Bet Tracker's result tiles ----
+  const finishedDrives = (drives.previous || []).filter(dr => dr.displayResult || dr.result).slice(-6).map(dr => {
+    const plays = dr.plays || [];
+    const lastTimed = plays.filter(p => p.wallclock).pop();
+    return {
+      key: `${game.gamePk}-${dr.id}`, gamePk: game.gamePk, team: (dr.team && dr.team.abbreviation) || "",
+      result: dr.displayResult || dr.result || "", isScore: dr.isScore === true, description: dr.description || "",
+      endTime: (lastTimed && lastTimed.wallclock) || ""
+    };
+  });
+
   const period = (comp.status && comp.status.period) || game.period || 0;
   const clock = (comp.status && comp.status.displayClock) || game.clock || "";
   // The quarter on the clock has ENDED -- "End of 1st", halftime -- though
@@ -977,7 +988,7 @@ async function getGameSnapshot(game) {
   // untimed down after the clock reads zero.
   const periodOver = type.name === "STATUS_END_PERIOD" || type.name === "STATUS_HALFTIME";
   return { status, gamePk: game.gamePk, date: game.date, teams, period, periodOver, clock, detail: type.shortDetail || game.detail || "",
-           lines, touchdowns, tdNameTeams, drive, playLog, fetchedAt: Date.now() };
+           lines, touchdowns, tdNameTeams, drive, finishedDrives, playLog, fetchedAt: Date.now() };
 }
 
 function getParticipation(gamePk, teamId) {
@@ -1282,6 +1293,26 @@ function drvBallTile(pick, ctx) {
     <div class="ab-line faint">${[toGo, drvFootLine(ctx, pick)].filter(Boolean).join(" &middot; ")}</div>`);
 }
 
+// A held result, set by the host's trackLiveAtBats(): his own TOUCHDOWN
+// (opening on a football for `ballMs`), or the DRIVE OVER that just ended his
+// offense's possession -- "TD — not him" when a teammate scored.
+function drvResultTile(flash, now) {
+  const pick = flash.pick;
+  if (flash.kind === "td") {
+    const td = flash.td;
+    const ball = now < flash.at + (flash.ballMs || 0)
+      ? `<div class="ab-bomb"><span class="e">&#127944;</span><span class="n">${escapeHtml(pick.player.toUpperCase())}</span></div>` : "";
+    return drvTileShell("result homer", "TOUCHDOWN", pick, td ? espnGameUrl(td.gamePk) : null, `
+      <div class="ab-result">Touchdown</div>
+      <div class="ab-line faint">${escapeHtml([td ? tdHowText(td) : "", td ? tdWhenText(td) : "", pick.whos.join(", ")].filter(Boolean).join(" \u00b7 "))}</div>${ball}`);
+  }
+  const dr = flash.drive;
+  const stolen = /touchdown/i.test(dr.result);
+  return drvTileShell(`result${dr.isScore ? " onbase" : ""}`, "DRIVE OVER", pick, espnGameUrl(dr.gamePk), `
+    <div class="ab-result">${escapeHtml(stolen ? "TD \u2014 not him" : dr.result)}</div>
+    <div class="ab-line faint">${escapeHtml([dr.description, pick.whos.join(", ")].filter(Boolean).join(" \u00b7 "))}</div>`);
+}
+
 function drvWaitTile(pick, ctx) {
   return drvTileShell("soon", "TAKING THE FIELD SOON", pick, ctx.link, `
     <div class="ab-line">${escapeHtml(ctx.score)} &middot; ${escapeHtml(ctx.clockLabel)}</div>
@@ -1401,7 +1432,7 @@ function picksOf(tickets) {
 
 function previewSnapshot(game) {
   return { status: "preview", gamePk: game.gamePk, date: game.date, teams: game.teams, period: 0, clock: "", detail: game.detail,
-           lines: new Map(), touchdowns: [], tdNameTeams: new Map(), drive: null, fetchedAt: 0 };
+           lines: new Map(), touchdowns: [], tdNameTeams: new Map(), drive: null, finishedDrives: [], fetchedAt: 0 };
 }
 
 function statIndex(labels, name) { return (labels || []).indexOf(name); }
@@ -1415,6 +1446,22 @@ function statLineText(line) {
 }
 
 function statNum(stats, idx) { const n = idx >= 0 ? parseInt(stats[idx], 10) : NaN; return Number.isNaN(n) ? 0 : n; }
+
+// "43-yd pass from Josh Allen" / "1-yd rush" / "95-yd kickoff return"
+function tdHowText(td) {
+  if (td.yards === null) return td.text;
+  return `${td.yards}-yd ${td.how.replace(/^Rush$/i, "rush").replace(/^Run$/i, "run")}`;
+}
+
+// His most recent touchdown, for his TOUCHDOWN tile. By name AND team: there
+// are two Josh Allens, and the linebacker's pick-six is not the quarterback's.
+function tdForPick(playerName) {
+  const norm = normalizeName(playerName);
+  const pick = pickInfo(playerName);
+  return (RESULTS.touchdowns || [])
+    .filter(td => normalizeName(td.scorer) === norm && (!pick.team || td.team === pick.team))
+    .reduce((a, b) => (!a || (b.time || "") >= (a.time || "") ? b : a), null);
+}
 
 function tdWhenText(td) {
   const q = td.period > 4 ? "OT" : td.period ? `Q${td.period}` : "";
@@ -1480,7 +1527,11 @@ return {
   scoring() { return RESULTS.touchdowns || []; },
   rowHtml: tdRowHtml,
   toggleRow(id) { if (TD_EXPANDED.has(id)) TD_EXPANDED.delete(id); else TD_EXPANDED.add(id); },
-  ballTile: drvBallTile, waitTile: drvWaitTile,
+  ballTile: drvBallTile, waitTile: drvWaitTile, resultTile: drvResultTile,
+  tdFor(name) { return tdForPick(name); },
+  // Which team he plays for today: the box score's word, else the card's.
+  teamOf(name) { const line = lineForPick(name); return (line && line.team) || pickInfo(name).team; },
+  drivesEnded() { return [...RESULTS.gameInfo.values()].flatMap(g => g.finishedDrives || []); },
   defenseTile: drvDefenseTile,
   gameUrl: espnGameUrl,
   norm(name) { return normalizeName(name); },
@@ -5513,7 +5564,10 @@ const LS_LIVEAB = "bmbs.cf.liveab.open";
 // a poll ago (so leaving the bases without a steal can be said out loud).
 // Flashes are keyed by normalized name for an at-bat result and "sb:"+name for
 // a steal result, so one player can't have the two fight over a tile.
-const LAB = { date: null, seeded: false, seen: new Set(), prevEligible: new Map(), flashes: new Map(), seenSteals: new Set(), prevOnBase: new Map() };
+// fbHits / seenDrives: the football engines' touchdowns and finished drives
+// already accounted for, so each is announced once (see trackLiveAtBats).
+const LAB = { date: null, seeded: false, seen: new Set(), prevEligible: new Map(), flashes: new Map(), seenSteals: new Set(), prevOnBase: new Map(),
+              fbHits: new Map(), seenDrives: new Set() };
 let labTimer = null;
 
 // The only outcomes worth announcing: ones that actually end a plate
@@ -5607,6 +5661,12 @@ function labEligiblePicks() {
 
 // Once per poll. Same flood guard as the bomb notifications: the first poll
 // for a slate records what's already happened without announcing any of it.
+// Which football engine follows this pick, or null for any other sport.
+function fbEngineOf(pick) {
+  const e = (pick.entries || []).find(isGridiron);
+  return e ? gridiron(e) : null;
+}
+
 function trackLiveAtBats() {
   const slate = SLATES.today;
   if (!slate || !slate.tickets || !slate.results || !slate.results.ready) return;
@@ -5618,6 +5678,8 @@ function trackLiveAtBats() {
     LAB.flashes = new Map();
     LAB.seenSteals = new Set();
     LAB.prevOnBase = new Map();
+    LAB.fbHits = new Map();
+    LAB.seenDrives = new Set();
   }
   // EVALUATED describes whichever tab is on screen, so eligibility is only
   // knowable on Today. Off-tab polls still mark at-bats seen, so coming back
@@ -5671,6 +5733,49 @@ function trackLiveAtBats() {
     });
     LAB.prevOnBase = onBaseNow;
   }
+
+  // FOOTBALL, as on the NFL page's Live Drives: a pick's own touchdown turns
+  // his tile into the TOUCHDOWN (opening on a football, held like a home
+  // run), and a drive that just ended holds his tile with its result --
+  // "Punt", "Field Goal", "TD — not him". Without this a touchdown pick's tile
+  // simply vanished the moment he scored. Same once-only, seeded, not-stale
+  // and off-tab rules as the at-bats above. Each engine's hitNames are keyed
+  // with ITS normalizer, and it grades against its own results, swapped in.
+  [[NFL, "nfl", slate.nfl], [CFB, "cfb", slate.cfb]].forEach(([FB, sport, res]) => {
+    if (!res || !res.ready) return;
+    const saved = FB.swap(res);
+    try {
+      const ofThis = m => [...(m || new Map()).values()].filter(p => fbEngineOf(p) === FB);
+      const before = ofThis(LAB.prevEligible), current = onToday ? ofThis(eligible) : [];
+      const hits = res.hitNames || new Set();
+      // Absent on a slate's first poll, which only records: opening the page
+      // after a touchdown must not replay it.
+      const prevHits = LAB.fbHits.get(sport);
+      if (onToday && prevHits) before.forEach(pick => {
+        const n = FB.norm(pick.player);
+        if (!hits.has(n) || prevHits.has(n)) return;
+        // `homer` keeps it on screen past a cleared-prop tile for the same
+        // play, exactly as a home run's tile stays beside "2+ HITS!".
+        LAB.flashes.set(pick.norm, { pick, fb: FB, kind: "td", td: FB.tdFor(pick.player), homer: true, burst: true,
+                                     ballMs: LAB_BOMB_MS, at: now, until: now + LAB_HOMER_MS });
+      });
+      LAB.fbHits.set(sport, new Set(hits));
+      FB.drivesEnded().forEach(dr => {
+        if (LAB.seenDrives.has(dr.key)) return;
+        LAB.seenDrives.add(dr.key);
+        if (!LAB.seeded || !onToday) return;
+        const ended = Date.parse(dr.endTime);
+        if (!Number.isNaN(ended) && now - ended > LAB_STALE_MS) return;   // the tab was asleep; that's history
+        new Map([...before, ...current].map(p => [p.norm, p])).forEach((pick, norm) => {
+          if (!pick.kinds || !pick.kinds.has("drive")) return;            // a pass rusher's tile is the OTHER side's drive
+          // A pick who scored is holding his TOUCHDOWN tile; his drive's end
+          // would only repeat it.
+          if (hits.has(FB.norm(pick.player)) || FB.teamOf(pick.player) !== dr.team) return;
+          LAB.flashes.set(norm, { pick, fb: FB, kind: "drive", drive: dr, at: now, until: now + LAB_RESULT_MS });
+        });
+      });
+    } finally { FB.swap(saved); }
+  });
 
   LAB.seeded = true;
   if (onToday) LAB.prevEligible = eligible;
@@ -6070,7 +6175,7 @@ function renderLiveAtBats() {
     });
   });
   LAB.flashes.forEach(flash => tiles.push({ rank: 0, order: flash.at,
-    html: flash.cleared ? labClearedTile(flash, now)
+    html: flash.fb ? flash.fb.resultTile(flash, now) : flash.cleared ? labClearedTile(flash, now)
       : flash.steal || flash.left ? labStealResultTile(flash, now) : labResultTile(flash, now) }));
   picksNow.forEach(pick => {
     if (LAB.flashes.has(pick.norm) || LAB.flashes.has("sb:" + pick.norm)) return;   // his result is still on screen

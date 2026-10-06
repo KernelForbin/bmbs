@@ -1,2058 +1,1230 @@
-# bmbs.bet — Home Run Card
+# bmbs.bet — BMBS Tracker
 
-A live-tracking site for a friend group's home run parlay/prop pool. Static
-site on GitHub Pages, custom domain `bmbs.bet` via Namecheap DNS.
+A live-tracking site for a friend group's parlay/prop pool. Static site on
+GitHub Pages, custom domain `bmbs.bet` (Namecheap DNS, `CNAME` file). No
+backend, no build step, no framework: every page is one self-contained HTML
+file with inline CSS and JS, and every visitor's browser grades the bets itself
+from public sports APIs.
 
-## READ FIRST: the site was rearranged on 2026-10-05
+## 1. READ FIRST: what lives where
 
-The user's call: **the All Sports tracker is the site's front page and every
-single-sport tracker is hidden.**
+Since 2026-10-05 the **All Sports tracker is the front page, and every
+single-sport tracker is hidden** (the user's call).
 
 | URL | File | What |
 |---|---|---|
-| `/` | `index.html` | **All Sports** -- titled plain "BMBS Tracker". Was `all/index.html`. |
-| `/all/` | `all/index.html` | redirect stub to `/` (query + hash kept), like `features.html` |
-| `/mlb/` | `mlb/index.html` | the MLB tracker, HIDDEN. Was the root `index.html`. |
-| `/football/`, `/hockey/`, `/basketball/`, `/wnba/`, `/cfb/` | as named | HIDDEN single-sport trackers |
+| `/` | `index.html` | **All Sports** front page, titled plain "BMBS Tracker". Data: `data/combined/`. |
+| `/mlb/` | `mlb/index.html` | MLB tracker, HIDDEN. Data: `data/`. |
+| `/football/` | `football/index.html` | NFL (anytime-TD) tracker, HIDDEN. Data: `data/football/`. |
+| `/hockey/` | `hockey/index.html` | NHL tracker, HIDDEN. Data: `data/hockey/`. |
+| `/basketball/` | `basketball/index.html` | NBA tracker, HIDDEN. Data: `data/basketball/`. |
+| `/wnba/` | `wnba/index.html` | WNBA tracker, HIDDEN. Data: `data/wnba/`. |
+| `/cfb/` | `cfb/index.html` | College-football tracker, HIDDEN. Data: `data/cfb/`. |
+| `/history/` | `history/index.html` | MLB History page (back link goes to `/`). |
+| `/football/history/` | `football/history/index.html` | NFL History page. |
+| `/features/` | `features/index.html` | "What this site can do", for the friend group. |
+| `/all/` | `all/index.html` | Redirect stub to `/` (query + hash kept). The All Sports page lived here until 2026-10-05. |
+| `/features` | `features.html` | Redirect stub to `/features/` (query + hash kept). |
 
-**Most of this file predates the move.** Where it says `index.html` meaning the
-MLB page (its grading, FEED_FIELDS, Pinch Hit Protection, the test files that
-load it), read **`mlb/index.html`**; where it says `all/index.html` / "the
-combined page" / "the NFL+MLB tab", read the root **`index.html`**. The MLB
-page's data paths became `../data/...`; the All Sports page's were already
-`../data/combined/...`, which resolves the same from `/`. The tests kept their
-URLs and only changed which FILE they serve, for the same reason.
+Every tracker page fetches its data as `../data/<dir>/...`, which resolves the
+same from `/` and from `/<sport>/`. The page tests kept their old serving URLs
+(e.g. the front page is served at `/all/` in tests) for that reason.
 
-- **Hidden** = in no visible page's markup. The front page's sport switch is
-  `display:none` with only its own tab left; each hidden page's switch shows
-  itself and ALL SPORTS (`/`). Hidden pages don't link each other.
-  `test_combined_page.py` F1/F2 pin the front page; each hidden tracker's own
-  test pins that nothing links it.
-- **Three panels on the front page are hidden, not removed**: the LEGS chip
-  row, the Scoring Log and the Bettor Tracker carry `class="hidden-panel"`
-  (`display:none !important`); every line of code behind them still runs.
-  Unhiding one = deleting that class. F5/F6 pin both halves.
-- Front-page wording: the eyebrow reads "TODAY'S SLATE · UPDATED LIVE", and the
-  Live Bet Tracker's sub-line names no sport ("Your picks in live games...",
-  "N in action, M up next") -- it used to say "at the plate" and "Gameday"
-  over football, hockey and basketball tiles too.
+### Labels vs addresses
+
+On screen the sports are **MLB, NFL, ALL SPORTS, NHL, NBA, WNBA, College
+Football** (MLB/NFL renamed from Baseball/Football 2026-10-04; ALL SPORTS from
+"NFL+MLB" 2026-10-05). Those are LABELS. Addresses were deliberately left
+alone: the `/football/` and `data/football/` paths, `data/combined/`,
+`?sport=baseball|football|combined`, the `baseball*` / `football*` / `sports*`
+upload prefixes, `--sport` CLI values, and every element id and CSS class.
+Don't rename an address to match a label.
+
+### What "hidden" means
+
+- **Hidden = linked from no visible page.** The front page's sport switch is
+  `display:none` with only its own tab left. Each hidden page's switch shows
+  itself and ALL SPORTS (`/`); hidden pages don't link each other. They are
+  not secret: Discord's status message for a `hockey_*.txt` etc. upload links
+  the hidden page directly.
+- **Three front-page panels are hidden, not removed:** the LEGS chip row, the
+  Scoring Log and the Bettor Tracker carry `class="hidden-panel"`
+  (`display:none !important`). All the code behind them still runs; unhiding
+  one = deleting that class. `test_combined_page.py` F5/F6 pin both halves.
 - `/features/` opens on All Sports with its switch hidden; `?sport=baseball` /
-  `?sport=football` still work (the hidden pages' footers use them), and the
-  All Sports section no longer lists the hidden Scoring Log or Bettor Tracker.
-- Discord links: All Sports -> `https://bmbs.bet/`, MLB -> `https://bmbs.bet/mlb/`
-  (`notify_discord.py` SITE_URL, the bot's ROUTES -- the bot needs a restart).
+  `?sport=football` still open the MLB and NFL sections (the MLB and NFL
+  pages' footers use them). The All Sports section lists no hidden panel and
+  links no hidden tracker.
+- Pinned by: `test_combined_page.py` F1/F2 (front page switch hidden, links no
+  tracker), `test_site_links.py` C1-C4, and each league test's "no other page
+  links it" check (`test_hockey.py` A3, `test_basketball.py` A3, `test_cfb.py`
+  A2, which scan every HTML page).
+- **To unhide a tracker:** add its tab to the front page's switch and drop the
+  switch's `display:none`; remove the corresponding hidden checks above; add a
+  section to `features/index.html`.
 
-**The two sports are called MLB and NFL on screen** (renamed from "Baseball"
-and "Football", 2026-10-04 -- it's what the group says). Labels ONLY: the
-`/football/` and `data/football/` paths, the `?sport=football` query param a
-bookmarked features link carries, the `baseball*`/`football*` file-name
-prefixes the bot routes on, and every element id, CSS class and `--sport` CLI
-value are addresses rather than names and were deliberately left alone.
+### Front-page wording
 
-**The third tab is ALL SPORTS** (renamed from "NFL+MLB" on 2026-10-05, when
-hockey joined it). Same rule: the label changed; `/all/`, `data/combined/`,
-the `sports_*` upload prefix and `?sport=combined` did not. **There are four
-more, HIDDEN, trackers: NHL at `/hockey/`, NBA at `/basketball/`, WNBA at
-`/wnba/` and college football at `/cfb/`** -- see "The NHL tracker", "The NBA
-tracker", "The WNBA tracker" and "The college-football tracker" below.
+`<h1>` is plain "BMBS Tracker" on the front page and "BMBS Tracker &mdash;
+MLB / NFL / NHL / NBA / WNBA / College Football" on the hidden pages. Eyebrows:
+front page "TODAY'S SLATE · UPDATED LIVE"; MLB "TODAY'S SLATE · LIVE FROM
+MLB"; NFL "THIS WEEK'S SLATE · LIVE FROM ESPN"; the other hidden pages "TODAY'S
+SLATE · LIVE FROM ESPN". The front page's Live Bet Tracker sub-line names no
+sport ("Your picks in live games...", "N in action, M up next").
 
-## Architecture
+## 2. Repo layout
 
-- **`index.html`** — the **front page: the All Sports tracker** (moved here from
-  `all/index.html` on 2026-10-05 -- see READ FIRST). Single self-contained
-  file: inline CSS, inline JS. No build step, no framework, no dependencies.
-  Deploy = commit this file, GitHub Pages serves it directly.
-- **`mlb/index.html`** — the MLB tracker, HIDDEN at `/mlb/` (it WAS the root
-  `index.html`; most of this file's "index.html" means this page).
-- **`all/index.html`** — now a redirect stub to `/`. What follows describes the
-  page that lived here, which is the root `index.html` today: the **NFL+MLB** tracker, a THIRD site in
-  this repo alongside the two single-sport ones. Tracks a card that can hold
-  MLB and NFL bets at once, **including a single parlay with a leg in each**.
-  Assembled ONCE from `index.html` (2026-10-04) and independent from here, the
-  same rule `football/index.html` lives under. See "The ALL SPORTS tracker" below
-  before changing anything in it.
-- **`hockey/index.html`** — the **NHL** tracker at `/hockey/`, a complete
-  working page that is deliberately in NO page's sport switch (the user's
-  call, 2026-10-05: "I may want to unhide it later"). Generated from
-  `all/index.html` and independent since. See "The NHL tracker" below.
-- **`basketball/index.html`** — the **NBA** tracker at `/basketball/`, hidden
-  exactly like the NHL one. See "The NBA tracker" below.
-- **`wnba/index.html`** — the **WNBA** tracker at `/wnba/`, hidden the same
-  way, on the NBA's engine. See "The WNBA tracker" below.
-- **`cfb/index.html`** — the **college-football** tracker at `/cfb/`, hidden
-  the same way, on the NFL's engine. See "The college-football tracker".
-- **`features/index.html`** — a static, plain-language "what this site can
-  do" page for end users (the friend group), reusing `index.html`'s exact
-  color tokens/fonts so it reads as the same product. Lives at the clean
-  URL `/features/` (GitHub Pages resolves a directory request to its
-  `index.html`). The old top-level `features.html` is now a redirect stub,
-  kept so existing bookmarks/links still work — don't delete it, and don't
-  put real content back in it.
+**Pages** (each independent; a fix that applies to several is made in each,
+on purpose — there is no shared script and no build step):
+`index.html`, `mlb/index.html`, `football/index.html`, `hockey/index.html`,
+`basketball/index.html`, `wnba/index.html`, `cfb/index.html`,
+`history/index.html`, `football/history/index.html`, `features/index.html`,
+plus the two redirect stubs `all/index.html` and `features.html` (don't put
+real content back in either).
 
-  **Verified against the live site, not assumed:** a bare extensionless
-  request (`/features`, no trailing slash) resolves to the sibling
-  `features.html` FILE, not the `features/` directory — GitHub Pages tries
-  the same-named `.html` file before it tries `<name>/index.html`. That
-  means the redirect stub's target must be the trailing-slash form
-  `/features/`; redirecting to bare `/features` reloads the stub itself
-  forever. `index.html`'s own footer link goes straight to `/features/`
-  to skip the redirect hop entirely. Linked subtly from
-  `index.html`'s footer ("what this site can do"). **Kept in sync
-  automatically as of 2026-09-20** (previously hand-maintained on request
-  only — that restriction is lifted). Scope is strict, though: this page
-  lists only **current, live, functional, end-user-noticeable** features —
-  something a friend using the site would actually see or interact with.
-  Never mention a bug fix, a backend/pipeline change, a refactor, or anything
-  that isn't directly visible to a visitor (e.g. the results archive, the
-  parser accepting a new card template, or a grading-logic correction are all
-  out of scope unless they changed what's ON SCREEN). Update it as part of
-  any change that adds/removes/visibly alters a feature; don't let it drift
-  stale. Same page shape as the football section already there: color key,
-  one short paragraph per feature, in the voice already established.
-- **`data/tickets.json`** — the current day's parlay/single-bet picks, in a
-  specific schema (see below), stamped with the MLB game `date` the slate
-  is for. This is LIVE DATA, not code. Regenerated only by
-  `scripts/parse_picks.py`, never hand-edited, never overwritten by a code
-  deploy.
-- **`data/tickets-previous.json`** — the prior slate, archived by
-  `parse_picks.py` the moment a slate with a *different* `date` is parsed
-  (same-day re-uploads leave it alone). Feeds the "Yesterday's Picks" tab.
-  LIVE DATA, same rules as `tickets.json`.
-- **Either tickets file may be absent, and that is a normal state**, not an
-  error: a day with no picks submitted renders the tab's empty panel
-  ("Waiting for today's picks" / "No picks submitted yesterday"). Only a
-  404 counts as absent — any other fetch failure still raises the error
-  banner, so a broken deploy can't masquerade as "nobody submitted picks".
-  Both files were deleted on 2026-09-18 because everything in them to that
-  point was bot-test data rather than real picks.
-- **`data/incoming_picks.txt`** — the paste target. The person pastes the
-  day's raw picks text here (via GitHub's web editor, no terminal needed)
-  and commits. That triggers `.github/workflows/parse-picks.yml`, which
-  runs `scripts/parse_picks.py` against it and regenerates `tickets.json`.
-  **Re-posting an IDENTICAL card is a no-op, and the bot now says so**
-  (2026-09-30). GitHub's Contents API happily creates an EMPTY commit when
-  the content matches, and `parse-picks.yml` triggers on a CHANGE to this
-  path -- so nothing fired: no parse, no Discord message, while the bot had
-  already promised "the parser should update within about a minute".
-  `push_incoming_picks()` compares the existing content first and returns
-  None, and the caller reports it instead. `test_discord_bot.py` E1-E5 and
-  B9-B11 cover both halves; a mutation showed the user-facing half was
-  initially untested.
-  Also written by the Discord intake bot (`discord-bot/`, runs on the
-  user's own always-on Windows machine): a friend uploads a `.txt` in a
-  Discord channel, confirms with a reaction, and the bot commits it here
-  via the GitHub Contents API.
-- **`data/combined/{tickets,tickets-previous}.json`** — the NFL+MLB tab's own
-  slate. LIVE DATA, same rules as the other two sports': written only by
-  `scripts/parse_combined_picks.py`, never hand-edited, absent is a normal
-  state. **`data/combined/incoming_picks.txt`** is its paste target, fed by a
-  `sports_*.txt` upload to the Discord bot. It has no roster of its own -- it
-  resolves against BOTH sports' rosters.
-- **`data/roster.json`** — name/team lookup, used to normalize player names
-  and teams during parsing. Built by `scripts/build_roster.py` straight
-  from the MLB Stats API (every team's active roster). Originally a
-  one-time upload of a roster CSV instead; that CSV had every generational
-  suffix (Jr./Sr./II/III/IV) stripped from its name column, which silently
-  broke live matching for anyone who has one -- confirmed 2026-09-18 when
-  Fernando Tatis Jr., Bobby Witt Jr. and Vladimir Guerrero Jr. were all
-  picked in the same live slate and none of the three could resolve a hit
-  OR a miss all game (stuck at `not_started`, since `normalizeName()`
-  doesn't strip suffixes -- MLB's own feed always includes them, so the
-  fix is matching them, never stripping them). Rebuilt from the API instead
-  of re-uploading a CSV; not a live-data file, ordinary to regenerate.
-  **A rebuild MERGES and never replaces** (`merge_rosters()`, 2026-09-26). The
-  API serves ACTIVE rosters, which exclude anyone on the IL, so an overwrite
-  silently DROPS players: measured on a rebuild 8 days after the previous one,
-  73 names lost and 74 gained — and one of the 73 was Aaron Judge. A missing
-  player is the worst state available, since `normalizeName()` matches nothing
-  and his leg can never resolve a hit OR a miss. A stale TEAM on someone who
-  has since moved is far cheaper: it only affects which game a leg is shown
-  waiting on pre-game, and grading goes by name in the boxscore. So fresh data
-  wins for anyone in both and nobody is dropped; `--replace` is the escape
-  hatch. **It is also on no schedule** — nothing rebuilds it automatically,
-  and it had gone 8 days stale before a picked call-up (Andy Pages) turned up
-  absent and ungradeable. Rebuild it whenever a name won't resolve.
-  `merge_rosters()` is a pure function so `test_build_roster.py` can cover it
-  offline: driving `main()` would hit the real API, and then whether Judge is
-  present depends on today's IL — the very thing under test.
-- **`scripts/parse_picks.py`** — parses the raw picks text format into
-  `tickets.json`. Also resolves player names against `roster.json` (exact
-  match, then fuzzy). Accepts the text with or without markdown markers
-  (`## ` headers, `* ` bullets) — text copied out of a rendered Gemini
-  response has them stripped, and that silently broke parsing once.
-  **Fills in first pitch times MLB knows and the card didn't**
-  (`fetch_start_times()` / `fill_missing_times()`, 2026-09-29): cards
-  increasingly state no time at all, and a pick with no time reads on the page
-  as if nobody knows when it's on. Only ever fills a BLANK -- a time the card
-  stated is left exactly as written, because silently overriding what a person
-  typed from another source is a worse failure than a stale time. A game whose
-  `startTimeTBD` is set is skipped, since MLB carries a placeholder
-  `gameDate` for it and filling from that prints an invented first pitch. A
-  doubleheader takes the EARLIER game. It's the parser's only network call and
-  it fails SOFT: unreachable MLB means times stay blank and the slate still
-  posts. A SINGLE shows its time through the prebuilt `meta` string, so that
-  gets spliced too -- setting `time` alone fills it everywhere except the one
-  place it's read. `test_parser.py` section 16 covers it offline with an
-  injected schedule; five mutations caught.
-  Stamps `date` from the listed start times: a slate posted after its
-  last first pitch is for tomorrow, otherwise it's for today (ET).
-  **The group's picks-generation prompt has changed template at least three
-  times without warning**, each time parsing to zero tickets (exit 1, nothing
-  written, so the real slate silently never posts) until the new shape was
-  added: the original `## Longshot` / `## N-Leg Parlay Cards` headers, then
-  "`* Ticket N: TIME | Player (Team) +ODDS (Bettor)`" footed by "`(Bet by X)
-  [Bet: $Y | PP: Z]`" (2026-09-18), then "`Ticket #N (Bettor - $X Bet) [PP:
-  $Y]`" headers with "`* (Bettor) Player - TEAM (+ODDS) - TIME ET`" legs
-  grouped under "`Part N: ...`" headers (2026-09-19), then an emoji-prefixed
-  "`🎰 Ticket #N (M-Leg Parlay)`" / "`🔥 Bonus Ticket (M-Leg Parlay)`" header
-  (some tickets in the same card omit the leg-count suffix), "`Bet: $X
-  (Bettor) | PP: $Y`" on its own line, and "`• Player (TEAM) - TIME ET
-  (+ODDS) (Bettor)`" legs (2026-09-20). All four parse from the same input,
-  decided purely by which regex a line matches, and a ticket is a single vs.
-  a parlay card by its actual leg count, never by which header/window it
-  sits under. A **fifth** template arrived 2026-09-22 and is the first one no
-  human wrote support for -- the auto-fixer read it, patched this file, passed
-  the whole suite and re-parsed the card itself (fixture
-  `tests/fixtures/discord_parlay_window_format.txt`, assertions in
-  `test_parser.py` section 11): `🕒 <Name> Window (...)` section headers, bare
-  `Parlay N (Bettor)` / `Ticket N (Bettor)` ticket headers whose `(Bettor)` is
-  the ticket OWNER (legs carry their own separate `(Who)`), legs written
-  `* Player (+ODDS) (Who) – TIME ET` with an EN-DASH where templates three and
-  four use a hyphen, closed by `* Wager: $X | Payout: $Y`.
-  Its "Bonus Bets Tracker" section is the same ticket shape with **no start
-  time on the legs**, so both the `(Who)` and the `- TIME ET` tails are
-  optional -- required at first, which meant those legs matched nothing and
-  were stored with the bettor still glued to the player name
-  (`Francher-Harper`): no team, resolved to nobody, unable to grade either way,
-  the Tatis Jr. failure mode. Fixed 2026-09-22 once the group re-sent the
-  section as `* Bryce Harper (+540) (Francher)`. `TRACKER_HEADER_RE` opens that
-  section too (it holds no literal "Window", so those tickets were being filed
-  under the preceding time window and shown under a first pitch they had
-  nothing to do with); it is deliberately narrow -- word characters and spaces
-  only -- so it can never match a leg line and swallow the rest of the card.
-  `test_parser.py` section 11 pins the raw upload AND the corrected shape,
-  and both changes were mutation-tested.
-  A **sixth** template arrived 2026-09-23, the "DAILY HOME RUN PARLAY TRACKER"
-  card (fixture `discord_tracker_checkbox_format.txt`, assertions in
-  `test_parser.py` section 12): a bare bettor NAME on its own line opens that
-  person's section, tickets read `Ticket #N - 2-Leg Parlay $6.00` with the
-  STAKE in the header, legs are checkboxes `[ ] Player +ODDS (Nickname) TIME`
-  carrying a full team NICKNAME rather than a code (ignored -- the roster
-  supplies the team), times omit "ET", `Steal` is written inline, and the
-  footer is `Potential Payout: $X` or `N/A` (null). The bare name is only
-  REMEMBERED, never a trigger on its own -- a lone capitalised word is far too
-  common -- and is consumed only when a ticket header actually follows.
-  **Two user decisions are baked in:** a leg with NO ODDS is reported through
-  the unread/`note` path and NOT tracked (a price can't be invented, and its
-  ticket then has one leg left, so it becomes a single by leg count), while a
-  leg marked `- DNP` is dropped WITHOUT a warning, because the card itself
-  said so. Both are mutation-tested; don't "tidy" them into the same branch.
-  An **eighth** arrived 2026-09-26 (fixture
-  `discord_plain_parlay_emdash_format.txt`, `test_parser.py` section 13): a
-  BARE `Parlay N` header naming nobody, legs `* Player (+ODDS) — Full Team
-  Name (Bettor) TIME` separated by an EM-DASH with the team spelled out in
-  full, and `$6.00 Bet | Potential Payout: $117.48 (Memo)` carrying stake,
-  payout and the ticket OWNER together at the end. **The em-dash is
-  load-bearing:** the seventh template's legs are the same shape with a plain
-  HYPHEN, so `PLAIN_PARLAY_LEG_RE` deliberately excludes `-` — accept it and
-  one pattern silently owns both shapes. Pinned directly in section 13.
-  **The emoji-ticket header is a trap for `section_header()`:**
-  "🎰 Ticket #1 (3-Leg Parlay)" contains the literal substring "3-Leg Parlay",
-  which `PARLAY_HEADER_RE` matches, so every one of its headers was first
-  misread as a brand-new section -- same class of collision football's own
-  third template hit the same day (see its entry below), needing the same
-  exclusion-guard fix. **If a new upload parses to zero again, that's a
-  NINTH template, not a regression** — and as of 2026-09-22 the first response
-  is to let the auto-fixer try it (it handled the fifth unaided), not to hand-
-  write the regex. Either way: check the Action's run log for `WARNING: parsed
-  nothing`, get the raw text, and add a fixture + assertions
-  (`tests/test_parser.py` has one per template — including for what the fixer
-  writes, which is reviewed like any other patch, not trusted because it
-  passed).
-- **`history/index.html`** — the standalone History page at `/history/`
-  (see "History page" below). Own inline CSS/JS; shares nothing with
-  `index.html` except one footer link each way.
-- **`data/history.json`** — the History page's only data source. PIPELINE
-  DATA like the tickets files: written only by `scripts/import_history.py`,
-  never hand-edited.
-- **`data/results/<date>.json`** — one permanent record per finished slate,
-  written only by `scripts/record_results.py` (see "Results archive" below).
-  PIPELINE DATA. Football's twin is `data/football/results/<weekEnds>.json`.
-- **`scripts/import_history.py`** + **`scripts/history_player_map.json`** +
-  **`.github/workflows/import-history.yml`** — build `data/history.json` from
-  the group's Google Sheet (older slates) plus `data/results/` (slates the
-  tracker recorded itself), daily at 9am ET.
-- **`CNAME`** — contains `bmbs.bet`, required by GitHub Pages for the custom domain.
+**Data** (`data/`, per sport: `data/` = MLB, `data/football/`,
+`data/combined/`, `data/hockey/`, `data/basketball/`, `data/wnba/`,
+`data/cfb/`):
+- **LIVE DATA** — `tickets.json` (current slate), `tickets-previous.json`
+  (prior slate, archived when a slate for a different date/week is parsed),
+  `incoming_picks.txt` (the paste/upload target). Written only by that sport's
+  parse workflow. Never hand-edited, never written by tests, never in a code
+  deploy. **Either tickets file may be absent — that's a normal state**
+  ("Waiting for today's picks"); only a 404 counts as absent, any other fetch
+  failure raises the error banner.
+- **PIPELINE DATA** — `data/history.json`, `data/results/<date>.json`,
+  `data/football/history.json`, `data/football/results/<weekEnds>.json`.
+  Written only by `import_history.py` / `record_*_results.py`.
+- **Rosters** — `roster.json` in `data/`, `data/football/`, `data/hockey/`,
+  `data/basketball/`, `data/wnba/`, `data/cfb/` (the combined slate has none;
+  it resolves against the others). Ordinary to regenerate (§11).
 
-## How live tracking actually works (important, don't reinvent this)
+**Scripts** (`scripts/`): `parse_picks.py` (MLB), `parse_football_picks.py`,
+`parse_combined_picks.py` (All Sports; a layer over `parse_picks`),
+`parse_hockey_picks.py` / `parse_basketball_picks.py` / `parse_wnba_picks.py` /
+`parse_cfb_picks.py` (thin wrappers over the combined parser),
+`build_roster.py` / `build_football_roster.py` / `build_hockey_roster.py` /
+`build_basketball_roster.py` (`--league nba|wnba`) / `build_cfb_roster.py`,
+`record_results.py`, `record_football_results.py`, `import_history.py` +
+`history_player_map.json`, `notify_discord.py`, `auto_fix_parser.py`.
 
-`index.html` polls the **MLB Stats API directly from the visitor's own
-browser** every ~10 seconds — `statsapi.mlb.com`, which is free, keyless,
-and has open CORS (confirmed working, not a guess). This is NOT a
-server-side cron job. There is no backend. Every viewer's browser
-independently computes hit/miss/live state from the same public data.
+**Workflows** (`.github/workflows/`): `parse-picks.yml`,
+`parse-football-picks.yml`, `parse-combined-picks.yml`,
+`parse-hockey-picks.yml`, `parse-basketball-picks.yml`,
+`parse-wnba-picks.yml`, `parse-cfb-picks.yml` (each triggers on its own
+`incoming_picks.txt` and commits only its own `tickets*`),
+`auto-fix-parse-failure.yml`, `import-history.yml` (daily archive).
 
-**Slate dates, not calendar dates.** Polling is keyed on `tickets.json`'s
-`date`, never on the clock: MLB files a 10pm ET game under the date it
-started, so a slate keeps tracking straight through midnight. A slate
-rolls from the "Today's Picks" tab to "Yesterday's Picks" only when every
-game on its date is Final per the schedule endpoint (postponed games are
-encoded Final, so rain-outs count as done) — or, as a backstop for
-suspended games only, at 6am ET the next morning. Today then shows
-"Waiting for today's picks" until a slate with a new `date` lands; the
-page re-reads both tickets files every poll so that happens without a
-reload.
+**`discord-bot/`**: `bot.py`, `run_bot.bat`, `requirements.txt`,
+`.env.example`, `README.md` (§12). **`tests/`**: plain-script tests plus
+`tests/fixtures/` (every card template, including `test_picks.txt`) and
+`tests/requirements.txt` (§17).
 
-Precisely: **Today is the oldest slate that isn't over yet.** Picks are
-often uploaded just after midnight, while the previous night's late game
-is still being played — that upload archives the live slate into
-`tickets-previous.json`, so without this rule the still-live slate would
-be yanked onto the Yesterday tab mid-game. Instead the newer slate is held
-as `SLATES.queued` (a small note on the Today tab says so) and takes over
-the moment the live one goes final. Final games' feeds are cached and never re-fetched; Preview games'
-feeds aren't fetched at all.
+## 3. Shared page engine
 
-**Poll cadence is 10s, and that's the floor -- don't lower it.** Measured
-2026-09-18 against live games: the feed carries `metaData.wait: 10`, responses
-ship `Cache-Control: max-age=10`, and a game's feed only regenerated every
-~18-20s (byte-identical payloads for 17+ seconds at a stretch). Polling faster
-just re-downloads cached bytes; it cannot make MLB publish sooner. MLB's own
-publish lag (~15-20s) dominates total latency, so the interval is the small
-term.
+### Polling from the browser
 
-**That 10s is only affordable because of `FEED_FIELDS`.** The full live feed is
-~630KB raw / ~104KB gzipped *per game*, and a full slate pulls one per live
-game per poll -- over 1MB a cycle. `getGameSnapshot()` sends a `fields=`
-allow-list that cuts it to ~15KB gzipped, so 10s polling costs about a quarter of
-what the old 20s polling did. `fields` matches field NAMES at any depth, not
-paths, and a missing name silently yields `undefined` rather than erroring --
-so every name read out of `data` must be listed, including intermediate ones.
-`tests/test_feed_fields.py` fetches both the full and slim feed for every
-currently-live game and requires `getGameSnapshot()` to compute identical
-results; run it after touching that list. It pins both requests with
-`timecode=` so a live game moving mid-check can't look like a lost field.
-That pin is to the second, so a mid-at-bat game can still differ on one poll;
-a single-game `recentABs` diff that doesn't reproduce is that, not a lost
-field -- confirm by re-running before chasing it.
+Every tracker polls public APIs **directly from the visitor's browser** — the
+MLB Stats API (`statsapi.mlb.com`, keyless, open CORS) and ESPN (§10). There is
+no server-side cron and no backend. Every viewer independently computes
+hit/miss/live state.
 
-**Don't put a double-quoted phrase in a `FEED_FIELDS` comment.** The test
-extracts the list by scraping quoted strings out of the array's source, so a
-comment like `// "did he actually bat?"` was picked up as a field NAME and
-spliced into the request URL (its space raised `InvalidURL`). The extractor
-now strips `//` comments first, but the array is still read as text, not
-parsed as JS.
+**MLB poll cadence is 10s and that's the floor — don't lower it.** Measured
+2026-09-18: the feed carries `metaData.wait: 10`, responses ship
+`Cache-Control: max-age=10`, and a game's feed only regenerates every ~18-20s.
+Polling faster re-downloads cached bytes. ESPN pages poll every 15s.
 
-**Anything that prints a time must pass `timeZone` explicitly.** The whole
-site talks in ET, so a formatted time gets an "ET" label -- and
-`toLocaleTimeString` with no `timeZone` silently formats the VISITOR's own
-clock instead. `updateSyncLine()`'s "last updated ... ET" line did exactly
-that until 2026-09-20: a viewer out west read their own wall clock under an ET
-label, three hours off. Both sports had it (fixed in both). `nowET()` was
-always correct -- it passes `timeZone: "America/New_York"` to
-`Intl.DateTimeFormat` -- so copy that, and note the bug is invisible on an
-Eastern machine, which is why it survived so long. `test_page.py`'s section Q
-and `test_football.py`'s section K pin a browser to Pacific to catch it.
+**Polls are non-overlapping** (`pollOnce()`): `setInterval` doesn't wait, and
+two polls finishing out of order write a stale slate over a fresh one. A tick
+landing mid-poll is dropped; the guard releases in a `finally` or one thrown
+error kills polling for the session.
 
-**Polls are non-overlapping** (`pollOnce()`): a full slate can take longer than
-10s on a slow connection, and `setInterval` doesn't wait, so two polls could
-finish out of order and write a stale slate over a fresher one. A tick landing
-mid-poll is dropped. The guard releases in a `finally`, or one thrown error
-would kill polling for the rest of the session.
+### Slate dates, not calendar dates
 
-Per-leg states (five total): `hit`, `miss`, `na` (didn't play), `live` (game
-in progress, no HR yet), `not_started`. A player is resolved to `hit` the
-instant a HR appears in the live play-by-play, regardless of whether their
-game has finished.
+Polling is keyed on `tickets.json`'s `date`, never the clock: MLB files a 10pm
+ET game under the date it started, so a slate tracks straight through midnight.
+A slate rolls from Today to Yesterday only when every game on its date is Final
+per the schedule (postponed games are encoded Final), or — backstop for
+suspended games only — at 6am ET the next morning. **Never reintroduce any
+other wall-clock rollover**; a clock-based one was built and reverted at the
+user's request.
 
-**Pinch Hit Protection.** Most of the user's books credit the bet if the
-player is pulled and whoever's since held their batting-order slot goes on
-to homer -- so a pulled player is NOT resolved to `miss` immediately (that
-was tried first and reverted; see `pinchHitProtection()`, `stateForPlayer()`
-in `index.html`). Instead they stay `live`/`not_started`/`miss` exactly
-like an unpulled player, tracking the entire chain of substitutes in that
-slot (a double-switch can sub twice) via the live feed's `slotHolders`.
-If any of them homers, the leg resolves to `hit` -- counted normally
-everywhere (payout, Bettor Tracker, scoreboard) -- but rendered with a
-visually distinct badge (green fill + diagonal yellow stripes, CSS class
-`php-hit`) and an explanatory note, so it's clear the hit came via PHP and
-not the named player's own bat. A player who already has his own hit
-before being pulled (rare -- e.g. pinch-run for right after homering)
-stays a plain, undecorated hit; PHP framing only applies when the credit
-comes from a substitute.
+**Today is the oldest slate that isn't over yet.** Picks often land just after
+midnight while last night's late game is still live; that upload archives the
+live slate into `tickets-previous.json`. The newer slate is held as
+`SLATES.queued` (a note on the Today tab says so) and takes over when the live
+one goes final. The page re-reads both tickets files every poll, so a new
+upload appears without a reload. Final games' feeds are cached and never
+re-fetched; pre-game feeds aren't fetched at all.
 
-## Irons
+NFL slates are a week, not a day (§10); the All Sports page's rollover is "every
+engine with legs on the card is done" (§9).
 
-An **Iron** is an open bet one home run from cashing, marked with a 🧇
-waffle next to the player who still has to go deep.
+### FEED_FIELDS
 
-- **Parlays**: `outcome === "live" && (activeCount - hitCount) === 1`,
-  computed in `evaluateTicket()` as `evalRes.iron`. The waffle goes on the
-  one active leg that hasn't hit (`isIronLeg()`).
-- **Singles**: every open single qualifies -- a single is by nature exactly
-  one HR away (`singleIsIron()`). The one exception is state `na`: that
-  player never played, so the bet is void/refunded rather than one swing
-  away, and it gets no waffle and no count. Note this means a fresh slate
-  before first pitch shows a waffle on *every* single; that's intended.
+The full MLB live feed is ~104KB gzipped per game; `getGameSnapshot()` sends a
+`fields=` allow-list (`FEED_FIELDS`) that cuts it to ~15KB, which is what makes
+10s polling affordable.
+- `fields` matches field NAMES at any depth, not paths, and a missing name
+  silently yields `undefined`. Every name read out of the feed must be listed,
+  including intermediate ones.
+- **There are six copies** (every page carrying the MLB engine: `index.html`,
+  `mlb/index.html`, `hockey/`, `basketball/`, `wnba/`, `cfb/`).
+  `test_smoke_pages.py` F2 requires them identical; `test_feed_fields.py`
+  (network) proves the MLB page's copy complete by comparing
+  `getGameSnapshot()` on the full vs slim feed for every live game, pinned
+  with `timecode=`. A one-off single-game `recentABs` diff that doesn't
+  reproduce is a mid-at-bat timing race, not a lost field — re-run first.
+  Run it after touching the list.
+- **Don't put a double-quoted phrase in a `FEED_FIELDS` comment.** The test
+  scrapes quoted strings out of the array's source (it strips `//` comments
+  first, but reads the array as text); a quoted comment was once spliced into
+  the request URL.
 
-**Irons has its own slim bar under the BETS row** (`.irons-bar`, id
-`chip-iron`), not a chip in it, as of 2026-09-20. It was the second of five
-chips; that made the row a state-per-column list with one entry that isn't a
-state -- an Iron is a *subset* of Open, counted in both -- and it stopped the
-BETS and LEGS rows lining up. The bar is amber with the waffle, a colour now
-reserved for it (OPEN/LIVE are white and N/A is yellow), and it is visibly
-smaller than the chips so it reads as a qualifier rather than a fifth bucket.
-It is still an ordinary member of `FILTER_GROUPS.bet`, so it multi-selects and
-appears in the summary like anything else.
+### Times are ET, always with an explicit `timeZone`
 
-**The waffle is a numeric entity in the markup and is easy to get wrong:**
-`&#129479;` is U+1F9C7 🧇. `&#129415;` is U+1F987 🦇, a bat -- which is what
-shipped for about ten minutes. `test_page.py` V2 pins the codepoint and
-cross-checks it against `ironMark()`'s.
+`toLocaleTimeString` without `timeZone` formats the VISITOR's clock. The sync
+line printed a Pacific viewer's wall clock under an "ET" label until
+2026-09-20 — invisible on an Eastern machine. Copy `nowET()`, which passes
+`timeZone: "America/New_York"`. Pinned from a Pacific browser in
+`test_page.py` Q, `test_football.py` K and `test_bell.py` G1.
 
-Two behaviours that are easy to break:
-- **The waffle is driven by Iron state, never by the active filter**, so it
-  shows under Open and under no filter at all -- not just under Irons.
-- **The Irons filter renders the FULL parlay**, every leg including the ones
-  already hit, because the point is seeing how close the card is. The
-  bettor/leg filters' hide-non-matching-legs behaviour deliberately does not
-  apply; `renderContent()` still uses them to decide whether a ticket
-  appears, then overrides `visibleLegIdx` to all legs. **The expansion is
-  decided PER TICKET** (`BET_FILTERS.has("irons") && evalRes.iron`), not by
-  "the irons filter is on": since the chips multi-select, Open + Irons renders
-  plain open cards too, and those must still hide their non-matching legs.
-  What the expansion does NOT override is whether a card appears at all -- an
-  Iron with no leg surviving the leg/bettor filters is hidden like any other.
+### Warmup and delays (MLB)
 
-A **dead** parlay is never an Iron even when one leg is numerically
-unresolved -- `outcome === "live"` excludes it, same as void.
+- **Warmup is not live.** MLB's own `/api/v1/gameStatus` lists Warmup as
+  `abstractGameState: "Live"`, `codedGameState: "P"`. Trusting `abstract`
+  tagged a leadoff hitter "AT THE PLATE NOW" before a pitch. **`codedGameState
+  === "P"` is the gate**, applied in BOTH `getScheduleForDate()` (feed not
+  fetched) and `getGameSnapshot()` (a fetched feed can't be misread); they can
+  disagree for a poll around first pitch (`test_page.py` U5).
+- **A delay is named.** The schedule request carries `hydrate=team` (~600
+  bytes) for team abbreviations, because a pre-game leg can only find its game
+  via `leg.team` (`RESULTS.teamState`). `scheduleStateText()` renders "Game
+  delayed -- rain." etc., reading the reason from `detailedState` ("Delayed
+  Start: Rain") or the separate `reason` field. Both families are covered:
+  `Delayed Start*` (never began) and `Delayed*` (began then stopped).
 
-**The scoreboard is TWO rows of FOUR, deliberately aligned: BETS**
-(Open / Hit / Missed / N/A) **and LEGS** (Live / Hit / Missed / N/A), both
-sports. Same four columns, same four colours -- white, green, red, yellow --
-so a glance down a column compares like with like. Keep them that way: the
-whole point of moving Irons out (above) was that a five-chip BETS row could
-not line up with a four-chip LEGS row. Both rows are mutually exclusive, which
-is why **a void bet is N/A rather than Open**: every leg was N/A, so the bet is
-refunded, not one swing from anything. `singleOutcome()` returns `"void"` for
-a DNP player's single for the same reason. `isOpenOutcome()` still counts void
-as open everywhere else (payouts, `betIsOpen`, Live Bet Tracker eligibility) --
-"can this still be graded" is a different question from "which column is it". Read the history before changing
-either, because it has gone back and forth once already:
-- The original LEGS row was five chips (Hit / Missed / N/A / Live / Not
-  Started) and, above both rows, BATTING NOW / BATTING SOON. All of it was
-  removed on 2026-09-18 at the user's request -- Live At Bats had replaced
-  the batting chips, and the leg chips read as redundant with BETS. **Don't
-  bring BATTING NOW / BATTING SOON back**; that one still stands.
-- The LEGS row itself came back on 2026-09-20, asked for explicitly, and this
-  file's old "don't add them back" line went with it. It is now **four** chips,
-  not five: `not_started` is bucketed into LIVE by `legFilterBucket()` so the
-  row fits a 560px phone next to the 4-wide BETS row, and the always-on status
-  line under each leg (below) says which of the two a pick actually is.
-- The leg chips hide non-matching LEGS *inside* a card, exactly like the
-  bettor filter, and note how many they hid; a card with no surviving leg
-  drops out. Both leg-level filters go through `legPassesFilters(state, who)`.
+## 4. Legs, bets, scoreboard, filters, layout
 
-**All three filters are MULTI-SELECT** (2026-09-20, both sports). They are
-Sets, not single values: `BET_FILTERS`, `LEG_FILTERS`, `BETTOR_FILTERS`.
-- **OR within a group, AND across groups.** Bets: Open + Hit shows both kinds
-  of bet; Bets:Open + Legs:Missed + Bettor:Kenny means "Kenny's missed legs on
-  bets that are still open". An empty set means "no filter from this group",
-  never "nothing matches" -- check `.size` before testing membership.
-- **Clicking a chip toggles only that chip.** Nothing else is cleared. Before
-  this, picking a second chip silently replaced the first.
+### Leg states
+
+`hit`, `miss`, `na` (didn't play / push → void), `live`, `not_started`, and
+`untracked` (a market the page can't grade, §5). A home-run leg is `hit` the
+instant the HR appears in the play-by-play, before the game ends.
+
+**Benched = void, not miss** (the user's call, 2026-09-20). MLB's boxscore
+lists the whole active roster, so presence there says nothing. The MLB engine
+builds a `played` set from `stats.batting.plateAppearances` (falling back to
+`battingOrder` / `allPositions` / any batting object); `pollSlate()` writes a
+name into `rosterStatus` only while his game is on OR he's in `played`, and a
+benched player settles `na` as soon as **his own** game is final
+(`inBox.get(norm) === "final"`). `inBox` is a separate map of everyone on a
+roster; `stateForSteal()` reads THAT, because a steal bet asks "was he on the
+field", not "did he bat". `record_results.py` has the same rule.
+
+**Pinch Hit Protection** (MLB home-run legs). Most of the group's books credit
+the bet if whoever later holds the pulled player's batting-order slot homers.
+So a pulled player is NOT resolved `miss` immediately (that was tried and
+reverted); `pinchHitProtection()` / `stateForPlayer()` follow the whole chain of
+substitutes in that slot (`slotHolders`). A substitute's homer resolves the leg
+`hit`, counted normally everywhere but drawn with the `php-hit` badge (green +
+yellow diagonal stripes) and a note. A player who homered himself before being
+pulled stays a plain hit. Steals get no PHP (§5).
+
+### Bet outcomes and the scoreboard
+
+**Two rows of four, aligned: BETS** (Open / Hit / Missed / N/A) **and LEGS**
+(Live / Hit / Missed / N/A), same columns, same colours (white, green, red,
+yellow). Keep them aligned — that's why Irons and Not-Fully-Tracked are slim
+bars, not chips.
+- `not_started` folds into LIVE in the leg row (`legFilterBucket()`), and
+  `untracked` too; the status line under each leg says which it really is.
+- **A void bet is N/A, not Open**: every leg was N/A, so it's refunded.
+  `singleOutcome()` returns `"void"` for a DNP single. Its card reads
+  "VOID — nobody on it played, refunded" (`test_page.py` V4).
+  `isOpenOutcome()` still counts void as open for payouts, `betIsOpen` and
+  Live Bet Tracker eligibility — "can this still be graded" is a different
+  question from "which column".
+- **Don't bring back BATTING NOW / BATTING SOON chips** (removed 2026-09-18;
+  the Live Bet Tracker replaced them).
+- On the front page the LEGS row is hidden (§1), still computed.
+- **Payout:** a parlay with void legs is re-priced from the remaining legs'
+  odds (`adjustedPayout` in `evaluateTicket()`); the running payout estimate,
+  cash alerts and the Bettor Tracker all use it. A priceless leg shows an
+  em-dash and odds-based numbers skip it (`oddsToNumber()` returns null) —
+  never a fabricated price.
+- **Bettor Tracker** (collapsed panel, `N BETTORS` pill): each bettor's picks
+  and record; tapping a row toggles that bettor in `BETTOR_FILTERS`.
+
+### Irons
+
+An **Iron** is an open bet **one leg from cashing**, marked with 🧇 next to the
+leg still needed.
+- Parlays: `outcome === "live" && activeCount - hitCount === 1`
+  (`evalRes.iron`); the waffle goes on that leg (`isIronLeg()`). A dead parlay
+  is never an Iron.
+- Singles: every open single is an Iron (`singleIsIron()`) except state `na`
+  (void). A fresh slate therefore shows a waffle on every single; intended.
+- The waffle is driven by Iron state, never by the active filter.
+- **The Irons filter renders the FULL parlay**, decided per ticket
+  (`BET_FILTERS.has("irons") && evalRes.iron`) — Open + Irons still hides
+  non-matching legs on plain open cards. It does not override whether a card
+  appears at all.
+- Irons has its own slim amber bar under the BETS row (`.irons-bar`,
+  `#chip-iron`), still a member of `FILTER_GROUPS.bet`. Amber is reserved for
+  it.
+- **The waffle entity is easy to get wrong:** `&#129479;` is U+1F9C7 🧇;
+  `&#129415;` is a bat 🦇 (shipped for ten minutes). `test_page.py` V2 pins
+  the codepoint against `ironMark()`'s.
+
+### Filters (all trackers)
+
+- **Multi-select Sets**: `BET_FILTERS`, `LEG_FILTERS`, `BETTOR_FILTERS`. OR
+  within a group, AND across groups; an empty set means "no filter". Clicking a
+  chip toggles only that chip.
 - `FILTER_GROUPS` is the single table the chips, the summary bar and
-  `clearAllFilters()` all read, so they can't drift apart. Adding a fourth
-  group means adding a row there, not four parallel code paths.
-- **One consolidated summary bar** (`#filter-summary`) replaced the three
-  per-group status strips. It lists every active filter as its own removable
-  chip plus a Clear all button, and it is **`position: sticky`** -- which is
-  why it lives OUTSIDE `<header>`: sticky is confined to its containing block,
-  so inside the header it would stop following the moment the header scrolled
-  away. That matters because the bettor filter is set from a panel far down
-  the page.
-- **Summary chips and Bettor Tracker rows carry `data-group`/`data-key` and are
-  handled by ONE delegated listener each** (`initFilterHandlers()`), not an
-  inline `onclick`. A bettor key is a name off the card, and a name with an
-  apostrophe spliced into `onclick="f('x')"` breaks the handler -- the
-  attribute decodes `&#39;` back to a quote before JS ever parses it. The
-  containers are safe to delegate on because only their `innerHTML` is
-  rebuilt each poll, never the containers themselves.
-
-All three reset on a tab switch, and **every filter change must fan out through
-`applyFilters()`**, which calls `renderLiveAtBats()` / `renderLiveDrives()` --
-forgetting that left the panel stale once already.
-
-**Page layout, reshuffled 2026-09-20** (both sports, user's call):
-- `<h1>` now names the sport -- "BMBS Tracker &mdash; Baseball" / "&mdash; Football"
-  -- and comes FIRST, with the LIVE FROM MLB / LIVE FROM ESPN eyebrow under it
-  and the last-updated line directly under that. The sync line lost its
-  "Live &mdash; " prefix (the eyebrow already says the slate is live).
-- The colour key moved out of the header to the bottom of the page, under a
-  "COLOR KEY" label, BELOW the horizontal rule and above the fine print. That
-  rule used to be the footer's own `border-top`; it now belongs to `.colorkey`
-  and the footer has none, which is what puts the key on the fine-print side
-  of the line rather than the slate's. `#legend-hit` / `#legend-miss` are still
-  rewritten by `computeAll()` for steal slates -- the ids moved with it.
-- **The "Auto-tracked against live MLB/NFL results." boilerplate is gone**, as
-  redundant with the eyebrow. `#dynamic-note` itself MUST STAY: it is the only
-  place an unread bet line surfaces (`BETLIKE_RE` -> `tickets.json`'s `note`),
-  and dropping that would put the site back to silently posting 16 of 18
-  tickets. It now renders "Heads up &mdash; &lt;note&gt;" when there is a
-  warning and is empty otherwise, and `test_page.py`'s section O pins both.
-
-**WARMUP IS NOT LIVE, and `abstractGameState` will tell you it is.** MLB's own
-authoritative table (`/api/v1/gameStatus`) lists Warmup as
-`abstractGameState: "Live"`, `detailedState: "Warmup"`, `codedGameState: "P"`.
-Trusting `abstract` meant the page downloaded a warmup game's feed, read the
-lineup card that is already posted, and tagged the leadoff hitter "AT THE PLATE
-NOW" before a pitch had been thrown. **`codedGameState === "P"` is the gate** --
-pre-game whatever `abstract` claims -- and it is applied in BOTH places on
-purpose: `getScheduleForDate()` (so the feed isn't fetched at all) and
-`getGameSnapshot()` (so a feed fetched anyway can't be misread). They can
-disagree for a poll or two around first pitch; `test_page.py` U5 covers that.
-
-**A delay is named, not hidden.** The schedule request carries `hydrate=team`
--- about 600 extra bytes on a request already made every poll -- purely so the
-payload has team ABBREVIATIONS. They're needed because a game that hasn't
-started has no boxscore, so `leg.team` is the only way to find which game a
-pick is waiting on (`RESULTS.teamState`, keyed by abbreviation).
-`scheduleStateText()` turns `detailedState` into a sentence: "Game delayed --
-rain." / "Warming up -- first pitch shortly." / "Game suspended." The reason is
-usually inside the state itself ("Delayed Start: Rain") but MLB also uses a
-plain "Delayed Start" with a separate `reason` field, so both are read. There
-are two delay families and both are covered: `Delayed Start*` (abstract
-Preview, never began) and `Delayed*` (abstract Live, began then stopped).
-
-**Expand all / Collapse all** (`#panel-controls`, above the live panel on both
-pages) drives every pill-collapsed section: Live Bet Tracker / Live Drives, the
-HR or TD Log, Bettor Tracker, Parlay Cards, Straight Bet Cards. `COLLAPSIBLES`
-is the list and **each entry calls that panel's OWN toggle**, never its class
-directly, so the side effects -- sub-text, localStorage, re-render -- can't be
-forgotten. Adding a new collapsible panel means adding a row there; that's the
-whole contract, and `test_page.py` V6-V8 checks both the fan-out and that the
-preferences still get persisted.
-
-**Every pick carries a status line, always** (`playerStatusLine()`, both
-sports, 2026-09-20). `liveContextHtml()` used to return "" whenever it had
-nothing rich to say -- before first pitch, for a player not in the lineup,
-for a void or missed leg -- which on screen is indistinguishable from the page
-having no idea. Now those branches fall through to one plain sentence
-("Game hasn't started yet.", "Game on -- not in the lineup yet.", "On the
-roster but never got in the game -- void / refunded.", "Game final -- no home
-run."). A hit is the one state that returns "": the green check already said it.
-
-**The bet lists are collapsible too** (`cardsSectionHtml()`, both sports):
-`#content` renders as **Parlay Cards** and **Straight Bet Cards**, each with
-the same shell as the panels above it, each carrying an unfiltered
-`3 OPEN · 1 HIT · 2 MISSED` pill, and **both default to collapsed**. The open
-state lives in `CARDS_OPEN` (persisted as `bmbs.cards.*` / `bmbs.fb.cards.*`)
-rather than a DOM class, because `renderContent()` rebuilds that HTML on every
-poll -- a class on the element would be wiped every 10 seconds. `#content`
-itself is kept as the outer id so existing selectors still resolve.
-**Test-helper consequence:** Playwright's `inner_text()` only returns VISIBLE
-text, so every test that reads the bet lists has to open them first --
-`expand_cards(page)` in both page test files does it, and only the section that
-checks the collapsed default skips it (`open_page(..., expand=False)`).
-
-**Test-helper trap:** `feed()` in `tests/test_page.py` numbers `battingOrder`
-per side, because the app reads the FIRST digit as the lineup slot. A flat
-`f"{i+1}00"` scheme breaks at the 10th player ("1000" -> slot 1), which makes
-them look like a substitute for the leadoff hitter and wrongly triggers
-Pinch Hit Protection. That silently corrupted leg states until it was caught.
-
-## Bomb notifications
-
-When a player named in the **live (today) slate** homers, the page announces
-it as a "Bomb". Two independent toggles in the header, each persisted
-separately in `localStorage` (`bmbs.notif.overlay` / `bmbs.notif.push`),
-defaulting to overlay ON / push OFF:
-
-- **Overlay** — a fixed, celebratory card ("<Player> BOMB! 💣"). Fires only
-  while `document.visibilityState === "visible"`; a backgrounded tab banks
-  nothing. Several at once queue and drain one at a time (`BOMB_MS`), they
-  never stack on screen.
-- **Push** — the plain Notifications API (no service worker, no server; only
-  works while the page is open). `Notification.requestPermission()` is called
-  *only* from the toggle's change event, since browsers ignore prompts that
-  aren't tied to a user gesture — never on load. Denied flips the toggle back
-  off with an inline explanation; an unsupported browser (iOS Safari from a
-  website) disables just that toggle. The overlay never depends on this API.
-
-**The flood guard is the important part.** `BOMB_STATE` is keyed on the slate
-date, and its first successful poll records whoever has already gone deep
-*without* announcing (`seeded`). Without that, opening the page mid-game
-would fire a notification for every home run that already happened. Names are
-deduped by normalized name, so a player in several legs is one notification.
-
-Deliberately keyed on the player's own home run (`results.hitNames`), NOT on
-leg state: a leg credited through Pinch Hit Protection wasn't a bomb by the
-player the notification would name.
-
-**No alert for a home run that can't change anything** (2026-09-20, both
-sports). `betsStillOpenFor()` checks, at the moment he goes deep, whether at
-least one of his bets is still alive: any single he's on (a single can't be
-dead while its own leg is the hit that just happened), or a parlay whose
-`evaluateTicket()` outcome isn't `"dead"`. If every bet naming him is a parlay
-already killed by some OTHER leg's earlier miss, `checkForBombs()` still marks
-him seen (a dead parlay stays dead forever, so this is decided once and never
-worth re-checking) but never calls `fireBomb()` -- no overlay, no push. This is
-a firing decision only; the leg itself still resolves to `hit` on the page
-exactly as before, and `betsCashedBy()`'s own dead-parlay handling (it simply
-finds nothing to cash) is unchanged. Football's twin is `betsStillOpenFor()` in
-`football/index.html`, same logic minus the market dimension.
-
-**Sound is a THIRD channel, added 2026-09-20** (`bmbs.notif.sound` /
-`bmbs.fb.notif.sound`), alongside Overlay and Push and independent of both:
-turning the overlay off does not silence it, and it deliberately fires whether
-or not the tab is visible -- hearing it while looking at something else is the
-entire point. It **defaults OFF**, like push: a page that makes noise unasked
-is worse than one that doesn't.
-
-- **The sounds are SYNTHESISED with the Web Audio API, not audio files.** These
-  pages are single self-contained files with no assets and no build step, so
-  four .mp3s would be a change in kind; generating them costs nothing to host
-  and nothing to download. Baseball has `sndBomb` (home run) and `sndSwipe`
-  (stolen base); football has `sndKick` (touchdown); both have `sndCash`.
-- **A play that also CASHES a bet plays the register INSTEAD of the event
-  sound** -- one noise, never two back to back. This mirrors the overlay
-  exactly: a cash doesn't add a second card, it upgrades the one card to gold.
-  Playing both would make a cash the only alert that interrupts twice, which
-  is backwards -- it's the one you least want to sit through. An earlier build
-  did layer them (~0.83s); the user corrected it. Don't re-add the sequence.
-- **`SOUND_TRIM` is measured, not guessed.** Each sound was rendered through an
-  `OfflineAudioContext` and its peak read off. Raw they spanned about 10x --
-  the swipe peaked at 0.11 against the bomb's 0.43 and was easy to miss
-  entirely. If you change an envelope, re-measure; don't eyeball it.
-- **Never open an `AudioContext` without a user gesture.** One created at load
-  is born suspended and silent, and the page has no second chance to start it.
-  `initNotifPrefs()` therefore restores the PREFERENCE but does not touch
-  audio; the context is created in `setSoundNotif()`, straight off the
-  checkbox's own change event -- the same constraint the push toggle has for
-  its permission prompt. Switching it on plays one bomb as confirmation, which
-  both proves audio works and sets the volume expectation.
-- Sound obeys every guard the overlay already has, because it hangs off the
-  same `fireBomb()` / `fireSteal()`: live slate only, seeded so opening the
-  page mid-game is silent, and nothing for a home run that can't change a bet.
-
-Chosen from a 17-sound library the user auditioned (arcade / clean / stadium
-variants of each event); the library page lived in the scratchpad, not the repo.
-`test_page.py` section W and `test_football.py` section Q cover the wiring by
-spying on `playAlertSound`, and the things that actually bite are pinned
-directly: the default being off, and no `AudioContext` existing at load.
-**W7 / Q6 go a level deeper on purpose** -- they stub the entries of `SOUNDS`
-and call the real `playAlertSound`, because the spy above only records the
-ARGUMENTS it was called with and so cannot see which sound actually plays.
-That is exactly the gap that let the back-to-back version look correct.
-
-**A bomb that cashes a bet is the same alert, upgraded** -- never a second
-one. `betsCashedBy()` asks which of today's bets naming that player are now
-fully hit (every single on him, plus any parlay his homer completed), and if
-any are, the overlay turns gold, rains dollar signs / money bags down the
-whole screen (behind the card, so nothing lands on the text), adds a line
-like "2-LEG PARLAY CASHED $154.00" / "SINGLE CASHED" / "2 BETS CASHED" with
-the combined payout, and holds longer (`BOMB_CASH_MS`). The push notification
-gets a money bag in the title and the same line as its body. It evaluates with
-the same `stateForPlayer()` / `evaluateTicket()` the tickets render from, so
-void legs, Pinch Hit Protection and adjusted payouts all agree with the page.
-Those helpers read the `RESULTS` global, which follows the TAB on screen, so
-`betsCashedBy()` swaps in today's results for the duration (restored in a
-`finally`) -- bombs are about today even while Yesterday is showing. Since
-every open single is an Iron, any picked player with a single on him gets the
-gold version; the plain green bomb is for homers that cash nothing yet.
-
-The two toggles themselves are hidden (not disabled -- `applyActiveTab()`
-sets `display:none` on `#notif-row`/`#notif-note`) while browsing Yesterday's
-Slate, since `checkForBombs()` only ever looks at `SLATES.today` and showing
-notification controls next to frozen, archived results is misleading. This
-is visibility only: the saved settings and Today's actual notifications are
-completely unaffected by which tab happens to be on screen.
-
-## Every leg alerts, and alerts survive the last play (2026-10-04)
-
-**Home runs, steals and touchdowns were the only legs that ever alerted.** A
-hits prop clearing, a strikeout line reached, a moneyline won, all four
-quarters scored -- the page went quiet on exactly the legs nobody could
-otherwise watch for. The user's rule: EVERY leg that hits gets a tile change
-AND a popup. `propHitEvents()` (MLB and NFL+MLB pages) finds every leg whose
-state is `hit` outside `OWN_ALERT_MARKETS` (hr/sb, plus td on the combined
-page -- those keep their own play-keyed alerts), one event per distinct leg
-however many bets carry it. They go through `checkForBombs()`'s notified set
-with a `prop:` prefix, so the SAME seeding applies (opening mid-game is
-silent) and the same dead-parlay rule (a leg whose every bet is already dead
-stays quiet). `fireLegHit()` plays the sport's sound (swipe / kick; the
-register if it cashed), pushes, queues an overlay in the leg's own words
-(`legHitWord()`: "2+ HITS!", "UNDER 4.5 K!", "WON!", "COVERED!", "ALL 4
-QUARTERS!"), and sets a `cleared` flash -- a green **HIT** tile, gold
-**CASHED** when it finished a bet, held as long as a home run's. That tile
-REPLACES the plain at-bat result for the same man ("Single" beside "2+ HITS!"
-is one event told twice); a home run's own tile is left alone. The tile
-changes whatever the overlay toggle says -- the tracker is the page, not a
-notification. `test_live_at_bats.py` AA and `test_combined_page.py` S.
-
-**Every leg row on a card names its market** (2026-10-04, the user's call).
-`marketTag()` used to return nothing for a home run, as the default -- fair
-when cards were home runs only, wrong once one card held hits props, game
-lines and touchdowns: "Austin Riley" alone no longer said what he had to do.
-Home runs are tagged HOME RUN (plus any line), the NFL page tags every leg
-ANYTIME TD, and the combined page uppercases its tags because the NFL labels
-are mixed case. `test_page.py` T2, `test_football.py` A0, combined A1b/A1c.
-
-**`alertSlate()`: the slate rolls over on the SAME poll as its last play.**
-When the last game on a card goes final, `refreshEverything()` moves the slate
-to `SLATES.yesterday` before alerts are checked -- and `checkForBombs()` read
-`SLATES.today` only. So a walk-off home run, Monday night's last touchdown, or
-any leg that only settles at the final whistle (a moneyline, an under, all
-four quarters) never alerted at all, on any of the three pages. Alerts now
-also read the finished slate IF its date is the one `BOMB_STATE` was already
-watching -- never a slate this page wasn't watching, which is what keeps the
-morning after silent. AA15/AA16 (walk-off), S3/S5 (quarters on the final
-whistle), and football I8/I9 pin both halves.
-
-## Notification bell (all three pages)
-
-**Every entry has a replay control** (2026-10-04) -- a wordless icon under its
-time, a bell inside a circling arrow (it was a "Play overlay" text pill until
-the user asked for something subtler; `aria-label`/`title` still name it) -- that shows its alert
-again -- the gold cash card for a bet entry -- repeatably and with the overlay
-toggle OFF, since tapping it is the request. A replay goes to the FRONT of the
-queue and replaces a replay already on screen (`BOMB_SHOWING_REPLAY`), so two
-taps show it twice rather than piling up; a live alert already showing is let
-finish. Leg entries store `alert` -- the market, the words, a steal's base --
-as DATA, rebuilt into an overlay by code and escaped on the way out, because
-everything in the bell comes back out of localStorage (`test_bell.py` I8 plants
-markup in one). Entries logged before `alert` existed are given one on the next
-scan, so the button works on what was already in the bell.
-
-Added 2026-10-04. A bell top-right of each page's header, with a red badge
-counting what hit since you last looked. Tapping it opens the list and clears
-the badge. Each page keeps its own (`bmbs.bell`, `bmbs.fb.bell`,
-`bmbs.all.bell`). `tests/test_bell.py` covers all three; fifteen mutations
-caught.
-
-**Two kinds of entry, and a leg that cashes a bet produces BOTH** -- the user's
-rule. The leg entry is about the leg: who, what hit, his odds and bettor, and
-every bet he is on. The bet entry is about the bet: legs, stake, payout,
-bettor, and EVERY leg on it, not just the one that finished it. That is the
-deliberate opposite of the cash overlay, which upgrades one card rather than
-adding a second. A single is one leg and one bet, so it gets both too.
-
-**One thing that happened is one leg entry**, however many bets carry him.
-Aaron Judge homering with three cards on him is one entry listing the three,
-not three entries. Keyed on sport + player + what was bet, so his home run and
-his total-bases leg are still separate.
-
-**It BACKFILLS, the opposite of the alerts' flood guard, on purpose** (the
-user's choice). The overlay must never replay an afternoon at you; a log you
-open when you like should let you catch up. So the first scan after a page
-load logs everything already hit.
-
-**Every entry is stamped with when it HAPPENED, and sorted on it** (2026-10-04,
-the user's rule: newest on top, the ET time shown on every entry). Entries were
-first stamped with when this browser NOTICED them, so everything caught on
-opening shared one moment, read "Earlier", and sorted arbitrarily -- a 7:40
-leg could sit under a 7:10 one. `legHitTime(leg)` -> `{t, approx}` reads the
-play-by-play the page already fetches:
-- MLB: home runs and steals carry their own time; a stat prop is the play on
-  which the running count reached its line (`snapshot.timeline`: each finished
-  play's time, batter, pitcher, event, RBI and SCORERS -- `isScoringEvent` was
-  added to `FEED_FIELDS` for runs, and `test_feed_fields.py` now compares the
-  timeline); a team or game total, the play that pushed the runs past it; an
-  under, a win, a moneyline or a spread, the final out.
-- NFL (`NFL.hitTime`, off `snapshot.playLog`: every drive play's wallclock,
-  quarter, score, yardage, text): a touchdown's scoring play; "team to score in
-  Q2" the play in that quarter where its score went up; yards / catches /
-  sacks summed from the play TEXT ("pass ... to K.Coleman"), since ESPN names
-  nobody on a play anywhere else -- `textKey()` builds ESPN's "F.Last".
-- A bet cashed when its LAST leg landed (`betWhen`).
-- `approx` ("~") is a guess -- the final whistle when nothing better was found.
-  Nothing placeable at all falls back to when the browser saw it: exact to a
-  poll if it was watching, else "by 8:00 PM ET" -- an honest bound, never an
-  invented time. A time can sharpen on a later scan, so it is refreshed.
-Times pass `timeZone` (see the sync-line note above) -- `test_bell.py` G1 pins
-it from a Pacific browser. J1-J12 pin the rest, AA17/18 the MLB stat timing.
-
-**It follows `SLATES.today || SLATES.yesterday`, never today alone.** Scanning
-only today meant a slate that had finished -- rolled to Yesterday, Today empty
--- logged nothing, so opening the page the morning after showed an empty bell,
-the commonest time to want to catch up. A QUEUED slate is never scanned: it
-hasn't started. The log resets when the slate's date changes, and survives a
-refresh in between.
-
-**`bellWithToday()` swaps the slate's own results in**, like `betsCashedBy()`
-does, so the bell is about that slate while another tab is showing. On the
-combined page that means BOTH leagues: `NFL.swap()` as well as `RESULTS`. Note
-the same `const savedNfl = NFL.swap(slate.nfl)` line appears in the two alert
-helpers too -- a mutation aimed at the bell's copy first hit
-`betsCashedBy`'s instead and looked like a missing test.
-
-**Every class it uses is `bell-` prefixed, and that is load-bearing.** Leg
-entries first had the class `leg` -- the ticket-row class -- and the page's
-own `.leg:first-of-type { padding-top: 0 }` reached the first notification.
-Only rendering it showed that; `test_bell.py` B5c now measures the spacing
-and B5d fails on any non-`bell-` class in its markup.
-
-It sits in the header as its LAST child, absolutely positioned. Wrapping the
-`<h1>` would have put a new element first, and `test_page.py` T1 pins the
-header's first three children.
-
-**THE COMBINED PAGE USED TO SHARE THE MLB PAGE'S STORAGE.** All three pages are
-one origin, so they share `localStorage`, and `all/index.html` was assembled
-from `index.html` with its `bmbs.*` keys intact -- so switching sound on in
-NFL+MLB switched it on in MLB, and collapsing cards on one collapsed them on
-both. Football has always had `bmbs.fb.*` for exactly this reason. Every key
-the combined page writes is now `bmbs.all.*`; `test_bell.py` E10 fails on any
-`bmbs.` key there that isn't. **A new key on any page needs its own
-namespace** -- `bmbs.` (MLB), `bmbs.fb.` (NFL), `bmbs.all.` (ALL SPORTS),
-`bmbs.hk.` (NHL), `bmbs.bb.` (NBA), `bmbs.wb.` (WNBA), `bmbs.cf.` (college football).
-
-## Bet markets: a registry, not a list of special cases
-
-**As of 2026-09-29 markets are a REGISTRY** (`MARKETS` in `index.html`), each
-entry declaring `label`, `subject` (`player` / `team` / `game`) and `grade`.
-Before this they were an hr/sb binary and every branch forked on it. **No
-`market` field still means home runs**, so a slate written before any of this
-takes exactly the path it always did -- the same guarantee steals were added
-under, and the reason a home-run-only card's `tickets.json` is unchanged.
-
-Graded off data the feed was ALREADY fetching (three extra `FEED_FIELDS`
-names, since `fields` matches names at any depth and the batting line and the
-score use the same words):
-- **Stat props** -- `hrr` (H+R+RBI), `hits`, `rbi`, `runs`, `tb` -- summed from
-  `boxscore...stats.batting`, with `leg.line` and `leg.side` ("over"/"under";
-  no line means "at least one", as HR and SB always have). An OVER settles the
-  moment it clears, mid-game; an UNDER can only settle at the end unless it has
-  already busted. Same void rule as a home run bet: rostered but never batted
-  is a refund, not a loss.
-- **Game lines** -- `ml`, `spread`, `total` -- from `linescore.teams`, keyed by
-  team ABBREVIATION (the key `leg.team` already uses, and why the schedule
-  request carries `hydrate=team`). **Only ever settled on a FINAL game**: a 7-1
-  lead in the sixth is not a result. `test_page.py` Y9 pins that with a live
-  game carrying a score -- a mutation proved the check was otherwise untested,
-  because the first fixture only had a finished game. A spread or total landing
-  exactly on the number is a PUSH -> `na`.
-
-**Pitcher markets: `er` (earned runs) and `win`** (2026-09-30), both off the
-boxscore's pitching line, which was already being fetched for strikeouts. A
-win has no line -- `wins` is 0 until the game is final and 1 for exactly one
-pitcher after it -- so the ordinary over-0.5 shape fits. `er` and `win` sit
-AHEAD of `runs` in both alias tables: "earned runs" contains that word, the
-same ordering trap "Home Runs" hit. A pitcher's win is deliberately NOT a
-moneyline: only the explicit phrasings ("to get the win") map to `win`, so
-"Yankees to win" stays `ml`.
-
-**Names the card gets wrong now resolve, three ways** -- and each was a real
-leg that came out ungradeable:
-- a FULL name minus its generational suffix ("Michael Harris" -> Michael
-  Harris II), because the roster stores the suffix and the surname alone is
-  ambiguous six ways. First AND last matching, so it's not a guess.
-- a typo, fuzzy at resolve_player()'s 0.82 cutoff, matched against
-  SUFFIX-STRIPPED names: "Luis Garica" scores below the cutoff against "luis
-  garcia jr" purely because of the " jr", which has nothing to do with the
-  typo.
-- a misspelt TEAM ("Philles"), same cutoff, and only when unambiguous.
-
-**Two teams joined by "/" or "+" is the GAME total**, checked before the
-combined-PLAYER split -- "White Sox/Astros Over 7.5" is one number for the
-game, and the splitter would otherwise read them as two people.
-
-**A "first N innings" total IS gradeable** (`f5`, 2026-09-29). I claimed for
-a while that it wasn't -- "the page reads a final score, not a per-inning
-one" -- and never checked. `linescore.innings[]` carries every inning for both
-sides, so `stateForPartial()` sums the first N and settles EARLY when the
-number is already passed, exactly like a stat prop. `completeInnings` is how
-many innings are actually FINISHED (the last one in the array may be in
-progress), which is what it waits for. Don't repeat the mistake: check the
-feed before declaring something untrackable.
-
-**A card can name a matchup that isn't real.** The 2026-09-29 card said "Red
-Sox vs Cubs" on a night BOS played NYY and CHC played SD. The parser keeps
-both teams (`team` + `opponent`), `flag_matchups()` compares them against the
-schedule, and the page returns `untracked` when they disagree -- grading it
-against whichever team happened to resolve would answer a question nobody
-asked. The note says what really happened ("BOS played NYY, not CHC") rather
-than a bare "not tracked".
-
-**A TEAM BET HAS NO PLAYER, and that crashed the page the first time one
-WON.** `badge()` asked `isPhpCreditedHit(leg.player)` on every hit, and
-`normalizeName(null)` threw, taking the whole render down. Guarded in both
-places now; `test_page.py` AB covers it, and removing BOTH guards is what the
-mutation has to do, since either one alone prevents the crash.
-
-**THE DEFAULT IS THE WHOLE SAFETY STORY.** An unrecognised market grades to
-`untracked`: shown by name, labelled as not graded, counted in neither column,
-and unable to kill a parlay. That is what makes "accept anything" safe. Don't
-"improve" `stateForLeg()` by falling back to `stateForPlayer()` -- that grades
-a spread as though it were a home run bet, and a mutation for exactly that is
-in the suite.
-
-**A bet carrying an untracked leg is `partial`** (the user's rule, 2026-09-29):
-a MISS anywhere still kills it -- certain whatever the untracked leg did -- but
-nothing else may be claimed, so it can go `dead` and can never go `hit`. It is
-counted inside OPEN and surfaced by its own slim **NOT FULLY TRACKED** bar
-(`#chip-partial`), NOT a fifth chip: the BETS row has to stay four wide to line
-up with LEGS, which is the same reason Irons was moved out of the grid. An
-untracked LEG folds into the LIVE chip for the same reason, and the always-on
-status line says which it actually is.
-
-**The parser reports what the card SAID**, not what's gradeable:
-`detect_market()` reads common phrasings plus a line/over-under, and an
-unrecognised market WORD is passed through as-is for the page to show.
-**No real card using any of this has arrived yet** -- the phrasings are
-educated, not observed -- so treat the first one that does as a template
-incident: get the raw text, pin a fixture, refine. A leg nothing matches still
-goes through `BETLIKE_RE` into the `note`.
-
-**Two things are deliberately NOT done, and are the outstanding work:**
-- **`record_results.py` grades them too, as of 2026-09-30** -- the outstanding
-  half of "change one, change the other", now closed. `grade_market()` mirrors
-  `stateForLeg()`, `grade_stat_prop()` mirrors `stateForStatProp()` (summed
-  across every name on a combined leg), and `grade_game_line()` mirrors the
-  three game-line graders including the FINAL-only rule and the push. Checked
-  against the live page on the real 2026-09-29 card: every leg agreed.
-  A recorded leg now also carries `counted` (what the prop actually summed) or
-  `score` (what the line was graded from), so a number in the permanent record
-  is auditable instead of something the reader takes on trust.
-  **`MARKET_STATS` exists in BOTH files and they have to agree** -- it's the
-  first thing to check if the page and history ever disagree on a prop.
-  Statcast detail is gated to home run legs: without that check a cashed
-  spread carried somebody else's home runs into the record.
-  An unrecognised market is still `untracked` here, exactly as on the page,
-  and `evaluate_ticket()` returns `partial`, which counts as INCOMPLETE so a
-  later run looks again.
-- **The Live Bet Tracker now covers every market it can actually FOLLOW**
-  (2026-09-29). `LIVE_TILE_KIND` maps a market to the KIND of tile it earns:
-  `bat` (the batting-order machinery, plus a progress line off `MARKET_STATS`
-  -- "1 of 2 hits", green once it clears), `base` (a steal), `mound` (a
-  pitcher prop: no batting order, so it would never surface otherwise), and
-  `game` (a game line, which has no player at all -- the tile carries the live
-  score and says outright that nothing settles until the final). A leg naming
-  two players puts BOTH on the wall, since either batting moves the same bet.
-  **A market absent from that table gets no tile on purpose**, not by
-  oversight: an inning-specific total can't be followed from a final score, so
-  a tile could only ever show a number that means nothing. `MARKET_STATS`
-  mirrors the registry's graders -- change one, change the other.
-  **Every tile says what it is chasing** (2026-10-04, the user's rule): a
-  plain home run pick reads "0 of 1 HR", a steal "0 of 1 SB", an anytime TD
-  "0 of 1 TD" (all three pages), the same way a sack reads "0 of 1 sacks". No
-  line means at least one, exactly as the grader reads it; an UNDER reads
-  "1 hits (under 1.5)" and goes red once it has busted. `labProgress()` takes
-  its source from the registry's `pitching` flag -- it used `market === "k"`,
-  which read earned runs and wins off the BATTING line (always 0) and labelled
-  them K. **A name collision broke the page on the first try:** the new helper
-  was called `stealsBy`, which already existed, and a later function
-  declaration silently REPLACES an earlier one -- `test_page.py` died on
-  `.find is not a function` far from either. Reuse the existing one; grep a
-  name before declaring it in these single-file pages.
-  `test_live_at_bats.py` section Z covers it, and Z9 checks `liveTileKind()`
-  DIRECTLY rather than just the absence of a tile: asserting absence alone
-  passed even with the exclusion removed, which a mutation proved.
-
-**A doubleheader can clobber a settled score.** `teamScores` is keyed by
-abbreviation, so the nightcap overwrites the afternoon game. A row with real
-runs now beats one without, which stops the score going backwards; WHICH game a
-leg refers to is genuinely ambiguous from the card and nothing pretends
-otherwise.
-
-`test_page.py` **section Y** covers all of it (17 checks) and five mutations
-were run against it: unknown-market-falls-back-to-HR, untracked-leg-ignored,
-game-line-settles-early, never-batted-is-a-loss, push-counts-as-a-win.
-
-**`test_record_results.py`'s checks must sit ABOVE its `if failures:` block.**
-Section J was first appended after it, so nineteen checks ran, printed, and
-could never fail the run -- six mutations all came back NOT CAUGHT, which is
-the only reason it was noticed. If a whole new section passes its mutations
-suspiciously badly, check where it sits in the file before believing it.
-
-## Bet markets: home runs and stolen bases
-
-Since 2026-09-19 a leg can be a STOLEN BASE bet: `"market": "sb"` on the leg or
-single. **No market field means home run**, and that default is the whole
-safety story: `stateForLeg()` hands a market-less leg straight to the untouched
-`stateForPlayer()`, the parser writes no market on home run legs (a home-run-only
-card's `tickets.json` is byte-for-byte what it was), and `test_page.py` /
-`test_live_at_bats.py` pass unchanged. One ticket can mix markets, and one
-player can be on both (his steal leg and his home run leg grade separately).
-The user asked for HR + steals only; a third market would follow the same path.
-
-**Grading a steal leg** (`stateForSteal()`; mirrored in `record_results.py`'s
-`grade_steal()` -- change one, change the other). Three rules the user decided:
-- A hit is a `stolen_base_*` RUNNER event. Steals live in each play's
-  `runners[]`, inside somebody else's plate appearance -- usually one that isn't
-  complete yet -- never in the play's own `result`. Verified on a live game:
-  a `pickoff_caught_stealing_3b` was in the feed with `isComplete: false`. One
-  steal can be several runner entries (one per base-to-base segment), so events
-  are keyed on at-bat + `playIndex` + runner. `caught_stealing_*` and
-  `pickoff_caught_stealing_*` are attempts, not hits.
-- **No Pinch Hit Protection.** A pulled player can't re-enter, so with no steal
-  he's a miss immediately and his replacement's steal credits nobody.
-- **"Played" = appeared in the game** (holds a batting-order spot), NOT "came to
-  the plate": a pinch runner can steal without batting. On a finished game's
-  roster without getting in -> `na`. (Deliberately different from home run legs.)
-
-**Alerts are per market.** A bomb fires only for a player we have a HOME RUN
-bet on, a steal alert ("STOLE 2ND!", blue; gold + money rain when it cashes
-something) only for a steal pick, and `betsCashedBy()` takes the market so a
-steal can't re-announce a parlay his homer finished an hour ago. The Home Run
-Log's "ours" is home-run picks only. Same seeding flood guard, same queue.
-
-**Live Bet Tracker** (the panel formerly "Live At Bats"; ids and the
-`bmbs.liveab.open` key kept). Home run tiles are unchanged. A steal pick gets
-an **ON 1ST / 2ND / 3RD** tile (blue) while he's on base -- base diamond, outs,
-who's batting, and whether the next base is open or "blocked -- runner on 2nd".
-Order: results, then runners with an open base, hitters at the plate, blocked
-runners, then due-up. A steal pick who reaches goes straight to his on-base tile
-(the "Single" result would only sit in front of it). Results: "Stole 2nd!" holds
-like a home run, "Caught stealing" / "STRANDED" / "OFF THE BASES" briefly. Bases
-come from `linescore.offense.first/second/third`; watched against live games
-alongside `currentPlay.matchup.postOn*` and the two never disagreed.
-`FEED_FIELDS` gained `runners, runner, playIndex, first, second, third` (~1-2 KB
-gzipped per game); `test_feed_fields.py` compares steals and bases too.
-
-**Odds can be minus money now** (a steal often is). Every baseball odds regex
-takes `[+-]`, and the Bettor Tracker / tiles format with `fmtOdds()`.
-
-**How a card says "steal".** The first real one (2026-09-19, kept as
-`tests/fixtures/discord_prop_legs_with_steals.txt`) spells the market out on
-every leg, prop-style, under a ticket header with an extra combined-odds bracket:
-`Ticket #17 (Bailey - $5 Bet) [+2925] [PP: $151.25]` then
-`- Josh Naylor - Stolen Bases O0.5 (+450) - SEA @ COL - 8:10 PM ET` /
-`- Ben Rice - Home Runs O0.5 (+450) - NYY @ ARI - 8:10 PM ET`. No per-leg bettor
-(the leg belongs to whoever placed the ticket), a matchup instead of a team (the
-roster supplies the team). `TICKET_PROP_LEG_RE` reads it; an over other than 0.5
-gets a NOTE, since the tracker only knows "at least one". The older, tolerant
-`take_market()` (a bare `SB` / `Stolen Base` / `Steal` on a leg line, ticket
-header or section header) is kept for cards that mark steals that way instead.
-
-**A bet line nothing understands is never dropped silently.** Before the prop
-format was handled, that same card parsed "successfully" as 16 of its 18 tickets
-and said nothing. Now any unmatched line that looks like a bet (`BETLIKE_RE`: a
-`Ticket #N` header, or a bulleted line with odds) is logged as a WARNING and
-summarized in `tickets.json`'s `note`, which the page shows at the top -- the
-slate still posts, but the group can see something is missing.
-
-**History mixes the two markets** in hit rates and odds bands -- steals are
-priced nothing like homers. Legs are tagged (`market: "sb"`) so they can be split
-later; the log marks them "SB". Steal legs are excluded from the MLB home-run
-cross-check and from "the ones that got away".
-
-## Live At Bats
-
-(Now titled **Live Bet Tracker** on the page -- see "Bet markets" above for the steal tiles. Everything below still describes the home run tiles.)
-
-A collapsed-by-default panel (Today tab only; open/closed is remembered in
-`localStorage` as `bmbs.liveab.open`) showing one tile per picked player who
-is **at the plate** or **guaranteed to bat this half-inning** -- the same
-`liveContextForPlayer()` logic behind the per-leg "AT THE PLATE NOW" /
-"GUARANTEED TO BAT" tags, which are still on the tickets. It replaced the
-BATTING NOW / BATTING SOON scoreboard chips and their filter (`ACTION_FILTER`
-is gone). Panel order is Live At Bats, Home Run Log, Bettor Tracker.
-
-Eligibility matches those tags: leg still `live` AND at least one bet it's on
-can still cash, so a dead parlay's hitter gets no tile. One tile per player
-however many tickets he's on (all distinct odds shown); the 🧇 appears if any
-of them is an Iron.
-
-**Every scoreboard filter scopes the tiles**, through the same two predicates
-the ticket list uses (`ticketMatchesFilter`, `legPassesFilters`) so the panel
-can't disagree with the tickets under it: IRONS shows only hitters one swing
-from cashing something, a bettor filter only that person's picks, and they
-stack. Filtering is per bet, before players are merged, so under IRONS a tile
-lists only his Iron prices. HIT / MISSED leave
-nothing to show (a tile is by definition a live leg on an open bet) and the
-panel says the filter is why. Any new filter toggle must call
-`renderLiveAtBats()` -- forgetting that left the panel stale until the next
-poll once already.
-
-Tile order is fixed: finished at-bats still holding their spot, then at bat,
-then due up (the side batting now by distance from the plate -- ON DECK, IN
-THE HOLE -- then the side due up next half). A finished at-bat's result holds
-its tile ~9s (home run ~14s, the first ~3s as a bomb), then drops and the rest
-slide up. Result tiles expire on their own timer, not the poll.
-
-**How it knows an at-bat ended** (`trackLiveAtBats()`, once per poll):
-`getGameSnapshot()` returns `currentAB` plus the last dozen finished plays as
-`recentABs`; each finished play's key is announced once. Same flood guard as
-bombs -- the first poll seeds without announcing -- plus `LAB.prevEligible`,
-because a hitter who just homered is `hit` now and no longer "eligible" but
-was a poll ago. At-bats that ended >3 min ago (tab was asleep) and at-bats
-that finish while the Yesterday tab is showing are marked seen, not announced.
-
-Three things learned from running against real live games, not mocks:
+  `clearAllFilters()` read. A new group = a new row there.
+- Leg-level filters hide non-matching legs inside a card (with an "N other
+  leg(s) hidden" note); a card with no surviving leg drops out. Both go
+  through `legPassesFilters(state, who)`.
+- **One sticky summary bar** (`#filter-summary`) lists every active filter as
+  a removable chip plus Clear all. It lives OUTSIDE `<header>` because sticky
+  is confined to its containing block.
+- **Summary chips and Bettor Tracker rows use `data-group`/`data-key` with one
+  delegated listener each** (`initFilterHandlers()`), never inline `onclick`:
+  a bettor name with an apostrophe broke `onclick="f('x')"`.
+- All filters reset on a tab switch, and **every filter change must fan out
+  through `applyFilters()`**, which re-renders the Live Bet Tracker (forgetting
+  that left the panel stale once).
+
+### Page layout
+
+- Header order: `<h1>`, eyebrow, sync line ("last updated ... ET"),
+  `#dynamic-note` (`test_page.py` T1 pins the first three children). The bell
+  is the header's LAST child, absolutely positioned.
+- **`#dynamic-note` must stay.** It renders "Heads up — <note>" when the
+  parser left a warning (unread bet lines, ungradeable legs) and is EMPTY
+  otherwise (`test_page.py` O1-O3). It is the only place an unread bet line
+  surfaces. The note is inserted with `innerHTML` (it legitimately carries
+  entities) and quotes friends' card text — a known trust boundary, not a bug
+  to fix.
+- The colour key sits at the bottom under "COLOR KEY", below the horizontal
+  rule (owned by `.colorkey`; the footer has no border). `#legend-hit` /
+  `#legend-miss` are rewritten for steal slates.
+- Footers: MLB links `/history/` and `/features/?sport=baseball`; NFL links
+  `/football/history/` and `/features/?sport=football`; the front page links
+  `/features/?sport=combined`; NHL/NBA/WNBA/CFB link nothing.
+
+### Status lines, collapsible lists, Expand all
+
+- **Every pick carries a status line, always** (`playerStatusLine()`): "Game
+  hasn't started yet.", "Game on -- not in the lineup yet.", "On the roster but
+  never got in the game -- void / refunded.", "Game final -- no home run." etc.
+  A hit returns "" (the green check says it). An empty line is
+  indistinguishable from the page not knowing.
+- **Every leg row names its market** (`marketTag()`): HOME RUN (plus any line),
+  ANYTIME TD on the NFL page, uppercased tags on the front page.
+- **Bet lists are collapsible** (`cardsSectionHtml()`): Parlay Cards and
+  Straight Bet Cards, each with an unfiltered `3 OPEN · 1 HIT · 2 MISSED`
+  pill, **both default collapsed**. Open state lives in `CARDS_OPEN`
+  (persisted per page), not a DOM class, because `renderContent()` rebuilds
+  the HTML every poll. The real default is `loadCardsOpen()`'s `=== "1"`.
+- **Expand all / Collapse all** (`#panel-controls`) drives `COLLAPSIBLES`;
+  **each entry calls that panel's OWN toggle** so sub-text, localStorage and
+  re-render side effects can't be skipped. A new collapsible panel = a new
+  row there (`test_page.py` V6-V8).
+- **Test-helper consequence:** Playwright's `inner_text()` returns only
+  VISIBLE text, so tests reading bet lists must open them first
+  (`expand_cards(page)`; `open_page(..., expand=False)` for the default check).
+
+## 5. Bet markets: a registry
+
+`MARKETS` (in every page carrying the MLB engine; the front page's also holds
+the NFL, NHL and NBA/WNBA markets) declares each market's `label`, `subject`
+(`player` / `team` / `game`), `grade`, and on non-MLB markets `sport`.
+
+**THE DEFAULT IS THE SAFETY STORY.**
+- **No `market` field means the sport's default:** `hr` for MLB, `td` for NFL
+  and college, `nhl_goal` for NHL. NBA/WNBA have NO default ("Jokic +150" says
+  nothing gradeable → `nba_unknown` → untracked). The default lives in
+  `legMarket()` and **nowhere else** — special-casing it in `stateForLeg` once
+  left `betsCashedBy`, `liveTileKind` and `relevantHrNames` still calling a
+  touchdown a home run.
+- The MLB parser writes no market on HR legs, so a home-run-only card's
+  `tickets.json` is byte-for-byte what it always was.
+- **An unrecognised market grades `untracked`**: shown by name, labelled not
+  graded, counted in neither column, unable to kill a parlay. Never "improve"
+  `stateForLeg()` by falling back to `stateForPlayer()` — that grades a spread
+  as a home run bet (a mutation for exactly that is in the suite).
+- **A bet carrying an untracked leg is `partial`** (user's rule): a MISS
+  anywhere still kills it, but it can never go `hit`. Counted inside OPEN and
+  surfaced by the slim **NOT FULLY TRACKED** bar (`#chip-partial`).
+- **Foreign-market guard** (`marketForeign()`): a leg whose `sport` differs
+  from its market's (no `sport` on a market = baseball; wnba counts as nba,
+  cfb as nfl) is `untracked`. Before it, a football "Lions Moneyline" parsed
+  as `ml` was graded off the Detroit TIGERS. `marketSubject()` reads the
+  registry directly so an untracked Lions moneyline still names the Lions.
+  (`test_combined_page.py` U5/U6.)
+- **A team bet has no player.** `badge()` once called
+  `isPhpCreditedHit(null)` on a won team bet and `normalizeName(null)` threw,
+  taking the render down. Guarded in two places (`test_page.py` AB; the
+  mutation has to remove both).
+
+### MLB markets
+
+- **Stat props** — `hrr` (H+R+RBI), `hits`, `rbi`, `runs`, `tb`, `doubles`,
+  `xbh` (extra-base hits) — summed from the batting line, with `leg.line` and
+  `leg.side` (no line = at least one). An OVER settles the moment it clears; an
+  UNDER only at the end unless already busted. Rostered but never batted =
+  void.
+- **Pitcher props** — `k`, `er` (earned runs), `win`, `outs` (outs recorded),
+  off the pitching line. A win has no line (`wins` is 0 until final, 1 for one
+  pitcher). Only explicit phrasings ("to get the win") map to `win`; "Yankees
+  to win" stays `ml`. `er` and `win` sit AHEAD of `runs` in the alias tables,
+  same trap as "Home Runs" vs "Runs".
+- **Game lines** — `ml`, `spread`, `total` — from `linescore.teams`, keyed by
+  team abbreviation. **Only settled on a FINAL game** (`test_page.py` Y9 uses a
+  live game with a score). Landing exactly on the number is a PUSH → `na`.
+- **`f5`, a first-N-innings total, IS gradeable** — `linescore.innings[]`
+  carries every inning; `stateForPartial()` sums the first N and settles early
+  when already passed, waiting on `completeInnings` (the last array entry may
+  be in progress). It was wrongly declared untrackable once: check the feed
+  before declaring something untrackable.
+- **Two teams joined by "/" or "+" is the GAME total**, checked before the
+  combined-player split.
+- **A card can name a matchup that isn't real** ("Red Sox vs Cubs" on a night
+  BOS played NYY). The parser keeps `team` + `opponent`, `flag_matchups()`
+  compares against the schedule and writes `mismatch`; the page grades
+  `untracked` and says what really happened.
+- **Doubleheaders:** `teamScores` is keyed by abbreviation, so a row with real
+  runs beats one without (the score can't go backwards); which game a leg
+  meant is genuinely ambiguous.
+- **Odds can be minus money.** Every odds regex takes `[+-]`; tiles and the
+  Bettor Tracker format with `fmtOdds()`.
+
+### Stolen bases (`sb`)
+
+Added 2026-09-19 (the user asked for HR + steals; later markets followed the
+same registry path). `stateForSteal()` mirrors `record_results.py`'s
+`grade_steal()` — change one, change the other.
+- A hit is a `stolen_base_*` RUNNER event, found in `runners[]` inside somebody
+  else's (often unfinished) plate appearance, never in the play's `result`.
+  One steal can be several runner entries; events are keyed on at-bat +
+  `playIndex` + runner. `caught_stealing_*` / `pickoff_caught_stealing_*` are
+  attempts, not hits.
+- **No Pinch Hit Protection**: a pulled player with no steal is a miss.
+- **"Played" = appeared in the game** (holds a batting-order spot), not "came
+  to the plate" — a pinch runner can steal without batting.
+- Steal legs are tagged `market: "sb"` in history and excluded from the HR
+  cross-check and "the ones that got away".
+
+### Parity rules
+
+- **`MARKET_STATS` exists in every page carrying the MLB engine and in
+  `scripts/record_results.py`, and they must agree** — the first thing to check
+  if page and history disagree on a prop. `record_results.py`'s
+  `grade_market()` / `grade_stat_prop()` / `grade_game_line()` mirror the page
+  graders (FINAL-only, push, combined legs summed). A recorded leg carries
+  `counted` or `score` so the number is auditable. Statcast detail is gated to
+  HR legs.
+- **`parse_picks.py`'s `KNOWN` set** (the markets it treats as gradeable when
+  writing the "ungradeable legs" note) must cover every market it emits that
+  the page grades, or a gradeable leg gets a false warning.
+- `LIVE_TILE_KIND` and `MARKET_STATS` mirror the registry's graders (§6).
+
+## 6. Live Bet Tracker
+
+Collapsed-by-default panel (Today tab only; ids and the `bmbs.liveab.open` key
+date from its old name "Live At Bats"). One tile per picked player/team that is
+doing something right now. **Eligibility:** leg still `live` AND at least one
+bet it's on can still cash (a dead parlay's hitter gets no tile). One tile per
+player however many tickets; 🧇 if any is an Iron.
+
+**Every scoreboard filter scopes the tiles** through the same predicates the
+ticket list uses (`ticketMatchesFilter`, `legPassesFilters`), filtered per bet
+before players are merged. HIT/MISSED leave nothing and the panel says so.
+
+### Tile kinds (`LIVE_TILE_KIND`, `liveTileKind()`)
+
+| Kind | Markets | Tile |
+|---|---|---|
+| `bat` | hr, hits, hrr, rbi, runs, tb, doubles, xbh | batting-order machinery + progress line ("1 of 2 hits") |
+| `base` | sb | ON 1ST/2ND/3RD (blue): diamond, outs, batter, next base open or "blocked" |
+| `mound` | k, er, win, outs | pitcher tile (no batting order) |
+| `game` | ml, spread, total, f5 | live score; says nothing settles until the final (f5: counts only the first N innings, "Settles after the 5th inning.") |
+| `drive` | td, td_count, pass/rush/rec yds, receptions, pass_tds, most_rec_yds | NFL/CFB possession states (§10) |
+| `defense` | sacks | ON DEFENSE, with the opponent's down & distance |
+| `quarters` | quarters (each team scores all four) | one tile for the PAIR, grid per team |
+| `team_drive` | q_score | only while THAT team has the ball |
+| `ice` / `rink` | NHL player / team bets | §10 |
+| `court` / `hoop` | NBA/WNBA player / team bets | §10 |
+
+**A market absent from the table gets no tile on purpose.** `test_live_at_bats.py`
+Z9 checks `liveTileKind()` directly — asserting tile absence alone passed with
+the exclusion removed.
+
+- **Every tile says what it's chasing**: "0 of 1 HR", "0 of 1 SB", "0 of 1 TD",
+  "1 hits (under 1.5)" (red once busted). `labProgress()` reads the registry's
+  `pitching` flag for the stat source.
+- **Header rules:** the status is never truncated (prices wrap to a second
+  line); a market label the progress line already says is dropped — labels
+  stay only when one man carries two kinds of bet. The due-up line says where
+  he bats ("Top 5 · batting 1st"). `labOddsHtml` lists HR prices from HR
+  entries only (it once printed a hits price under "HR").
+  (`test_live_at_bats.py` AB6/AB7, Z3/Z13-Z15; `test_steals.py` A8/A8b.)
+- **Game-line and pitcher tiles link Gameday** via `gamedayUrl(gamePk)` like
+  every other tile; pitcher stat lines carry `gamePk` because a DH-era pitcher
+  has no batting-order slot (`test_live_at_bats.py` Z8b/Z8c).
+- A leg naming two players puts both on the wall.
+- **Grep a name before declaring it in these single-file pages.** A new helper
+  named `stealsBy` silently REPLACED an existing function of that name (a later
+  declaration wins) and the page died far away on `.find is not a function`.
+
+### MLB batting machinery
+
+Tile order: finished at-bats still holding their spot, at bat, then due up
+(ON DECK, IN THE HOLE, then next half). For steals: results, runners with an
+open base, hitters, blocked runners, due-up. Result tiles hold ~9s (home run
+~14s, first ~3s as a bomb; "Stole 2nd!" holds like a homer) on their own timer.
+
+`trackLiveAtBats()` (once per poll) reads `currentAB` + `recentABs`; each
+finished play's key is announced once. Same seeding flood guard as alerts plus
+`LAB.prevEligible` (a hitter who just homered is no longer "eligible"). At-bats
+>3 min old or finished while Yesterday is showing are marked seen, not shown.
 - **`about.isComplete` is the only trustworthy "finished" signal.** The feed
-  writes mid-at-bat actions into `result.event` while the hitter is still up
-  -- a real "Batter Timeout" on an 0-1 count got announced as an at-bat's
-  outcome before this was fixed. Never infer completion from `result.event`.
-- **Only whitelisted event types are announced** (`LAB_PA_RESULTS`). A "play"
-  can also end on a runner event (inning-ending caught stealing: same hitter
-  leads off next inning). Unknown types cost a missed tile, never a wrong one.
-- **`inningState` has FOUR values and "End" is not "Bottom".** `Top` and
-  `Bottom` are halves in progress; `Middle` (top over, home up next) and `End`
-  (bottom over, AWAY up next, new inning) are the breaks between them.
-  `currentlyBattingSide` read `halfState === "Top" ? "away" : "home"`, which
-  put the home team at the plate all through `End` -- the wrong team entirely.
-  Logged over an hour of live games on 2026-09-19 before fixing: 10 `End`
-  windows, `offense` populated in 10 of 10 (so the branch always evaluates),
-  median 71s -- about 7 consecutive polls, not a flicker. `Middle` is just as
-  real (10 windows, median 91s), so neither state is dead.
-  **`outs` reads 3 during both breaks** (all 20 windows), belonging to the half
-  that just ended -- so the side about to lead off must not be charged it, the
-  same allowance `remainingOutsForSide()` already makes. First applied to `End`
-  only (fixing `Middle` too broke `test_steals.py`'s H3, which was itself
-  asserting the bug -- a HOME steal pick vanishing after his STRANDED tile
-  expired, rather than correctly showing ON DECK). Fixed properly once H3 was
-  updated to expect the correct tile instead.
-  **A second, related ghost-tag bug surfaced while fixing `Middle`:**
-  `isCurrentlyBatting` (the flag behind "AT THE PLATE NOW") checked only
-  `side === currentlyBattingSide && d === 0`, with no `betweenHalves` check of
-  its own -- so the LITERAL next batter (not just someone a few slots out) was
-  still tagged "at the plate" during a break, when nobody actually is. Same
-  root cause, same fix shape: force it false during `Middle`/`End`, letting
-  `guaranteedThisHalfInning` carry him instead. Covered end to end by
-  `test_live_at_bats.py` J1-J7 (`End`) and K1-K5 (`Middle`), each checking the
-  literal next batter (the ghost-tag case) separately from someone a few slots
-  further out (the stale-outs case) so the two bugs can't hide behind each
-  other.
-
-**A side that hasn't batted yet leads off from slot 1** (2026-10-04). The next
-hitter is "the last batter's slot + 1", and with no plays at all for a side
-that was left null -- so the HOME team, every game, all through the top of the
-1st, had no batting context: no LEADS OFF NEXT tile, and a "waiting on the
-live feed" line under a pick whose lineup was posted (reported live on Mookie
-Betts). `mlb_feed()` in `test_combined_page.py` had been working AROUND it by
-always adding a play, with a comment describing the symptom. Only a side with
-NO plays defaults to 1; plays that name nobody in the lineup stay unknown.
-`test_live_at_bats.py` AB, `test_combined_page.py` U.
-
-It is pitch-by-pitch *as of the last poll*, not a live stream: several pitches
-can land at once, and a short at-bat can start and finish between polls (the
-result tile still shows). Pinch Hit Protection substitutes don't get tiles.
-No extra API calls -- it reads the same feeds already being fetched. Its
-fields (`isComplete`, `count`, `balls`, `strikes`, `call`, `isOut`) are in
-`FEED_FIELDS`, and `tests/test_feed_fields.py` compares `currentAB` /
-`recentABs` between the full and slim feed along with everything else.
-
-## Home Run Log
-
-A collapsed-by-default panel on both tabs listing every home run from that
-slate's date, newest first (sorted on `about.endTime`, which is a full ISO
-timestamp on every HR, so ordering works across games). Filter toggle:
-"Our Picks" (default) vs "All Home Runs". Rows for a hitter who matters to
-the slate get a subtle green left-border + tint under *either* filter --
-that's the point of the All mode. "Matters" = named in this tab's
-tickets.json, OR a substitute whose HR is currently crediting one of our
-legs under Pinch Hit Protection.
-
-**The collapsed header itself carries a live `N OURS &middot; M TOTAL &middot; P%`
-pill** (`#hrlog-count`, styled like Live At Bats' count pill) so the tally is
-visible without expanding the panel. `P` is plain `ours / total` rounded --
-what share of the day's home runs came off a bat we picked, NOT weighted by
-how many legs named him. It reflects both filters' totals regardless of which
-one (`HR_FILTER`) is currently selected, is recomputed every `renderHrLog()`
-call (poll, tab switch, new upload), and is empty -- hidden by
-`.hrlog-count:empty` -- when the slate has zero home runs so far. Football's
-Touchdown Log gained the identical pill (`#tdlog-count`) on 2026-09-20, and
-both Bettor Trackers gained an `N BETTORS` one in their headers. **All of
-them use the shared muted `.head-count` style** -- the Home Run Log's own green
-`.hrlog-count` was dropped on 2026-09-20 so every panel header reads the same;
-only the Live Bet Tracker's `.liveab-count` stays green, because it's the one
-that means "something is happening right now".
-
-Rows are tap-to-expand rather than a wide table: 16 columns of Statcast
-detail cannot render on a 560px phone-first page, so the collapsed row
-carries hitter/team/inning/pitcher/distance/exit-velo and the expanded
-panel carries the rest.
-
-**Field availability was verified against real data, not assumed** --
-45 home runs across 24 completed games, all 18 fields 100% populated
-(`matchup.batter/batSide/pitcher/pitchHand`, `playEvent.hitData`
-launchSpeed/launchAngle/totalDistance/trajectory, `playEvent.pitchData`
-startSpeed/zone, `details.type.description`, `gameData.venue/weather`).
-Two caveats baked into the code:
-- **Roofed parks report `"0 mph, None"` wind** with condition `"Roof
-  Closed"`/`"Dome"` (7 of 24 games sampled). `weatherWind()` shows the roof
-  instead, so it doesn't read as a genuine calm-air measurement.
-- **Live-game Statcast latency is unverified** -- every sampled game was
-  Final (no games in progress at the time). Fields are still individually
-  guarded and render an em-dash if absent.
-
-Pitch location renders as a 3x3 strike-zone grid (zones 1-9 fill a cell;
-11-14 place a chase dot outside the corresponding corner, verified against
-pitch coordinates) plus a height word. It deliberately never says
-"inside"/"outside": that depends on batter handedness and the API's
-coordinate sign convention, which was NOT verified -- don't add it without
-checking, since getting it backwards would be silently wrong.
-
-No odds column. There's no Betr/odds integration in this project.
-
-This costs no extra API calls: the app already fetches every game's full
-feed for the slate date and previously discarded everything but the
-batter's name.
-
-Batting order tracking (current inning, "at the plate now" / "guaranteed to
-bat this inning" tags, at-bats-remaining estimate) comes from the same live
-feed's boxscore `battingOrder` field, combined with a negative-binomial
-model using a league-average 68.5% out rate (NOT the specific hitter's real
-stats — this is disclosed in the UI, don't remove that framing).
-
-## The ALL SPORTS tracker (was NFL+MLB) -- the third site, and the only one that mixes sports
-
-`all/index.html` at `/all/`, added 2026-10-04. The sport switch at the top of
-all three pages is now three-way: **MLB / NFL / NFL+MLB**.
-
-**Why `index.html` is the base and not football's.** It is the SUPERSET: the
-markets registry, the `untracked`/`partial` sixth state, Pinch Hit Protection,
-the stat-prop and game-line graders. Starting from the richer side makes the
-football engine an ADDITION rather than a rewrite of everything baseball knows.
-
-**The football half is a SEALED MODULE, not a merge, and this is the single
-most important thing to understand about the file.** The two pages define the
-same NAMES for different jobs -- `normalizeName` most dangerously (football
-strips generational suffixes because ESPN writes "Marvin Harrison Jr."; MLB
-must NOT, because its own feed always sends them and stripping is exactly what
-broke Tatis Jr. live), plus `stateForPlayer`, `evaluateTicket`,
-`emptyResults`, `RESULTS`, `TICKETS`, `getGameSnapshot`, `pollSlate`. Merging
-them into one scope means renaming every collision by hand across 2600 lines,
-and a miss is SILENT: the wrong `normalizeName` still returns a perfectly good
-string. Wrapped in an IIFE (`const NFL = (function () { ... })()`), football's
-names stay private and resolve to each other exactly as they do in its own
-page. `test_combined_page.py` A3/A4 pin both normalizers coexisting in one
-document; if those ever fail, the seal is broken.
-
-The module exposes only `has/register/poll/use/swap/empty/state/context/
-scoring/rowHtml/detailHtml/toggleRow/ballTile/waitTile/resultTile/oddsText/
-gameUrl/norm`. It does NOT bring football's page shell -- no `render`, no
-filters, no tabs, no alert queue, no `init` -- because the host owns all of
-that and a second copy would fight it for the same DOM.
-
-**A mixed parlay needed no special case anywhere.** `evaluateTicket()` already
-takes a plain array of leg states and never asks which sport produced them, so
-the entire change is that `legMarket()` returns the SPORT's default for a leg
-with no market named: `td` for football, `hr` for baseball, as before.
-
-**That default belongs in `legMarket` and nowhere else.** It was first
-special-cased in `stateForLeg`, which graded the leg correctly and left every
-OTHER reader of `legMarket` still calling it a home run -- `betsCashedBy`
-couldn't find the bet the touchdown had just cashed, `liveTileKind` sent him
-to the batting machinery, and `relevantHrNames` counted him among the home run
-picks. One source of truth; don't reintroduce the special case.
-
-**Rollover is "every game ON THE CARD", the user's rule (2026-10-04)**: done
-only when BOTH leagues are. Deliberately NOT the NFL tab's week rule -- a
-football slate IS an NFL week, while this is one card that happens to span two
-leagues. Two consequences that are easy to get backwards and are both pinned:
-an all-NFL card is **not** an empty slate (treating it as one parks live
-football on the Yesterday tab), and an all-MLB card must never wait on a
-football game it has no bet in, which is why the NFL engine is handed only the
-NFL legs.
-
-**Markets.** `td` is the only football market that can be FOLLOWED. The
-yardage props (`rec_yds`, `rush_yds`, `pass_yds`, `receptions`, `pass_tds`)
-are in the registry so the parser's market word survives onto the page and the
-leg grades `untracked` -- shown, named, counted in neither column, unable to
-kill a parlay. Falling back to "did he score a touchdown" would answer a
-different question confidently and wrongly.
-
-**The Live Bet Tracker carries both sports on one wall.** A football pick has
-no batting order, no base and no inning, so every path in `renderLiveAtBats`
-skipped it until `LIVE_TILE_KIND` gained a `drive` kind. Green means what it
-means on the football page and nothing looser -- possession AND an open drive
-AND that drive not already over.
-
-**Every football prop the page can GRADE live, it can also FOLLOW live** -- the
-numbers come off the same boxscore. This was anytime-TD only for a while, on
-the reasoning that a yardage prop "can't be followed from what ESPN publishes
-live"; that stopped being true when those props were wired up for grading,
-and the exclusion outlived its reason. A Josh Allen passing-TD leg never
-appeared at all, at 0 thrown or at 2 -- the user asked whether it would show
-once he was one away, and the honest answer was that it never would. The
-tile carries PROGRESS first ("2 of 3 passing TDs", from `nflProgress()`),
-skipped for a leg naming several players because one man's count against a
-combined line reads further from cashing than the bet is.
-
-**Sacks are the inverse case and have their own `defense` kind.** A sack can
-only happen while his side DEFENDS, so his tile shows on exactly the snaps
-every other pick's doesn't, labelled ON DEFENSE with the OPPONENT's down and
-distance. `onDefense` mirrors `onOffense`'s three conditions for the other
-side. This is not the ON DEFENSE tile the user had removed from the football
-page -- that one was on anytime-TD picks, who cannot score from defense; a
-pass rusher can only cash from it. `test_combined_page.py` Q pins both, plus
-a sack pick whose own offense is out there getting nothing.
-
-**"Each team to score all four quarters" has its own `quarters` kind**: two
-teams, four quarters, one bet -- so ONE tile filed under the PAIR
-(`legTeams(leg).join(" + ")`), never per player. The real leg carries a
-garbled `players` split ("Lions", "Panthers Each team to score...") from the
-parser, so falling through to `legPlayers()` would put two nonsense tiles on
-the wall; `test_combined_page.py` R mirrors that shape on purpose, because a
-tidy fixture `player` let the mutation through. A grid per team (scored /
-owed in the quarter being played / not reached) plus one line on what is
-still owed. On the wall while either game is live; no player, so it counts
-toward the game tiles.
-
-**A tile's header never cuts off its status, and drops a market label the
-progress line already says** (2026-10-04). "LEADS OFF NEXT" was ellipsised to
-"LEAD..." to make room for "TOTAL BASES +145 🧇" -- the user asked whether the
-blue label was needed, since "0 of 2 total bases" under the name is what tracks
-the bet. It isn't: with ONE kind of bet on a man, the odds row is just the
-price. Labels stay only when he carries two kinds (HR +390 and HITS +150),
-where bare prices couldn't be told apart. The status is never truncated; the
-prices wrap to a second line instead (all three pages' CSS). The due-up line
-also says where he bats ("Top 5 · batting 1st"). `test_live_at_bats.py`
-AB6/AB7, Z3/Z13, `test_steals.py` A8/A8b.
-
-**The tile's odds row lists HR prices from HR entries only** (`labOddsHtml`,
-both pages). It used to print `pick.odds` -- every non-steal price -- under an
-"HR" label, so a hitter on a hits prop read "HR+390 HITS+390", live on the MLB
-page. `test_live_at_bats.py` Z13-Z15 pin it.
-
-**A team to score in ONE quarter: `q_score`** (2026-10-04, Kenny's bet). "Each
-team scores in each quarter" laid out leg by leg is EIGHT legs, one per team
-per quarter, carrying `team` and `quarter`. The user's rules, all pinned in
-`test_combined_page.py` T:
-- A leg HITS the moment that team has points in that quarter (mid-quarter),
-  and MISSES the moment the quarter ends without them -- one miss kills the bet.
-- **"The quarter ended" is read off the CLOCK, not the linescore.** ESPN's
-  `period` plus its status NAME (`STATUS_END_PERIOD` at the end of the 1st and
-  3rd, `STATUS_HALFTIME`) -> the engine's `periodOver`. Not a 0:00 clock: a
-  score can still post on an untimed down. `quarterOver()` is shared with the
-  all-four-quarters grader so the two bets can never disagree about a quarter;
-  that grader used to count linescore entries, and before kickoff it read
-  `live` (only "is every game final" was asked) -- fixed at the same time.
-- A later quarter is `not_started`, so only the CURRENT quarter's unscored legs
-  reach the tracker. Kind `team_drive`: a tile only while THAT team has the
-  ball (`NFL.teamContext()`, the team-level half split out of the player
-  context, so green means exactly what it does for a touchdown pick). A hit leg
-  drops off; a dead bet drops off entirely.
-- Seven of eight in is an Iron through the ordinary rule -- nothing special.
-- A two-team bet's row now NAMES both teams (`legSubjectName`). The all-four-
-  quarters leg read plain "DET", which looked like it only followed the Lions;
-  the grader always checked both.
-- **The fixture lied about the period.** `espn_event` hardcoded `period: 4`
-  for every live game; harmless until something read it. It now derives the
-  period from the linescores, as ESPN's own does, and can put a game at a break.
-
-**The parser side.** "- Lions: Score in 1st Quarter" (the twelfth template's
-priceless legs) maps to `q_score` in `parse_combined_picks.py`. The same team
-name appears four times, so the record is keyed on the leg's FULL text, which
-`parse_picks` keeps as the player string for a market it doesn't know; keyed on
-the name, every Lions leg would get one quarter. The twelfth template's footer
-now takes an optional owner, "Stake: 9.88 | Pays: 84 (Kenny)", which becomes
-every leg's bettor and the ticket's book -- absent, nothing changes.
-`test_combined_parser.py` N.
-
-**The Home Run Log is the Scoring Log here**: home runs and touchdowns
-interleaved by timestamp, each keeping its own row builder and detail panel,
-sharing `.hr-row`'s markup so a mixed list needed no new CSS. "Ours" marking
-for a touchdown uses the ENGINE's normalizer, not the host's. A touchdown
-row's inline `onclick` names `toggleTdRow`, which lives inside the module --
-an inline handler resolves against `window` at CLICK time, so the host carries
-a shim or every touchdown row throws on tap.
-
-**Alerts** fire for whichever sport scored, through one queue and one overlay,
-with every guard the existing alerts have. `betsCashedBy`/`betsStillOpenFor`
-already swapped the `RESULTS` global so they grade TODAY while another tab is
-showing; they now swap the engine's in step, or a mixed parlay would be graded
-with one league's numbers from today and the other's from whatever tab is open.
-
-**No results archive and no History page yet** -- the user deferred both
-(2026-10-04). The combined footer therefore does NOT link `/history/`: that is
-the baseball archive, and pointing at it from here would answer a question
-nobody asked.
-
-**It was assembled by a scripted patch set, not by hand**, and those scripts
-were scratchpad scaffolding rather than a build step -- there is no build step
-in this project and adding one would change what deploying means. The file is
-INDEPENDENT now: a fix that applies to it and to `index.html` is made twice,
-on purpose, exactly as with football.
-
-## The NHL tracker -- built in full, HIDDEN (2026-10-05)
-
-The user's words: "Build an NHL section ... But hide it ... I may want to
-unhide it later, so it should be a full functioning page. Add the NHL
-functionality to the NFL+MLB tab, rename this tab to ALL SPORTS." So hockey
-exists in TWO places, graded identically:
-
-- **On the ALL SPORTS page** (`all/index.html`), as a third sealed engine
-  beside football's: `const NHL = (function () { ... })()`, same seal and same
-  reason (its own suffix-stripping `normalizeName`, its own `RESULTS`). It
-  exports `has/register/poll/use/swap/empty/stat/team/context/teamContext/
-  hitTime/goals/rowHtml/toggleRow/gameUrl/norm`.
-- **On `/hockey/`**, a page GENERATED from `all/index.html` by a scratchpad
-  script (not a build step -- same as the combined page's own assembly): title
-  and switch say NHL, data from `data/hockey/`, every storage key `bmbs.hk.*`,
-  footer credits ESPN only. A hockey-only card simply makes the MLB and NFL
-  engines stand down. It was regenerated while uncommitted; **from the first
-  commit on it is INDEPENDENT**, and a fix that applies to both is made twice.
-
-**Hidden means: in no page's sport switch.** Its own switch shows all four
-tabs (with a comment saying how to unhide), but `/`, `/football/` and `/all/`
-link nothing to it, and `test_hockey.py` A3 fails if one does. It is NOT
-secret: a `hockey_*.txt` upload's Discord message links `/hockey/`, and
-`/features/` deliberately doesn't mention it. **Unhiding = adding the NHL tab
-to the other three switches, deleting A3, and adding a features section.**
-
-**Data: ESPN `site.web.api.espn.com/.../hockey/nhl`** -- `scoreboard` and
-`summary`, from the browser, same CORS reasoning as football. The NHL's own
-`api-web.nhle.com` sends no CORS header to a browser and is unusable here.
-
-**Markets are `nhl_*`, ALWAYS prefixed**: `nhl_goal` (the default for a hockey
-leg with no market), `nhl_points`, `nhl_assists`, `nhl_sog`, `nhl_saves`,
-`nhl_ml`, `nhl_pl` (puck line), `nhl_total`. Not `ml`/`total`: those are
-baseball's graders, which read scores keyed by team abbreviation, and TB is
-the Rays AND the Lightning. Player props settle an OVER the moment it clears;
-an UNDER, and the team bets, at the final. Overtime and the shootout count
-(that's how books grade them); a push is `na`; a rostered player with no stat
-line at the final is void.
-
-**The foreign-market guard** (`marketForeign()`, same day): a leg whose `sport`
-differs from its market's (no `sport` on a market = baseball) is `untracked`.
-This was a real hole on the ALL SPORTS page before hockey: the parser writes a
-football "Lions Moneyline" as `ml`, which was graded off the Detroit TIGERS'
-final. `marketSubject()` deliberately reads the registry directly -- an
-untracked Lions moneyline still names the Lions. `test_combined_page.py` U5/U6.
-
-**Live Bet Tracker.** A player leg's tile (`ice`) carries his count toward the
-line plus one of: **IN NET** (a goalie), **ON THE ICE** / **ON THE BENCH**
-from the summary's `onIce` list ("In Play" whereabouts), or plain **LIVE**
-when that list is absent. **`onIce` has only been seen in fixtures shaped from
-a pre-game payload -- NOT yet confirmed to update during a live game.** The
-code never infers "benched" from a missing list (C9 pins it); if `onIce` turns
-out to be static, every skater should read LIVE, never a stale ON THE ICE --
-check that against a real game before trusting the two tags. **POWER PLAY** /
-**SHORT-HANDED** come from the latest play's `strength`, relative to the team
-that play belongs to. Team bets (`rink`) get ONE tile per team listing every
-bet on it ("TEAM BETS": a moneyline and a puck line on the Lightning are one
-team to watch -- filed by team alone, the second bet vanished), and a total
-gets its own with the goal count.
-
-**Scoring Log, alerts, bell.** Goals join the log (tagged PPG / SHG / EN /
-GOAL, assists in the detail), a goal has its own alert (🚨, the kick sound),
-and `NHL.swap()` is called alongside `NFL.swap()` everywhere the alert and
-bell helpers swap in today's results.
-
-**Rollover**: done only when every engine with legs on the card is done --
-MLB, NFL and NHL. `mlbLegsOn()` makes MLB's `pollSlate()` return done BEFORE
-it fetches even the schedule when the card has no baseball leg; without that
-an all-hockey card polled every live MLB game of the day, every poll.
-
-**Parsing** (`parse_combined_picks.py`, shared by both): `nhl_record()` runs
-BEFORE the MLB/NFL decision. Hockey evidence is a hockey market word, an NHL
-team, or a name only the NHL roster knows. Four traps, all pinned in section P:
-- **Name first, market second.** "Brayden Point Anytime Goal" was read as a
-  POINTS bet off his surname. The longest roster-name prefix is taken first,
-  and the market is only looked for after it.
-- **Shared nicknames need their city.** Panthers, Jets and Rangers
-  belong to other leagues too; `nhl_team_words()` only accepts a nickname no
-  other league uses ("Lightning", "Hurricanes"), and full names always.
-- **"Shots on Goal" is not a goal and a kicker's "Field Goal" is not hockey**:
-  `NHL_MARKET_ALIASES` is ordered most-specific first and the goal pattern
-  excludes "field".
-- **A `hockey_*.txt` card forces every leg to hockey** (`only_sport="nhl"`):
-  Will Smith is a Dodgers catcher AND a Sharks centre, and nothing on the line
-  says which. On an ALL SPORTS card he stays the catcher. A forced card's
-  dated title ("... OCTOBER 6, 2026") ends in a bare number and used to come
-  out as an unresolvable player; a line reached only through an UNSIGNED
-  trailing number that names nobody is dropped quietly, the rule the MLB/NFL
-  path already had.
-
-`scripts/parse_hockey_picks.py` is a thin wrapper (`only_sport="nhl"`, sports
-`["nhl"]`, archive-on-a-new-day); `.github/workflows/parse-hockey-picks.yml`
-fires on `data/hockey/incoming_picks.txt` and commits only
-`data/hockey/tickets*` (`test_workflow_yaml.py` B3e/B3f/C2c/D2d/D2e).
-`scripts/build_hockey_roster.py` -> `data/hockey/roster.json` from ESPN's NHL
-rosters, MERGING like baseball's (a player on IR is kept) -- on no schedule,
-rebuild when a name won't resolve.
-
-**Not built** (deferred, say so if asked): no auto-fix-on-failure support for
-hockey uploads, no hockey results archive or History page, and no real hockey
-card has arrived yet -- `tests/fixtures/hockey_format.txt` is written to the
-generator's current shape, so treat the first real one as a template incident.
-
-## The NBA tracker -- built in full, HIDDEN (2026-10-05)
-
-Same request, same shape as the NHL tracker above ("Make an NBA page the same
-as NHL. Hidden. Trackable on all sports."): a third sealed engine on the ALL
-SPORTS page (`const NBA = (function () { ... })()`) and **`/basketball/`**, a
-page generated from `all/index.html` (`bmbs.bb.*` storage, `data/basketball/`)
-and independent from its first commit. Hidden the same way: in no page's
-switch, `test_basketball.py` A3 pins it, and the Discord message for a
-`basketball_*.txt` upload links it. Unhiding is the same three steps.
-
-**Data: ESPN `.../basketball/nba` `scoreboard` + `summary`.** Shapes were read
-off a real summary (UTAH @ DEN, 2026-10-04) before anything was built:
-- the boxscore labels are `MIN PTS FG 3PT FT REB AST TO STL BLK OREB DREB PF
-  +/-` ("3-7" for threes: made first), each row carrying `active`, `starter`,
-  `didNotPlay`, `reason`, and `stats: []` for a DNP;
-- a play's participants are ordered: the shooter / rebounder / ball-loser
-  FIRST, and the assister ("(Y assists)"), stealer ("(Y steals)") or blocker
-  ("Y blocks X's ...") SECOND; `scoreValue` is 1/2/3. `PLAY_CREDIT` reads
-  exactly that, which is what times a hit to the play for the bell.
-- **`active` is "on the court" only by assumption.** In a FINAL game it is
-  false for everyone; it has not been watched live yet. The engine trusts it
-  only while the game is live AND it names 1..10 players -- otherwise
-  `onCourt` is null and the page says LIVE, never ON THE BENCH. Check it
-  against a real game (five a side, changing with Substitution plays) before
-  trusting the two tags, exactly like hockey's `onIce`.
-
-**Markets are `nba_*`**: `nba_points`, `nba_rebounds`, `nba_assists`,
-`nba_threes`, `nba_steals`, `nba_blocks`, the combos `nba_pra` / `nba_pr` /
-`nba_pa` / `nba_ra` (an engine stat key may be a "+" sum), `nba_dd` / `nba_td`
-(categories in double digits among PTS REB AST STL BLK: 2 or 3), and
-`nba_ml` / `nba_spread` / `nba_total`. Graders are hockey's shape: an over
-settles when it clears, an under/team bet at the final (overtime counts),
-landing on the number is a push, a DNP is void. **There is NO default
-market**: "Jokic +150" says nothing gradeable, so a bare NBA leg is
-`nba_unknown` -> untracked, and the parser reports it ("no bet type stated").
-Tiles: `court` (ON THE COURT / ON THE BENCH / LIVE / HALFTIME / BREAK, his
-count, "N FOULS" from four on) and `hoop` (one per team, like `rink`). No
-Scoring Log entries: a basketball game is hundreds of baskets.
-
-**Parsing traps, all in `test_combined_parser.py` Q:**
-- **NBA runs BEFORE hockey** in `scan_card`. "Points" and "Assists" are hockey
-  markets too, and `nhl_record` claims any leg with a hockey market word -- so
-  "Nikola Jokic Points Over 25.5" was a hockey bet until basketball got first
-  look. Basketball claims a leg only on NBA evidence: the name on the NBA
-  roster (and on no other league's), a team, or an NBA-ONLY word
-  (`NBA_ONLY_MARKETS`: rebounds, threes, the combos, double/triple-double,
-  blocks). Steals is MLB's word too and is deliberately not on that list.
-- **"Kings" is both leagues'.** `nhl_team_words` and `nba_team_words` each
-  exclude the other's nicknames on an ALL SPORTS card, and `teams_for()` lets
-  a bare nickname before the price take its city from the team named AFTER it
-  ("Kings +6.5 -- Sacramento Kings") -- but only when the subject IS that
-  team's name, or a misspelt player would become a moneyline on his club. On a
-  single-sport card (`only_sport`) every own nickname counts: Kings is
-  Sacramento on a basketball card, Los Angeles on a hockey card.
-- Cross-league names exist (Jose Alvarado, Spencer Jones, Braden Smith,
-  Jaden Bradley, Jordan Miller); a `basketball_*.txt` card forces NBA. On an
-  ALL SPORTS card the team the line names settles it (`his_club`): "Jose
-  Alvarado (+300) -- New York Knicks" was first graded as the PHILLIES
-  pitcher's home run bet, because his name alone is on both rosters. With no
-  team written anywhere he stays baseball's, as before (Q12/Q12b).
-
-`scripts/parse_basketball_picks.py`, `.github/workflows/parse-basketball-picks.yml`
-(commits only `data/basketball/tickets*`, `test_workflow_yaml.py`
-B3g/B3h/C2d/D2f/D2g), `scripts/build_basketball_roster.py` (606 players, 30
-teams; merges like the others; NBA rosters are a flat list where hockey's are
-grouped), the bot's `basketball` route, `notify_discord.py --sport basketball`.
-Not built, as for hockey: auto-fix support, a results archive / History page.
-No real basketball card has arrived -- `tests/fixtures/basketball_format.txt`
-is written to the generator's shape.
-
-## The WNBA tracker -- built in full, HIDDEN (2026-10-05)
-
-"Add WNBA same as nba." **It runs on the NBA's own engine**: ESPN's WNBA
-summary is the NBA one column for column (checked on the 2026-10-01 IND @ LV
-game -- same labels, `active`, participant order, flat roster list), so the
-NBA IIFE became `makeHoopsEngine(league)` and the ALL SPORTS page builds two:
-`const NBA = makeHoopsEngine("nba")`, `const WNBA = makeHoopsEngine("wnba")`.
-Each has its own closure -- RESULTS, picks, caches -- so a Knicks "NY" and a
-Liberty "NY" never meet. **A WNBA leg is `sport: "wnba"` with the SAME
-`nba_*` markets and graders**; `marketForeign()` treats wnba as nba, and
-`hoops(leg)` picks the engine everywhere the host reads one (graders, status
-lines, tiles, hit times). Tracker entries now carry `sport` for that. A WNBA
-team tile is keyed `WNBA <abbr>`, or a Liberty bet and a Knicks bet would
-share one tile (`test_basketball.py` G3, which a mutation proved).
-
-`/wnba/` is generated from `all/index.html` like the others (`bmbs.wb.*`,
-`data/wnba/`), hidden the same way. `basketball/index.html` was generated
-BEFORE the factory and keeps its own single-league engine -- it is
-independent, and was deliberately not regenerated.
-
-**Parser**: `nba_record(..., league="wnba", others=(nba,))`, and the WNBA gets
-FIRST look -- with narrower evidence: a WNBA name or team only. An NBA-only
-word ("Rebounds") is not WNBA evidence, and NBA-first would have pulled A'ja
-Wilson's rebounds into the NBA (`test_combined_parser.py` R4/R5).
-`build_basketball_roster.py --league wnba` -> `data/wnba/roster.json` (221
-players, 15 teams; no name shared with any other league's roster).
-`parse_wnba_picks.py`, `parse-wnba-picks.yml`, bot route `wnba`,
-`notify_discord.py --sport wnba`. **Tests: `tests/test_wnba.py` runs
-`test_basketball.py` with `HOOPS_LEAGUE=wnba`** -- one set of checks for both
-leagues, plus section G (both leagues on one card, both directions).
-
-**The 2026 season looks over** (last game Oct 1), so nothing WNBA has been
-seen live, including `active`. Same rule as the NBA: unknown means LIVE.
-
-## The college-football tracker -- built in full, HIDDEN (2026-10-05)
-
-"Add the same hidden page for college football." Built the WNBA way: ESPN's
-college summary is the NFL one field for field (checked on VAN @ UGA,
-2026-10-03), so the NFL IIFE became `makeFootballEngine(SLUG, SPORT)` and the
-ALL SPORTS page builds `NFL = makeFootballEngine("nfl", "nfl")` and
-`CFB = makeFootballEngine("college-football", "cfb")`. A college leg is
-`sport: "cfb"` with the NFL's markets (`marketForeign()` maps cfb to nfl);
-`gridiron(leg)` picks the engine wherever the host reads one, touchdown alerts
-loop over both engines (college under `cfbtd:` notified keys), and the Scoring
-Log carries college touchdowns. College team tiles are keyed `CFB <abbr>`: the
-Miami Hurricanes and the Dolphins are both "MIA" (`test_cfb.py` E).
-
-**Three things are different about college, each read off real data:**
-- **ESPN never sets `didNotPlay` on a college per-game roster** (128 listed, 0
-  flagged), so the NFL's miss-vs-void rule would grade every scratch a MISS.
-  For college, "played" is `starter`: a starter with no stat line is a miss,
-  anyone else with none is VOID -- ESPN can't say he got in. **The user's
-  rule, confirmed 2026-10-05** (offered "no stat line = miss for everyone"
-  instead, and kept this); don't change it without asking. `test_cfb.py`
-  D3/D4, on both pages.
-- **A Saturday is 50+ FBS games** (the scoreboard's default IS the FBS slate),
-  so a college game no pick is in is never fetched -- not even once for the
-  touchdown log, which the NFL engine does. An unresolvable college name does
-  not open every game either (`watchEverything` is NFL-only). D/A5.
-- **ESPN's school rosters are incomplete**: on VAN @ UGA, 12 of the 63 players
-  in the box score -- Georgia's starting QB Gunner Stockton among them -- were
-  on no roster. `build_cfb_roster.py` (FBS only, group 80: 138 schools) tops
-  the rosters up from the last two weeks of box scores (`--days`): 732 players
-  added, 14,214 total. Names collide (209 held by several players): the plain
-  maps keep a skill player, `others_by_norm` lists the rest, and the parser
-  takes the one at the school the line names (S6). Rebuild it weekly in season.
-
-**Parser**: a college leg takes the NFL path in `scan_card` with the college
-roster swapped in (`fb`, `fb_team_in`) -- combined players, typos, quarter
-bets, yards-by-position all come along. `cfb_claim()` decides it IS college,
-BEFORE the MLB/NFL decision, on college evidence only: the player at the
-school the line names, a school named after the price with nobody from another
-league, or a name only the college roster knows. School words
-(`cfb_team_words`): full names always; a location / short name / nickname only
-when exactly ONE school has it ("Bulldogs" is a dozen) and -- on an All Sports
-card -- no other league's team name contains it ("Arizona" would pull in the
-Cardinals, "Kansas" the Chiefs, "Buffalo" the Bills). The team is read from
-the text AFTER the price first, never a player's name ("Rashee Rice" holds a
-school's). A dated card title is skipped on a college-only card, as on hockey's.
-Slate span: the picked schools' next game within EIGHT days (a Saturday card
-goes up on Monday).
-
-`/cfb/` (`bmbs.cf.*`, `data/cfb/`), `parse_cfb_picks.py`, `parse-cfb-picks.yml`,
-bot route `cfb`, `notify_discord.py --sport cfb`, `tests/test_cfb.py`,
-`test_combined_parser.py` S. Not built, as for the others: auto-fix support,
-a results archive. FCS games (group 81) are not on the scoreboard the engine
-reads; an FCS pick would sit not-started.
-
-## Combined picks: `sports_*.txt`
-
-**`scripts/parse_combined_picks.py`** -> `data/combined/tickets.json`, fired by
-`.github/workflows/parse-combined-picks.yml` off `data/combined/incoming_picks.txt`.
-The Discord bot routes a `sports*.txt` upload there; `baseball*` and
-`football*` are unchanged and all three intakes stay live.
-
-**It is a thin layer over `parse_picks.parse()`, not a third parser.** That one
-already reads ten card templates and every ticket/bettor/stake/payout/odds
-shape the group's generator has emitted; re-implementing any of it would
-guarantee silent drift. So a combined card is parsed exactly as a baseball
-card is, and this module answers only the question that parser cannot: WHICH
-SPORT is each leg, and therefore which roster resolves the player.
-
-**The join between the two halves is the leg's player STRING**, because
-`parse_picks` either returns the canonical spelling it resolved or keeps the
-text exactly as typed -- both deterministic. Keying on the RAW text is what
-lets one parlay carry "Jose Ramirez Anytime TD" (NE) and "Jose Ramirez" (CLE)
-and grade them as two different people in two different sports. **Five names
-sit on both rosters and he is a star in each**; getting it wrong does not
-throw, it grades a touchdown bet off a batting line, quietly, forever.
-
-**Evidence order is per-leg first and the section heading LAST**: an explicit
-market word, then roster membership when the name is on only one, then the
-team named on the line, then the heading. A heading is about the GROUP of bets
-rather than this one, so a mixed parlay filed under an "MLB" heading would
-otherwise mis-sport half of itself; a heading naming BOTH sports clears the
-default instead of setting it. Nothing resolvable -> the leg is reported in
-the `note`, never guessed.
-
-**The team is read from the text AFTER the price, never from the player's own
-name** -- plenty of names ARE team words (Buffalo, Jackson, Carolina, Phoenix).
-The text before the price is consulted only when the rest names no team at
-all, and then all-or-nothing: as a per-sport fallback it let a leg whose line
-clearly named one team pick up a second off the name and go ambiguous.
-
-**A market phrase glued to the player name is stripped and the name
-re-resolved.** `parse_picks` resolves the player BEFORE it knows the phrase is
-there, so "Max Fried Strikeouts Over 5.5" misses the roster entirely and comes
-back as typed with a BLANK team -- the Tatis Jr. failure mode.
-
-**`NFL_TEAM_WORDS` is a static 32-row table** because the football roster
-stores abbreviations only (no `abbr_by_team_word`, unlike baseball's) and a
-card writes "Philadelphia Eagles", never "PHI".
-
-**The span is the PICKED teams' games**, deliberately not the NFL tab's
-week-end rule, for the same reason the page's rollover isn't. A FINISHED
-game is skipped (a card posted after a team's game is over is for its next
-one) -- EXCEPT today's, while a picked team still plays today. Without that, a
-re-parse after the early games ended (2026-10-04, 6:39 PM, for the Sunday-night
-bet) pushed every team that had already played to next week, and the slate ran
-Oct 4 to Oct 11: held on Today for a week. `test_combined_parser.py` I4/I5.
-
-**A leg doesn't repeat the ticket's owner.** Its sub-line is `team · bettor`,
-but when the bettor IS the owner the footer already names ("bet by Kenny"),
-it's left off -- eight legs all saying Kenny was noise. `who` stays on the leg
-for the Bettor Tracker. N4b.
-
-**The 2026-10-05 card: bare counts** (`tests/fixtures/sports_bare_count_format.txt`,
-`test_combined_parser.py` O). Every leg a bare count with an unsigned price --
-"Gavin Williams 9 Strikeouts 259" -- and it parsed "successfully" with half
-its legs wrong: lines lost (a 9-strikeout bet would have graded on the first),
-"3 H R Rbi" read as RBI, a receiving-yards UNDER fallen back to baseball, an
-unsigned run line dropped, an NHL leg read as the Buccaneers (which also
-stretched the slate to Thursday). Fixed by:
-- `normalize_card()`: a bare count becomes "N+", an unsigned team half-point
-  "+1.5", BEFORE either pass reads the card. Footers and headers untouched.
-- Joining on the player string parse_picks itself keeps (`pp_key_for`), which
-  for a market it can't place is an odd leftover ("Kyle Pitts Receiving
-  Yards"); and looking up name+MARKET before name alone, since one man on two
-  bets (Bellinger: HR, and 3+ H+R+RBI) otherwise got the first one's line.
-- A shared-city tie ("Tampa Bay") broken by a nickname only one league uses.
-- `xbh` (extra-base hits) and `outs` (a pitcher's outs recorded): new markets
-  on both pages and in `record_results.py`, off lines the feed already carries.
-- A bare "Yards" read by POSITION (`pos_by_norm`): QB passing, RB rushing,
-  WR/TE receiving.
-- **Hockey is shown, not tracked** (the user's call): sport `nhl`, a market
-  the page doesn't know ("puck line +1.5") so it grades `untracked`, and NO
-  team, so nothing can mistake it for the Bucs or the Rays.
-- Discord said "now LIVE" while the site still showed yesterday: the parse had
-  committed, but GitHub Pages' deploy sat queued for 10+ minutes. The ping
-  fires on the commit, not the deploy.
-
-**No real `sports_` card has arrived yet.** `tests/fixtures/sports_combined_format.txt`
-is written to the shape the generator currently emits, not observed -- treat
-the first real one as a template incident exactly as with the other two
-parsers.
-
-## Football (anytime-touchdown) tracker -- a separate site in the same repo
-
-`football/index.html` at `/football/` is the NFL twin of the baseball page:
-Today's / Yesterday's picks, payout estimate, Irons, Bettor Tracker, touchdown
-alerts (with the cash version), a **Touchdown Log**, and **Live Drives** (the
-analogue of Live At Bats). Built 2026-09-19 under the instruction "do not
-modify anything we have done to the baseball configuration" except three
-things: the sport switch at the top of `index.html` (markup + CSS only, no
-script), and the Discord bot's routing. Keep it that way:
-
-- It was assembled ONCE from `index.html` as of commit `2268dc1` (the
-  sport-agnostic slate/tab/filter/alert code is byte-identical) and is now an
-  independent file. There is no build step and no shared script -- a fix that
-  applies to both sports is made twice, on purpose. `tests/test_football.py`
-  block A enforces the isolation both ways.
-- Own data: `data/football/{tickets,tickets-previous}.json` (LIVE DATA, same
-  rules as baseball's), `data/football/incoming_picks.txt` (paste target),
-  `data/football/roster.json`. Own parser `scripts/parse_football_picks.py`,
-  own workflow `parse-football-picks.yml`, own roster builder
-  `scripts/build_football_roster.py`. None of them import baseball's.
-  **The football card template has changed too, independently of
-  baseball's** -- a card posted 2026-09-20 arrived as `Ticket N (M-Leg
-  Parlay)` headers, `Bettor: X | Bet: $Y | Potential Payout: $Z` on their
-  own line, and `- (Bettor) Player (ODDS) Time` legs (no team, no "ET",
-  time can be free text like "Check Listings"), which the parser's first
-  two templates didn't cover: exit 1, nothing written, that day's real
-  slate never posted. Fixed the same day. One sharp trap in the fix: the
-  header's own `"5-Leg Parlay"` text is a literal substring
-  `PARLAY_HEADER_RE` matches, so every ticket header was first misread as
-  a brand-new section (`section_header()` needed an explicit exclusion,
-  the same class of guard `CARD_HEADER_RE` already has there). This is a
-  DIFFERENT third shape from baseball's own third template, not the same
-  one arriving late -- the two parsers' accepted card shapes are
-  independent and have now diverged for real. If a future upload parses to
-  zero again, check which sport and don't assume it's the other sport's
-  already-known shape (`tests/test_football_parser.py` has a fixture +
-  assertions per template, same pattern as `test_parser.py`).
-- **The Discord bot routes by FILE NAME only**: `baseball*.txt` ->
-  `data/incoming_picks.txt`, `football*.txt` -> `data/football/incoming_picks.txt`,
-  `sports*.txt` -> `data/combined/incoming_picks.txt` (the ALL SPORTS tab),
-  `hockey*.txt` -> `data/hockey/incoming_picks.txt` (the hidden NHL page),
-  `basketball*.txt` -> `data/basketball/incoming_picks.txt` (the hidden NBA page),
-  `wnba*.txt` -> `data/wnba/incoming_picks.txt` (the hidden WNBA page),
-  `cfb*.txt` -> `data/cfb/incoming_picks.txt` (the hidden college-football page),
-  anything else is refused with a rename hint. It never inspects the text --
-  the cards share a template, and a guess would eventually overwrite the wrong
-  sport's slate.
-
-  **The bot does NOT run from this clone.** It runs from a SEPARATE clone on
-  a different always-on Windows box (the "Plex box"), under Task Scheduler.
-  The dev machine's copy has no `.env`, which is the quick way to tell them
-  apart -- and assuming otherwise has twice sent someone looking for the bot
-  process on the wrong machine and concluding it wasn't running. A Claude
-  Code session here cannot reach that box; the pull and restart are done by
-  hand over there.
-
-  So a change to `discord-bot/bot.py` does nothing until that box pulls AND
-  the process is restarted -- `discord-bot/README.md` has the commands, plus
-  the cheap way to prove a restart took (upload an unroutable `.txt`; the
-  refusal lists every prefix the RUNNING code knows).
-
-**Data source: ESPN, from the visitor's browser, no backend -- but mind the host.**
-`site.api.espn.com` answers `curl` with `Access-Control-Allow-Origin: *` and
-then OMITS the header for a real browser on another origin. The same API on
-**`site.web.api.espn.com`** (and `sports.core.api.espn.com`) is allowed. This
-was only caught by fetching from bmbs.bet in real Chromium after curl said it
-was fine -- test CORS in a browser, never with curl. **Python must use
-`site.web.api.espn.com` too:** on 2026-09-19 `site.api.espn.com` answered
-`urllib` with 403 (Akamai) while curl still got 200, which had silently pushed
-`parse_football_picks.py` onto its no-schedule fallback. All three football
-scripts were switched. Endpoints, all keyless:
-- `scoreboard?dates=YYYYMMDD` -- one date per call (a date RANGE returns 400).
-  Games are filed under their ET date, so a Sunday 8:20 PM game (00:20Z Monday)
-  is still Sunday's -- same property the MLB schedule has.
-- `summary?event=ID` -- ~60KB gzipped, cached only ~3s (`max-age=3`), can't be
-  trimmed. Boxscore has athlete ids and a TD column per category.
-- core `.../competitors/{teamId}/roster` -- per-game `didNotPlay` flags.
-Polls every 15s. Final games are fetched once; pre-game ones not at all; live
-games none of the picks are in are refreshed once a minute (they only feed the
-"All Touchdowns" log).
-
-**What counts as a hit.** Anytime TD = the boxscore TD column summed over
-rushing, receiving, defensive, interceptions, kickReturns, puntReturns.
-**Passing is excluded** -- throwing one doesn't cash the passer. Scoring-play
-text is parsed only to describe the touchdown and as a by-name backstop.
-
-**Picks match by ESPN athlete id first, name second.** The parser stores
-`athleteId` on every leg. Names normalize with generational suffixes STRIPPED
-on both sides (ESPN writes "James Cook III", "Marvin Harrison Jr."; cards
-don't) -- the lesson baseball learned live with "Fernando Tatis". A by-name hit
-only counts if the touchdown was scored for the pick's own team: there are two
-Josh Allens, and the linebacker's pick-six must not cash the quarterback.
-
-**miss vs void.** Game Final and the pick has a stat line -> miss. No stat line
--> ask the roster endpoint: `didNotPlay` (or absent) -> `na` (void), played ->
-miss (a blocking tight end who never touched the ball really did lose). A pick
-the card couldn't resolve to an id and who has no stat line -> `na`.
-
-**A football slate is an NFL WEEK.** The tabs read "This Week's Picks" / "Last
-Week's Picks" (the internal names are still `today` / `yesterday`, as in the
-code football was assembled from), and a card stays on This Week until the
-week's LAST game -- Monday night -- is final, *even a Sunday-only card*. That's
-the user's rule (2026-09-19); don't shorten it to "the picked teams' last game".
-The parser dates the slate from the NFL SCHEDULE, not the clock (cards go up
-days early): `date` = the earliest upcoming game among the picked teams,
-`endDate` = the last day of that NFL week with any game on it, `weekEnds` = the
-week's Tuesday, which names the week. An NFL week runs Wednesday..Tuesday -- a
-flat "+4 days" from Sunday reaches next Thursday and once stretched a slate
-across two weeks. A second card in the SAME week (Thursday's, then Sunday's, or
-a correction) REPLACES the first and leaves Last Week alone; only a card for a
-new week archives the old one -- so a Thursday card's picks disappear when a
-Sunday card is uploaded unless the Sunday card repeats them. The page polls
-every date in the span (settled dates -- all Final, or empty and in the past --
-are asked once and cached in `SETTLED_SCHEDULES`) and rolls over when every
-game on every date is Final, or 6am ET after `endDate`. If ESPN is unreachable
-the parser falls back to the card's kickoff times and the following Monday.
-
-**Odds can be negative** (a star back is often -120; a home run never is).
-Every football odds regex takes `[+-]`, and the Bettor Tracker formats with
-`fmtOdds()` so an average never renders as "+-135".
-
-**Live Drives.** A football pick is "live" for three hours, so the panel sorts
-by whether his OFFENSE is on the field. **Three tile states as of 2026-09-20,
-and green means "he can score on this play" -- nothing looser:**
-- **RED ZONE** (red), **ON OFFENSE** (green) -- his side has possession AND
-  ESPN has their drive open.
-- **TAKING THE FIELD SOON** (grey, dashed) -- possession is theirs but their
-  drive isn't open yet: the gap between the other team giving the ball up and
-  this one snapping it.
-- **Nothing at all** when his team is on defense, OR when his own drive has
-  just ENDED. ON DEFENSE / HALFTIME / BETWEEN DRIVES tiles were removed at the
-  user's request -- baseball has never shown a tile for a player whose side
-  isn't batting, and a tile he can't score from is noise. The LIVE count in the
-  header still counts him.
-
-**The finished-drive case is a bug that was reported live and is easy to
-reintroduce.** ESPN stamps `displayResult` on `drives.current` the moment a
-drive ends, but keeps naming that team in `situation.possession` until the
-kickoff is returned. So "possession is mine and my drive is open" stayed TRUE
-for a team that had just kicked a field goal, and their pick sat there green
-reading "Ball on offense" through the whole kickoff. `drive.driveOver` is the
-third condition, and all three are needed:
-  * possession alone is stale right after a score;
-  * an open drive alone is stale right after a punt or turnover;
-  * a finished drive still named as current is the kickoff window.
-The scoring team is dropped entirely rather than shown as TAKING THE FIELD
-SOON -- they're kicking off, not taking the field -- which is what the
-`!myDriveOpen` term in `takingFieldSoon` rules out. Verified on live games
-2026-09-20: SEA scored a touchdown with `situation.possession` still SEA, and
-LAC threw an interception with `drives.current` still LAC.
-
-Possession comes from the LAST PLAY's end state (or the scoreboard's
-`situation.possession`), which is NOT the same thing as `drives.current.team`:
-a drive object only appears once its first play posts, so after a punt,
-turnover or score the possession flag flips while `drives.current` still names
-the team that just gave it up. `drive.driveTeam` carries that second value and
-the mismatch is what defines TAKING THE FIELD SOON. **Measured against live
-games on 2026-09-20: three clean windows at 65s, 82s and 179s** -- several
-polls wide, a real state rather than a flicker. (Windows that span halftime
-read longer and aren't clean measurements: during halftime `situation.possession`
-is absent entirely, so nobody gets a tile at all.)
-
-**ESPN publishes no personnel data, so "is HE on the field" is not knowable**
-and the page never claims it. A play's `participants` array names only the
-players involved in that play -- rusher, tackler, passer, receiver -- never the
-eleven lined up, so a tight end who hasn't been targeted is indistinguishable
-from one standing on the sideline. Checked directly against a live game
-(MIN @ CHI, 2026-09-20) before the states above were designed around it; don't
-re-derive this from the field name and assume otherwise.
-
-When a drive ends its result holds the tile ~9s ("Punt", "Field Goal", and
-"TD -- not him" when a teammate scored); the pick's own touchdown turns his
-tile into a football, then the play, ~14s. Same seeding / stale / off-tab
-guards as Live At Bats. Alerts and preferences use their own localStorage keys
-(`bmbs.fb.*`). The per-leg tag on the tickets uses the same three states, so
-the wording is "ON OFFENSE" everywhere -- "HAS THE BALL" is gone from both.
-
-Football's History page is `/football/history/` -- see "Results archive".
-`features/index.html` is kept in sync automatically now -- see its entry at
-the top of this file for scope (live/functional/user-visible only).
-
-## Results archive -- the site's memory (both sports)
-
-The live pages grade every pick in the visitor's browser and keep nothing; a
-slate that rolls off Yesterday / Last Week was simply gone. Since 2026-09-19 a
-daily job writes finished slates down, and the History pages read from that.
-
-- **`scripts/record_results.py`** -> **`data/results/<date>.json`**, one file per
-  baseball slate, kept forever. The permanent record: every bet as posted
-  (card, who placed it, stake, listed payout, legs with player / team / bettor /
-  odds / time), each leg's result + MLB id + Pinch Hit Protection credit + the
-  Statcast detail of his home runs, each bet's outcome and what it actually
-  returned, and every home run in the league that day.
-- **`scripts/import_history.py`** then rebuilds `data/history.json` from TWO
-  sources: the group's sheet (every slate before the tracker kept its own
-  record) and `data/results/`. **On a date both cover, the tracker's record
-  wins** and the sheet's rows are dropped, so it doesn't matter whether anyone
-  keeps filling in the sheet. If the sheet can't be read at all, the sheet
-  parlays already in `history.json` are reused with a warning -- a dead sheet
-  must never block new slates.
-- **`scripts/record_football_results.py`** ->
-  **`data/football/results/<weekEnds>.json`** (one per NFL week) and rebuilds
-  **`data/football/history.json`**, which **`football/history/index.html`**
-  (`/football/history/`) reads. Football has no sheet: this IS its history. The
-  page was adapted ONCE from `history/index.html` and is independent since
-  (same rule as `football/index.html`); an absent or empty history file is a
-  normal state ("No finished weeks yet"), not an error.
-- All three run from **`.github/workflows/import-history.yml`** (file name kept
-  so the Actions history stays in one place), once a day at 9am ET, ONE job and
-  ONE commit. Each step continues on error so one sport failing can't block the
-  other's commit; the job is failed at the very end instead.
-
-**Why 9am and not "when Today rolls to Yesterday":** that rollover happens
-inside each visitor's browser -- there is no server to notice it. Catching it
-would take a cron polling all evening, which is exactly what gotcha 3 is about.
-A slate sits in `tickets.json` / `tickets-previous.json` for at least a day
-after it ends, so one run a day sees every slate, and a missed day is caught by
-the next. The user asked the question and this was the answer; don't move it to
-an evening schedule.
-
-A slate is recorded when every game on its date(s) is Final, or two days later
-regardless (suspended game; that record is `"complete": false` and is re-graded
-on later runs). A record carries a hash of the picks it was graded from: same
-picks -> skipped without touching the network; picks corrected afterwards ->
-graded again. Re-running is always safe.
-
-**The graders are ports of the pages' own grading** (`stateForPlayer`, Pinch Hit
-Protection, `evaluateTicket`, football's id-then-name+team matching), and were
-checked against the live site on the first real slate: all 50 legs of
-2026-09-18 and all 36 league home runs matched. A change to a page's grading
-rules has to be made in its recorder too.
-
-**Benched players are void, and the two agree again as of 2026-09-20.** MLB's
-boxscore lists the whole active roster, so "is he in the boxscore?" says
-nothing about whether he got in. The recorder always required a PLATE
-APPEARANCE for a home run leg -- benched, or only a pinch runner / late
-defensive sub -> `na` -- while `index.html` graded that same player a MISS.
-Found on the first recorded slate: Andres Gimenez and Bryce Eldridge
-(2026-09-18) were misses on the page, and the group's own sheet had Gimenez as
-DNP. It was reported rather than fixed at the time, because `index.html`'s
-grading isn't touched without asking; the user was asked on 2026-09-20 and
-chose to fix it. The page is now a direct port of the recorder's rule:
-`getGameSnapshot()` builds a `played` set from `stats.batting.plateAppearances`
-(falling back to `battingOrder` / `allPositions` / any batting object), and
-`pollSlate()` only writes a name into `rosterStatus` when his game is still on
-OR he's in `played`. Two things to keep straight if you touch it:
-- **`inBox` is a separate map** holding everyone on a roster regardless, and
-  `stateForSteal()` reads THAT, not `rosterStatus` -- a steal bet asks "was he
-  on the field", never "did he bat" (a pinch runner can steal without batting).
-  Same split the recorder has always had.
-- The page settles a benched player as soon as **his own** game is final
-  (`inBox.get(norm) === "final"`), not when the whole slate is. The recorder
-  only ever runs on finished slates so it never needed that; without it a
-  benched player would read "not started" for hours while other games ran.
-This changes leg states, parlay outcomes and adjusted payouts on the live page,
-so it is a real grading change, not cosmetic. A change to a page's grading
-rules still has to be made in its recorder too, and vice versa.
-
-Things learned from the first merge, all handled in `import_history.py`:
-- **The sheet mis-dates slates.** It logged the 2026-09-18 slate under 9/17
-  (MLB confirms those homers were on the 18th), so the merged history counted it
-  twice. `drop_misdated_copies()` drops a sheet slate one day either side of a
-  recorded one when 80%+ of its (bettor, odds) legs match. The tracker's date
-  comes from the MLB schedule, so its copy is the one kept.
-- **The sheet's hand-typed marks have errors** the tracker doesn't: on that same
-  slate it had Miguel Vargas (homered, 403 ft) as a miss and Dillon Dingler
-  (3 plate appearances) as DNP.
-- **Names.** The sheet uses shorthand ("Judge", "PCA"), the tracker full names.
-  A recorded leg takes the sheet's nickname when `history_player_map.json` ties
-  it to the same MLB id, so one player isn't two rows; the full name rides along
-  as `name`. Anyone unmapped keeps his full name and may therefore appear twice
-  in the Players table until someone adds a map entry (`--draft-map`). Recorded
-  players join "the ones that got away" without a map entry -- their id came
-  from the boxscore they were graded from, not a guess.
-- The sheet already logged singles as 1-leg rows (since 9/14), so recorded
-  singles are 1-leg bets too, flagged `"kind": "single"`.
-
-`history.json` additions on recorded bets: `src: "site"`, `kind`, `name`, `book`
-(who placed it), `stake`, `payout`, `returned`, `won`; on legs: `name`, `team`,
-`php`, `dist`. Top level: `recordedFrom`. The History page uses them for a
-**Real money** tile (actual staked vs returned -- possible for the first time,
-since the sheet never had stakes) and stake / distance / PHP detail in the log.
-
-## History page (separate from live tracking — keep it that way)
-
-`history/index.html` exists under a HARD CONSTRAINT from the user: it must
-never touch or risk the Today/Yesterday functionality. It is a separate
-file with its own script and its own data file. It does not poll MLB, does
-not read `tickets.json` / `tickets-previous.json`, and `index.html` does not
-read `history.json`. The only coupling is a footer link in `index.html` to
-`/history/` and a back link the other way. `tests/test_history.py` block A
-enforces all of this (request log, five minutes of fake clock, source
-greps) — if that block fails, the change is wrong, not the test. Don't
-refactor shared helpers out of `index.html` "for reuse"; duplication is the
-point.
-
-It lives at `history/index.html`, NOT `history.html`: GitHub Pages serves a
-sibling `name.html` for a bare `/name` ahead of `name/index.html`, which
-caused a redirect loop on `/features` once.
-
-Data facts worth knowing before touching the importer:
-
-- Source is the group's Google Sheet, tabs `Archive` (gid 1001, older
-  slates) + `HR Parlays` (gid 0, running log), same column layout. The
-  "Solo Tracker" tab is invalid per the user — never import it.
-- **Use `/export?format=csv&gid=N`, never `/gviz/tq?tqx=out:csv`.** Most of
-  the log's rows are collapsed/hidden in the Sheets UI; gviz silently drops
-  hidden rows (it lost ~2,000 of them and made the log look like it had a
-  three-week gap). `export` includes them.
-- Compute every stat from the raw legs. The sheet's own "Player Stats" tab
-  matches names by substring ("Cruz" also counts "Oneil Cruz"; same for
-  Bell, Walker, Abreu, Valdez), so its per-player numbers are wrong.
-- Real money is NOT derivable: "Amount Wagered" was never filled in. The
-  page shows recorded win amounts on cashed parlays and a clearly-labelled
-  hypothetical flat-stake ROI — don't present either as actual P&L.
-- Odds were only logged from 2026-08-20 (`oddsFrom`); odds-based stats cover
-  picks since then and the page says so.
-- A blank leg status is `pending`, never guessed. DNP legs are void:
-  excluded from hit rates, and a parlay whose other legs all hit still cashed.
-- "The ones that got away" joins real MLB game logs at import time via
-  `history_player_map.json` (group nickname -> MLB id, hand-reviewed; every
-  entry was validated by checking the player's real HR dates against the
-  sheet's Hit/Miss marks). Nicknames are ambiguous ("Lowe", "Muncy",
-  "Garcia Jr") — never auto-resolve them at import time; use `--draft-map`
-  and review. When sheet and MLB disagree the importer reports it and the
-  page footnotes the count; it does not silently "fix" the sheet.
-- The daily Action is a deliberate, user-chosen exception to the "no
-  automated commit workflows" caution in gotcha 3. It runs at a quiet hour
-  and commits only `data/history.json`, `data/results/` and football's twins
-  (see "Results archive"). The importer refuses to write a
-  history with fewer parlays than the committed one (`--allow-shrink`).
+  writes mid-at-bat actions ("Batter Timeout") into `result.event`.
+- **Only whitelisted events are announced** (`LAB_PA_RESULTS`); a play can end
+  on a runner event.
+- **`inningState` has FOUR values**: `Top`, `Bottom`, `Middle` (home up next),
+  `End` (away up next). Treating anything-not-Top as home put the wrong team at
+  the plate through every `End` window (measured: median ~71s, `Middle` ~91s).
+  **`outs` reads 3 during both breaks** — don't charge it to the side about to
+  lead off. **Nobody is "at the plate" during a break**: `isCurrentlyBatting`
+  is forced false in `Middle`/`End`. (`test_live_at_bats.py` J1-J7, K1-K5.)
+- **A side that hasn't batted leads off from slot 1** (only when it has NO
+  plays). (`test_live_at_bats.py` AB, `test_combined_page.py` U.)
+- Bases come from `linescore.offense.first/second/third`.
+- It's pitch-by-pitch *as of the last poll*: several pitches can land at once
+  and a short at-bat can finish between polls (its result tile still shows).
+  PHP substitutes get no tiles. No extra API calls — it reads the feeds already
+  fetched (`isComplete`, `count`, `balls`, `strikes`, `call`, `isOut` are in
+  `FEED_FIELDS`).
+- At-bats remaining uses a negative-binomial model with a league-average 68.5%
+  out rate, NOT the hitter's own stats — disclosed in the UI; keep that
+  framing (`test_at_bat_math.py`).
+- **Test-helper trap:** `feed()` in `tests/test_page.py` numbers
+  `battingOrder` per side. A flat `f"{i+1}00"` scheme makes the 10th player
+  "1000" → slot 1, a fake substitute for the leadoff hitter, which wrongly
+  triggers Pinch Hit Protection.
+
+## 7. Alerts, sound and the bell
+
+### Alerts (Overlay / Push / Sound)
+
+Three independent toggles in the header, persisted per page; overlay defaults
+ON, push and sound OFF. Toggles are hidden (visibility only) on the Yesterday
+tab.
+- **Overlay** — fixed celebratory card, only while the tab is visible; queued,
+  never stacked.
+- **Push** — plain Notifications API, page-open only. `requestPermission()` is
+  called only from the toggle's change event (user gesture), never on load.
+- **Sound** — Web Audio, **synthesised, not audio files** (no assets in these
+  pages). `sndBomb` (HR), `sndSwipe` (steal), `sndKick` (TD; also NHL goals),
+  `sndCash`. Fires whether or not the tab is visible. **Never create an
+  `AudioContext` without a user gesture** — it's created in `setSoundNotif()`;
+  switching on plays one bomb as confirmation. `SOUND_TRIM` is measured with an
+  `OfflineAudioContext` peak, not eyeballed — re-measure if you change an
+  envelope.
+- **A play that CASHES a bet plays the register INSTEAD of the event sound**
+  (user's correction; never two sounds back to back), mirroring the overlay
+  turning gold rather than adding a second card. `test_page.py` W7 /
+  `test_football.py` Q6 stub `SOUNDS` and call the real `playAlertSound`,
+  because a spy only sees arguments.
+
+**Guards (all channels):**
+- **Flood guard:** `BOMB_STATE` is keyed on the slate date; the first poll
+  seeds everything already hit without announcing. Names dedupe by normalized
+  name.
+- **No alert for a play that can't change anything:** `betsStillOpenFor()` —
+  if every bet naming him is a parlay already dead, he's marked seen silently.
+- **Keyed on the player's own event**, not leg state: a PHP-credited leg isn't
+  a bomb by the named player. Alerts are per market: a bomb only for a HR pick,
+  a steal alert only for a steal pick, and `betsCashedBy()` takes the market.
+- **Cash upgrade:** `betsCashedBy()` finds bets now fully hit; the overlay
+  turns gold, rains money behind the card, adds "2-LEG PARLAY CASHED $154.00",
+  holds longer (`BOMB_CASH_MS`). It grades with the same `stateForPlayer()` /
+  `evaluateTicket()` as the page, swapping today's `RESULTS` in (restored in a
+  `finally`) because `RESULTS` follows the tab on screen. On the front page it
+  swaps every engine's results in step (`NFL.swap()`, `NHL.swap()`, …).
+- **Every leg alerts** (user's rule, 2026-10-04): `propHitEvents()` finds every
+  `hit` leg outside `OWN_ALERT_MARKETS` (hr/sb, plus td on the front page),
+  one event per distinct leg, through the same notified set (`prop:` prefix)
+  and guards. `fireLegHit()` plays the sport's sound, pushes, queues an overlay
+  in the leg's own words (`legHitWord()`: "2+ HITS!", "UNDER 4.5 K!", "WON!",
+  "ALL 4 QUARTERS!") and flashes a green **HIT** / gold **CASHED** tile that
+  replaces the plain at-bat result. The tile changes regardless of the overlay
+  toggle. (`test_live_at_bats.py` AA, `test_combined_page.py` S.)
+- **`alertSlate()`: alerts survive the last play.** When the last game goes
+  final the slate rolls to Yesterday on the same poll, so walk-offs and
+  final-whistle legs never alerted. Alerts also read the finished slate IF its
+  date is the one `BOMB_STATE` was already watching (never one it wasn't —
+  that keeps the morning after silent). (AA15/AA16, S3/S5, football I8/I9.)
+
+### Notification bell (every tracker)
+
+A bell top-right with a red badge counting what hit since you last looked;
+opening it clears the badge. Each page has its own log key.
+- **Two kinds of entry, and a leg that cashes a bet produces BOTH** (user's
+  rule): the leg entry (who, what, odds, bettor, every bet he's on) and the bet
+  entry (every leg, stake, payout, bettor). A single gets both too. **One event
+  is one leg entry** however many bets carry him; keyed on sport + player +
+  what was bet.
+- **It BACKFILLS** on the first scan after load (user's choice) — the opposite
+  of the overlay's flood guard.
+- **Every entry is stamped with when it HAPPENED**, newest on top, ET time
+  shown. `legHitTime(leg)` → `{t, approx}` from the play-by-play: MLB HR/steal
+  times, a stat prop's crossing play (`snapshot.timeline`; `isScoringEvent` is
+  in `FEED_FIELDS` for runs), a total's crossing play, final out for
+  unders/wins/lines; NFL via `NFL.hitTime` off `snapshot.playLog` (yards etc.
+  summed from play TEXT, `textKey()` builds ESPN's "F.Last"); a bet when its
+  last leg landed. `approx` ("~") marks a guess; nothing placeable falls back
+  to when the browser saw it, or "by 8:00 PM ET" — never an invented time.
+- **Follows `SLATES.today || SLATES.yesterday`** (so the morning after isn't
+  empty), never a queued slate; resets when the slate date changes.
+  `bellWithToday()` swaps that slate's results in (all engines on the front
+  page).
+- **Replay control** on every entry (a wordless bell-in-arrow icon with
+  `aria-label`): shows the alert again even with the overlay toggle off, to the
+  FRONT of the queue, replacing a replay already showing
+  (`BOMB_SHOWING_REPLAY`). Leg entries store `alert` as DATA, rebuilt and
+  escaped on the way out, because the bell comes back out of localStorage
+  (`test_bell.py` I8).
+- **Every bell class is `bell-` prefixed — load-bearing.** A `leg` class picked
+  up `.leg:first-of-type { padding-top: 0 }` (`test_bell.py` B5c/B5d).
+
+### localStorage namespaces
+
+All pages share one origin, so they share `localStorage`. Every page has its
+own prefix and **a new key on any page needs its page's prefix**: `bmbs.`
+(MLB), `bmbs.fb.` (NFL), `bmbs.all.` (front page), `bmbs.hk.` (NHL),
+`bmbs.bb.` (NBA), `bmbs.wb.` (WNBA), `bmbs.cf.` (college). The front page once
+shared MLB's keys (sound on one switched it on in the other); `test_bell.py`
+E10 now fails on any non-`bmbs.all.` key there, and each league test pins its
+own (e.g. `test_hockey.py` A4).
+
+## 8. Scoring Log / Home Run Log / Touchdown Log
+
+- MLB **Home Run Log**: every HR on the slate's date, newest first (sorted on
+  `about.endTime`), "Our Picks" vs "All Home Runs". Rows that matter to the
+  slate (named in its tickets, or a PHP substitute currently crediting a leg)
+  get a green border under either filter. The header pill reads
+  `N OURS · M TOTAL · P%` (`ours / total`, unweighted), empty when no HRs.
+- Tap-to-expand rows: the collapsed row carries hitter/team/inning/pitcher/
+  distance/exit velo, the expansion the rest of the Statcast detail. Field
+  availability was verified on 45 HRs across 24 games. **Roofed parks report
+  "0 mph, None" wind**; `weatherWind()` shows the roof instead. Live-game
+  Statcast latency is unverified; every field is guarded (em-dash if absent).
+- The strike-zone grid never says "inside"/"outside" — handedness and the
+  API's sign convention were not verified.
+- NFL **Touchdown Log** is the twin (`#tdlog-count`).
+- Front page **Scoring Log** (hidden, §1): HRs, NFL and college touchdowns and
+  NHL goals (PPG/SHG/EN/GOAL) interleaved by timestamp, sharing `.hr-row`
+  markup. "Ours" for a touchdown uses the ENGINE's normalizer. A touchdown
+  row's inline `onclick` names `toggleTdRow`, which lives inside the module —
+  the host carries a `window` shim or every TD row throws on tap. No basketball
+  rows (hundreds of baskets a game).
+- All panel-header pills use the muted `.head-count` style except the Live Bet
+  Tracker's green `.liveab-count` ("something is happening now").
+
+## 9. The All Sports front page (`index.html`)
+
+Tracks one card that can hold MLB, NFL, NHL, NBA, WNBA and college legs,
+including a single parlay mixing sports. Assembled 2026-10-04 from the MLB page
+(the superset: registry, untracked/partial, PHP, stat props, game lines) plus
+sealed engines for the other leagues; independent since.
+
+**Each non-MLB league is a SEALED engine, not a merge — the most important
+thing to understand about this file.** The pages define the same NAMES for
+different jobs: `normalizeName` most dangerously (football strips generational
+suffixes because ESPN writes "Marvin Harrison Jr."; MLB must NOT, because MLB's
+feed always sends them), plus `stateForPlayer`, `evaluateTicket`, `RESULTS`,
+`TICKETS`, `getGameSnapshot`, `pollSlate`. A merge would need every collision
+renamed by hand, and a miss is silent. So:
+- `const NFL = makeFootballEngine("nfl", "nfl")`, `const CFB =
+  makeFootballEngine("college-football", "cfb")`
+- `const NHL = (function () { ... })()`
+- `const NBA = makeHoopsEngine("nba")`, `const WNBA = makeHoopsEngine("wnba")`
+
+Each has its own closure (RESULTS, picks, caches) and exports a small API
+(`has/register/poll/use/swap/empty/state/context/teamContext/hitTime/rowHtml/
+toggleRow/gameUrl/norm/...`). Engines bring no page shell (render, filters,
+tabs, alert queue) — the host owns that. `hoops(leg)` / `gridiron(leg)` pick
+the engine wherever the host reads one. `test_combined_page.py` A3/A4 pin both
+normalizers coexisting; if they fail, the seal is broken.
+
+Which pages carry which engine generation: `cfb/index.html` matches the front
+page (both factories); `wnba/index.html` has `makeHoopsEngine` but an older NFL
+IIFE; `hockey/index.html` and `basketball/index.html` were generated before the
+factories and keep their single-league IIFEs. All are independent; none was
+regenerated.
+
+- **A mixed parlay needed no special case**: `evaluateTicket()` takes an array
+  of leg states and never asks which sport produced them.
+- **Rollover: every engine with legs on the card is done** (user's rule).
+  Deliberately not the NFL week rule. An all-NFL card is not an empty slate;
+  an all-MLB card never waits on football. `mlbLegsOn()` makes MLB's
+  `pollSlate()` return done before fetching even the schedule when the card has
+  no baseball leg. Each engine is handed only its own legs.
+- **Team tiles are keyed with a league prefix** where abbreviations collide:
+  `CFB MIA` vs the Dolphins, `WNBA NY` vs the Knicks (`test_cfb.py` E,
+  `test_basketball.py` G3).
+- **The front page never ported football's drive-result flash tiles** ("Punt",
+  "TD — not him"); their dead code was removed 2026-10-05.
+  `football/index.html` still has them.
+- **No results archive and no History page** for All Sports yet (deferred by
+  the user), so the footer does not link `/history/`.
+- It was assembled by scratchpad scripts, not a build step; don't add one.
+
+## 10. Per-league notes
+
+### NFL (`football/index.html`, and the NFL engine)
+
+Built 2026-09-19 as an independent twin of the MLB page.
+
+**ESPN, from the browser, but mind the host.** `site.api.espn.com` answers
+curl with `Access-Control-Allow-Origin: *` and then OMITS it for a real browser
+on another origin. Use **`site.web.api.espn.com`** (and
+`sports.core.api.espn.com`). Test CORS in a real browser, never with curl.
+**Python must use `site.web.api.espn.com` too** — `site.api.espn.com` returned
+Akamai 403 to `urllib`. Endpoints (keyless): `scoreboard?dates=YYYYMMDD` (one
+date per call; a range is 400; games filed under their ET date), `summary?event=ID`
+(~60KB gzipped, `max-age=3`, can't be trimmed), core
+`.../competitors/{teamId}/roster` (per-game `didNotPlay`). Final games fetched
+once, pre-game not at all, live games with no picks once a minute (for the log).
+
+- **Anytime TD** = boxscore TD column summed over rushing, receiving,
+  defensive, interceptions, kick/punt returns. **Passing excluded.**
+- **Match by ESPN athlete id first, name second.** Names normalize with
+  suffixes stripped. A by-name hit only counts for the pick's own team (two
+  Josh Allens).
+- **Miss vs void:** final + stat line → miss; no stat line → roster endpoint:
+  `didNotPlay`/absent → `na`, played → miss. Unresolved id + no stat line → `na`.
+- **A football slate is an NFL WEEK** (user's rule): tabs read "This Week's
+  Picks" / "Last Week's Picks" (internals still `today`/`yesterday`). A card
+  stays until the week's LAST game (Monday night) is final, even a Sunday-only
+  card. The parser dates from the NFL schedule: `date` = earliest upcoming
+  picked game, `endDate` = last day of that week with a game, `weekEnds` = the
+  week's Tuesday (weeks run Wed..Tue). A second card in the same week REPLACES
+  the first (Thursday picks vanish unless repeated); only a new week archives.
+  The page polls every date in the span (`SETTLED_SCHEDULES` caches settled
+  ones), backstop 6am ET after `endDate`. No ESPN → card times + following
+  Monday.
+- **Negative odds are normal**; `fmtOdds()` everywhere.
+- **Live Drives states — green means "he can score on this play":**
+  RED ZONE / ON OFFENSE (his side has possession AND their drive is open AND
+  that drive isn't over); TAKING THE FIELD SOON (grey, dashed: possession is
+  theirs but the drive isn't open yet; measured windows 65-179s); nothing at
+  all on defense or right after his own drive ended (ON DEFENSE / HALFTIME /
+  BETWEEN DRIVES tiles removed at the user's request).
+  - **The finished-drive bug:** ESPN stamps `displayResult` on
+    `drives.current` when a drive ends but keeps `situation.possession` on that
+    team until the kickoff is returned — a field-goal team's pick sat green
+    through the kickoff. All three conditions are needed (possession alone is
+    stale after a score; an open drive alone is stale after a punt/turnover;
+    `drive.driveOver` covers the kickoff window). The scoring team is dropped,
+    not shown as TAKING THE FIELD SOON (`!myDriveOpen`).
+  - Possession comes from the LAST PLAY's end state (or
+    `situation.possession`), not `drives.current.team`, which lags after a
+    change; `drive.driveTeam` carries the lagging value. Halftime has no
+    `situation.possession` at all.
+  - **ESPN publishes no personnel data**: `participants` names only players
+    involved in a play. "Is HE on the field" is unknowable; never claim it.
+  - Drive results hold the tile ~9s ("Punt", "Field Goal", "TD -- not him");
+    his own TD ~14s.
+- **Every football prop the front page can GRADE it can FOLLOW** (yards,
+  receptions, passing TDs), progress first via `nflProgress()` (skipped for a
+  multi-player leg). Sacks have the `defense` kind (shows only while his side
+  defends — not the removed anytime-TD ON DEFENSE tile).
+- **Quarter bets:** `quarters` (each team scores all four) is one tile per pair
+  — the real leg carries a garbled `players` split, so never fall back to
+  `legPlayers()`. `q_score` (a team scores in quarter N; "each team in each
+  quarter" = eight legs) HITS the moment that team scores in that quarter and
+  MISSES when the quarter ends without. **"The quarter ended" is read off the
+  clock** — ESPN `period` + status name (`STATUS_END_PERIOD`,
+  `STATUS_HALFTIME`) → `periodOver` — not a 0:00 clock (an untimed down can
+  still score). `quarterOver()` is shared by both graders. A later quarter is
+  `not_started`. Seven of eight in is an ordinary Iron. A two-team row names
+  both teams (`legSubjectName`). (`test_combined_page.py` R, T.) The
+  `espn_event` fixture derives `period` from the linescores; it used to
+  hardcode 4.
+- History: `/football/history/` (§14).
+
+### NHL (`hockey/index.html` and the `NHL` engine), built 2026-10-05
+
+- **ESPN `site.web.api.espn.com/.../hockey/nhl`** scoreboard + summary. The
+  NHL's own `api-web.nhle.com` sends no CORS header — unusable.
+- **Markets are always `nhl_*`**: `nhl_goal` (default), `nhl_points`,
+  `nhl_assists`, `nhl_sog`, `nhl_saves`, `nhl_ml`, `nhl_pl` (puck line),
+  `nhl_total`. Never `ml`/`total`: those are baseball graders keyed by
+  abbreviation, and TB is the Rays AND the Lightning. Overs settle when they
+  clear; unders and team bets at the final; OT and shootout count; push = `na`;
+  rostered with no stat line at the final = void.
+- **Tiles:** `ice` — count toward the line plus IN NET (goalie) / ON THE ICE /
+  ON THE BENCH from the summary's `onIce` list ("In Play" entries), or plain
+  LIVE when the list is absent. **`onIce` CONFIRMED live 2026-10-05**: 11-12
+  "In Play" ids during play, absent around the opening faceoff. It's only
+  trusted while the game is live, and "benched" is never inferred from a
+  missing list (`test_hockey.py` C9). POWER PLAY / SHORT-HANDED come from the
+  latest play's `strength` (e.g. `power-play`), relative to that play's team.
+  `rink` — ONE tile per team listing every bet on it; a total gets its own.
+- Goals have their own alert (🚨, kick sound) and log rows.
+
+### NBA (`basketball/index.html` and the front page's `NBA` engine), built 2026-10-05
+
+- ESPN `.../basketball/nba` scoreboard + summary. Boxscore labels `MIN PTS FG
+  3PT FT REB AST TO STL BLK OREB DREB PF +/-` ("3-7": made first); rows carry
+  `active`, `starter`, `didNotPlay`, `reason`, `stats: []` for a DNP. A play's
+  participants: actor FIRST, assister/stealer/blocker SECOND; `scoreValue`
+  1/2/3. `PLAY_CREDIT` reads that to time a hit.
+- **Box-score `active` CONFIRMED live 2026-10-05** = exactly 5 per team,
+  changing with substitutions. Trusted only while live AND naming 1..10
+  players; otherwise `onCourt` is null and the page says LIVE, never ON THE
+  BENCH. In a FINAL game `active` is false for everyone.
+- **Markets `nba_*`**: points, rebounds, assists, threes, steals, blocks, the
+  combos `nba_pra`/`nba_pr`/`nba_pa`/`nba_ra` (an engine stat key may be a "+"
+  sum), `nba_dd`/`nba_td` (2/3 categories in double digits among PTS REB AST
+  STL BLK), `nba_ml`/`nba_spread`/`nba_total`. Hockey's grading shape; **no
+  default market**.
+- Tiles: `court` (ON THE COURT / ON THE BENCH / LIVE / HALFTIME / BREAK, count,
+  "N FOULS" from four) and `hoop` (one per team).
+
+### WNBA (`wnba/index.html`, `makeHoopsEngine("wnba")`)
+
+ESPN's WNBA summary is the NBA's column for column, so it runs on the same
+engine factory with its own closure. A WNBA leg is `sport: "wnba"` with the
+same `nba_*` markets; `marketForeign()` treats wnba as nba. The 2026 season
+ended Oct 1, so nothing WNBA has been seen live; same rule as the NBA (unknown
+means LIVE). `test_wnba.py` runs `test_basketball.py` with
+`HOOPS_LEAGUE=wnba`, plus its section G (both leagues on one card).
+
+### College football (`cfb/index.html`, `makeFootballEngine("college-football", "cfb")`)
+
+ESPN's college summary is the NFL's field for field. A college leg is
+`sport: "cfb"` with the NFL's markets. Touchdown alerts loop over both
+football engines (college under `cfbtd:` keys).
+- **"Played" = `starter`** — ESPN never sets `didNotPlay` on a college roster
+  (128 listed, 0 flagged). A starter with no stat line is a miss, anyone else
+  with none is VOID. **The user confirmed this rule 2026-10-05** (declined
+  "no stat line = miss for everyone"); don't change it without asking.
+  (`test_cfb.py` D3/D4.)
+- **A Saturday is 50+ FBS games** (the default scoreboard is FBS): a game no
+  pick is in is never fetched, not even for the log, and an unresolvable name
+  doesn't open every game (`watchEverything` is NFL-only). FCS (group 81) isn't
+  on that scoreboard; an FCS pick sits not-started.
+- **ESPN's school rosters are incomplete** (12 of 63 box-score players missing
+  on VAN @ UGA, including Georgia's starting QB). See §11 for the top-up.
+
+## 11. Parsers and rosters
+
+### `parse_picks.py` (MLB) — the card templates
+
+The group's generator changes template without warning, and each change parsed
+to zero tickets (exit 1, nothing written, the slate silently never posted)
+until supported. All templates parse from the same input, decided by which
+regex a line matches. **A ticket is a single or a parlay by its actual leg
+count, never by its header.** Accepts text with or without markdown markers
+(`## `, `* `) — a rendered Gemini copy has them stripped.
+
+| # | First seen | Distinguishing shape | Fixture (`tests/fixtures/`) | `test_parser.py` § |
+|---|---|---|---|---|
+| 1 | original | `## Longshot` / `## N-Leg Parlay Cards` headers, `Card N: Title`, `Player (+ODDS) \| TEAM (Bettor)`, `Bet by X: $Y \| PP: $Z` | `gemini_picks.txt`, `test_picks.txt` | 1 |
+| 2 | 2026-09-18 | `Ticket N: ...`, legs `TIME \| Player (Team) +ODDS (Bettor)`, footer `(Bet by X) [Bet: $Y \| PP: Z]` | `discord_ticket_format.txt` | 4 |
+| 3 | 2026-09-19 | `Ticket #N (Bettor - $X Bet) [PP: $Y]` under `Part N:`; legs `* (Bettor) Player - TEAM (+ODDS) - TIME ET`; prop-style legs `- Player - Stolen Bases O0.5 (+450) - SEA @ COL - TIME` | `discord_ticket_hash_format.txt`, `discord_prop_legs_with_steals.txt` | 5, 7 |
+| 4 | 2026-09-20 | `🎰 Ticket #N (M-Leg Parlay)` / `🔥 Bonus Ticket`, `Bet: $X (Book) \| PP: $Y` line, `• Player (TEAM) - TIME ET (+ODDS) (Bettor)` | `discord_emoji_ticket_format.txt` | 10 |
+| 5 | 2026-09-21 | `🕒 <Name> Window (...)` + `Bonus Bets Tracker` sections, `Parlay N (Owner)` / `Ticket N (Owner)`, `* Player (+ODDS) (Who) – TIME ET` (en-dash; who and time optional), `* Wager: $X \| Payout: $Y` | `discord_parlay_window_format.txt` | 11 |
+| 6 | 2026-09-23 | "DAILY HOME RUN PARLAY TRACKER": bare bettor-name line, `Ticket #N - 2-Leg Parlay $6.00`, `[ ] Player +ODDS (Nickname) TIME`, `Potential Payout: $X` / `N/A` | `discord_tracker_checkbox_format.txt` | 12 |
+| 7 | 2026-09-24 | "SOLAR KEYS": `🎟️ Ticket N (6.00 bet pays 198.00)`, `* Player (+ODDS) - TEAM (Who) 🕒 TIME ET` (written by the auto-fixer) | `discord_solar_keys_tracker_format.txt` | 20 |
+| 8 | 2026-09-26 | bare `Parlay N`, `* Player (+ODDS) — Full Team (Bettor) TIME` (em/en-dash only), `$6.00 Bet \| Potential Payout: $X (Owner)` | `discord_plain_parlay_emdash_format.txt` | 13 |
+| 9 | 2026-09-29 | single-game props: `Phillies vs. Braves 2:00 PM` header, `Ticket #N`, priceless bullet props (surnames, `Schwarber/Olson`), `$5 pays $109.70` | `discord_single_game_props.txt` | 14 |
+| 10 | 2026-09-29 | bare `Ticket N`, bullet free-text props, no game header, `Wager: $X \| Payout: $Y` | `discord_team_bets_no_header.txt` | 15 |
+| 11 | 2026-09-30 | bare `Ticket N`, UNbulleted prop lines, `8.50 pays 105.79` (no `$`) | `discord_pitcher_markets.txt` | 17 |
+| 12 | 2026-10-01 | `- Subject: Bet` legs, mixed sports, `Stake: X \| Pays: Y [(Owner)]` or `Stake/Pays: N` | `discord_priceless_mixed_format.txt` | 21 |
+| 13 | 2026-10-04 | bare `Ticket N`, price at the END of each leg (`... Anytime TD +130`, `2+ TB 145`) | `sports_bare_ticket_trailing_odds.txt` | 19 |
+
+**If an upload parses to zero again, that's a new template, not a
+regression.** First let the auto-fixer try it (§13); either way check the
+Action log for `WARNING: parsed nothing`, get the raw text, and add a fixture +
+assertions — including for what the fixer writes, which is reviewed like any
+patch, not trusted because it passed.
+
+Lasting lessons (each pinned in `test_parser.py`; "section N" below means
+that file's sections):
+- **Header collisions with `PARLAY_HEADER_RE`:** "🎰 Ticket #1 (3-Leg Parlay)"
+  contains "3-Leg Parlay", so every ticket header was misread as a new
+  SECTION. `section_header()` carries explicit exclusion guards (football's
+  parser hit the same trap independently).
+- **A new pattern must not match a line an older template owns.** The
+  em-dash in template 8 is load-bearing: template 7's legs are the same shape
+  with a hyphen, so `PLAIN_PARLAY_LEG_RE` excludes `-` (pinned in section 13).
+  `TRACKER_HEADER_RE` is word characters and spaces only so it can never
+  swallow a leg line.
+- **Template 5's `(Bettor)` header is the ticket OWNER**, a fallback for legs
+  without their own `(Who)`. Requiring the optional tails once glued the bettor
+  to the name ("Francher-Harper": unresolvable, ungradeable).
+- **Template 6 user decisions, deliberately different branches:** a leg with
+  NO ODDS is reported via the note and NOT tracked (a price can't be invented;
+  the ticket may become a single by leg count); a leg marked `- DNP` is dropped
+  WITHOUT a warning. The bare name line is only REMEMBERED, consumed only when
+  a ticket header follows. Card nicknames are ignored — the roster supplies the
+  team (no second source of truth).
+- **Templates 9+: a leg may have a NULL price** (only the ticket is priced).
+  Surnames resolve only within the two named teams (`resolve_in_teams`), and
+  one that still matches two players stays unresolved. "N+" means over N-0.5.
+  `CARD_MARKET_WORDS` order matters (hrr before hits, er/win before runs, xbh
+  before doubles and hits).
+- **Template 13's price splitter** (`split_trailing_odds`): a signed number is
+  a price; an unsigned one only at 100+ and never a decimal, so "2+ TB" and
+  "Over 3.5 Runs" keep their line.
+- **One unreadable footer costs that ticket its stake, not the card**
+  (section 18).
+  `clean_num()` accepts `$` and `,` (a "$310.28" capture once crashed
+  `parse()`).
+- **`leg.who` must be JUST the name** — anything after a dash is stripped
+  ("(Noid — Listed as Herb Hernandez)" was once glued on).
+- **Nothing is dropped silently.** An unmatched line that looks like a bet
+  (`BETLIKE_RE`: a `Ticket #N` header, or a bulleted line with odds) is a
+  stderr `WARNING` and goes into `tickets.json`'s `note` — the slate still
+  posts. (A card once "successfully" parsed 16 of 18 tickets.) Legs that parsed
+  but can't be graded (unknown market, unresolved player, `mismatch`) are
+  listed in the note too.
+- **Name resolution** (`resolve_player()`): exact, then a full name minus its
+  generational suffix ("Michael Harris" → Michael Harris II, first AND last
+  matching), then fuzzy at 0.82 against SUFFIX-STRIPPED names (" jr" alone
+  can drop a typo below the cutoff), then give up: name as typed, BLANK team
+  (never guess). Misspelt teams fuzzy-match too, only when unambiguous.
+- **Slate `date`** from the listed start times: posted after its last first
+  pitch → tomorrow, else today (ET).
+- **First pitch times filled from MLB** (`fetch_start_times()` /
+  `fill_missing_times()`): only ever fills a BLANK; a stated time is never
+  overridden. `startTimeTBD` games are skipped (placeholder `gameDate`); a
+  doubleheader takes the earlier game; a single's prebuilt `meta` is spliced
+  too. The parser's only network call; it fails soft (section 16).
+
+### `parse_football_picks.py`
+
+Independent of the MLB parser; its accepted shapes have diverged. Templates
+(`test_football_parser.py` sections): `Ticket N:` (`football_ticket_format.txt`,
+1), `Card N:` (`football_card_format.txt`, 2), and `Ticket N (M-Leg Parlay)` with
+`Bettor: X | Bet: $Y | Potential Payout: $Z` and `- (Bettor) Player (ODDS) Time`
+legs, free-text times like "Check Listings" (`football_summary_format.txt`,
+2b; same `PARLAY_HEADER_RE` collision fix). If a future upload parses to zero,
+check which sport. Stores `athleteId` on every leg; dates from the NFL schedule
+(§10).
+
+### `parse_combined_picks.py` (All Sports) and the league wrappers
+
+**A thin layer over `parse_picks.parse()`, not a third parser** — re-reading
+every template would guarantee drift. It answers only: which SPORT is each
+leg, and so which roster resolves it.
+- **The join is the leg's player STRING** as `parse_picks` returned it
+  (canonical or as typed; `pp_key_for`), so one parlay can carry "Jose Ramirez
+  Anytime TD" (NE) and "Jose Ramirez" (CLE) and grade two people. Name +
+  MARKET is looked up before name alone (one man on two bets). Several names
+  sit on two rosters; a wrong sport doesn't throw, it grades quietly wrong.
+- **Evidence order** (`decide_sport`, checked directly): explicit market word,
+  roster membership when the name is on one roster only, the team named on the
+  line, and the section heading LAST (a heading naming both sports clears the
+  default). Nothing resolvable → reported in the `note`, never guessed.
+- **The team is read from the text AFTER the price, never the player's name**
+  (Buffalo, Jackson, Carolina, Phoenix are names). Text before the price is
+  consulted only when the rest names no team, all-or-nothing.
+- **A market phrase glued to the name is stripped and re-resolved** ("Max
+  Fried Strikeouts Over 5.5" otherwise comes back with a blank team).
+- `NFL_TEAM_WORDS` is a static 32-row table (the football roster has
+  abbreviations only).
+- **`normalize_card()`** first turns a bare count into "N+" and an unsigned
+  team half-point into "+1.5" (the 2026-10-05 bare-count card,
+  `sports_bare_count_format.txt`, `test_combined_parser.py` O). A bare "Yards" is read by position
+  (`pos_by_norm`: QB passing, RB rushing, WR/TE receiving). A shared-city tie
+  ("Tampa Bay") is broken by a nickname only one league uses.
+- **League detection order in `scan_card`:** WNBA first (`nba_record(...,
+  league="wnba")`, evidence: a WNBA name or team only), then NBA (NBA name or
+  team, or an NBA-ONLY word: `NBA_ONLY_MARKETS` — rebounds, threes, combos,
+  double/triple-double, blocks; "steals" is MLB's too and excluded), then
+  hockey (`nhl_record`), then college (`cfb_claim`), then MLB/NFL. NBA before
+  hockey because "Points"/"Assists" are hockey words; WNBA before NBA so A'ja
+  Wilson's rebounds don't land in the NBA.
+- Hockey traps: **name first, market second** ("Brayden Point Anytime Goal" was
+  read as a POINTS bet); shared nicknames need their city
+  (`nhl_team_words` accepts only nicknames no other league uses; full names
+  always); `NHL_MARKET_ALIASES` most-specific first ("Shots on Goal" isn't a
+  goal; "Field Goal" isn't hockey).
+- **"Kings" is both leagues'**: each league's team words exclude the other's
+  nicknames on an All Sports card; `teams_for()` lets a bare nickname take its
+  city from the team named after the price, only when the subject IS that team.
+  Cross-league player names (Jose Alvarado, Spencer Jones, …) are settled by
+  the team on the line (`his_club`); with no team they stay baseball's.
+- College (`cfb_claim`, before the MLB/NFL decision): the player at the school
+  the line names, a school named after the price with nobody from another
+  league, or a name only the college roster knows. `cfb_team_words`: full names
+  always; a short name/nickname only when exactly one school has it and (on an
+  All Sports card) no other league's team contains it ("Arizona" → Cardinals).
+  Collisions: the parser takes the holder at the named school
+  (`others_by_norm`). College legs then take the NFL path with the college
+  roster swapped in.
+- **`only_sport`**: a `hockey_*.txt` / `basketball_*.txt` / `wnba_*.txt` /
+  `cfb_*.txt` card forces every leg to that league (Will Smith is a Dodgers
+  catcher AND a Sharks centre). On a single-sport card every own nickname
+  counts. A dated card title ending in a bare number is skipped.
+- **Slate span = the PICKED teams' games**, not the NFL week rule. A FINISHED
+  game is skipped EXCEPT today's while a picked team still plays today
+  (`test_combined_parser.py` I4/I5); college looks eight days ahead (a Saturday
+  card goes up Monday).
+- Twelfth-template legs: "- Lions: Score in 1st Quarter" → `q_score`, keyed on
+  the leg's FULL text (the team name repeats four times); a footer owner
+  ("Stake: 9.88 | Pays: 84 (Kenny)") becomes every leg's bettor and the
+  ticket's book. A leg's sub-line omits the bettor when it IS the owner.
+- **The wrappers** (`parse_hockey_picks.py`, `parse_basketball_picks.py`,
+  `parse_wnba_picks.py`, `parse_cfb_picks.py`) set `only_sport`, `sports`, their
+  own OUT/PREV paths (`test_combined_parser.py` P13b), archive on a new day.
+  **No real hockey, basketball, WNBA or college card has arrived yet**: their
+  fixtures are written to the generator's current shape, so treat the first
+  real one as a template incident.
+- The bare-count card's NHL leg is now a real `nhl_pl` on the Lightning
+  (`test_combined_parser.py` O10); the "shown, not tracked" stopgap from before
+  hockey was built is gone.
+
+### Rosters
+
+- **Every roster builder MERGES with the committed roster; none overwrites**
+  (`merge_rosters()` in `build_roster.py`, `build_football_roster.py`,
+  `build_hockey_roster.py`, `build_basketball_roster.py`,
+  `build_cfb_roster.py`; `--replace` is the escape hatch). Active rosters
+  exclude the IL: one MLB overwrite dropped 73 names including Aaron Judge, and
+  a missing player is the worst state (his leg can never resolve). A stale TEAM
+  is cheap. Fresh data wins for anyone in both. `merge_rosters()` is pure so
+  it's tested offline (`test_build_roster.py`; football in
+  `test_football_parser.py` section 5).
+- **No roster is on a schedule. Rebuild whenever a name won't resolve.**
+  (MLB went 8 days stale before a call-up couldn't resolve.)
+- **MLB: never strip generational suffixes.** MLB's feed always includes them
+  ("Fernando Tatis Jr."); a CSV roster without them left three picked stars
+  stuck `not_started` all game. The roster is built from the MLB Stats API.
+- `build_basketball_roster.py --league nba|wnba` (NBA/WNBA rosters are a flat
+  list). `build_cfb_roster.py`: FBS only (group 80: 138 schools), tops rosters
+  up from the last `--days` of box scores (~14k players; 209 names shared —
+  plain maps keep a skill player, `others_by_norm` lists the rest);
+  `--season` defaults from the date (ESPN files a college season under the
+  year it starts, so before March it's last year). Rebuild weekly in season.
+
+## 12. Discord intake bot (`discord-bot/`)
+
+A friend uploads a `.txt` in the intake channel, confirms with a reaction, and
+the bot commits it to that sport's `incoming_picks.txt` via the GitHub
+Contents API, which triggers the parse workflow.
+
+**Routing is by FILE NAME prefix only** (`ROUTES` in `bot.py`; never inspects
+the text — cards share a template and a guess would overwrite the wrong slate):
+
+| Prefix | Writes | Status message links |
+|---|---|---|
+| `baseball` | `data/incoming_picks.txt` | `https://bmbs.bet/mlb/` |
+| `football` | `data/football/incoming_picks.txt` | `https://bmbs.bet/football/` |
+| `sports` | `data/combined/incoming_picks.txt` | `https://bmbs.bet/` |
+| `hockey` | `data/hockey/incoming_picks.txt` | `https://bmbs.bet/hockey/` |
+| `basketball` | `data/basketball/incoming_picks.txt` | `https://bmbs.bet/basketball/` |
+| `wnba` | `data/wnba/incoming_picks.txt` | `https://bmbs.bet/wnba/` |
+| `cfb` | `data/cfb/incoming_picks.txt` | `https://bmbs.bet/cfb/` |
+
+Anything else is refused with a rename hint that lists every prefix, built
+from `ROUTES` (2026-10-05; it used to hard-code three) — `test_discord_bot.py`
+C7b. `test_notify_discord.py` F requires the CLI's `--sport` choices ==
+`SITE_URL` == the bot's route sites.
+- **Re-posting an IDENTICAL card is a no-op and the bot says so.** The Contents
+  API creates an empty commit for identical content, and the workflow triggers
+  only on a change, so nothing would fire. `push_incoming_picks()` compares
+  first and returns None (`test_discord_bot.py` E1-E5, B9-B11).
+- **`[discord:<id>]` in the commit message** carries the uploader's id to
+  GitHub Actions (Discord mentions need the id, not a username). Every parse
+  workflow and the auto-fixer grep it out. Absent (web-editor upload) = no
+  mention.
+- **The bot does NOT run from this clone.** It runs from a separate clone on
+  the user's always-on Windows "Plex box", under Task Scheduler via
+  `run_bot.bat`. That box's clone has the `.env`; the dev clone doesn't — the
+  quick tell. A Claude Code session here cannot reach it; a `bot.py` change
+  does nothing until that box pulls AND restarts the process (commands in
+  `discord-bot/README.md`). **Proving a restart took:** upload an unroutable
+  `.txt`; the refusal lists every prefix the RUNNING code knows.
+
+## 13. Discord status messages and the auto-fixer
+
+### `scripts/notify_discord.py`
+
+Posts to the intake channel via an incoming webhook (`DISCORD_STATUS_WEBHOOK`,
+an Actions secret; one channel for all sports). Two subcommands: `success`
+(summarize a freshly written tickets file and post it) and `post` (post text,
+print the message id). Every status is a NEW post that @-mentions the
+uploader — never an edit (an edit pings nobody and changes no timestamp).
+- **Success path:** every parse workflow's commit step sets `committed`
+  (`yes` only for a genuine new commit); a step gated on
+  `committed == 'yes'` runs `success --mention <id> --before ...`. The message
+  says the picks **are now LIVE** on that sport's page and shows a date range
+  whenever `endDate` differs from `date` (any sport).
+- **Correction vs new slate:** each workflow copies the live tickets file to
+  `$RUNNER_TEMP/live-before.json` before parsing and passes `--before`. Same
+  slate (`slate_key()`: the date, or NFL's `weekEnds`) → "UPDATED with
+  corrected information" plus `what_changed()`; otherwise "now LIVE". The
+  auto-fixer's success adds `--fixed`. (`test_notify_discord.py` E,
+  `test_workflow_yaml.py` H.)
+- **The four hidden-league workflows also post a "couldn't be processed"
+  notice `if: failure()`** — they have no auto-fixer (`test_workflow_yaml.py`
+  B3m: posts on failure, that step can't fail the job).
+- `allowed_mentions` is pinned to `users` (a card containing "@everyone" would
+  otherwise ping the server). The webhook URL never reaches a log or error
+  message. Errors raise `NotifyFailed`, which `main()` turns into a stderr
+  warning and exit 0.
+- The ping fires on the commit, not the Pages deploy, which has sat queued 10+
+  minutes — "now LIVE" can precede the site.
+
+### `auto-fix-parse-failure.yml` + `scripts/auto_fix_parser.py`
+
+Covers **baseball, football and combined** only (fires on those three parse
+workflows' `workflow_run` failure; `workflow_dispatch` with a sport dropdown).
+An unattended Claude Code AGENT was refused by the platform's safety classifier
+("Create Unsafe Agents") — not a bug to route around. What's built is bounded:
+ONE plain Claude API call per attempt, no tools, judged by a plain script.
+
+1. Post "attempting an automatic fix now" to Discord.
+2. `already_parses()` runs `RUN_PARSER` (the combined parser for a combined
+   card) on the upload first; if it already parses, stop — a repair whose
+   subject is healthy must not "succeed" (a branch cut before the upload once
+   reported a fake fix and re-parsed an old card over live data).
+3. Send the parser source + the raw upload to the API (`ANTHROPIC_API_KEY`;
+   absent → `resolved=no` immediately). The model returns **search/replace
+   edits** (`apply_edits()`: each SEARCH must match exactly once, all or
+   nothing, no-ops refused), with a whole-file response accepted as fallback.
+4. Run `FULL_SUITE` — every `tests/test_*.py` except the two network tests
+   (`test_feed_fields`, `test_notify_discord_live`); it was a stale hand list
+   of 19 that missed the combined parser built on `parse_picks.py`
+   (`test_auto_fix_parser.py` S1). Then `verify_fix()` re-parses the real
+   upload AND re-runs `test_live_data_schema.py` against the tickets file just
+   written.
+5. Any failure reverts the parser byte-for-byte and retries with the failure
+   detail (including the model's summary and a diff of what it tried), up to
+   `MAX_ATTEMPTS = 4`.
+6. Success leaves the patched parser, the new tickets file and an archived
+   upload (`tests/fixtures/auto_detected_<sport>_<timestamp>.txt`, for a human
+   to turn into a regression test) uncommitted; a separate bash step commits
+   and pushes. The script never runs `git`.
+7. Post the outcome as a NEW message: fixed and live / found a fix but couldn't
+   push it (the commit step's outcome is checked separately) / couldn't
+   resolve.
+
+**Security:** the upload and the model's response are untrusted. Neither is
+spliced into a shell command via `${{ }}` (substituted before the shell
+parses); values go through `env:` + quoted shell variables.
+
+**Lessons, each found the hard way (2026-09-20 → 10-01):**
+- **Discord needs a `User-Agent`**, or Cloudflare returns 403 `error code:
+  1010` before Discord sees the request. No message had ever been delivered in
+  CI until this was found. `test_notify_discord_live.py` probes the real host
+  with a bogus webhook id (expects 404, and that a no-UA request is still
+  blocked).
+- **A status ping must never veto the repair:** every Discord step is
+  `continue-on-error` and `NotifyFailed` exits 0 (`test_workflow_yaml.py` F).
+- **`python-dotenv` must be in `tests/requirements.txt`** (`bot.py` imports it
+  at module level); without it the suite gate was unsatisfiable in CI.
+- **Checkout follows `workflow_run.head_branch || ref_name`**, not a hardcoded
+  `main`, so it can be exercised on a branch
+  (`gh workflow run "Auto-fix a Picks Parse Failure" --ref <branch> -f sport=baseball`).
+- **The push retry rebases onto the checked-out branch**, not `main` (a
+  hardcoded main once replayed a whole branch and threw away a good fix). The
+  other workflows keep literal `main` on purpose; F6/F7 pin both sides, and F6
+  strips comment lines before its negative grep.
+- **Failure detail includes the attempted diff**, built before the revert.
+- **System-prompt rule 1b:** a new pattern must not match a line an existing
+  template owns (the model once avoided the header trap and fell into the same
+  trap with a lazy leg regex).
+- **`clean_num()` accepts `$`** in both the MLB and football parsers.
+- **The schema re-run in `verify_fix()`** caught a patch whose output had
+  `"payout": "TBD"` (a string where a number is required) after every other
+  gate passed.
+- **No `temperature`** (any value is HTTP 400 on `claude-sonnet-5`);
+  **`thinking` explicitly disabled** (left default it consumed the whole
+  budget and returned no text, even at 32000 `max_tokens`).
+- **Strip a matching markdown fence** from a whole-file response
+  (`extract_file_and_summary()`); the model sometimes adds one despite
+  instructions.
+- **Search/replace, not whole files and not unified diffs** (2026-10-01):
+  whole-file responses were truncated at ~16k tokens on two real incidents;
+  diffs carry line numbers a model gets wrong in ways that still apply. A real
+  run used 1662 output tokens and resolved on attempt 1.
+
+## 14. Results archive and History pages
+
+The live pages keep nothing; a daily job writes finished slates down.
+- **`record_results.py`** → `data/results/<date>.json` (MLB): every bet as
+  posted, each leg's result + MLB id + PHP credit + Statcast detail of his
+  HRs, each bet's outcome and return, every HR in the league that day.
+- **`import_history.py`** rebuilds `data/history.json` from the group's Google
+  Sheet (older slates) plus `data/results/`. **On a date both cover, the
+  tracker's record wins.** A dead sheet reuses the sheet parlays already in
+  `history.json` with a warning. Refuses to shrink (`--allow-shrink`).
+- **`record_football_results.py`** → `data/football/results/<weekEnds>.json`
+  and `data/football/history.json` (football has no sheet).
+- All run from **`import-history.yml`** daily at 9am ET (`cron: 0 13 * * *`),
+  one job, one commit, each step `continue-on-error` with the job failed at the
+  end. **9am, not "when Today rolls over"** — the rollover happens in visitors'
+  browsers; catching it would need an evening-long cron (gotcha 3). The user
+  asked and chose this; don't move it to an evening schedule. It commits only
+  history/results files, never a live tickets file.
+- A slate is recorded when every game is Final, or two days later regardless
+  (`"complete": false`, re-graded later). A record carries a hash of its picks:
+  same picks → skipped offline; corrected picks → re-graded. Re-running is
+  always safe.
+- **The graders are ports of the pages' grading**; a grading change on a page
+  must be made in its recorder too, and vice versa (checked on the first real
+  slate: all 50 legs and 36 league HRs matched).
+- No All Sports or hidden-league archive yet (deferred).
+
+**Sheet import facts** (`import_history.py`):
+- Tabs `Archive` (gid 1001) + `HR Parlays` (gid 0). Never import "Solo
+  Tracker" (invalid per the user).
+- **Use `/export?format=csv&gid=N`, never `/gviz/tq?tqx=out:csv`** — gviz drops
+  hidden rows (~2,000 of them).
+- Compute every stat from raw legs; the sheet's "Player Stats" tab matches by
+  substring ("Cruz" counts "Oneil Cruz").
+- The sheet mis-dates slates: `drop_misdated_copies()` drops a sheet slate ±1
+  day from a recorded one when 80%+ of its (bettor, odds) legs match. Its
+  hand-typed marks have errors the tracker doesn't; disagreements are reported
+  and footnoted, never silently "fixed".
+- "The ones that got away" joins real MLB game logs at import time via the
+  player map; recorded players join it by the id they were graded with.
+- Names: the sheet uses shorthand ("Judge", "PCA"); `history_player_map.json`
+  (nickname → MLB id, hand-reviewed) ties them. **Never auto-resolve nicknames**
+  ("Lowe", "Muncy" are ambiguous) — use `--draft-map` and review.
+- Real money from the sheet is NOT derivable (stakes never filled in); the
+  page labels its flat-stake ROI hypothetical. Recorded bets (`src: "site"`,
+  `stake`, `payout`, `returned`, `won`, `book`, `kind`) power the **Real
+  money** tile. Odds only from 2026-08-20 (`oddsFrom`). Blank status =
+  `pending`; DNP legs are void.
 - `dump()` writes no timestamp, so an unchanged sheet produces no commit.
 
-## tickets.json schema
+**History pages are isolated (hard user constraint).** `history/index.html`
+must never touch or risk the live tracking: own script, own data, never polls
+MLB or reads tickets files, and `mlb/index.html` never reads `history.json`.
+Coupling is footer links only (MLB → `/history/`; history → `/`;
+`football/history/` ↔ `/football/` and "MLB history"). Don't refactor shared
+helpers out "for reuse" — duplication is the point. `test_history.py` block A
+enforces it; if it fails, the change is wrong. Both live in `<name>/index.html`
+because GitHub Pages serves a sibling `name.html` for a bare `/name` first.
+
+## 15. `tickets.json` schema
 
 ```json
 {
   "date": "2026-09-18",
-  "note": "free text, shown at top of page",
+  "note": "free text, shown at top of page (parser warnings)",
   "windows": [
     {
       "title": "e.g. '⚡ 3-Leg Parlay Cards'",
@@ -2081,638 +1253,197 @@ Data facts worth knowing before touching the importer:
 }
 ```
 
-`leg.who` / `single.who` is the bettor's name — used for the Bettor Tracker
-and bettor-filter feature. Must be JUST the name, no trailing annotations
-(there was a real bug where source text like "(Noid — Listed as Herb
-Hernandez)" got glued onto the `who` field; fixed by stripping anything
-after a dash during parsing — don't reintroduce this).
+`payout` may be null (card said "TBD"/"N/A"); `odds` may be null (priceless
+legs). Optional fields:
 
-## Known gotchas / mistakes already made once — don't repeat them
+| Where | Field | Meaning / written by |
+|---|---|---|
+| leg, single | `market` | registry key (§5); absent = sport default |
+| leg, single | `line`, `side` | prop line; `side` omitted when "over" |
+| leg, single | `time` | first pitch / kickoff ("TIME ET") |
+| leg | `players[]` | a leg naming several players (graded combined) |
+| leg | `opponent` | the other team the card named (MLB matchup check; two-team NHL/NBA lines) |
+| leg | `mismatch` | `flag_matchups()` text when the MLB schedule contradicts the matchup |
+| leg | `innings` | N for an `f5` total |
+| leg | `sport` | `nfl` / `cfb` / `nhl` / `nba` / `wnba` (combined/league parsers; absent = MLB) |
+| leg | `athleteId`, `athleteIds` | ESPN ids (football and combined parsers) |
+| leg | `teams` | both teams of a two-team bet (game lines, `quarters`) |
+| leg | `quarter` | the quarter of a `q_score` leg |
+| top | `endDate` | last date of the span (football, combined, league wrappers) |
+| top | `weekEnds`, `sport` | NFL only: the week's Tuesday; `"football"` |
+| top | `sports[]` | which leagues a combined/league slate covers |
 
-1. **NEVER include anything under `data/` in a code handoff/deploy unless
-   explicitly asked.** Early on, test/sample data (`test_picks.txt` output)
-   got shipped in delivery zips and silently overwrote the user's real
-   picks multiple times because "copy the zip contents over the repo" also
-   copied stale `tickets.json`. `data/tickets.json`, `data/tickets-previous.json`,
-   and `data/incoming_picks.txt` (plus their `data/football/` and
-   `data/combined/`, `data/hockey/`, `data/basketball/`, `data/wnba/` and `data/cfb/` twins) are live user data, managed only through
-   the picks-upload → GitHub Actions pipeline. `data/history.json` is pipeline data too (only
-   `scripts/import_history.py` writes it), and so are `data/results/`,
-   `data/football/results/` and `data/football/history.json` (only the two
-   `record_*_results.py` scripts write them). Code changes should only
-   ever touch `index.html`, `mlb/index.html`, `football/index.html`, `all/index.html`,
-   `hockey/index.html`, `basketball/index.html`, `wnba/index.html`, `cfb/index.html`, `history/`, `features/`, `scripts/`,
-   `.github/workflows/*.yml`, `discord-bot/`, `tests/`, `README.md`, `CNAME`.
-   `tests/test_live_data_schema.py` is a deliberate, narrow exception: it
-   **reads** whatever is currently committed under `data/` to check it against
-   the schemas above (nothing else does -- every other test uses a fixture or
-   a fake fetcher). It never writes. Don't read that as license to touch
-   `data/` from any other test or script; this file is the one exception, on
-   purpose, and stays read-only.
+`tests/test_live_data_schema.py` validates the committed files against this.
+The page writes `name`, `sub`, `title`, `foot` and `meta` into HTML: `foot` and
+`meta` are prebuilt HTML by design; `who` is plain text and escaped.
 
-2. **Date handling is genuinely tricky here — games run past midnight.**
-   The today/yesterday tabs, `date` field, and `tickets-previous.json`
-   archive were first built with a **clock-based** rollover (3am ET
-   cutover, 10am clear) and reverted at the user's request, because a
-   slate must not move until its last game is actually over. They were
-   re-added on 2026-09-18, this time rolled over strictly by **game
-   state** (see "Slate dates, not calendar dates" above). Do not
-   reintroduce any wall-clock rollover rule; the only clock in the logic
-   is the deliberate 6am-next-day backstop for suspended games.
+## 16. Known gotchas — don't repeat them
 
-3. **Git push race conditions are common — keep it that way by having no
-   cron.** A legacy cron (`update-checklist.yml` + `scripts/fetch_home_runs.py`
-   + `data/marks.json`) committed results every 10 minutes all evening. It
-   had been dead for a long time — `index.html` computes state in the
-   browser and never read `marks.json` — but was still firing, racing both
-   the parse-picks workflow and the Discord bot, whose read-sha-then-write
-   against the GitHub Contents API fails outright if a commit lands in
-   between. All three files were deleted on 2026-09-18 (recoverable via
-   `git log --diff-filter=D`). Don't reintroduce an automated commit
-   workflow without a real reason. For local pushes rejected by a
-   concurrent commit: `git pull origin main` (or `--rebase`), then push.
+1. **Never touch `data/` in a code change unless explicitly asked.** Sample
+   data shipped in delivery zips once overwrote real picks several times.
+   Every sport's `tickets.json`, `tickets-previous.json` and
+   `incoming_picks.txt` (`data/` and its `football/`, `combined/`, `hockey/`,
+   `basketball/`, `wnba/`, `cfb/` twins) are live data, managed only by the
+   upload → Actions pipeline; history/results files are pipeline data. Code
+   changes touch only: the tracker pages (`index.html`, `mlb/`, `football/`,
+   `hockey/`, `basketball/`, `wnba/`, `cfb/`), `all/index.html` (a stub),
+   `features.html` (a stub), `history/`, `football/history/`, `features/`,
+   `scripts/`, `.github/workflows/`, `discord-bot/`, `tests/`, `README.md`,
+   `CLAUDE.md`, `CNAME`, `.gitignore`. `test_live_data_schema.py` is the one
+   deliberate exception: it READS `data/`, never writes.
+2. **Dates are tricky — games run past midnight.** Rollover is by game state
+   only (§3). The only clocks are the 6am-next-day backstop and the NFL
+   6am-after-`endDate` backstop.
+3. **No cron that commits.** A legacy 10-minute cron raced the parse workflows
+   and the bot's read-sha-then-write; it was deleted 2026-09-18. The daily
+   9am archive is the one user-chosen exception. For a rejected local push:
+   `git pull --rebase origin main`, then push.
+4. **The user works in PowerShell on Windows**, sometimes Git Bash or a
+   Codespace. Infer the shell before giving commands; `git remote -v` confirms
+   you're in the real repo.
+5. **Only the parse workflows write tickets files** (or a direct edit at the
+   user's explicit request). Never regenerate one from test data — test with
+   mocked fixtures in a headless browser or a temp dir.
 
-4. **The user primarily works in PowerShell on Windows**, sometimes Git
-   Bash, sometimes a GitHub Codespace (browser-based, already authenticated,
-   no local files). When giving shell commands, ask or infer which
-   environment is active — `findstr` vs `grep`, `copy` vs `cp`, etc. differ.
-   Confusion between "am I in the actual repo folder with a configured
-   remote, or a random unzipped folder" has caused real problems before —
-   `git remote -v` is the fast way to confirm.
+## 17. Testing
 
-5. **Only two people/things should ever write to `tickets.json`:** the
-   `parse-picks.yml` workflow (via `parse_picks.py`), or occasionally a
-   direct pre-marked hit/miss update at the user's explicit request. Never
-   regenerate it from test/sample data as a side effect of testing a code
-   change — test in a scratch file instead and restore the real
-   `tickets.json` content (or better, don't touch the file on disk at all;
-   test with mocked fixtures, e.g. a headless browser with routed fetch
-   responses).
+No framework: `tests/` holds plain scripts that exit non-zero on failure.
+Page tests run Playwright (Python) headless Chromium, serving the page through
+one `page.route("**/*")` handler with in-memory fixtures and a pinned clock,
+aborting anything unexpected so a missed host fails loudly. Everything is
+offline except `test_feed_fields.py` and `test_notify_discord_live.py`.
 
-## Testing approach that's worked well
+**Mutation-test new checks**: break the code in a scratch copy and confirm the
+check fails. It has repeatedly exposed checks that couldn't fail (a filter
+group holding one value, a fixture whose pick already scored, a tidy fixture
+`player` hiding a garbled real shape, an absence assertion). **In
+`test_record_results.py` every check must sit ABOVE the `if failures:` block**
+— a section appended after it ran, printed, and could never fail. If a new
+section passes its mutations suspiciously badly, check where it sits.
 
-No test framework — `tests/` holds plain scripts that exit non-zero
-on failure:
-
-- `tests/test_parser.py` — both picks formats (`tests/fixtures/gemini_picks.txt`
-  vs `test_picks.txt`) parse identically, the slate-date heuristic, and
-  the archive-on-date-change guard (against a temp dir, never `data/`).
-  Also covers two things nothing else touched: `main()`'s unread-bet-line
-  safety net end to end (a bet-like line nothing understands must surface as
-  a stderr `WARNING` AND a `tickets.json` `note`, and the slate must still
-  post rather than exit 1 — the actual fix for the real incident where a
-  card "successfully" parsed 16 of 18 tickets and said nothing), and
-  `resolve_player()`'s three branches directly (exact match, a fuzzy typo via
-  `difflib` at the 0.82 cutoff, and the give-up fallback that must keep the
-  name as typed with a BLANK team rather than guess).
-- `tests/test_page.py` — Playwright (Python) headless Chromium, serving
-  `index.html` through one `page.route("**/*")` handler with in-memory
-  fixtures (tickets files, MLB schedule, live feeds) and a pinned clock.
-  Covers the past-midnight slate, the all-Final rollover, a new upload
-  landing, the 6am backstop, and filter regressions -- including the bettor
-  filter end to end (section P): clicking a Bettor Tracker row, singles and
-  whole parlays dropping out, only the matching leg surviving inside a
-  MIXED-bettor parlay (with the "N other leg(s) hidden" note), tapping the
-  row again to clear, and a tab switch resetting it. That path was
-  unverified until 2026-09-20 -- the rows had only ever been read, never
-  clicked, so `legPassesFilters()` was never exercised with a filter set.
-  Section Q opens a browser pinned to `America/Los_Angeles` and asserts the
-  live sync line still reads ET (see the sync-line note below); it is the
-  only test that sets a non-default timezone. Also covers the
-  `#dynamic-note` banner (section O): every fixture sets a `note` on
-  `tickets.json` but nothing asserted it actually reaches the screen until
-  now -- a real parser warning renders verbatim, an empty note falls back to
-  "against live MLB results.", and the waiting-for-picks state leaves it
-  blank rather than stale. **Section R** covers everything added on
-  2026-09-20: both bet lists defaulting to collapsed with their own
-  OPEN/HIT/MISSED pill and surviving a re-render, the bench-player-is-N/A
-  grading fix (its fixture's `feed(..., bench=[...])` puts a man in the
-  boxscore with zero plate appearances), the always-on status line in each of
-  its states, the LEGS chip counts, and the leg filter hiding legs inside a
-  mixed card / dropping a card with none / clearing on a tab switch. Every one
-  of those was mutation-tested in a scratch copy before being trusted --
-  including the one that mattered: reverting the grading gate makes R4 fail.
-  One mutation taught something on its own -- flipping `CARDS_OPEN`'s
-  initialiser changes nothing, because `loadCardsOpen()` overwrites it at boot.
-  The real default is that function's `=== "1"`.
-  **Section S** covers the multi-select filters: two chips in one group both
-  staying on, groups AND-ing together, the summary bar appearing and naming
-  every active filter, one chip removing only its own value, Clear all, and
-  the per-ticket Irons expansion. **Section T** pins the header order, the
-  sport in the `<h1>`, and the colour key sitting above the footer. Mutation
-  testing paid for itself twice here: the first draft of S6 removed a filter
-  from a group holding ONE value, so "delete this key" and "clear this whole
-  group" were indistinguishable and a real bug walked past it; and S3 checked
-  the summary's chips without checking the bar ever became visible. Both were
-  found by deliberately breaking the code, not by reading it.
-  **Section U** is Warmup and delays: neither a warmup nor a delayed-start
-  game may have its feed fetched, nobody is "at the plate" before first pitch,
-  and each delay reason is named per team. U5 is the one that covers the
-  snapshot-level gate, by making the schedule and the feed disagree -- without
-  it that guard was untested, which a mutation proved.
-  **Section V** is the two aligned chip rows (same classes, therefore same
-  colours), Irons out of the grid and carrying the right waffle, void bets
-  counted as N/A rather than Open, and Expand all / Collapse all including
-  that it routes through each panel's own toggle.
-
-- `tests/test_live_at_bats.py` — the Live At Bats panel: one mocked game walked
-  forward poll by poll (live count, strikeout, home run/bomb, stale at-bat,
-  tab switch), with the pinned clock moved by hand instead of sleeping.
-- `tests/test_steals.py` — stolen base bets end to end on the page: grading
-  (appeared / void / pulled), mixed HR+steal tickets, the steal alert plain and
-  cashed, on-base / blocked / stole / caught / stranded tiles, no bomb for a
-  steal-only pick's homer, minus-money odds.
-- `tests/test_history.py` — Playwright against `history/index.html` with a
-  hand-worked `history.json` fixture: the isolation guarantee (block A),
-  every stat, sorting/filters, chart tooltips, degraded data, phone width.
-- `tests/test_history_import.py` — the importer, fully offline: inline CSV
-  "tabs", a fake MLB fetcher, temp-dir output, the shrink guard.
-- `tests/test_feed_fields.py` — the one test that DOES hit the network, since
-  mocked fixtures can't prove a `fields=` allow-list is complete. Full vs slim
-  feed for every live game, through the page's own `getGameSnapshot()`.
-- `tests/test_football.py` — the football page: one mocked Sunday+Monday slate
-  walked poll by poll (red zone, touchdown + cash alert, "TD -- not him", punt,
-  the two Josh Allens, id-vs-name matching, inactive -> void, multi-day
-  rollover, background-game cadence) plus the two-way isolation block. The
-  bettor filter is covered at H8-H14, the twin of `test_page.py`'s section P
-  and added at the same time for the same reason; it filters on Joe, who owns
-  both a single and one leg of a mixed-bettor card. Section K is the twin of
-  that file's section Q: its own browser on Pacific, checking the sync line
-  still reads ET. **Section L** is the twin of that file's section R (chips,
-  pills, status lines, collapsible bet lists); it rebuilds `TICKETS` from
-  scratch first, because section J deliberately trims that global down and
-  anything appended after it would otherwise assert against a two-bet slate.
-  The Live Drives state changes live in C2/C6 (no ON DEFENSE tile survives)
-  and D6 (possession flipped but the drive isn't open -> TAKING THE FIELD
-  SOON, grey, not green) rather than in L. **Section M** is baseball's section
-  S (multi-select + the summary bar) and **section N** is its section T (the
-  header reshuffle, the sport in the title, the colour key above the footer).
-  **Section O** is the finished-drive bug: it walks one game from mid-drive to
-  field goal to touchdown to the receiving team's first snap to a punt, and
-  pins who is green at each step. **Section P** is baseball's section V.
-- `tests/test_combined_parser.py` — `scripts/parse_combined_picks.py`, fully
-  offline (the ESPN schedule lookup is given a fetcher that raises). Covers the
-  mixed parlay, the Jose Ramirez cross-sport collision in a single ticket,
-  athlete ids on every NFL leg, a market phrase stripped off a player name, an
-  ungradeable NFL prop keeping its own market, `decide_sport`'s evidence ORDER
-  checked directly (the fixture can pass while the order is wrong, and the
-  order is the whole design), and the archive-only-on-a-new-day rule.
-  Eight mutations, all caught -- one of which ("read the team out of the
-  player's own name") exposed a real hole in the fix rather than in the test.
-- `tests/test_combined_page.py` — `all/index.html` in Chromium, fully offline:
-  its own tickets files, the MLB schedule and feed, and ESPN's scoreboard /
-  summary / roster, all from fixtures, with `route.abort()` on anything else
-  so a missed host fails loudly instead of reaching the internet. The checks
-  that matter most: both `normalizeName`s coexisting (A3/A4 -- the seal on the
-  NFL module), a mixed parlay cashing (C3), a hit baseball leg NOT cashing a
-  football bet nobody followed (C4), the slate staying open while either sport
-  is live (D1), an all-NFL card not being an empty slate (E1) and an all-MLB
-  one not waiting on football (G2), both sports' tiles on one wall (H), and
-  the alert path including the flood guard, a dead parlay staying quiet, and
-  an all-football card alerting at all (I/J/K).
-  **Two fixture lessons worth keeping:** every NFL leg carried an explicit
-  market at first, so the sport-default line was never run; and the first
-  drive fixture had the pick already SCORING, which makes him ineligible for a
-  tile anyway, so the drive logic was never exercised and a mutation against
-  it passed.
-- `tests/test_hockey.py` — `hockey/index.html` AND hockey on `all/index.html`,
-  in Chromium, fully offline (ESPN NHL scoreboard/summary from fixtures, MLB
-  aborted). The page is hidden from every other page's switch (A3), keeps to
-  `bmbs.hk.*` (A4), never asks MLB for anything on a hockey-only card (A5);
-  live grading of every market, the tiles (ON THE ICE / ON THE BENCH / IN NET
-  / POWER PLAY / a missing `onIce` reading plain LIVE / one TEAM BETS tile per
-  team), a power-play goal's hit, alert, log row and bell time, the final
-  (moneyline, puck line, total, void), and the All Sports page grading the
-  same legs. The hockey PARSER is `test_combined_parser.py` section P (the
-  Brayden Point name-vs-market case, the Florida/Carolina Panthers split, the
-  Will Smith Dodgers/Sharks collision, the roster merge, the CLI). Thirteen
-  mutations, all caught.
-- `tests/test_basketball.py` — `basketball/index.html` and basketball on
-  `all/index.html`, the twin of `test_hockey.py`: hidden (A3), `bmbs.bb.*`
-  (A4), no MLB/NHL/NFL requests (A5/A6), every market graded live and at the
-  final (DNP void, push, combos, triple-double), the tiles (ON THE COURT, ON
-  THE BENCH, plain LIVE when nobody is `active`, HALFTIME, foul trouble, one
-  TEAM BETS tile), a hit's alert words and its bell time off the play itself.
-  The parser is `test_combined_parser.py` section Q.
-- `tests/test_bell.py` section I — the Play overlay button on all three pages:
-  present on every entry as a real `<button>`, plays with the overlay toggle
-  off, a second tap replaces rather than queues, a bet replays as a cash,
-  stored words are escaped, and older entries are upgraded.
-- `tests/test_bell.py` — the notification bell on all three pages, in ONE
-  browser context, because the pages share an origin and a shared key would
-  only show up there. Backfill, the leg/bet split, one entry per event,
-  clearing on open, counting up live, surviving a refresh, resetting on a new
-  slate, the morning-after case, independence, ET from a Pacific browser, and
-  the class collision. Fifteen mutations, all caught.
-- `tests/test_football_parser.py` — football parser (both templates, negative
-  odds, suffixes), schedule-based slate dating against a fake ESPN, the NFL
-  roster builder, and the Discord bot's file-name routing. Fully offline.
-  Also checks `resolve_player()`'s fuzzy-match branch directly (a real typo,
-  not a suffix that normalizes away) — every fixture card either matches
-  exactly or hits the give-up fallback (already covered), so the actual
-  `difflib` path was otherwise never exercised on its own.
-- `tests/test_record_results.py` — the baseball recorder against a fake MLB
-  (own HR, PHP credit, benched -> void, void-leg re-pricing, refunds, the
-  not-yet-final / backstop / already-recorded / corrected-picks cases) and the
-  merge into `history.json` (mis-dated sheet copy, nickname mapping, dead sheet).
-- `tests/test_football_history.py` — the football recorder against a fake ESPN,
-  the history file it builds, and `football/history/index.html` in Chromium
-  (empty state, isolation block, phone width). Fully offline.
-- `tests/test_build_roster.py` — `scripts/build_roster.py`, fully offline: a
-  fake fetcher standing in for the MLB API, checking suffixes and accents
-  survive and a missing-abbreviation team or a name collision doesn't crash.
-- `tests/test_discord_bot.py` — `discord-bot/bot.py`'s confirm/discard/timeout
-  reaction flow and its GitHub Contents API push, plus `on_message`'s own
-  gating (other bots, wrong channel, an allow-list, non-`.txt` / unroutable /
-  empty attachments). Fully offline: a real (unconnected) `discord.Client` is
-  built so `client.dispatch("reaction_add", ...)` can deliver fake reactions
-  the same way discord.py's own gateway code would, and `requests.get`/`put`
-  are monkeypatched so nothing reaches GitHub. `route_for()` itself (file name
-  -> sport) is covered in `test_football_parser.py`, not repeated here.
-- `tests/test_at_bat_math.py` — direct checks on `negBinomPmf()` /
-  `atBatEstimate()` / `remainingOutsForSide()`, the negative-binomial model
-  behind "~2.1 AB left". Every other test only confirms SOME number renders
-  inside a mocked slate; this one cross-checks the actual values against an
-  independently-written Python reference (`math.comb`, not a port of the JS's
-  iterative loop) across a grid of realistic (batting distance, outs left,
-  league out rate) combinations, plus hand-verified edge cases (`r<=0`, the
-  `d=0` guaranteed-PA shortcut, the geometric-distribution identity at `r=1`,
-  monotonicity as the out rate changes) and every branch of
-  `remainingOutsForSide` (Top/Middle/Bottom/End, both sides, last inning).
-- `tests/test_live_data_schema.py` — **the one test that reads the real,
-  currently-committed files under `data/`** (read-only; never writes) instead
-  of a fixture or a fake fetcher, so it's the only thing that would catch a
-  bad manual edit, a parser bug that exits 0 but writes a malformed field, or
-  drift between what this file documents and what's actually live. Checks
-  `tickets.json` / `tickets-previous.json` (both sports; absence is a normal,
-  skipped state), `roster.json` (both sports; must always exist, and every
-  per-player map must share the same key set), `history.json` (both sports),
-  and whatever's on hand under `data/results/` / `data/football/results/`.
-  Verified against real corruption (a missing leg field, an unsigned odds
-  string, a bogus leg status, a roster map with a key removed) in a scratch
-  copy before trusting it -- it caught all four.
-- `tests/test_site_links.py` — walks every internal `href` across all six
-  HTML pages and checks it resolves to a real file. Every other test only
-  asserts its own page's own footer link works; this is the only one that
-  checks the WHOLE link graph. The resolver mirrors GitHub Pages' actual
-  behaviour (a bare extensionless path tries a same-named sibling FILE.html
-  *before* `<name>/index.html` -- the exact trap `features.html`'s redirect
-  stub exists for), and that resolver is itself checked against the
-  documented gotcha before being trusted to check anything else. It only
-  checks that the stub file EXISTS where the resolver expects it -- the
-  stub's own actual redirect behaviour is `test_redirect_stub.py`, below.
-- `tests/test_redirect_stub.py` — Playwright against `features.html` itself:
-  the `<meta refresh>` fallback targets exactly `/features/` (a bare
-  `/features` would just reload the stub forever), and -- the part nothing
-  else checked -- the script-driven `location.replace()` that actually fires
-  in a real browser preserves the visitor's query string AND hash (so a
-  bookmarked `/features?sport=football` lands back on the football tab
-  instead of resetting to baseball). Verified against a scratch copy with
-  the search/hash preservation removed -- it caught it.
-- `tests/test_features_page.py` — `features/index.html`'s toggle, URL sync,
-  deep-linking, and isolation (it must never call MLB/ESPN or read the
-  tickets/history files). Content is deliberately NOT checked, since that's
-  supposed to keep changing -- only that the mechanics under it can't quietly
-  break while the copy keeps getting edited. Added once the page became
-  auto-maintained rather than static; skipped before that for the opposite
-  reason.
-- `tests/test_workflow_yaml.py` — the four push-triggered
-  `.github/workflows/*.yml` files, read with targeted regexes rather than a
-  YAML parser (no dependency this project doesn't otherwise need; none of them
-  is complex enough to require one). Adding a workflow to its enumeration
-  earns it every generic check for free; the per-workflow lane checks have to
-  name it, and D2b/D2c are the ones that matter -- a combined card can only
-  ever write `data/combined/tickets*`, and neither single-sport parser can
-  write the combined slate. Checks every `python scripts/X.py` line names a real script,
-  every trigger path matches what that script is actually told to parse, and
-  -- the one that matters most -- **that no workflow commits a file outside
-  its documented lane**: `parse-picks.yml` may only ever touch baseball's own
-  tickets files, `parse-football-picks.yml` only football's, and
-  `import-history.yml` (the daily archive job) must never touch either
-  sport's live tickets file at all (CLAUDE.md gotcha 5, now enforced instead
-  of just written down). Verified against a scratch copy with a fake
-  `git add data/tickets.json` slipped into the archive job's commit step --
-  caught it. Also checks both parsers' commit steps notify Discord ONLY when
-  `committed == 'yes'` -- see "Discord status automation" above.
-- `tests/test_notify_discord.py` — `scripts/notify_discord.py`, fully
-  offline: a fake fetcher standing in for the HTTP call, so nothing ever
-  reaches Discord. Checks the message text for both sports (singular vs.
-  plural, a date range vs. a single date), the exact request shape `post`/
-  `edit` send (POST with `?wait=true` so Discord returns an id to edit
-  later; PATCH to `/messages/<id>`), the CLI wiring for all three
-  subcommands, and -- the one that matters most -- that the webhook URL
-  itself never reaches a log line or error message even when the request
-  fails or the secret is missing.
-- `tests/test_auto_fix_parser.py` — `scripts/auto_fix_parser.py`, the script
-  behind the auto-fix-on-failure workflow (see "Discord status automation"
-  above). Fully offline: a fake fetcher stands in for the Claude API call,
-  and "did the full suite pass" / "does the upload parse now" are
-  monkeypatched rather than actually re-run. The thing this file cares
-  about most: every failure path (a malformed model response, the suite
-  failing after the patch, the suite passing but the specific upload still
-  not parsing, the API call itself raising) leaves the parser file
-  byte-for-byte back at its ORIGINAL content, and only the one path where
-  every gate passes leaves the patch in place -- checked directly by
-  reading the file back after each scenario, not just trusting the return
-  value. Also covers the retry-with-feedback loop (attempt 2 receives
-  attempt 1's exact failure detail) and that a missing `ANTHROPIC_API_KEY`
-  short-circuits cleanly instead of crashing the job.
+- `test_parser.py` — `parse_picks.py`: every template (§11 table), slate
+  date, archive guard (temp dir), the unread-line safety net end to end,
+  `resolve_player()`'s three branches, markets, start-time fill, footers.
+- `test_page.py` — `mlb/index.html`: slate rollover/queue/backstop, filters
+  (P bettor filter clicked end to end, S multi-select + summary bar), O note
+  banner (empty when no warning), Q Pacific timezone, R collapsed lists /
+  benched-is-void / status lines / leg chips, T header order, U warmup and
+  delays, V chip rows / Irons / void as N/A (V4 "VOID" label) / Expand all,
+  W sound, X unknown payouts, Y markets, AB team-bet crash.
+- `test_live_at_bats.py` — the MLB Live Bet Tracker walked poll by poll:
+  results, stale at-bats, J/K inning breaks, Z tile kinds (Z8b/Z8c Gameday
+  links and f5), AA every-leg alerts and walk-offs, AB leadoff from slot 1.
+- `test_steals.py` — steal grading, mixed HR+steal tickets, steal alerts and
+  tiles, minus-money odds.
+- `test_at_bat_math.py` — `negBinomPmf()` / `atBatEstimate()` /
+  `remainingOutsForSide()` against an independent Python reference.
+- `test_combined_page.py` — the front page: A3/A4 the engine seal, C mixed
+  parlays, D/E/G rollover, F front-page layout (switch hidden, no tracker
+  links, h1, eyebrow, hidden panels still running), H both sports' tiles, I/J/K
+  alerts, Q/R/T football props and quarter bets, S every-leg alerts, U leadoff
+  and foreign markets.
+- `test_combined_parser.py` — `parse_combined_picks.py` offline: sport
+  decision and its order, collisions, glued markets, span (I4/I5), archive,
+  L/M priceless legs and the first real card, N quarters, O bare counts,
+  P hockey (P13b wrapper paths), Q basketball, R WNBA, S college.
+- `test_bell.py` — the bell on the MLB, NFL and All Sports pages in ONE browser
+  context (shared origin): backfill, leg/bet split, dedupe, persistence, slate
+  reset, morning after, G1 Pacific, I replay, J hit times, E10 namespaces,
+  B5c/B5d class collision.
+- `test_hockey.py` — `hockey/index.html` and hockey on the front page: A3
+  hidden, A4 `bmbs.hk.*`, A5 no MLB requests, grading, tiles (C9 missing
+  `onIce` → LIVE), goal alert/log/bell, the final.
+- `test_basketball.py` — `basketball/index.html` and the front page: A3 hidden,
+  `bmbs.bb.*`, no other leagues' requests, every market, tiles, alerts, final,
+  G both leagues on one card.
+- `test_wnba.py` — runs `test_basketball.py` with `HOOPS_LEAGUE=wnba`.
+- `test_cfb.py` — `cfb/index.html` and the front page: A2 hidden, A3
+  `bmbs.cf.*`, college host only, unpicked games never fetched, D3/D4 the
+  starter rule, E college vs NFL "MIA".
+- `test_football.py` — `football/index.html`: a Sunday+Monday slate poll by
+  poll, A isolation/market tags, H8-H14 bettor filter, I alerts (I8/I9 final
+  whistle), K Pacific timezone, L/M/N/P twins of the MLB page's R/S/T/V (L
+  rebuilds `TICKETS` first because J trims it), O the finished-drive bug, Q
+  sound.
+- `test_football_parser.py` — football templates, NFL schedule dating, archive
+  guard, section 5 roster builder (merge), section 6 the bot's `route_for()`,
+  fuzzy resolution.
+- `test_record_results.py` — the MLB recorder against a fake MLB, and the
+  merge into `history.json`.
+- `test_football_history.py` — the football recorder, its history file, and
+  `football/history/index.html`.
+- `test_history.py` — `history/index.html`: block A isolation, every stat,
+  filters, degraded data, phone width.
+- `test_history_import.py` — the importer offline (inline CSV tabs, fake MLB,
+  shrink guard).
+- `test_build_roster.py` — `build_roster.py` and `merge_rosters()` offline.
+- `test_live_data_schema.py` — READS the committed `data/` files: every
+  sport's tickets files (absence is a skip), every roster (team counts NHL 32,
+  NBA 30, WNBA 15, CFB 138; per-player maps share a key set), both histories,
+  results files.
+- `test_smoke_pages.py` — every tracker and both history pages at their REAL
+  URLs: exactly their own data requests, no page errors, the expected `<h1>`;
+  F2 all `FEED_FIELDS` copies identical.
+- `test_site_links.py` — every internal `href` on every HTML page (globbed)
+  resolves, with a resolver that mirrors GitHub Pages' sibling-`.html` rule;
+  C1-C4 the hidden trackers (front page links none; each hidden tracker links
+  only itself, the front page, its history and features; features' All Sports
+  section links none).
+- `test_redirect_stub.py` — `features.html`'s meta refresh targets `/features/`
+  and its script keeps query and hash.
+- `test_features_page.py` — `features/index.html` mechanics (toggle, URL sync,
+  deep links, isolation), not its copy.
+- `test_workflow_yaml.py` — the workflows via targeted regexes: script paths,
+  trigger paths, **commit lanes** (no workflow commits outside its own files;
+  the archive job never touches a tickets file), Discord gating on
+  `committed == 'yes'`, B3m failure notices, E auto-fix routing, F
+  continue-on-error / rebase target, G mentions, H `--before`.
+- `test_discord_bot.py` — reaction flow, Contents API push (identical-content
+  no-op), `on_message` gating, C7b refusal lists every prefix. Builds a real
+  unconnected `discord.Client` and monkeypatches `requests`.
+- `test_notify_discord.py` — message text, request shapes, CLI, the webhook URL
+  never leaking, E corrections, F all seven sports consistent with the bot and
+  date spans.
+- `test_auto_fix_parser.py` — every failure path leaves the parser
+  byte-for-byte original; retry feedback; edits; S1 the suite is every offline
+  test.
+- `test_feed_fields.py` — **network**: full vs slim MLB feed for every live
+  game.
+- `test_notify_discord_live.py` — **network**: hits Discord with a bogus
+  webhook id (posts nothing).
 
 ```
 pip install -r tests/requirements.txt
 python -m playwright install chromium
-python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py && python tests/test_steals.py
-python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py && python tests/test_hockey.py && python tests/test_basketball.py && python tests/test_wnba.py && python tests/test_cfb.py
-python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
-python tests/test_football_parser.py && python tests/test_football.py
-python tests/test_record_results.py && python tests/test_football_history.py
-python tests/test_discord_bot.py && python tests/test_at_bat_math.py && python tests/test_live_data_schema.py
-python tests/test_site_links.py && python tests/test_features_page.py && python tests/test_workflow_yaml.py && python tests/test_redirect_stub.py
-python tests/test_notify_discord.py && python tests/test_auto_fix_parser.py
-python tests/test_feed_fields.py   # needs network; run after editing FEED_FIELDS
+python tests/test_parser.py && python tests/test_page.py && python tests/test_live_at_bats.py && python tests/test_steals.py && python tests/test_at_bat_math.py
+python tests/test_combined_parser.py && python tests/test_combined_page.py && python tests/test_bell.py
+python tests/test_hockey.py && python tests/test_basketball.py && python tests/test_wnba.py && python tests/test_cfb.py
+python tests/test_football_parser.py && python tests/test_football.py && python tests/test_football_history.py
+python tests/test_record_results.py && python tests/test_history_import.py && python tests/test_history.py && python tests/test_build_roster.py
+python tests/test_live_data_schema.py && python tests/test_smoke_pages.py && python tests/test_site_links.py && python tests/test_redirect_stub.py && python tests/test_features_page.py
+python tests/test_workflow_yaml.py && python tests/test_discord_bot.py && python tests/test_notify_discord.py && python tests/test_auto_fix_parser.py
+# network:
+python tests/test_feed_fields.py           # run after editing FEED_FIELDS
+python tests/test_notify_discord_live.py
 ```
 
-Windows note: `venv` fails on very long paths and Windows Python has no tz
-database (`tzdata` is in the requirements for that reason). Keep using
-this pattern for any nontrivial change rather than shipping unverified.
+Windows: `venv` fails on very long paths, and Windows Python has no tz database
+(`tzdata` is in the requirements). Keep using this pattern for any nontrivial
+change rather than shipping unverified.
 
-## Discord status automation
+## 18. Deploy and the daily flow
 
-**`scripts/notify_discord.py`** posts (or edits) a status message in the
-group's Discord intake channel via an incoming webhook (`DISCORD_STATUS_WEBHOOK`,
-a GitHub Actions secret -- all three sports share one webhook, one channel).
-Three subcommands: `success` (summarizes a freshly-written `tickets.json`
-and posts it), `post` (posts fresh text, prints the message id), `edit`
-(PATCHes a message this webhook posted earlier, by id). It never logs,
-prints, or lets an HTTP error surface the webhook URL itself -- `tests/test_notify_discord.py`
-checks that specifically, fully offline (a fake fetcher, never a real request).
-
-**The success path.** `parse-picks.yml` and `parse-football-picks.yml`'s
-commit step sets a `committed` output (`yes` only on a genuine new slate,
-never a no-op rerun), and a step gated on `committed == 'yes'` calls
-`notify_discord.py success` right after -- no AI involved, nothing to
-investigate. It says the picks **are now LIVE** and **@ mentions whoever
-uploaded the card** (2026-09-30). Both matter: the BOT's own push
-confirmation already promises the parser "should update within about a
-minute", which is a promise rather than a fact, and it pings nobody. This
-message is the fact, its Discord timestamp is when it actually happened, and
-the mention is what makes the uploader see it. The uploader id comes from
-`[discord:<id>]` in the commit message -- see the auto-fix path below for why
-that route exists and what happens when it's absent. Deterministic and safe by
-construction.
-
-**A correction is announced as one** (2026-10-04, the user's call). A card
-changed after its picks were already live -- a bet added, a leg fixed -- used to
-get the same "are now LIVE ... Tracking has started" ping as a brand-new slate.
-Every parse workflow (and the auto-fixer) now copies the live tickets file to
-`$RUNNER_TEMP/live-before.json` BEFORE parsing and passes it as `--before`.
-When it holds the SAME slate (`slate_key()`: the date, or for football the
-`weekEnds` week, since a second card in a week replaces the first), the message
-says the card was UPDATED with corrected information and lists what changed
-(`what_changed()`: cards added/removed, legs corrected, stake/payout fixed;
-"details on the existing bets were corrected" when only something behind the
-bets moved). A different slate, or no earlier file, is "now LIVE" as before.
-The auto-fixer's success goes through the same message with `--fixed`.
-Not to be confused with `tickets-previous.json` -- that is the ARCHIVED prior
-slate, a different thing. `test_notify_discord.py` E, `test_workflow_yaml.py` H.
-
-**The failure path: `.github/workflows/auto-fix-parse-failure.yml`.**
-First attempt (2026-09-20) was to fire an unattended Claude Code AGENT off
-a `workflow_run` failure event (`RemoteTrigger`, `action: "create"`) --
-refused outright by the platform's own auto-mode safety classifier
-("Reason: \[Create Unsafe Agents\]"), which is the platform declining to
-let an agent spin up another agent with unattended production push access.
-Not a bug to route around.
-
-**What's actually built instead is narrower and bounded on purpose: ONE
-plain Claude API call per attempt, not an agent** -- no tool use, no
-open-ended agency, just a request/response that a plain script (`scripts/auto_fix_parser.py`)
-decides whether to trust:
-
-1. Fires on either parse workflow's `workflow_run` `completed` event with
-   `conclusion == 'failure'` (also has a `workflow_dispatch` escape hatch,
-   sport picked from a dropdown, for a manual re-run).
-2. Posts one Discord message ("investigating") and keeps its id.
-3. Sends the failing parser's complete source + the raw failing upload to
-   the Claude API (`ANTHROPIC_API_KEY`, a GitHub Actions secret), with a
-   system prompt that spells out the hard-won lessons from the four real
-   template-drift incidents fixed by hand the same day -- most importantly
-   the `PARLAY_HEADER_RE`-collision trap that bit BOTH sports' parsers
-   independently (a new header containing a literal "N-Leg Parlay"
-   substring gets misread as a brand-new section unless explicitly
-   excluded). Asks for the complete new file back in a fixed
-   `<<<SUMMARY>>>`/`<<<FILE>>>`/`<<<END>>>` envelope -- a malformed response
-   is treated as a failed attempt, never guessed at.
-4. Writes the proposed file, then runs the FULL 19-file offline test suite.
-   **Only if every test still passes** does it re-run the parser against
-   the actual failing upload to confirm the ORIGINAL problem is actually
-   fixed (this run also writes the real `tickets.json` -- no special-cased
-   second code path for that). Any failure at either gate reverts the
-   parser file to its exact original content and retries once with the
-   failure detail fed back to the model; two failed attempts and it gives
-   up rather than guess a third time.
-5. On success: leaves the patched parser, the real `tickets.json`, and an
-   auto-archived copy of the raw upload (`tests/fixtures/auto_detected_<sport>_<timestamp>.txt`,
-   for a human to later turn into a permanent regression test) sitting
-   **uncommitted** in the working tree. `auto_fix_parser.py` never runs
-   `git` itself -- a separate, plain bash step (the same git-push-with-retry
-   pattern every other workflow here already uses) does the actual commit
-   and push, so the highest-risk decision logic can't also invent a novel
-   way to corrupt the commit history.
-6. Posts the outcome as a **NEW** message (2026-09-30), never an edit, and
-   **@ mentions whoever uploaded the card**. An edit changes no timestamp and
-   pings nobody, so there was no way to tell WHEN a card went live -- which is
-   the whole reason it reports back. The opening message says work is under
-   way ("attempting an automatic fix now, I'll update shortly") rather than
-   announcing a failure and leaving it there.
-
-   **A username can't be mentioned -- Discord needs the ID** -- and the commit
-   message is the only channel between the bot and a GitHub Action, so
-   `bot.py` writes `[discord:<id>]` into it and the workflow greps it back
-   out. Absent (a web-editor upload, or a bot that hasn't been RESTARTED since
-   this shipped -- see the bot's entry above) simply means no mention, not a
-   failure. `notify_discord.py` pins `allowed_mentions` to `users` explicitly:
-   a webhook parses everything in the content by default, so a card containing
-   "@everyone" could otherwise ping the whole server.
-   `test_workflow_yaml.py` section G pins all of it.
-
-   The old behaviour, for reference -- it edited the original message to: fixed and live,
-   found-a-fix-but-couldn't-push-it (checked separately -- `resolved: yes`
-   is NOT enough on its own to claim success; the commit step's own outcome
-   is checked too), or couldn't-resolve-it-automatically.
-
-**Security note, since two different untrusted inputs flow through this
-pipeline:** the raw Discord upload (a friend's paste) and the model's own
-response (which read that upload) are both treated as untrusted text.
-Neither is ever spliced directly into a shell command via GitHub Actions'
-`${{ }}` templating -- that substitution happens BEFORE the shell parses
-the script, so a value containing shell metacharacters could otherwise
-alter what the script does. Every such value goes through `env:` + a
-quoted shell variable instead (safe, because by the time the shell expands
-`"$VAR"` the command has already been parsed).
-
-**`tests/test_auto_fix_parser.py`** is the important test file here: fully
-offline (a fake fetcher stands in for the Claude API; "did the suite pass"
-and "did the fix work" are monkeypatched), and specifically proves the
-revert-on-any-failure guarantee -- a malformed response, a suite failure,
-and "the suite passed but the specific upload still doesn't parse" each
-leave the parser file byte-for-byte unchanged, and only the one path where
-BOTH gates pass leaves the patch in place. `tests/test_workflow_yaml.py`
-section E separately checks the workflow YAML itself: the two workflow
-names it listens for are cross-checked against the real workflows' own
-`name:` fields (a rename of either would otherwise silently break the
-trigger), and the sport-routing step's football/baseball branches are
-checked directly so a swapped branch can't commit the wrong sport's files.
-
-**2026-09-22: the first real template this pipeline ever faced, and it failed
-at every single layer.** A genuine fifth baseball template arrived by Discord.
-The bot committed it, the parser correctly exited 1, the auto-fix workflow
-correctly fired -- and then the whole thing died in 8 seconds. Everything below
-was found by that one incident. Read it before touching any of this.
-
-- **Discord needs a `User-Agent`, or Cloudflare eats the request.** Every
-  Discord call this project had ever made in CI returned HTTP 403 with
-  Cloudflare `error code: 1010`, because `urllib` sends `Python-urllib/3.12`
-  and Cloudflare blocks it *before Discord ever sees the request*. Proved by
-  probing a deliberately bogus webhook id: without the header 403/1010, with it
-  404 "Unknown Webhook" -- i.e. Discord actually answering. The webhook itself
-  was fine the whole time.
-- **It had NEVER worked.** The secret was created 17:20Z on 9/20; the last
-  successful parse ran at 17:12Z and its step list contains no notify step at
-  all. No Discord message had ever been delivered in production. It looked
-  healthy because `test_notify_discord.py` is fully offline with a fake
-  fetcher -- correct, so tests never post to the group's channel, but it means
-  the entire HTTP layer was unexercised. `tests/test_notify_discord_live.py`
-  now hits the real host with a bogus id (posting nothing) and asserts we get
-  404 rather than 403. It ALSO asserts the no-User-Agent request is still
-  blocked, so the check can't quietly stop proving anything.
-- **A status ping must never be able to veto the repair.** The "investigating"
-  post had no `continue-on-error` and the script `sys.exit`ed on any HTTP
-  error, so under `bash -e` it killed the job at step 4 of 8. The picks were
-  never repaired AND the group got no message at all -- precisely the silent
-  failure the notifier exists to prevent. Now doubly guarded: every Discord
-  step is `continue-on-error`, and `notify_discord.py` raises `NotifyFailed`
-  which `main()` turns into a stderr warning and exit 0. `test_workflow_yaml.py`
-  section F pins both halves.
-- **The auto-fixer could never have succeeded in CI.** `tests/requirements.txt`
-  was missing `python-dotenv`, which `discord-bot/bot.py` imports at module
-  level, so the suite always died on file 12 of 19 -- making the fixer's "the
-  full suite must still pass" gate *unsatisfiable*. It produced patches and
-  reverted them over a failure that had nothing to do with the patch. Local
-  runs hid it: python-dotenv is installed on the machine that runs the bot.
-- **The workflow checked out a hardcoded `ref: main`,** so it could not be
-  exercised before being merged -- a branch run tested main's old scripts.
-  It now follows `github.event.workflow_run.head_branch || github.ref_name`,
-  which is the only reason any of this could be proven before shipping. Run it
-  on a branch with `gh workflow run "Auto-fix a Picks Parse Failure" --ref
-  <branch> -f sport=baseball`: real Discord, real Claude, real template, and
-  the resulting commit lands on the branch, not main.
-
-**What the fixer itself got wrong, and what was changed because of it:**
-
-- **A failed attempt used to log only the failing test name**, never the patch
-  it tried -- so diagnosing it needed an API key and a local reproduction,
-  which is the manual intervention this pipeline exists to remove.
-  `attempt_fix()` now includes the model's summary and a truncated unified diff
-  in the failure detail, built *before* the revert.
-- **Rule 1b in `SYSTEM_PROMPT` exists because of a real miss.** Rule 1 warned
-  about new *header* patterns colliding with `PARLAY_HEADER_RE`; the model duly
-  reasoned about that in its own comments -- and then walked into the same trap
-  one regex over, writing a leg pattern whose lazy `(.+?)` swallowed an OLDER
-  template's `(Bettor) Player - TEAM` prefix. The rule is now general: a new
-  pattern must not match a line an existing template owns, checked against the
-  example lines quoted in the parser's own comments.
-- **`clean_num()` accepts `$`.** It stripped only commas, so a template whose
-  regex captured `"$310.28"` raised ValueError deep inside `parse()`. That cost
-  an entire attempt on a patch that was otherwise working and suite-passing. A
-  card writing its payout with a dollar sign is completely ordinary; accept it
-  centrally rather than taxing every future template's regex.
-- **`MAX_ATTEMPTS` is 4, not 2.** On that incident attempt 2 fixed the regex
-  collision, passed the whole suite, and died on the `$` bug -- one attempt
-  from success, out of attempts. Each attempt is one API call and ~2 minutes.
-- **`verify_fix()` re-runs `test_live_data_schema.py` against the tickets.json
-  it just wrote.** `run_full_suite()` runs BEFORE that file exists, so the one
-  test that reads the real `data/` files was always validating the PREVIOUS
-  slate. Exiting 0 is not the same as being correct: a patch shipped whose
-  output had `"payout": "TBD"`, a string in a field the schema requires to be
-  numeric, and the live page would have handed that to `fmtMoney()`. The full
-  suite passed, the upload parsed, and the workflow committed it. The schema
-  error is now fed back to the model as retry feedback, so it can correct its
-  own output instead of needing a human.
-- **The push-retry rebased onto a hardcoded `main` too,** and that only became
-  reachable once the checkout stopped doing the same thing -- before that the
-  job always ran on main, where the literal happened to be right. On a test
-  branch whose head had moved mid-run, the rejected push retried with
-  `git pull --rebase origin main`, tried to replay the entire branch onto main,
-  and hit add/add conflicts in all thirteen files the branch introduced. A
-  fix that had passed every gate -- new template read, patch written, full
-  suite green, real upload re-parsed, commit made -- was thrown away at the
-  last step. It now rebases onto the branch it actually checked out. The other
-  three workflows keep the literal `main` deliberately, since they only ever
-  run there; `test_workflow_yaml.py` F6/F7 pin both sides so nobody
-  "harmonizes" them. F6 strips comment lines before its negative grep, because
-  the fix's own comment quotes the bad command to explain it -- the same trap
-  `FEED_FIELDS`' extractor hit, and it caught F6 on its first run.
-
-**The fixer asks for EDITS, not the whole file** (2026-10-01). It used to
-regenerate `parse_picks.py` in full, so the response grew with the file: at
-1101 lines / ~16k output tokens both real incidents since (2026-09-26 and
-2026-09-29, four attempts each) came back truncated with no closing marker,
-reported only as "didn't match the required shape". A patch is proportional to
-the CHANGE, so the cost stops rising every time a template is added.
-
-**Search/replace, never a unified diff.** A diff carries line numbers and
-fuzzy context, both of which a model gets wrong in ways that still APPLY --
-silently landing an edit in the wrong place. An exact string required to occur
-exactly once either matches or it doesn't. `apply_edits()` refuses a SEARCH
-that matches nothing, refuses one that matches more than once (editing "the
-first one" IS the silent-wrong-place failure), applies nothing unless every
-block matches, and refuses a no-op. A whole-file response is still accepted as
-a fallback, since a smaller parser may well answer that way.
-
-Verified against the real API on a synthetic template, through the real
-workflow on a branch: `stop_reason=end_turn`, **1662 output tokens against
-~16,000 for a rewrite**, resolved on attempt 1, +51 surgical lines.
-`test_auto_fix_parser.py` section I covers it; four mutations caught.
-
-**Needs `ANTHROPIC_API_KEY` (a GitHub Actions secret) to actually run.**
-Without it, `auto_fix_parser.py` short-circuits to `resolved=no` on the
-first line -- a parse failure still gets the "investigating" Discord
-message, then immediately the "couldn't resolve automatically" edit,
-rather than silently hanging or crashing the job.
-
-**Verified end to end against the real API on 2026-09-20, once the key was
-set** -- not just offline-mocked: a synthetic new template the real parser
-genuinely can't handle (`>> WAGER A (2 legs)` / `Stake: $6 | To Win: $210.00
-| Placed by: Kenny` / numbered legs), run through the real `attempt_fix()`
-against scratch copies only, real Claude call, real 19-file suite, real
-`verify_fix`. Two real bugs surfaced this way that offline mocking could
-never have caught, both fixed and covered by `tests/test_auto_fix_parser.py`
-section Z / A6-A8 before being trusted:
-- `temperature` (any value) is a hard HTTP 400 for `claude-sonnet-5`. Removed.
-- `thinking` left at its default silently consumed the ENTIRE token budget
-  on internal reasoning and returned zero text (`stop_reason: max_tokens`);
-  raising `max_tokens` from 8192 to 32000 did NOT fix it (25914 of it went
-  to thinking, the file still got cut off mid-write). Explicitly disabling
-  thinking (`"thinking": {"type": "disabled"}`) fixed it in one try.
-- (Found in the same run, not a request-shape bug:) the model wrapped the
-  file section in a markdown fence on one real call despite the system
-  prompt explicitly saying not to -- inconsistent, not every call. A
-  ```` ``` ```` -fenced .py file is an instant `SyntaxError`, which
-  `verify_fix` correctly caught and reverted, but wasted the attempt.
-  `extract_file_and_summary()` now strips a matching leading+trailing fence
-  defensively rather than trusting the instruction alone to hold.
-
-With both fixed, the full pipeline resolved the synthetic failure in ~150s:
-real API call, real suite, real re-parse, correct ticket/leg counts.
-
-## Deploy process
-
-No build step. Edit `index.html` (or `scripts/*.py`) directly in the repo,
-commit, push. GitHub Pages picks it up automatically within a minute or so.
-The daily picks-update flow (separate from code deploys) is: paste text
-into `data/incoming_picks.txt` via GitHub's web editor, or upload a `.txt`
-in the Discord intake channel (see `discord-bot/README.md`) → commit →
-GitHub Actions runs `parse_picks.py` → `tickets.json` updates (and the
-prior slate is archived if the date changed) → live site reflects it on
-the next poll cycle (~10s).
+- **Code:** edit the pages/scripts directly, commit, push. GitHub Pages
+  deploys in about a minute (it has sat queued 10+ minutes).
+- **`features/index.html` is maintained automatically** as part of any change
+  that adds, removes or visibly alters a feature. Scope is strict: only
+  current, live, user-visible features — never a bug fix, refactor, pipeline
+  change or anything a visitor can't see. Same voice and shape as what's
+  there (colour key, one short paragraph per feature). The All Sports section
+  includes a "Reading the page" card after "One card, every sport". Hidden trackers and hidden panels are
+  not described.
+- **Picks:** a friend uploads `<prefix>_*.txt` in Discord (§12) or pastes into
+  that sport's `incoming_picks.txt` in GitHub's web editor → its parse workflow
+  writes `tickets.json` (archiving the previous slate if the date/week
+  changed) and posts to Discord → pages pick it up on their next poll. The
+  front page is fed by `sports_*.txt` → `data/combined/`.

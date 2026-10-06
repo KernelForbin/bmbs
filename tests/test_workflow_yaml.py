@@ -1,6 +1,7 @@
 """
-Sanity checks on the three GitHub Actions workflows, without adding a YAML
-dependency this project doesn't otherwise need -- all three are simple,
+Sanity checks on the push-triggered GitHub Actions workflows (the seven
+parse-*-picks.yml files and import-history.yml) plus the auto-fix workflow,
+without adding a YAML dependency this project doesn't otherwise need -- all are simple,
 hand-written files with no anchors or nesting deep enough to need a real
 parser, so this reads them with targeted regexes instead.
 
@@ -149,7 +150,8 @@ check("B3d the combined notify step is gated on a real commit too",
 check("B3e parse-hockey-picks.yml parses exactly its hockey script, against exactly its hockey "
       "trigger, then notifies Discord the same way",
       parse_scripts["parse-hockey-picks.yml"] ==
-      [("scripts/parse_hockey_picks.py", "data/hockey/incoming_picks.txt"), ("scripts/notify_discord.py", "")],
+      [("scripts/parse_hockey_picks.py", "data/hockey/incoming_picks.txt"), ("scripts/notify_discord.py", ""),
+       ("scripts/notify_discord.py", "")],
       parse_scripts["parse-hockey-picks.yml"])
 check("B3f the hockey notify step is gated on a real commit too",
       re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
@@ -157,7 +159,8 @@ check("B3f the hockey notify step is gated on a real commit too",
 check("B3g parse-basketball-picks.yml parses exactly its basketball script, against exactly its "
       "basketball trigger, then notifies Discord the same way",
       parse_scripts["parse-basketball-picks.yml"] ==
-      [("scripts/parse_basketball_picks.py", "data/basketball/incoming_picks.txt"), ("scripts/notify_discord.py", "")],
+      [("scripts/parse_basketball_picks.py", "data/basketball/incoming_picks.txt"), ("scripts/notify_discord.py", ""),
+       ("scripts/notify_discord.py", "")],
       parse_scripts["parse-basketball-picks.yml"])
 check("B3h the basketball notify step is gated on a real commit too",
       re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
@@ -165,7 +168,8 @@ check("B3h the basketball notify step is gated on a real commit too",
 check("B3i parse-wnba-picks.yml parses exactly its WNBA script, against exactly its WNBA trigger, "
       "then notifies Discord the same way",
       parse_scripts["parse-wnba-picks.yml"] ==
-      [("scripts/parse_wnba_picks.py", "data/wnba/incoming_picks.txt"), ("scripts/notify_discord.py", "")],
+      [("scripts/parse_wnba_picks.py", "data/wnba/incoming_picks.txt"), ("scripts/notify_discord.py", ""),
+       ("scripts/notify_discord.py", "")],
       parse_scripts["parse-wnba-picks.yml"])
 check("B3j the WNBA notify step is gated on a real commit too",
       re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
@@ -173,11 +177,18 @@ check("B3j the WNBA notify step is gated on a real commit too",
 check("B3k parse-cfb-picks.yml parses exactly its college script, against exactly its college trigger, "
       "then notifies Discord the same way",
       parse_scripts["parse-cfb-picks.yml"] ==
-      [("scripts/parse_cfb_picks.py", "data/cfb/incoming_picks.txt"), ("scripts/notify_discord.py", "")],
+      [("scripts/parse_cfb_picks.py", "data/cfb/incoming_picks.txt"), ("scripts/notify_discord.py", ""),
+       ("scripts/notify_discord.py", "")],
       parse_scripts["parse-cfb-picks.yml"])
 check("B3l the college notify step is gated on a real commit too",
       re.search(r"if:\s*steps\.commit\.outputs\.committed == 'yes'\s*\n\s*env:.*?notify_discord\.py success "
                 r"--tickets data/cfb/tickets\.json --sport cfb", texts["parse-cfb-picks.yml"], re.S) is not None)
+# The hidden leagues have no auto-fixer, so a card that won't parse has to say
+# so itself -- on failure only, and never able to fail the run any harder.
+for wf in ("parse-hockey-picks.yml", "parse-basketball-picks.yml", "parse-wnba-picks.yml", "parse-cfb-picks.yml"):
+    check(f"B3m {wf} posts to Discord when the run fails, and that step can't fail the job",
+          re.search(r"if:\s*failure\(\)\s*\n\s*continue-on-error:\s*true\s*\n\s*env:.*?notify_discord\.py post --text",
+                    texts[wf], re.S) is not None)
 check("B4 import-history.yml runs all three of its scripts (baseball record, baseball history, football record), no --file arg needed",
       [s for s, _ in parse_scripts["import-history.yml"]] ==
       ["scripts/record_results.py", "scripts/import_history.py", "scripts/record_football_results.py"],

@@ -521,6 +521,18 @@ with sync_playwright() as p:
           bool(gl) and "5" in (gl["count"] or "") and "cover" in gl["text"], gl and gl["text"])
     check("Z8 ...and says plainly that nothing settles until the final",
           bool(gl) and "Settles at the final" in gl["text"], gl and gl["text"])
+    # Both read a `gamedayLink` off the MLB snapshot, which never carries one,
+    # so these were the only tiles on the wall you couldn't tap through.
+    links = page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('#liveab-grid .ab-tile.game, #liveab-grid .ab-tile.mound')]
+        .map(t => [t.dataset.player, t.getAttribute('href') || '']))""")
+    check("Z8b the game-line and pitcher tiles open Gameday like every other tile",
+          len(links) >= 2 and all("mlb.com/gameday/" in h for h in links.values()), links)
+    # A first-5-innings total was drawn as a full-game line: the whole score,
+    # no target, "Settles at the final" -- it settles after the 5th.
+    f5 = page.evaluate("""() => labGameTile({ player: 'NYY', whos: [], entries: [{ market: 'f5', line: 4.5, side: 'over' }] },
+        { runs: 6, oppRuns: 1, byInning: [1, 0, 2, 0, 0, 3] }, 'Top 7', '')""")
+    check("Z8c a first-5-innings total counts only those innings, and says when it settles",
+          "3 runs thru 5, needs 5" in f5 and "Settles after the 5th inning." in f5, f5)
 
     # Checked on the CONTRACT, not just the absence of a tile: an untrackable
     # market can fail to produce one for several reasons, and only this says

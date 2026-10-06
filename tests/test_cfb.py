@@ -1,6 +1,6 @@
 """
 cfb/index.html -- the college-football tracker (HIDDEN: complete, not in any
-other page's sport switch) -- and college legs on all/index.html.
+other page's sport switch) -- and college legs on the All Sports front page (index.html).
 
 College football runs on the NFL engine (makeFootballEngine), so this checks
 what is DIFFERENT about it, plus that it works end to end:
@@ -197,9 +197,10 @@ with sync_playwright() as p:
     check("A1 the college page loads as the College Football tracker",
           page.inner_text("h1") == "BMBS Tracker — College Football", page.inner_text("h1"))
     hidden = {path: 'href="/cfb/"' in (REPO / path).read_text(encoding="utf-8")
-              for path in ("index.html", "football/index.html", "all/index.html", "hockey/index.html",
-                           "basketball/index.html", "wnba/index.html", "features/index.html")}
-    check("A2 ...and it is HIDDEN: no other page links to it", not any(hidden.values()), hidden)
+              for path in [p.relative_to(REPO).as_posix() for p in REPO.rglob("*.html")
+                           if not any(s.startswith(".") or s == "tests" for s in p.relative_to(REPO).parts)
+                           and p.relative_to(REPO).as_posix() != "cfb/index.html"]}
+    check("A2 ...and it is HIDDEN: no other page links to it", len(hidden) >= 11 and not any(hidden.values()), hidden)
     keys = page.evaluate("""() => [...document.scripts].map(s => s.textContent).join('').match(/"bmbs\\.[a-z]+\\./g) || []""")
     check("A3 every storage key it writes is its own (bmbs.cf.*)", keys and all(k == '"bmbs.cf.' for k in keys), sorted(set(keys)))
     browser.close()

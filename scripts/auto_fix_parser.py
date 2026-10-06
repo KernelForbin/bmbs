@@ -7,7 +7,7 @@ suite a human would run before trusting it -- it commits nothing on its
 own; see main()'s docstring for exactly what "validated" means.
 
 Run from .github/workflows/auto-fix-parse-failure.yml after a parse
-workflow fails. Reads SPORT / INCOMING / PARSER from the environment (set
+workflow fails. Reads SPORT / INCOMING / PARSER / RUN_PARSER from the environment (set
 by that workflow's "Determine which sport failed" step) and ANTHROPIC_API_KEY.
 
 On success: leaves the patched parser file, the freshly-written real
@@ -19,7 +19,7 @@ itself, so its own bugs can't invent a novel way to corrupt the commit
 history.
 
 Writes GITHUB_OUTPUT keys `resolved` (yes/no) and `summary` (one line,
-used in the commit message and the Discord status edit).
+used in the commit message and the Discord outcome message).
 """
 import json
 import difflib
@@ -46,10 +46,9 @@ class TransportError(RuntimeError):
 # on a one-character bug. It was one attempt from success and ran out. Each
 # attempt is one API call and about two minutes.
 MAX_ATTEMPTS = 4
-# The model rewrites the ENTIRE parser, so the response grows with the file --
-# ~10.5k output tokens at 795 lines, and every new template adds more. A fixed
-# 120s was enough when this was first built and silently stopped being enough
-# on 2026-09-23: all four attempts died on "The read operation timed out",
+# Back when the model rewrote the ENTIRE parser (before 2026-10-01's
+# search/replace edits), a fixed 120s was enough at first and silently stopped
+# being enough on 2026-09-23: all four attempts died on "The read operation timed out",
 # so the upload was never actually examined and the group was told their CARD
 # couldn't be parsed. Generous on purpose; a slow call that succeeds beats a
 # fast failure, and a genuinely hung request still ends the attempt.
@@ -207,17 +206,9 @@ def call_claude(prompt, api_key, fetcher=None):
         doesn't need exploratory reasoning -- the hard rules above already
         spell out exactly what to check."""
     body = json.dumps({
-        # The model rewrites the ENTIRE parser, so the response grows with the
-        # file -- ~16k output tokens at 1101 lines, and every template adds
-        # more. 20000 was close enough to the ceiling that a truncated file
-        # (no closing marker -> "didn't match the required shape") is the most
-        # likely cause of the 2026-09-26 and 2026-09-29 failures, four
-        # attempts each. Raised with thinking still explicitly disabled, which
-        # is what made a large budget usable at all.
-        #
-        # THIS DOES NOT SCALE and is worth redesigning: asking for the whole
-        # file back costs more every time a template is added, and the ceiling
-        # will be hit again. A patch/diff-shaped response would not grow.
+        # Sized for the whole-file FALLBACK (~16k output tokens at 1101 lines);
+        # the normal search/replace response is a small fraction of that.
+        # Thinking stays explicitly disabled -- see the docstring.
         "model": MODEL, "max_tokens": 32000,
         "thinking": {"type": "disabled"},
         "system": SYSTEM_PROMPT,
@@ -251,8 +242,7 @@ def call_claude(prompt, api_key, fetcher=None):
     print(f"  Claude responded: stop_reason={stop!r} "
           f"in={usage.get('input_tokens')} out={usage.get('output_tokens')}", file=sys.stderr)
     if stop == "max_tokens":
-        print("  WARNING: the response hit the output ceiling, so the file is "
-              "truncated. Raise max_tokens, or stop asking for the whole file.",
+        print("  WARNING: the response hit the output ceiling, so it is truncated.",
               file=sys.stderr)
     return "".join(b.get("text", "") for b in data.get("content", []))
 

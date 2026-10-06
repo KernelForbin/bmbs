@@ -40,14 +40,14 @@ jobs:
             echo "run=yes" >> "$GITHUB_OUTPUT"
           fi
 
-      # Reads the NFL schedule from ESPN to date the slate; falls back to the
-      # card's own kickoff times if ESPN can't be reached.
       # The live slate as it stands BEFORE this parse. If the new card is the
       # same slate, the Discord ping says it was UPDATED (and what changed)
       # instead of announcing it as newly live. Absent is fine: a first card.
       - name: Keep the live slate as it was
         run: cp data/football/tickets.json "$RUNNER_TEMP/live-before.json" 2>/dev/null || true
 
+      # Reads the NFL schedule from ESPN to date the slate; falls back to the
+      # card's own kickoff times if ESPN can't be reached.
       - name: Parse data/football/incoming_picks.txt into data/football/tickets.json
         if: steps.gate.outputs.run == 'yes'
         run: python scripts/parse_football_picks.py --file data/football/incoming_picks.txt
@@ -79,9 +79,6 @@ jobs:
           echo "Failed to push after retries." >&2
           exit 1
 
-      # Only on a genuine new slate -- see parse-picks.yml's twin step for why
-      # a failure isn't handled here at all.
-      # The slate is already committed and live by this point; a failed
       - name: Work out who uploaded the card
         id: who
         run: |
@@ -96,7 +93,9 @@ jobs:
         env:
           HEAD_MSG: ${{ github.event.head_commit.message }}
 
-      # status ping must not turn a successful upload into a red run.
+      # Only on a genuine new slate -- see parse-picks.yml's twin step for why
+      # a failure isn't handled here at all. A failed status ping must not
+      # turn a successful upload into a red run.
       - name: Notify Discord that this week's slate is live
         continue-on-error: true
         if: steps.commit.outputs.committed == 'yes'

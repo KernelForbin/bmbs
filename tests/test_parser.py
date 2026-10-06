@@ -41,7 +41,7 @@ print("OK: clean_num accepts $ and , and surrounding space")
 
 # --- 1. Gemini export (no ## / no *) vs raw markdown (test_picks.txt), same slate ---
 gemini_text = (REPO / "tests" / "fixtures" / "gemini_picks.txt").read_text(encoding="utf-8")
-md_text = (REPO / "test_picks.txt").read_text(encoding="utf-8")
+md_text = (REPO / "tests" / "fixtures" / "test_picks.txt").read_text(encoding="utf-8")
 
 g_windows, g_singles, g_raw = pp.parse(gemini_text, team_by_name, canon)
 m_windows, m_singles, m_raw = pp.parse(md_text, team_by_name, canon)
@@ -957,6 +957,41 @@ for text, want_body, want_odds in [
     got = pp.split_trailing_odds(text)
     assert got == (want_body, want_odds), f"{text!r} -> {got!r}"
 print("OK: a market's own line is never mistaken for its price")
+
+
+# --- 20. SEVENTH template: the "SOLAR KEYS DAY TRACKER" card (2026-09-24),
+# landed by the auto-fixer and, until now, only ever checked from the OUTSIDE
+# (section 13 pins that the eighth template's pattern doesn't claim its legs):
+#     🎟️ Ticket 1 (6.00 bet pays 198.00)
+#     * Carson Benge (+560) - NYM (Kevin) 🕒 2:35 PM ET
+solar = (REPO / "tests" / "fixtures" / "discord_solar_keys_tracker_format.txt").read_text(encoding="utf-8")
+s7_windows, s7_singles, _ = pp.parse(solar, team_by_name, canon)
+assert s7_singles == [] and [len(w["tickets"]) for w in s7_windows] == [4], [len(w["tickets"]) for w in s7_windows]
+assert [len(t["legs"]) for t in s7_windows[0]["tickets"]] == [2, 2, 2, 2]
+assert [(t["stake"], t["payout"]) for t in s7_windows[0]["tickets"]] == [
+    (6.0, 198.0), (6.0, 135.3), (6.0, 136.8), (6.0, 217.8)]
+assert [(l["player"], l["team"], l["who"], l["odds"], l["time"]) for l in s7_windows[0]["tickets"][0]["legs"]] == [
+    ("Carson Benge", "NYM", "Kevin", "+560", "2:35 PM ET"),
+    ("Miguel Vargas", "CWS", "Memo", "+400", "2:10 PM ET")], s7_windows[0]["tickets"][0]["legs"]
+# "Carter Jansen" on the card is Carter Jensen on the roster: a typo must
+# still resolve, or the leg can never grade.
+assert s7_windows[0]["tickets"][1]["legs"][1]["player"] == "Carter Jensen"
+print("OK: seventh template -- 4 tickets, stakes, payouts, legs")
+
+
+# --- 21. TWELFTH template, the real card (2026-10-01): "Ticket N", "- Subject:
+# Bet" legs with no price anywhere, MLB / NFL / NHL props mixed in one ticket,
+# closed by "Stake: X | Pays: Y". The All Sports parser decides each leg's
+# sport (test_combined_parser.py); here, the baseball parser must at least
+# read every ticket and footer.
+twelfth = (REPO / "tests" / "fixtures" / "discord_priceless_mixed_format.txt").read_text(encoding="utf-8")
+t12_windows, t12_singles, _ = pp.parse(twelfth, team_by_name, canon)
+t12 = [t for w in t12_windows for t in w["tickets"]]
+assert t12_singles == [] and len(t12) == 12, len(t12)
+assert [len(t["legs"]) for t in t12] == [3, 4] + [2] * 10, [len(t["legs"]) for t in t12]
+assert (t12[0]["stake"], t12[0]["payout"]) == (8.5, 108.48) and (t12[10]["stake"], t12[10]["payout"]) == (6.0, 252.0)
+assert [l.get("market") for l in t12[1]["legs"]][:2] == ["spread", "spread"], "a team's +2.5 is a spread"
+print("OK: twelfth template -- 12 tickets, every footer read")
 
 
 print("\nALL PARSER TESTS PASSED")

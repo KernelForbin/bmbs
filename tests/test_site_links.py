@@ -1,5 +1,5 @@
 """
-Walks every internal `href` across all six HTML pages that make up the site
+Walks every internal `href` across every HTML page that makes up the site
 and checks it resolves to a real file on disk. No other test does this --
 each page test only asserts its OWN footer link works, never the whole graph.
 
@@ -20,20 +20,16 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-PAGES = [
-    REPO / "index.html",                       # the All Sports front page
-    REPO / "mlb" / "index.html",               # hidden trackers, by URL only
-    REPO / "hockey" / "index.html",
-    REPO / "basketball" / "index.html",
-    REPO / "wnba" / "index.html",
-    REPO / "cfb" / "index.html",
-    REPO / "all" / "index.html",               # redirect stub to /
-    REPO / "football" / "index.html",
-    REPO / "history" / "index.html",
-    REPO / "football" / "history" / "index.html",
-    REPO / "features" / "index.html",
-    REPO / "features.html",
-]
+# Every page on the site, found rather than listed -- a hand list said "six"
+# long after there were twelve. Dot-dirs (the bot's .venv) and tests/ hold no
+# site pages.
+PAGES = sorted(p for p in REPO.rglob("*.html")
+               if not any(s.startswith(".") or s == "tests" for s in p.relative_to(REPO).parts))
+# The single-sport trackers are HIDDEN (2026-10-05): reachable by URL, never
+# linked from the front page. Each may link only itself, the front page, its
+# own history page and the features page.
+HIDDEN = {"mlb": "history", "football": "football/history", "hockey": None,
+          "basketball": None, "wnba": None, "cfb": None}
 failures = []
 
 
@@ -128,6 +124,32 @@ linked_to = set()
 for targets in graph.values():
     linked_to |= targets
 orphans = [p.relative_to(REPO) for p in PAGES if p.exists() and p not in linked_to]
+
+
+# ---------------- C. the hidden trackers stay hidden ----------------
+
+check("C0 the page list found every page the site is made of", len(PAGES) >= 12, [str(p.relative_to(REPO)) for p in PAGES])
+tracker_files = {REPO / s / "index.html" for s in HIDDEN}
+front = graph.get(REPO / "index.html", set())
+check("C1 the front page links none of the hidden trackers",
+      not (front & tracker_files), sorted(str(t.relative_to(REPO)) for t in front & tracker_files))
+for slug, hist in HIDDEN.items():
+    own = REPO / slug / "index.html"
+    allowed = {own, REPO / "index.html", REPO / "features" / "index.html"}
+    if hist:
+        allowed.add(REPO / hist / "index.html")
+    extra = graph.get(own, set()) - allowed
+    check(f"C2 /{slug}/ links only itself, the front page, its history and the features page",
+          not extra, sorted(str(t.relative_to(REPO)) for t in extra))
+# The features page opens on All Sports with its switch hidden; the MLB and
+# NFL sections exist for those pages' own footer links (?sport=...). The part
+# a front-page visitor sees must not lead to a hidden tracker.
+feat = (REPO / "features" / "index.html").read_text(encoding="utf-8")
+combined = feat.split('<div id="combined-content"', 1)[1].split('<footer', 1)[0]
+leaks = [h for h in HREF_RE.findall(combined) if h.startswith("/") and resolve(h) in tracker_files]
+check("C3 the features page's All Sports section links no hidden tracker", not leaks, leaks)
+check("C4 ...and its static back link goes to the front page",
+      'id="footer-back" href="/"' in feat)
 if orphans:
     print(f"NOTE (informational, not a failure): nothing in this graph links to {[str(o) for o in orphans]} "
           f"-- fine if that's an entry point (like a page reached only from Discord/bookmarks), worth a look otherwise.")

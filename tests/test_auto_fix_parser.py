@@ -132,6 +132,13 @@ ORIGINAL_SOURCE = "def parse(): return 'old'\n"
 
 # C1: well-formed response, suite passes, fix verified -> file updated, ok=True
 parser, incoming = with_tmp_files(ORIGINAL_SOURCE, "some upload")
+# The gate is every offline test file, found rather than listed: the hand
+# list stopped at 19 while the front page's own tests were added after it.
+_offline = sorted(p.stem for p in (REPO / "tests").glob("test_*.py"))
+check("S1 the fixer's suite is every offline test file -- the two network tests aside",
+      afp.FULL_SUITE == [n for n in _offline if n not in ("test_feed_fields", "test_notify_discord_live")]
+      and "test_combined_page" in afp.FULL_SUITE and "test_feed_fields" not in afp.FULL_SUITE, afp.FULL_SUITE)
+
 old_suite, old_verify = afp.run_full_suite, afp.verify_fix
 afp.run_full_suite = lambda: (True, "")
 afp.verify_fix = lambda p, i, r=None: (True, "")

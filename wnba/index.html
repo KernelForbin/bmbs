@@ -3131,7 +3131,10 @@ async function pollSlate(tickets) {
       });
     }
     if (snap.batStats) snap.batStats.forEach((v, n) => batStats.set(n, v));
-    if (snap.pitchStats) snap.pitchStats.forEach((v, n) => pitchStats.set(n, v));
+    // The game rides along: a pitcher under the DH has no batting-order slot,
+    // so rosterSide never places him, and his tile needs the game for its
+    // inning and its Gameday link.
+    if (snap.pitchStats) snap.pitchStats.forEach((v, n) => pitchStats.set(n, Object.assign({ gamePk: snap.gamePk }, v)));
     if (snap.teamScores) snap.teamScores.forEach((v, a) => {
       // Keyed by team abbreviation, so a DOUBLEHEADER puts the same team on
       // two games in one day. A settled game must not be clobbered by the
@@ -6175,8 +6178,9 @@ function renderLiveAtBats() {
       const where = RESULTS.rosterSide && RESULTS.rosterSide.get(pick.norm);
       if (row) {
         moundCount++;
-        const g = (where && RESULTS.gameInfo.get(where.gamePk)) || {};
-        tiles.push({ rank: 3, order: 0, html: labMoundTile(pick, labInningLabelFor(g), where ? gamedayUrl(where.gamePk) : "") });
+        const gamePk = (where && where.gamePk) || row.gamePk;
+        const g = (gamePk && RESULTS.gameInfo.get(gamePk)) || {};
+        tiles.push({ rank: 3, order: 0, html: labMoundTile(pick, labInningLabelFor(g), gamePk ? gamedayUrl(gamePk) : "") });
       }
       return;
     }

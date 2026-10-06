@@ -6,6 +6,7 @@ is a fake value for the duration of the test only.
     python tests/test_notify_discord.py
 """
 import json
+import re
 import sys
 import urllib.error
 from io import BytesIO
@@ -327,6 +328,28 @@ nd.main()
 check("E13 ...and so does --fixed", cli_calls[-1][1].startswith("\U0001F6E0"), cli_calls[-1])
 for f in (a, b, wk_before, wk_after):
     f.unlink()
+
+
+# ---------------- F. every sport, one table ----------------
+# Only baseball and football had their links pinned. The CLI's --sport
+# choices, SITE_URL, and the Discord bot's ROUTES ("sports" uploads are the
+# "combined" slate) name the same sports and the same pages, or a ping links
+# somewhere the bot never sends a card.
+nd_src = (REPO / "scripts" / "notify_discord.py").read_text(encoding="utf-8")
+choices = re.search(r'"--sport", required=True, choices=\[([^\]]*)\]', nd_src)
+choices = set(re.findall(r'"(\w+)"', choices.group(1))) if choices else set()
+check("F1 the CLI's --sport choices are exactly SITE_URL's sports", choices == set(nd.SITE_URL), (choices, set(nd.SITE_URL)))
+bot_src = (REPO / "discord-bot" / "bot.py").read_text(encoding="utf-8")
+routes = {("combined" if k == "sports" else k): site
+          for k, site in re.findall(r'"(\w+)": \{"path": "[^"]+", "sport": "[^"]+", "site": "([^"]+)"\}', bot_src)}
+check("F2 the bot's routes link the same page for every sport", routes == nd.SITE_URL, (routes, nd.SITE_URL))
+for sport, site in nd.SITE_URL.items():
+    p = write_tmp(f"every_{sport}", {"date": "2026-10-10", "endDate": "2026-10-12", "note": "",
+                                     "windows": [{"title": "x", "tickets": [{"legs": [1, 2]}]}], "singles": []})
+    msg = nd.summarize(p, sport)
+    p.unlink()
+    check(f"F3 {sport}: links {site} and shows the slate's whole span",
+          site in msg and "2026-10-10 to 2026-10-12" in msg, msg)
 
 print()
 if failures:

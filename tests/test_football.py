@@ -262,7 +262,9 @@ with sync_playwright() as p:
     check("A5 the baseball page has no football coupling at all",
           BASEBALL_SRC.count('href="/football/"') == 0 and "data/football" not in BASEBALL_SRC)
     check("A6 every ESPN call uses the browser-permitted hosts (site.api.espn.com is CORS-blocked for browsers)",
-          all("site.web.api.espn.com" in u or "sports.core.api.espn.com" in u for u in SEEN if "espn" in u) and "//site.api.espn.com" not in FOOTBALL_SRC)
+          any("espn" in u for u in SEEN)   # or the all() below is true of nothing
+          and all("site.web.api.espn.com" in u or "sports.core.api.espn.com" in u for u in SEEN if "espn" in u)
+          and "//site.api.espn.com" not in FOOTBALL_SRC)
     check("A7 sport switch: NFL active here, the other tab is the All Sports front page",
           page.get_attribute(".sport-switch .sport.active", "href") == "/football/" and page.get_attribute(".sport-switch .sport:not(.active)", "href") == "/")
     check("A8 the baseball page's switch: itself (now /mlb/) and the front page",

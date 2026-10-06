@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Parse a combined MLB + NFL card (``sports_*.txt``) into data/combined/tickets.json.
+"""Parse an All Sports card (``sports_*.txt``) into data/combined/tickets.json.
+
+One card can hold MLB, NFL, college football, NHL, NBA and WNBA legs; the
+hidden single-league pages' wrappers (parse_hockey_picks.py and friends) call
+``build()`` here with ``only_sport`` set.
 
 WHY THIS IS A THIN LAYER AND NOT A THIRD PARSER
 -----------------------------------------------
-``parse_picks.py`` already understands ten card templates, every ticket/bettor/
+``parse_picks.py`` already understands twelve card templates, every ticket/bettor/
 stake/payout/odds shape the group's generator has ever emitted, and the
 unread-bet-line safety net. Re-implementing any of that here would guarantee
 the two drift apart, and the drift would be silent -- a card parsing to zero.
@@ -1344,7 +1348,7 @@ def espn_span(scoreboard, league, teams, now, fetcher=None, days=4):
 
 
 def slate_span(legs, now, fetcher=None):
-    """(date, end_date) for a card holding either sport, or both."""
+    """(date, end_date) spanning the picked games of every league on the card."""
     mlb_legs = [l for l in legs if l.get("sport") not in ("nfl", "nhl", "nba", "wnba", "cfb")]
     cfb_legs = [l for l in legs if l.get("sport") == "cfb"]
     nba_legs = [l for l in legs if l.get("sport") == "nba"]
@@ -1444,7 +1448,7 @@ def build(text, mlb, nfl, now, fetcher=None, nhl=None, only_sport=None, nba=None
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Parse a combined MLB+NFL picks card.")
+    ap = argparse.ArgumentParser(description="Parse an All Sports picks card.")
     ap.add_argument("--file", required=True)
     ap.add_argument("--out", default=str(OUT_PATH))
     ap.add_argument("--prev", default=str(PREV_PATH))

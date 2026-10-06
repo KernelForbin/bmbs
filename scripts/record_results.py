@@ -6,21 +6,19 @@ data/results/<date>.json, one file per slate, kept forever.
 Why this exists: the live page grades every pick in the visitor's own browser
 and keeps nothing. Once a slate rolls off the Yesterday tab it is gone. This
 script grades the same slate once more, server-side, and writes it down. It is
-a port of index.html's grading (stateForPlayer, Pinch Hit Protection,
+a port of mlb/index.html's grading (stateForPlayer, Pinch Hit Protection,
 evaluateTicket), on purpose: the archive should say what the site said. If the
 page's rules change, change them here too -- tests/test_record_results.py pins
 the behaviours that matter.
 
-ONE DELIBERATE DIFFERENCE: a player who sat on the bench all game. MLB's
-boxscore lists the whole active roster, so the page (which asks only "is he in
-the boxscore?") shows a benched player as a miss. He didn't play; books void
-that bet. Found on the first slate ever recorded (Andres Gimenez, 2026-09-18:
-the page said miss, the group's own sheet correctly said DNP). The permanent
-record gets it right: on a Final game's roster but never came to the plate
-(benched, or only a pinch runner / late defensive sub) -> "na".
+A player who sat on the bench all game is VOID: MLB's boxscore lists the whole
+active roster, so being in it says nothing. On a Final game's roster but never
+came to the plate (benched, or only a pinch runner / late defensive sub) ->
+"na". This recorder had that rule first (Andres Gimenez, 2026-09-18); the page
+was brought in line on 2026-09-20, so the two agree.
 
 STOLEN BASE LEGS (`"market": "sb"` on the leg; no market = home run) are graded
-the way index.html's stateForSteal() grades them: a stolen_base_* runner event
+the way mlb/index.html's stateForSteal() grades them: a stolen_base_* runner event
 is a hit; NO Pinch Hit Protection; and "played" means APPEARED IN THE GAME
 (holds a batting-order spot), not "came to the plate" -- a pinch runner can
 steal without batting. On a finished game's roster without getting in -> "na".
@@ -84,7 +82,7 @@ def fetch_json(url):
 
 
 def normalize_name(name):
-    """Must match normalizeName() in index.html: suffixes are NOT stripped."""
+    """Must match normalizeName() in mlb/index.html: suffixes are NOT stripped."""
     s = unicodedata.normalize("NFKD", str(name or ""))
     s = "".join(ch for ch in s if not unicodedata.combining(ch))
     s = re.sub(r"[.']", "", s)
@@ -92,7 +90,7 @@ def normalize_name(name):
 
 
 def who_name(raw):
-    """whoKey() + whoDisplayName() from index.html: 'KENNY' -> 'Kenny'."""
+    """whoKey() + whoDisplayName() from mlb/index.html: 'KENNY' -> 'Kenny'."""
     key = re.split("[" + chr(0x2014) + "-]", raw or "")[0].strip()   # em dash or hyphen
     return key[:1].upper() + key[1:].lower()
 
@@ -119,7 +117,7 @@ def num(v):
 
 
 def game_snapshot(game_pk, feed):
-    """index.html's getGameSnapshot(), minus the live-at-bat parts."""
+    """mlb/index.html's getGameSnapshot(), minus the live-at-bat parts."""
     game_data = feed.get("gameData") or {}
     abstract = ((game_data.get("status") or {}).get("abstractGameState")) or ""
     status = "final" if abstract == "Final" else "preview" if abstract == "Preview" else "live"
@@ -273,7 +271,7 @@ def game_snapshot(game_pk, feed):
 # ---------------- one slate ----------------
 
 def poll_slate(day, fetcher=fetch_json):
-    """index.html's pollSlate(): every game on the date, folded into one results object."""
+    """mlb/index.html's pollSlate(): every game on the date, folded into one results object."""
     sched = fetcher(f"{MLB_API}/v1/schedule?sportId=1&date={day}")
     games = []
     for d in sched.get("dates") or []:
@@ -313,7 +311,7 @@ def poll_slate(day, fetcher=fetch_json):
             # A DOUBLEHEADER puts the same team on two games in one day, so a
             # settled score must not be clobbered by one that hasn't started.
             # Which game a leg means is genuinely ambiguous from the card;
-            # this only stops the score going backwards. Mirrors index.html.
+            # this only stops the score going backwards. Mirrors mlb/index.html.
             prev = results["teamScores"].get(a)
             if prev and prev.get("runs") is not None and row.get("runs") is None:
                 continue
@@ -354,7 +352,7 @@ def grade_player(results, player):
 
 
 def grade_steal(results, player):
-    """index.html's stateForSteal()."""
+    """mlb/index.html's stateForSteal()."""
     norm = normalize_name(player)
     if norm in results["sbNames"]:
         return "hit"
@@ -368,7 +366,7 @@ def grade_steal(results, player):
 
 
 def evaluate_ticket(stake, payout, legs):
-    """index.html's evaluateTicket(). legs: [(state, odds_number)] -> (outcome, returned)."""
+    """mlb/index.html's evaluateTicket(). legs: [(state, odds_number)] -> (outcome, returned)."""
     states = [s for s, _ in legs]
     na, miss, hit = states.count("na"), states.count("miss"), states.count("hit")
     active = len(states) - na
@@ -401,7 +399,7 @@ def hr_detail(hr):
 
 
 # ---------------- markets beyond home runs and steals ----------------
-# Ports of index.html's MARKETS registry. The rule from CLAUDE.md applies in
+# Ports of mlb/index.html's MARKETS registry. The rule from CLAUDE.md applies in
 # both directions: a change to either page's grading has to be made here too,
 # and vice versa. These were added 2026-09-30, after a first pass deliberately
 # wrote "untracked" rather than risk a half-ported grader baking a wrong
@@ -434,7 +432,7 @@ def leg_line(src, default=0.5):
 
 
 def grade_stat_prop(results, src, stat_keys, pitching=False):
-    """index.html's stateForStatProp(). Summed across every name on the leg."""
+    """mlb/index.html's stateForStatProp(). Summed across every name on the leg."""
     names = [normalize_name(n) for n in leg_players(src)]
     if not names:
         return "untracked"
@@ -458,7 +456,7 @@ def grade_stat_prop(results, src, stat_keys, pitching=False):
 
 
 def grade_game_line(results, src):
-    """index.html's stateForMoneyline / stateForSpread / stateForTotal.
+    """mlb/index.html's stateForMoneyline / stateForSpread / stateForTotal.
 
     ONLY ever settled on a FINAL game: leading in the seventh is not a result,
     and calling one early would be the worst kind of wrong in a permanent
@@ -491,7 +489,7 @@ def grade_game_line(results, src):
 
 
 def grade_partial(results, src, row):
-    """index.html's stateForPartial(): a total over the first N innings."""
+    """mlb/index.html's stateForPartial(): a total over the first N innings."""
     if src.get("opponent") and row.get("opponent") and             src["opponent"].upper() != row["opponent"].upper():
         # The card named a matchup that isn't real; grading it against
         # whichever team resolved would answer a question nobody asked.

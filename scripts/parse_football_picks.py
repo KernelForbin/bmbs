@@ -139,7 +139,9 @@ def norm_key(name):
 
 
 def clean_num(s):
-    return float(s.replace(",", ""))
+    """Money string -> float, "$" and "," tolerated -- the baseball parser's
+    clean_num() learned that the hard way (2026-09-22)."""
+    return float(s.replace(",", "").replace("$", "").strip())
 
 
 def load_roster(path=ROSTER_PATH):

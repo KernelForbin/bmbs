@@ -2,7 +2,7 @@ name: Parse New WNBA Picks
 
 # The WNBA tracker at /wnba/ (hidden from the sport switch, 2026-10-05). A
 # wnba_*.txt upload lands in data/wnba/incoming_picks.txt and is parsed
-# here; the same shape as the other three, in its own lane.
+# here; the same shape as the other parse workflows, in its own lane.
 
 on:
   push:
@@ -87,3 +87,13 @@ jobs:
         env:
           DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
         run: python scripts/notify_discord.py success --tickets data/wnba/tickets.json --sport wnba --mention "${{ steps.who.outputs.uploader }}" --before "$RUNNER_TEMP/live-before.json"
+
+      # This league has no auto-fixer (auto-fix-parse-failure.yml covers MLB,
+      # NFL and All Sports only), so without this a card that won't parse
+      # fails in silence and the group is never told.
+      - name: Tell Discord the card didn't go through
+        if: failure()
+        continue-on-error: true
+        env:
+          DISCORD_STATUS_WEBHOOK: ${{ secrets.DISCORD_STATUS_WEBHOOK }}
+        run: python scripts/notify_discord.py post --text "The WNBA card couldn't be processed, so https://bmbs.bet/wnba/ is unchanged. Check the card's format, or the Actions log, and upload it again."

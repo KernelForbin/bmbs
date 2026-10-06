@@ -61,13 +61,6 @@ jobs:
           echo "Failed to push after retries." >&2
           exit 1
 
-      # Only on a genuine new slate (never a no-op rerun) -- one plain status
-      # message, no AI involved. A parse FAILURE is handled entirely by the
-      # separate automated routine triggered off this workflow's own failure
-      # (see CLAUDE.md's "Discord status automation" section): it opens with
-      # its own "investigating" message and edits that same message to its
-      # final state, so a failure never doubles up with anything posted here.
-      # The slate is already committed and live by this point; a failed
       - name: Work out who uploaded the card
         id: who
         run: |
@@ -82,7 +75,11 @@ jobs:
         env:
           HEAD_MSG: ${{ github.event.head_commit.message }}
 
-      # status ping must not turn a successful upload into a red run.
+      # Only on a genuine new slate (never a no-op rerun) -- one plain status
+      # message, no AI involved. A parse FAILURE is handled entirely by
+      # auto-fix-parse-failure.yml, which posts its own messages. The slate is
+      # already committed and live by this point; a failed status ping must
+      # not turn a successful upload into a red run.
       - name: Notify Discord that today's slate is live
         continue-on-error: true
         if: steps.commit.outputs.committed == 'yes'

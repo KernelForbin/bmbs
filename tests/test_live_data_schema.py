@@ -196,9 +196,16 @@ check_tickets_file("data/tickets.json", DATA / "tickets.json")
 check_tickets_file("data/tickets-previous.json", DATA / "tickets-previous.json")
 check_tickets_file("data/football/tickets.json", DATA / "football" / "tickets.json", football=True)
 check_tickets_file("data/football/tickets-previous.json", DATA / "football" / "tickets-previous.json", football=True)
+# The front page's slate, and the hidden leagues'. All are written by
+# parse_combined_picks.build(), which stamps an endDate like football's. The
+# auto-fixer re-runs this file to validate a COMBINED card it just wrote, so
+# without these lines that check validated nothing.
+for sub in ("combined", "hockey", "basketball", "wnba", "cfb"):
+    for name in ("tickets.json", "tickets-previous.json"):
+        check_tickets_file(f"data/{sub}/{name}", DATA / sub / name, football=True)
 
 
-# ================= roster.json (both sports) =================
+# ================= roster.json (every league) =================
 
 def check_roster_file(label, path, required_maps, min_size):
     data = load(path)
@@ -243,6 +250,15 @@ def check_roster_file(label, path, required_maps, min_size):
 check_roster_file("data/roster.json", DATA / "roster.json", ("team_by_name", "canonical_name_by_norm"), min_size=400)
 check_roster_file("data/football/roster.json", DATA / "football" / "roster.json",
                    ("team_by_name", "canonical_name_by_norm", "id_by_norm", "pos_by_norm"), min_size=1500)
+# The hidden leagues' rosters (ESPN-built, merged on rebuild). `team_names`
+# counts the league's clubs: a short count means a rebuild lost teams.
+for sub, min_players, teams in (("hockey", 700, 32), ("basketball", 450, 30), ("wnba", 150, 15), ("cfb", 10000, 138)):
+    path = DATA / sub / "roster.json"
+    check_roster_file(f"data/{sub}/roster.json", path,
+                      ("team_by_name", "canonical_name_by_norm", "id_by_norm", "pos_by_norm"), min_size=min_players)
+    names = (load(path) or {}).get("team_names")
+    check(f"data/{sub}/roster.json: team_names covers all {teams} clubs",
+          isinstance(names, dict) and len(names) >= teams, len(names) if isinstance(names, dict) else names)
 
 
 # ================= history.json (both sports) =================

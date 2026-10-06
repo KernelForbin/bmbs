@@ -691,6 +691,16 @@ with tempfile.TemporaryDirectory() as td:
     written = json.loads(out_p.read_text(encoding="utf-8")) if out_p.exists() else {}
     check("P13 the CLI writes exactly where it's told, as hockey", r.returncode == 0 and written.get("sports") == ["nhl"],
           (r.returncode, r.stderr[-300:]))
+# Each hidden league's wrapper is a near-copy of the others, so a slip --
+# WNBA writing into data/basketball/ -- would overwrite another league's live
+# slate. Only hockey's CLI was ever run.
+import importlib  # noqa: E402
+for _mod, _dir in (("parse_hockey_picks", "hockey"), ("parse_basketball_picks", "basketball"),
+                   ("parse_wnba_picks", "wnba"), ("parse_cfb_picks", "cfb")):
+    _w = importlib.import_module(_mod)
+    check(f"P13b {_mod} writes data/{_dir}/tickets.json and archives to its own tickets-previous.json",
+          _w.OUT_PATH == REPO / "data" / _dir / "tickets.json"
+          and _w.PREV_PATH == REPO / "data" / _dir / "tickets-previous.json", (_w.OUT_PATH, _w.PREV_PATH))
 # Will Smith catches for the Dodgers AND centres for the Sharks. Nothing on the
 # line says hockey -- only the file it came in on -- and a hockey_*.txt card
 # is hockey, while the same line on an All Sports card is the catcher.

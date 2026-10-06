@@ -1,11 +1,12 @@
 name: Auto-fix a Picks Parse Failure
 
-# Fires when either parse workflow fails. Investigates with ONE bounded
-# Claude API call (scripts/auto_fix_parser.py) -- not an autonomous agent,
-# see CLAUDE.md's "Discord status automation" section for why that
-# distinction matters here. Commits the fix ONLY if the full test suite
-# still passes AND the specific failing upload now parses; otherwise it
-# edits the Discord status message to say so and touches nothing.
+# Fires when the MLB, NFL or All Sports parse workflow fails (the hidden
+# leagues' workflows post their own failure notice instead). Investigates with
+# bounded Claude API calls (scripts/auto_fix_parser.py) -- not an autonomous
+# agent, see CLAUDE.md's "Discord status automation" section for why that
+# distinction matters here. Commits the fix ONLY if the full offline test
+# suite still passes AND the specific failing upload now parses; otherwise it
+# posts a Discord message saying so and touches nothing.
 #
 # Security note: steps.fix.outputs.summary is text a MODEL wrote after
 # reading a friend's raw Discord upload -- neither is a trusted input.

@@ -1649,6 +1649,10 @@ with sync_playwright() as p:
 
     page.click("#chip-void")
     assert ticket_names(page) == ["Card VOID"], ticket_names(page)
+    # The card itself said "OPEN (void) -- no one has played yet" while the
+    # scoreboard filed it under N/A: it is refunded, not waiting on anyone.
+    status = page.inner_text(".ticket .ticket-status.void")
+    assert status.startswith("VOID") and "OPEN" not in status, status
     assert single_names(page) == ["V NA1"], single_names(page)
     assert summary_chips(page) == ["Bets: N/A"], summary_chips(page)
     page.click("#chip-void")

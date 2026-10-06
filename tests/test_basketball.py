@@ -1,7 +1,7 @@
 """
 basketball/index.html -- the NBA tracker (HIDDEN: complete, not in any other
-page's sport switch) -- and basketball legs on all/index.html, the All Sports
-tracker.
+page's sport switch) -- and basketball legs on the All Sports front page
+(index.html).
 
 Everything is served from in-memory fixtures through one route handler: the
 tickets files, ESPN's NBA scoreboard and summary, and (for the All Sports
@@ -213,9 +213,10 @@ with sync_playwright() as p:
     sw = page.eval_on_selector_all(".sport-switch .sport", "els => els.map(e => [e.textContent.trim(), e.classList.contains('active')])")
     check(f"A2 its own switch marks {WORD} active", any(n.endswith(WORD) and on for n, on in sw), sw)
     hidden = {path: f'href="{PAGE}"' in (REPO / path).read_text(encoding="utf-8")
-              for path in ("index.html", "football/index.html", "all/index.html", "hockey/index.html", "features/index.html",
-                           ("wnba" if LEAGUE == "nba" else "basketball") + "/index.html")}
-    check("A3 ...and it is HIDDEN: no other page links to it", not any(hidden.values()), hidden)
+              for path in [p.relative_to(REPO).as_posix() for p in REPO.rglob("*.html")
+                           if not any(s.startswith(".") or s == "tests" for s in p.relative_to(REPO).parts)
+                           and p.relative_to(REPO).as_posix() != PAGE.strip("/") + "/index.html"]}
+    check("A3 ...and it is HIDDEN: no other page links to it", len(hidden) >= 11 and not any(hidden.values()), hidden)
     keys = page.evaluate("""() => [...document.scripts].map(s => s.textContent).join('').match(/"bmbs\\.[a-z]+\\./g) || []""")
     check(f"A4 every storage key it writes is its own ({KEYS}*), never another page's",
           keys and all(k == f'"{KEYS}' for k in keys), sorted(set(keys)))

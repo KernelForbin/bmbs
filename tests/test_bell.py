@@ -1,5 +1,7 @@
 """
-The notification bell, on all three tracker pages.
+The notification bell, on the MLB, NFL and All Sports trackers. The hidden
+NHL / NBA / WNBA / college pages carry the All Sports page's copy of it; their
+own storage keys are pinned by each one's test (A4).
 
 The engine is the same text on every page; what differs is a handful of
 per-page hooks -- how a leg is graded, how a bet is named, and which results

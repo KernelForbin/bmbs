@@ -30,6 +30,7 @@ Run:
 import argparse
 import json
 import sys
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -160,7 +161,10 @@ def merge_rosters(old, new):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=str(OUT_PATH))
-    ap.add_argument("--season", type=int, default=2026)
+    # ESPN files a college season under the year it STARTS: January's bowls
+    # are still last year's season.
+    today = date.today()
+    ap.add_argument("--season", type=int, default=today.year if today.month >= 3 else today.year - 1)
     ap.add_argument("--days", type=int, default=14, help="days of FBS box scores to top the rosters up from (0 = none)")
     ap.add_argument("--replace", action="store_true", help="start over instead of merging with the committed roster")
     args = ap.parse_args()

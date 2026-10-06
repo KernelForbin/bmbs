@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Parses raw pasted picks text (the "Longshot / N-Leg Parlay Cards" format)
-into data/tickets.json, in the exact schema index.html expects:
+into data/tickets.json, in the exact schema mlb/index.html expects:
 
     {
       "note": "...",
@@ -33,7 +33,7 @@ closest-match fallback. The canonical CSV spelling and team replace
 whatever was in the pasted text, so downstream matching against the MLB
 Stats API stays reliable.
 
-Expected raw input shape — see test_picks.txt in this repo for a full
+Expected raw input shape — see tests/fixtures/test_picks.txt for a full
 real example. The markdown markers ("## " on section headers, "* " on
 item lines) are optional: text copied out of a rendered Gemini/ChatGPT
 response has them stripped, and both forms parse identically.
@@ -1731,7 +1731,7 @@ def parse(text, team_by_name, canonical_by_norm):
     # line like "HOME RUN PARLAY CARD" that happens to look header-shaped).
     windows = [w for w in windows if w["tickets"]]
 
-    # ---- build final schema matching index.html ----
+    # ---- build final schema matching mlb/index.html ----
     out_windows = []
     for si, section in enumerate(windows):
         out_tickets = []

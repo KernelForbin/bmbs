@@ -1,5 +1,6 @@
 """
-all/index.html -- the combined MLB + NFL tracker.
+index.html -- the All Sports front page (it lived at all/index.html until
+2026-10-05; the tests still serve it at that URL, which resolves its data the same).
 
 Everything the page fetches is served from in-memory fixtures through one
 route handler: its own tickets files, the MLB schedule and live feed, and

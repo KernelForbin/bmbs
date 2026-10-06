@@ -198,6 +198,16 @@ built = br.build(fetcher=lambda url: ESPN_ROSTERS[url])
 check("two Josh Allens: the skill-position one wins the name (whichever team is read first)",
       built["id_by_norm"]["josh allen"] == "7" and built["team_by_name"]["josh allen"] == "BUF", str(built["id_by_norm"]))
 check("suffix dropped from the KEY, kept in the NAME", built["canonical_name_by_norm"].get("james cook") == "James Cook III")
+# A rebuild merges, like every other league's: an overwrite drops whoever ESPN
+# stopped listing (injured reserve) -- the failure that once cost baseball
+# Aaron Judge, and a missing player is a leg that can never grade.
+_old = {"team_by_name": {"josh allen": "BUF", "hurt guy": "KC"}, "canonical_name_by_norm": {"josh allen": "Josh Allen", "hurt guy": "Hurt Guy"},
+        "id_by_norm": {"josh allen": "7", "hurt guy": "5"}, "pos_by_norm": {"josh allen": "QB", "hurt guy": "WR"}}
+_new = {"team_by_name": {"josh allen": "NYJ"}, "canonical_name_by_norm": {"josh allen": "Josh Allen"},
+        "id_by_norm": {"josh allen": "7"}, "pos_by_norm": {"josh allen": "QB"}}
+_m = br.merge_rosters(_old, _new)
+check("a rebuild keeps a player ESPN no longer lists, and a moved one takes his new team",
+      _m["team_by_name"] == {"josh allen": "NYJ", "hurt guy": "KC"} and _m["id_by_norm"]["hurt guy"] == "5", _m)
 
 # ---------- 6. the Discord bot routes by file name, and nothing else ----------
 for name in ("discord", "requests", "dotenv"):   # the bot's imports aren't test dependencies

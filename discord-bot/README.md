@@ -1,14 +1,68 @@
 # Picks intake bot
 
-Lets a friend upload his day's raw picks text (e.g. out of his own Gemini
-session) as a `.txt` file in a Discord channel instead of using GitHub's
-web editor. The bot reads the attachment, asks for a reaction to confirm,
-and pushes its contents to `data/incoming_picks.txt` on `main` -- exactly
-the file the existing `parse-picks.yml` workflow already watches. Nothing
-about that workflow, or about `tickets.json`, changes.
+Lets the group upload a day's picks card as a `.txt` file in a Discord
+channel instead of using GitHub's web editor. The bot reads the attachment,
+asks for a reaction to confirm, and commits its contents to that sport's
+`incoming_picks.txt` on `main` -- the file that sport's parse workflow
+watches. It never touches `tickets.json` or the parsing itself.
 
 A `.txt` upload (rather than a pasted message) sidesteps Discord's
-2000-character message cap, which a full day's picks routinely exceed.
+2000-character message cap, which a full day's card routinely exceeds.
+
+**Where it runs:** not from the dev clone. Production is a separate clone on
+an always-on Windows box, started by Task Scheduler through `run_bot.bat`
+(`pythonw`, output appended to the gitignored `bot.log`). The quick way to
+tell the two apart: the dev clone has no `.env`.
+
+## Day-to-day use
+
+1. Save the card as a `.txt` file and drag it into the intake channel -- no
+   message text needed. **The file name says which sport it is**, and must
+   start with one of:
+
+   | Name starts with | For | Example | Shows on |
+   |---|---|---|---|
+   | `sports` | the All Sports card -- any mix of leagues, mixed parlays included | `sports_2026-10-04.txt` | bmbs.bet |
+   | `baseball` | MLB-only cards | `baseball_2026-09-20.txt` | bmbs.bet/mlb/ |
+   | `football` | NFL-only cards | `football_week2.txt` | bmbs.bet/football/ |
+   | `hockey` | NHL-only cards | `hockey_2026-10-06.txt` | bmbs.bet/hockey/ |
+   | `basketball` | NBA-only cards | `basketball_2026-10-21.txt` | bmbs.bet/basketball/ |
+   | `wnba` | WNBA-only cards | `wnba_2026-06-01.txt` | bmbs.bet/wnba/ |
+   | `cfb` | college-football-only cards | `cfb_week7.txt` | bmbs.bet/cfb/ |
+
+   Anything else is refused with a note listing every prefix above, and
+   nothing is pushed. The bot never guesses the sport from the text: the
+   cards share a template, and a wrong guess would overwrite another sport's
+   slate.
+2. The bot posts a preview (which sport, character/line count, a snippet)
+   with ✅ / ❌ reactions.
+3. React ✅. The bot commits the file to that sport's
+   `data/.../incoming_picks.txt` and replies with the commit link and the
+   page that will update. The parse workflow takes it from there and posts
+   "now LIVE" to the channel, @-mentioning you (the bot writes your Discord
+   user id into the commit message as `[discord:<id>]` so the workflow can).
+4. ❌, or letting it time out (60 seconds by default), discards the upload.
+
+Re-uploading a card **identical** to the one already there pushes nothing --
+the parse workflow would never fire on an unchanged file -- and the bot says
+so instead of promising an update.
+
+Only attachments in the configured channel (and, if set, from an allowed
+user id) are considered. A non-`.txt` or empty attachment there gets a reply
+saying why, rather than being silently ignored.
+
+## After changing `bot.py`: pull and restart
+
+The bot is a long-running process and keeps running the code it started
+with, so a `git pull` on the bot's box does nothing until it is restarted:
+end the `pythonw.exe` running `bot.py` (`taskkill /F /IM pythonw.exe`, or
+just that PID), then run the scheduled task again -- `schtasks /Run /TN
+"<task name>"`.
+
+**To confirm the new code is live**, drop a `.txt` whose name starts with
+none of the prefixes (say `zzz.txt`) into the intake channel. The refusal
+lists every prefix the running code knows, so if it names all seven, the
+restart took. A refused file pushes nothing.
 
 ## One-time setup
 
@@ -17,14 +71,15 @@ A `.txt` upload (rather than a pasted message) sidesteps Discord's
 1. https://discord.com/developers/applications -> **New Application**.
 2. **Bot** tab -> **Reset Token**, copy it (this is `DISCORD_BOT_TOKEN`).
 3. Same tab, under **Privileged Gateway Intents**, enable **Message Content
-   Intent**. The bot can't read paste text without this.
+   Intent**.
 4. **OAuth2 -> URL Generator**: scope `bot`, permissions `Send Messages`,
    `Read Message History`, `Add Reactions`. Open the generated URL and add
-   the bot to your friend group's server.
+   the bot to the group's server.
 5. In Discord, enable **Developer Mode** (User Settings -> Advanced), then
-   right-click your intake channel -> **Copy Channel ID** for
-   `DISCORD_CHANNEL_ID`. Right-click your friend's name -> **Copy User ID**
-   if you want to lock `DISCORD_ALLOWED_USER_IDS` to just him.
+   right-click the intake channel -> **Copy Channel ID** for
+   `DISCORD_CHANNEL_ID`. To restrict who can push, right-click each person
+   -> **Copy User ID** for `DISCORD_ALLOWED_USER_IDS` (comma-separated;
+   blank allows anyone who can post in the channel).
 
 ### 2. Create a scoped GitHub token
 
@@ -37,71 +92,15 @@ Fine-grained PAT (https://github.com/settings/personal-access-tokens/new),
 ```bash
 cd discord-bot
 cp .env.example .env
-# fill in .env with the values from steps 1-2
+# fill in .env (GITHUB_REPO, GITHUB_BRANCH and CONFIRM_TIMEOUT_SECONDS are optional)
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+.venv\Scripts\activate
 pip install -r requirements.txt
-python bot.py               # run it once in the foreground to confirm it logs in
+python bot.py               # once in the foreground, to confirm it logs in
 ```
 
 ### 4. Run it 24/7
 
-Pick whatever your always-on machine supports. A systemd example is
-included (`bmbs-picks-bot.service`) -- edit the paths, then:
-
-```bash
-sudo cp bmbs-picks-bot.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now bmbs-picks-bot
-sudo journalctl -u bmbs-picks-bot -f   # tail logs
-```
-
-On Windows, run it under NSSM or Task Scheduler ("run whether user is
-logged in or not"). On anything else, a `screen`/`tmux` session, `pm2`, or
-a Docker container with `restart: unless-stopped` all work fine -- it's a
-single lightweight process with no external state beyond `.env`.
-
-## Day-to-day use
-
-1. Your friend saves his picks text as a `.txt` file (e.g. copy Gemini's
-   output into Notepad and save) and drags it into the intake channel as
-   an attachment -- no message text needed. **The file name says which
-   sport it is**, and must start with one of:
-
-   | Name starts with | For | Example |
-   |---|---|---|
-   | `baseball` | home run cards | `baseball_2026-09-20.txt` |
-   | `football` | touchdown cards | `football_week2.txt` |
-   | `sports` | combined MLB + NFL cards, incl. mixed parlays | `sports_2026-10-04.txt` |
-
-   Anything else is refused with a note asking for a rename -- nothing is
-   pushed. The bot never guesses the sport from the text: both cards use the
-   same template, and a wrong guess would overwrite the other sport's slate.
-2. The bot reads the file and posts a preview (which sport, character/line
-   count + a snippet) with ✅ / ❌ reactions.
-3. He reacts ✅. The bot pushes the file's contents to that sport's incoming
-   file (`data/incoming_picks.txt`, `data/football/incoming_picks.txt` or
-   `data/combined/incoming_picks.txt`)
-   and replies with the commit link. That sport's parse workflow runs
-   automatically from there, same as a manual GitHub web-editor paste.
-4. ❌ or letting it time out (60s default) discards the upload --
-   nothing is written.
-
-Only attachments in the configured channel (and, if set, from an allowed
-user ID) are ever considered, so unrelated chatter or files elsewhere in
-the server can't trigger a push. If someone attaches a non-`.txt` file
-there, the bot points that out instead of silently ignoring it.
-
-**After changing `bot.py`, restart the bot** -- it's a long-running process
-and keeps running the code it started with, so a `git pull` alone changes
-nothing until it is restarted.
-
-- **Task Scheduler (Windows):** end the `pythonw.exe` running `bot.py`
-  (`taskkill /F /IM pythonw.exe`, or just that PID), then run the scheduled
-  task again -- `schtasks /Run /TN "<task name>"`.
-- **systemd (Linux):** `sudo systemctl restart bmbs-picks-bot`.
-
-**To confirm the new code is actually live**, drop a `.txt` into the intake
-channel whose name starts with none of the routed prefixes (say `zzz.txt`).
-The refusal names every prefix it currently knows, so if the hint mentions
-**`sports`**, the restart took. Nothing is pushed by a refused file.
+Create a Task Scheduler task that runs `run_bot.bat` at startup ("run
+whether user is logged in or not"). It is a single lightweight process with
+no state beyond `.env`, so any always-on runner works if the box changes.

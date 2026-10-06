@@ -28,7 +28,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 REPO = Path(__file__).resolve().parent.parent
-INDEX = REPO / "mlb" / "index.html"
+INDEX = REPO / "mlb" / "index.html"   # the other pages' copies must match it: test_smoke_pages.py F2
 API = "https://statsapi.mlb.com/api/v1.1/game/{pk}/feed/live"
 SCHEDULE = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={date}"
 MAX_GAMES = 15
@@ -66,7 +66,8 @@ def pick_games():
             return live[:MAX_GAMES], f"{len(live)} live games on {date}"
         final = [g["gamePk"] for g in games if g["status"]["abstractGameState"] == "Final"]
         if final:
-            return final[:MAX_GAMES], f"{len(final[:MAX_GAMES])} FINAL games on {date} (no live games right now)"
+            return final[:MAX_GAMES], (f"{len(final[:MAX_GAMES])} FINAL games on {date} (no live games right now -- the live-only "
+                                           "fields, currentAB and the bases, are NOT exercised; re-run during a game)")
     sys.exit("FAIL: no games found in the last 3 days to check against")
 
 

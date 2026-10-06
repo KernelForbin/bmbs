@@ -17,8 +17,13 @@ Two NFL players can share a name (there are two Josh Allens). When keys
 collide, the offensive skill position wins -- an anytime-touchdown card
 means the quarterback, not the linebacker.
 
+A rebuild MERGES with the committed roster, like every other league's: a
+player ESPN stops listing (injured reserve, a practice-squad move) is kept,
+because a missing player is a leg that can never grade, while a stale team
+only costs which game he's shown waiting on. `--replace` starts over.
+
 Run:
-    python scripts/build_football_roster.py [--out FILE]
+    python scripts/build_football_roster.py [--out FILE] [--replace]
 
 Re-run after trades / signings if a newly added player can't be found.
 """
@@ -92,14 +97,34 @@ def build(fetcher=fetch):
     }
 
 
+PLAYER_MAPS = ("team_by_name", "canonical_name_by_norm", "id_by_norm", "pos_by_norm")
+
+
+def merge_rosters(old, new):
+    """Fresh data wins; nobody already known is dropped. Pure, for the tests."""
+    if not old:
+        return new
+    out = {m: dict(old.get(m) or {}) for m in PLAYER_MAPS}
+    for m in PLAYER_MAPS:
+        out[m].update(new.get(m) or {})
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=str(OUT_PATH))
+    ap.add_argument("--replace", action="store_true", help="start over instead of merging with the committed roster")
     args = ap.parse_args()
 
     payload = build()
-    print(f"Built NFL roster: {len(payload['id_by_norm'])} players across {len(set(payload['team_by_name'].values()))} teams.")
     out = Path(args.out)
+    if not args.replace and out.exists():
+        old = json.loads(out.read_text(encoding="utf-8"))
+        kept = set(old.get("team_by_name") or {}) - set(payload["team_by_name"])
+        payload = merge_rosters(old, payload)
+        if kept:
+            print(f"Merged with the existing roster: kept {len(kept)} name(s) ESPN no longer lists (IR, practice squad).")
+    print(f"Built NFL roster: {len(payload['id_by_norm'])} players across {len(set(payload['team_by_name'].values()))} teams.")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=1, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     print(f"Wrote {out}")

@@ -382,8 +382,10 @@ def split_trailing_odds(text):
 # "1+ Total Homers" / "4+ Total Bases" / "2+ Hits" / "5+ Strikeouts".
 # "N+" means at least N, which is an over on N-0.5.
 N_PLUS_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*\+", re.IGNORECASE)
-# The market words this card uses, checked before the generic table because
-# "Total Homers" must not be read as a game TOTAL.
+# The market words this card uses, checked before the generic table
+# (MARKET_ALIASES, below) because "Total Homers" must not be read as a game
+# TOTAL. Two tables on purpose -- this one reads the bare-count prop shape --
+# but a market added to one almost certainly belongs in the other too.
 CARD_MARKET_WORDS = [
     # hrr BEFORE hits: "3+ Hits+Runs+RBIs" otherwise matches the bare `hits`
     # alias and grades as a hits prop. er/win BEFORE runs, for the same
@@ -799,9 +801,9 @@ SB_MARK_RE = re.compile(
 # gradeable: an unknown market word is passed through as-is, and the page
 # handles it. That is the whole reason this can be tolerant.
 #
-# No real card has arrived yet using any of these, so the phrasings below are
-# the common ones rather than anything observed. A leg nothing matches still
-# goes through BETLIKE_RE and surfaces in the note -- never dropped in silence.
+# The phrasings are the common ones, refined as real cards arrived (the first
+# on 2026-09-29). A leg nothing matches still goes through BETLIKE_RE and
+# surfaces in the note -- never dropped in silence.
 # ORDER MATTERS, most specific first. "Home Runs" contains the word "Runs",
 # so a `runs` alias checked earlier claims it and a home run prop grades as a
 # runs prop -- which is exactly what happened to the real steals fixture the

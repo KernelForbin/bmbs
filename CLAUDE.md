@@ -675,6 +675,13 @@ regenerated.
   an all-MLB card never waits on football. `mlbLegsOn()` makes MLB's
   `pollSlate()` return done before fetching even the schedule when the card has
   no baseball leg. Each engine is handed only its own legs.
+- **Live Bet Tracker picks are grouped by SPORT and name** (`labEligiblePicks()`:
+  `norm` is the bare name for MLB, `<sport>:<name>` otherwise -- the at-bat and
+  steal machinery look MLB picks up by the bare name). A Rays run line and a
+  Lightning puck line, both "TB", were merged into one hockey tile live on
+  2026-10-05. Where one subject means two sports on the card
+  (`sharedSubjects()`), the leg row and the tile carry a `.sport-tag` (MLB /
+  NHL / NFL / CFB / NBA / WNBA); nowhere else. `test_combined_page.py` W.
 - **Team tiles are keyed with a league prefix** where abbreviations collide:
   `CFB MIA` vs the Dolphins, `WNBA NY` vs the Knicks (`test_cfb.py` E,
   `test_basketball.py` G3).

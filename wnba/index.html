@@ -299,6 +299,11 @@
      carries the same weight as a pick the page is actually tracking. */
   .mkt-tag.prop { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
   .mkt-tag.hr { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
+  /* Which sport, shown only where one name means two on the same card: "TB"
+     is the Rays, the Lightning AND the Buccaneers. Solid, so it never reads
+     as another market tag. */
+  .sport-tag { font-family:'Inter',sans-serif; font-size:9px; font-weight:700; letter-spacing:.07em; border-radius:4px;
+               padding:1px 5px; vertical-align:2px; color:var(--bg); background:var(--text-dim); }
   .mkt-tag.line { color:var(--text); background:rgba(255,255,255,0.07); border:1px solid var(--panel-line); }
   .mkt-tag.unknown { color:var(--muted); background:transparent; border:1px dashed var(--panel-line); }
   /* Two new Live Bet Tracker tiles. Deliberately calmer than AT BAT: a
@@ -1331,7 +1336,7 @@ function drvTileShell(cls, tag, pick, link, inner) {
   const href = link ? ` href="${link}" target="_blank" rel="noopener"` : "";
   return `<a class="ab-tile ${cls}"${href} data-player="${escapeHtml(pick.player)}" title="${escapeHtml(pick.whos.join(", "))}">
     <div class="ab-top"><span class="ab-tag">${tag}</span><span class="ab-odds">${escapeHtml(drvOddsText(pick.odds))}${pick.iron ? ironMark() : ""}</span></div>
-    <div class="ab-name">${escapeHtml(pick.player)}</div>${inner}</a>`;
+    <div class="ab-name">${escapeHtml(pick.player)}${pick.badge || ""}</div>${inner}</a>`;
 }
 
 function escapeHtml(s) {
@@ -3432,6 +3437,34 @@ function legTeams(leg) {
 // What this leg is ABOUT, for display. A player prop names the player; a game
 // line names the team or the matchup, and has no player at all -- which is why
 // nothing may assume leg.player exists.
+const SPORT_LABEL = { mlb: "MLB", nfl: "NFL", cfb: "CFB", nhl: "NHL", nba: "NBA", wnba: "WNBA" };
+function legSportKey(leg) { return (leg && leg.sport) || "mlb"; }
+
+// Subjects on this card that name different things in different sports --
+// "TB" for a Rays run line and a Lightning puck line on one card (seen live,
+// 2026-10-05). Only those get a sport label; everywhere else it would be
+// noise. Cached on the tickets object, which is replaced whenever a card is.
+let SHARED_SUBJECTS = { tickets: null, names: new Set() };
+function sharedSubjects() {
+  if (SHARED_SUBJECTS.tickets === TICKETS) return SHARED_SUBJECTS.names;
+  const sports = new Map();
+  const note = leg => {
+    const k = normalizeName(legSubjectName(leg));
+    if (!k) return;
+    if (!sports.has(k)) sports.set(k, new Set());
+    sports.get(k).add(legSportKey(leg));
+  };
+  ((TICKETS && TICKETS.windows) || []).forEach(w => (w.tickets || []).forEach(t => (t.legs || []).forEach(note)));
+  ((TICKETS && TICKETS.singles) || []).forEach(note);
+  const names = new Set([...sports].filter(([, s]) => s.size > 1).map(([k]) => k));
+  SHARED_SUBJECTS = { tickets: TICKETS, names };
+  return names;
+}
+function sportTagFor(name, sport) {
+  if (!sharedSubjects().has(normalizeName(name))) return "";
+  return ` <span class="sport-tag" title="Same name, different sport">${SPORT_LABEL[sport || "mlb"] || escapeHtml(String(sport).toUpperCase())}</span>`;
+}
+
 function legSubjectName(leg) {
   if (!leg) return "";
   if (marketSubject(leg) === "player") {
@@ -5569,11 +5602,15 @@ const LAB_PA_RESULTS = new Set([
 function labEligiblePicks() {
   const picks = new Map();
   function add(player, odds, rawWho, iron, market, leg) {
-    const norm = normalizeName(player);
+    // Keyed by SPORT and name: "TB" the Rays and "TB" the Lightning are two
+    // tiles, not one (they were merged, live, 2026-10-05). Baseball keeps the
+    // bare name, which the at-bat and steal machinery look picks up by.
+    const sport = legSportKey(leg);
+    const norm = (sport === "mlb" ? "" : sport + ":") + normalizeName(player);
     let pick = picks.get(norm);
     if (!pick) {
       pick = { norm, player, odds: [], oddsSb: [], whos: [], iron: false, hr: false, sb: false,
-               entries: [], kinds: new Set() };
+               entries: [], kinds: new Set(), badge: sportTagFor(player, sport) };
       picks.set(norm, pick);
     }
     const list = market === "sb" ? pick.oddsSb : pick.odds;
@@ -5964,7 +6001,7 @@ function labTileShell(cls, tag, pick, link, inner) {
   // just repeats it -- a game-line tile tagged SPREAD read "SPREADSPREAD".
   return `<a class="ab-tile ${cls}"${href} data-player="${escapeHtml(pick.player)}" title="${escapeHtml(pick.whos.join(", "))}">
     <div class="ab-top"><span class="ab-tag">${tag}</span><span class="ab-odds">${labOddsHtml(pick, tag)}${pick.iron ? ironMark() : ""}</span></div>
-    <div class="ab-name">${escapeHtml(pick.player)}</div>${inner}</a>`;
+    <div class="ab-name">${escapeHtml(pick.player)}${pick.badge || ""}</div>${inner}</a>`;
 }
 
 function labNowTile(pick, ctx) {
@@ -6571,7 +6608,7 @@ function renderContent() {
         const leg = tk.legs[i];
         const state = states[i];
         html += `<div class="leg state-${state}">
-          <div class="leg-left"><div class="leg-player">${escapeHtml(legSubjectName(leg))}${marketTag(legMarket(leg), leg)}${isIronLeg(evalRes, state) ? ironMark() : ""}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen, legMarket(leg), leg.team, leg)}</div>
+          <div class="leg-left"><div class="leg-player">${escapeHtml(legSubjectName(leg))}${sportTagFor(legSubjectName(leg), legSportKey(leg))}${marketTag(legMarket(leg), leg)}${isIronLeg(evalRes, state) ? ironMark() : ""}</div><div class="leg-meta">${leg.meta}</div>${liveContextHtml(leg.player, state, betIsOpen, legMarket(leg), leg.team, leg)}</div>
           <div class="leg-right"><div class="leg-odds">${oddsText(leg.odds)}</div><div class="leg-time">${leg.time || ""}</div></div>
           ${badge(state, leg.player, legMarket(leg))}
         </div>`;
@@ -6612,7 +6649,7 @@ function renderContent() {
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
     singlesHtml += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${escapeHtml(s.who)}</div><div class="single-player">${escapeHtml(legSubjectName(s))}${marketTag(legMarket(s), s)}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team, s)}
+      <div class="single-left"><div class="single-person">${escapeHtml(s.who)}</div><div class="single-player">${escapeHtml(legSubjectName(s))}${sportTagFor(legSubjectName(s), legSportKey(s))}${marketTag(legMarket(s), s)}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team, s)}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${oddsText(s.odds)}</div><div class="leg-time">${s.pp}</div></div>

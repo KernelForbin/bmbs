@@ -372,8 +372,10 @@ with sync_playwright() as p:
     page.evaluate("if (document.getElementById('liveab-section').classList.contains('collapsed')) toggleLiveAb()")
     page.wait_for_timeout(200)
     names = [t["name"] for t in tiles(page)]
-    check("G3 a Denver bet in each league gets its OWN tile -- 'DEN' and 'WNBA DEN', never one merged tile",
-          names.count("DEN") == 1 and names.count("WNBA DEN") == 1, names)
+    # "DEN" names a team in both leagues on this card, so the NBA's tile also
+    # carries the sport label every shared name gets (2026-10-05).
+    check("G3 a Denver bet in each league gets its OWN tile -- 'DEN' (labelled NBA) and 'WNBA DEN', never one merged tile",
+          names.count("DEN NBA") == 1 and names.count("WNBA DEN") == 1, names)
     check("G4 no JS errors", not errors, errors[:3])
     browser.close()
     FX["other_event"] = FX["other_summary"] = None

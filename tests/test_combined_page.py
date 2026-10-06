@@ -1558,6 +1558,59 @@ with sync_playwright() as p:
     check("V7 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
+    # ---------- W. one name, two sports ----------
+    # Seen live 2026-10-05: a Rays run line ("TB SPREAD +1.5") and a Lightning
+    # puck line on one card were merged into ONE hockey tile reading "PUCK LINE
+    # +114 SPREAD +240", because tiles were grouped by name alone. Each sport
+    # gets its own tile, and where a name means two sports the card and the
+    # tile say which.
+    browser, page, errors = open_page(p)
+    picks = page.evaluate("""() => {
+        const rays = { player: null, team: 'TB', market: 'spread', line: 1.5, sport: 'mlb', odds: '+240', who: 'Kenny' };
+        const bolts = { player: null, team: 'TB', market: 'nhl_pl', line: -1.5, sport: 'nhl', odds: '+114', who: 'Kenny' };
+        const judge = { player: 'Aaron Judge', team: 'NYY', sport: 'mlb', odds: '+390', who: 'Memo' };
+        const savedT = TICKETS, savedE = EVALUATED, savedS = EVALUATED_SINGLES;
+        TICKETS = { date: TICKETS.date, windows: [{ title: 'x', tickets: [{ name: 'W', legs: [rays, bolts, judge] }] }], singles: [] };
+        EVALUATED = [{ tk: TICKETS.windows[0].tickets[0], states: ['live', 'live', 'live'],
+                       evalRes: { outcome: 'live', iron: false, hitCount: 0, activeCount: 3 } }];
+        EVALUATED_SINGLES = [];
+        try {
+            return [...labEligiblePicks().values()].map(p => ({ norm: p.norm, player: p.player, kinds: [...p.kinds],
+                                                              odds: p.odds, badge: p.badge }));
+        } finally { TICKETS = savedT; EVALUATED = savedE; EVALUATED_SINGLES = savedS; }
+    }""")
+    tb = [x for x in picks if x["player"] == "TB"]
+    check("W1 a Rays run line and a Lightning puck line are TWO tiles, not one merged one",
+          len(tb) == 2 and {tuple(x["odds"]) for x in tb} == {("+240",), ("+114",)}, picks)
+    check("W2 ...each labelled with its sport, because the name alone can't say which",
+          sorted(re.sub("<[^>]+>", "", x["badge"]).strip() for x in tb) == ["MLB", "NHL"], tb)
+    check("W3 ...and a name only one sport uses carries no label",
+          [x["badge"] for x in picks if x["player"] == "Aaron Judge"] == [""], picks)
+    check("W4 the bet card's legs say which sport too",
+          page.evaluate("""() => { const saved = TICKETS;
+              TICKETS = { windows: [{ tickets: [{ legs: [{ team: 'TB', market: 'spread', sport: 'mlb' },
+                                                          { team: 'TB', market: 'nhl_pl', sport: 'nhl' }] }] }], singles: [] };
+              try { return [sportTagFor('TB', 'mlb'), sportTagFor('TB', 'nhl'), sportTagFor('NYY', 'mlb')]
+                             .map(h => h.replace(/<[^>]+>/g, '').trim()); }
+              finally { TICKETS = saved; } }""") == ["MLB", "NHL", ""])
+    browser.close()
+
+    # ...and on the card as actually rendered, not just the helper.
+    def tb_leg(i, market, line, sport, odds):
+        return {"id": f"W{i}", "player": None, "team": "TB", "market": market, "line": line, "sport": sport,
+                "who": "Kenny", "meta": "TB &middot; Kenny", "odds": odds, "time": "7:10 PM ET"}
+    FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["mlb", "nhl"],
+                     "windows": [{"title": "Parlay Cards", "tickets": [
+                         card(6, [tb_leg(1, "spread", 1.5, "mlb", "+240"), tb_leg(2, "nhl_pl", -1.5, "nhl", "+114")])]}],
+                     "singles": []}
+    browser, page, errors = open_page(p)
+    page.evaluate("toggleCardsSection('parlays')")
+    page.wait_for_timeout(200)
+    rows = page.eval_on_selector_all(".leg-player", r"els => els.map(e => e.textContent.replace(/\s+/g, ' ').trim())")
+    check("W5 the card itself reads TB MLB and TB NHL", any("TB MLB" in r for r in rows) and any("TB NHL" in r for r in rows), rows)
+    browser.close()
+    FX["tickets"] = TICKETS
+
     # Opening the page AFTER all that: nothing is replayed.
     browser, page, errors = open_page(p, at="2026-10-04T20:00:25Z")
     page.evaluate("toggleLiveAb()")

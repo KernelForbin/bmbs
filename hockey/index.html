@@ -3598,7 +3598,18 @@ function badge(state, playerName, market) {
 // the green check has already said it.
 function statusLineHtml(text) { return `<div class="leg-live-context leg-status">${text}</div>`; }
 
-function playerStatusLine(playerName, state, market, team) {
+// Where an MLB stat prop stands -- "1 of 2 hits", "10 of 15 outs" -- the
+// same count its Live Bet Tracker tile shows (labProgress). Home runs and
+// steals keep their own lines, which already say what they're waiting on.
+function mlbCountText(leg, market) {
+  if (!leg || market === "hr" || market === "sb" || !MARKET_STATS[market]) return "";
+  const p = labProgress({ market, line: leg.line === undefined ? null : leg.line, side: legSide(leg), names: legPlayers(leg) });
+  return p ? p.text : "";
+}
+
+function playerStatusLine(playerName, state, market, team, leg) {
+  const count = mlbCountText(leg, market);
+  const countTail = count ? ` &middot; <b>${escapeHtml(count)}</b>` : "";
   const norm = normalizeName(playerName);
   const def = MARKETS[market];
   const what = market === "sb" ? "steal" : (def && def.label ? def.label.toLowerCase() : "home run");
@@ -3619,7 +3630,7 @@ function playerStatusLine(playerName, state, market, team) {
       ? "On the roster but never got in the game &mdash; void / refunded."
       : "Didn't play &mdash; void / refunded.");
   }
-  if (state === "miss") return statusLineHtml(`Game final &mdash; no ${what}.`);
+  if (state === "miss") return statusLineHtml(count ? `Missed &mdash; ${escapeHtml(count)}.` : `Game final &mdash; no ${what}.`);
   if (state === "not_started") return statusLineHtml(schedText || "Game hasn't started yet.");
   // live: his game is on and he's still gradeable
   if (schedText) return statusLineHtml(schedText);
@@ -3628,14 +3639,15 @@ function playerStatusLine(playerName, state, market, team) {
   // about the bet. Read his pitching line instead.
   const pitchRow = RESULTS.pitchStats && RESULTS.pitchStats.get(norm);
   if (pitchRow) {
+    if (count) return statusLineHtml(`On the mound &mdash; <b>${escapeHtml(count)}</b>.`);
     const k = pitchRow.strikeOuts || 0;
     return statusLineHtml(`On the mound &mdash; ${k} strikeout${k === 1 ? "" : "s"} so far.`);
   }
   if (MARKETS[market] && MARKETS[market].pitching) {
     return statusLineHtml("Game on &mdash; hasn't taken the mound yet.");
   }
-  if (RESULTS.rosterSide && RESULTS.rosterSide.has(norm)) return statusLineHtml("In the game &mdash; waiting on the live feed.");
-  return statusLineHtml("Game on &mdash; not in the lineup yet.");
+  if (RESULTS.rosterSide && RESULTS.rosterSide.has(norm)) return statusLineHtml(`In the game &mdash; waiting on the live feed.${countTail}`);
+  return statusLineHtml(`Game on &mdash; not in the lineup yet.${countTail}`);
 }
 
 // A hockey player's line under his pick: where he is right now, the score
@@ -3645,8 +3657,11 @@ function nhlStatusLine(leg, state) {
   if (state === "na") return statusLineHtml("Didn't play &mdash; void / refunded.");
   const ctx = NHL.context(leg);
   if (!ctx || ctx.status === "preview") return statusLineHtml("Game hasn't started yet.");
-  const stat = ctx.statLine ? ` &middot; ${escapeHtml(ctx.statLine)}` : "";
-  if (ctx.status === "final") return statusLineHtml(`Game final${ctx.statLine ? ` &mdash; ${escapeHtml(ctx.statLine)}` : ""}.`);
+  // His count toward the bet -- "1 of 2 points" -- as his tile shows it.
+  const count = nhlProgress({ entries: [{ market: legMarket(leg), line: leg.line === undefined ? null : leg.line,
+                                          side: legSide(leg), names: legPlayers(leg) }] }, ctx);
+  const stat = (count ? ` &middot; <b>${escapeHtml(count)}</b>` : "") + (ctx.statLine ? ` &middot; ${escapeHtml(ctx.statLine)}` : "");
+  if (ctx.status === "final") return statusLineHtml(`Game final${count ? ` &mdash; ${escapeHtml(count)}` : ctx.statLine ? ` &mdash; ${escapeHtml(ctx.statLine)}` : ""}.`);
   const where = `${escapeHtml(ctx.score || "")}${ctx.clockLabel ? ` &middot; ${escapeHtml(ctx.clockLabel)}` : ""}`;
   const pp = ctx.powerPlay === "pp" ? " &middot; <b>POWER PLAY</b>" : ctx.powerPlay === "sh" ? " &middot; shorthanded" : "";
   if (ctx.goalie) return `<div class="leg-live-context"><span class="leg-action-tag now">IN NET</span> ${where}${pp}${stat}</div>`;
@@ -3731,7 +3746,7 @@ function liveContextHtml(playerName, state, betIsOpen, market, team, leg) {
   // batting-order machinery below applies. They get their own plain line.
   const def = MARKETS[market];
   if (def && def.subject !== "player") return gameLineStatusLine(state, market, team, leg);
-  if (state === "untracked") return playerStatusLine(playerName, state, market, team);
+  if (state === "untracked") return playerStatusLine(playerName, state, market, team, leg);
   if (leg && leg.sport === "nfl") return nflStatusLine(leg, state);
   if (leg && leg.sport === "nhl") return nhlStatusLine(leg, state);
   if (market === "sb") return stealContextHtml(playerName, state, betIsOpen, team);
@@ -3758,7 +3773,7 @@ function liveContextHtml(playerName, state, betIsOpen, market, team, leg) {
   // Already resolved via his own hit before being pulled (e.g. pinch-run
   // for right after homering) -- the checkmark says enough, nothing left
   // to estimate.
-  if (!ctx || ctx.substitutedBy) return playerStatusLine(playerName, state, market, team);
+  if (!ctx || ctx.substitutedBy) return playerStatusLine(playerName, state, market, team, leg);
   const gamedayLine = ctx.gamedayLink
     ? `<a href="${ctx.gamedayLink}" target="_blank" rel="noopener" class="gameday-link" onclick="event.stopPropagation()">Track Live on Gameday &#8599;</a>`
     : "";
@@ -3772,7 +3787,7 @@ function liveContextHtml(playerName, state, betIsOpen, market, team, leg) {
     actionTag = `<div class="leg-action-tag soon">&#9203; GUARANTEED TO BAT THIS INNING</div>`;
   }
   return `${actionTag}<div class="leg-live-context">&#9918; ${ctx.inningLabel} &middot; batting ${ordinal(ctx.slot)}
-    &middot; ~${exp} AB left &middot; ${pct}% chance of another AB</div>${gamedayLine}`;
+    &middot; ~${exp} AB left &middot; ${pct}% chance of another AB${mlbCountText(leg, market) ? ` &middot; <b>${escapeHtml(mlbCountText(leg, market))}</b>` : ""}</div>${gamedayLine}`;
 }
 
 // The same line for a STEAL leg. What matters is different: is he on base, and

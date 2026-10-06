@@ -536,6 +536,21 @@ with sync_playwright() as p:
         { runs: 6, oppRuns: 1, byInning: [1, 0, 2, 0, 0, 3] }, 'Top 7', '')""")
     check("Z8c a first-5-innings total counts only those innings, and says when it settles",
           "3 runs thru 5, needs 5" in f5 and "Settles after the 5th inning." in f5, f5)
+    # The bet CARD says where a prop stands too -- the same count as its tile.
+    # A pitcher's line read "N strikeouts so far" whatever he was bet on; an
+    # OUTS bet said strikeouts (Freddy Peralta, live 2026-10-05).
+    page.evaluate("toggleCardsSection('parlays')")
+    page.wait_for_timeout(200)
+    rows = page.evaluate(r"""() => Object.fromEntries([...document.querySelectorAll('.leg')].map(e => [
+        e.querySelector('.leg-player').childNodes[0].textContent.trim(), e.textContent.replace(/\s+/g, ' ')]))""")
+    check("Z8d a batting prop's card line counts toward the bet: 1 of 2 hits",
+          "1 of 2 hits" in rows.get("Up Now", ""), rows.get("Up Now"))
+    check("Z8e a pitcher prop's card line counts HIS market: 4 of 6 K",
+          "On the mound" in rows.get("Ace Arm", "") and "4 of 6 K" in rows.get("Ace Arm", ""), rows.get("Ace Arm"))
+    outs_line = page.evaluate("""() => playerStatusLine('Ace Arm', 'live', 'outs', 'NYY',
+        { player: 'Ace Arm', market: 'outs', line: 14.5 })""")
+    check("Z8f ...so an OUTS bet says outs, never strikeouts", "of 15 outs" in outs_line and "strikeout" not in outs_line, outs_line)
+    page.evaluate("toggleCardsSection('parlays')")
 
     # Checked on the CONTRACT, not just the absence of a tile: an untrackable
     # market can fail to produce one for several reasons, and only this says

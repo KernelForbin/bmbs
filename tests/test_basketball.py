@@ -260,6 +260,14 @@ with sync_playwright() as p:
     check("C5 a team's bets share ONE tile listing each -- the Nuggets' moneyline AND spread",
           den.get("tag") == "TEAM BETS" and "MONEYLINE" in den.get("text", "") and "SPREAD -5.5: covering by 4.5" in den.get("text", ""), den)
     check("C5b ...and a spread that is covering right now wears the dotted green outline", den.get("covering") is True, den)
+    # The bet card counts toward the bet too, as the tile does.
+    page.evaluate("toggleCardsSection('parlays'); toggleCardsSection('singles')")
+    page.wait_for_timeout(200)
+    rows = page.evaluate(r"""() => Object.fromEntries([...document.querySelectorAll('.leg, .single-row')].map(e => [
+        (e.querySelector('.leg-player, .single-player').childNodes[0].textContent || '').trim(), e.textContent.replace(/\s+/g, ' ')]))""")
+    page.evaluate("toggleCardsSection('parlays'); toggleCardsSection('singles')")
+    check("C5c a basketball prop's card line counts toward the bet: 27 of 31 pts+reb+ast",
+          "27 of 31 pts+reb+ast" in rows.get("Lauri Markkanen", ""), rows.get("Lauri Markkanen"))
     check("C6 ...and a game total gets its own, with the points so far", "150 pts, needs 221" in
           next((t["text"] for t in tl.values() if t["tag"] == "TOTAL POINTS"), ""), [t["tag"] for t in tl.values()])
     raw = [(n, t["text"]) for n, t in tl.items() if re.search(r"&(?:[a-z]+|#\d+);", t["text"])]

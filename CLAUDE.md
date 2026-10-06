@@ -322,6 +322,15 @@ leg still needed.
   never got in the game -- void / refunded.", "Game final -- no home run." etc.
   A hit returns "" (the green check says it). An empty line is
   indistinguishable from the page not knowing.
+- **A prop's status line carries its count toward the bet**, in bold -- the
+  same text its Live Bet Tracker tile shows, from the same helper:
+  `mlbCountText()` (over `labProgress()`; not for HR or SB, whose lines say it
+  their own way), `nflProgress()`, `nhlProgress()`, `nbaProgress()`. A pitcher
+  is described by HIS market ("10 of 15 outs" -- it said "N strikeouts" for
+  every pitcher bet). A miss that comes mid-game (a busted under) says
+  "Missed -- 3 hits (under 2.5)", not "Game final". The user's request,
+  2026-10-05. `test_live_at_bats.py` Z8d-Z8f, `test_hockey.py` C7g,
+  `test_basketball.py` C5c, `test_combined_page.py` Q5b/P6b.
 - **Every leg row names its market** (`marketTag()`): HOME RUN (plus any line),
   ANYTIME TD on the NFL page, uppercased tags on the front page.
 - **Bet lists are collapsible** (`cardsSectionHtml()`): Parlay Cards and

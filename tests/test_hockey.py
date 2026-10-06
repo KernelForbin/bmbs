@@ -249,6 +249,14 @@ with sync_playwright() as p:
     check("C7f 'covering' = would cash if it ended now: 3-1 on -1.5 yes, 2-1 no, a push on -1 no, a moneyline "
           "alone never, a +1.5 down one yes, and only when EVERY spread on the tile covers",
           covers == [True, False, False, False, True, False], covers)
+    # The bet card counts toward the bet too, as the tile does.
+    page.evaluate("toggleCardsSection('parlays'); toggleCardsSection('singles')")
+    page.wait_for_timeout(200)
+    rows = page.evaluate(r"""() => Object.fromEntries([...document.querySelectorAll('.leg, .single-row')].map(e => [
+        (e.querySelector('.leg-player, .single-player').childNodes[0].textContent || '').trim(), e.textContent.replace(/\s+/g, ' ')]))""")
+    page.evaluate("toggleCardsSection('parlays'); toggleCardsSection('singles')")
+    check("C7g a hockey prop's card line counts toward the bet: 1 of 2 points",
+          "1 of 2 points" in rows.get("Brayden Point", ""), rows.get("Brayden Point"))
     check("C7b ...and a game total gets its own, with the goal count", "2 goals, needs 6" in
           next((t["text"] for t in tl.values() if t["tag"] == "TOTAL GOALS"), ""), [t["tag"] for t in tl.values()])
     # Seen live on a phone (2026-10-05): "covering by 2.5" squeezed the score

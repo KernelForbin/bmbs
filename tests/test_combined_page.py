@@ -1112,6 +1112,20 @@ with sync_playwright() as p:
         (e.querySelector('.leg-live-context') || {}).textContent || '']))""")
     check("Q5b the card's line under a prop pick counts toward the bet, like his tile",
           "2 of 3 passing TDs" in lines.get("Pass Guy", "") and "0 of 1 sacks" in lines.get("Phi Rusher", ""), lines)
+    # Halftime: nobody has the ball. Every pick on BOTH teams read "his side
+    # is on defense" (seen live, 2026-10-05).
+    FX["espn_events"] = {"9001": espn_event("9001", "in", (14, 10), break_="half", period=2)}
+    FX["espn_summaries"]["9001"] = espn_summary(
+        "9001", "in", {"PHI": [("31", "Pass Guy", "passing", (2, 1)), ("33", "Phi Rusher", "defensive", (3, 2, 0))],
+                       "NYG": [("32", "Rush Guy", "defensive", (4, 3, 0))]},
+        (14, 10), break_="half", period=2)
+    page.evaluate("SLATE_POLLS.clear()")
+    poll(page)
+    lines = page.eval_on_selector_all(".leg", r"""els => Object.fromEntries(els.map(e => [
+        e.querySelector('.leg-player').childNodes[0].textContent.trim(),
+        (e.querySelector('.leg-live-context') || {}).textContent || '']))""")
+    check("Q5c at halftime the card says the game is at the break -- not that either side is on defense",
+          all("at the break" in lines.get(n, "") and "on defense" not in lines.get(n, "") for n in ("Pass Guy", "Rush Guy")), lines)
     check("Q6 no JavaScript errors", not errors, errors[:3])
     browser.close()
 

@@ -1143,6 +1143,8 @@ function teamContextIn(game, team) {
     opponent: ["away", "home"].map(s => game.teams[s]).filter(t => t && t.abbr !== team).map(t => t.abbr)[0] || "",
     clockLabel: periodLabel(game),
     score: `${game.teams.away.abbr} ${game.teams.away.score}, ${game.teams.home.abbr} ${game.teams.home.score}`,
+    // Halftime or the end of a quarter: nobody has the ball.
+    atBreak: !!game.periodOver,
     onOffense, takingFieldSoon, onDefense, redZone: onOffense && drive.redZone,
     oppDownDistance: onDefense ? drive.downDistance : "",
     downDistance: onOffense ? drive.downDistance : "", yardsToEndzone: onOffense ? drive.yardsToEndzone : null,
@@ -3710,6 +3712,9 @@ function nflStatusLine(leg, state) {
   // His side is on defense. Said plainly rather than left blank, and
   // deliberately NOT given a tag -- green anywhere here would claim he can
   // score on a play his team doesn't have the ball for.
+  // At a break nobody has the ball, and "his side is on defense" read on
+  // every pick on both teams at halftime (seen live, 2026-10-05).
+  if (ctx.atBreak) return statusLineHtml(`Game on &mdash; at the break. ${where}${stat}`);
   return statusLineHtml(`Game on &mdash; his side is on defense. ${where}${stat}`);
 }
 

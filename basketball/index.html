@@ -4162,14 +4162,24 @@ function nflStatusLine(leg, state) {
 
   const ctx = NFL.context(leg);
   if (!ctx || ctx.status === "preview") return statusLineHtml("Game hasn't started yet.");
+  // Where the bet stands -- "182 of 250 pass yds" -- the same count his
+  // Live Bet Tracker tile shows. The card said only the score and his raw
+  // stat line, so a passing-yards bet never said how close it was. An
+  // anytime touchdown is left as it was: the market tag already says it.
+  const market = legMarket(leg);
+  const count = market === "td" ? "" : nflProgress({ entries: [{ market, line: leg.line === undefined ? null : leg.line,
+                                                                 side: legSide(leg), names: legPlayers(leg) }] }, ctx);
   if (ctx.status === "final") {
+    if (count) return statusLineHtml(`Game final &mdash; ${escapeHtml(count)}.`);
+    // "No touchdown" is only the story of a touchdown bet.
+    if (market !== "td") return statusLineHtml(`Game final${ctx.statLine ? ` &mdash; ${escapeHtml(ctx.statLine)}` : ""}.`);
     return statusLineHtml(ctx.statLine
       ? `Game final &mdash; no touchdown (${escapeHtml(ctx.statLine)}).`
       : "Game final &mdash; no touchdown.");
   }
 
   const where = `${escapeHtml(ctx.score || "")}${ctx.clockLabel ? ` &middot; ${escapeHtml(ctx.clockLabel)}` : ""}`;
-  const stat = ctx.statLine ? ` &middot; ${escapeHtml(ctx.statLine)}` : "";
+  const stat = (count ? ` &middot; <b>${escapeHtml(count)}</b>` : "") + (ctx.statLine ? ` &middot; ${escapeHtml(ctx.statLine)}` : "");
   if (ctx.onOffense) {
     const tag = ctx.redZone ? "RED ZONE" : "ON OFFENSE";
     const cls = ctx.redZone ? "now rz" : "now";

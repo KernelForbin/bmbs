@@ -1010,6 +1010,15 @@ with sync_playwright() as p:
     check("P5b the field spans EVERY game on the slate, not just the pick's own",
           lead["best"] == 150 and lead["holders"] == ["mid catch"], lead)
     check("P6 nothing fell through to untracked", "untracked" not in ls.values(), ls)
+    # A yardage bet that missed says where it ended up -- never "no
+    # touchdown", which is only the story of a touchdown bet.
+    page.evaluate("toggleCardsSection('parlays')")
+    page.wait_for_timeout(200)
+    small = page.evaluate("""() => [...document.querySelectorAll('.leg')]
+        .filter(e => e.querySelector('.leg-player').textContent.includes('Small Catch'))
+        .map(e => (e.querySelector('.leg-live-context, .leg-status') || e).textContent.replace(/\\s+/g, ' ').trim())[0] || ''""")
+    check("P6b a missed yardage bet's card says how many he got, not 'no touchdown'",
+          "18 of 100 rec yds" in small and "touchdown" not in small.lower(), small)
     check("P7 no JavaScript errors", not errors, errors[:3])
     browser.close()
 
@@ -1093,6 +1102,16 @@ with sync_playwright() as p:
           "NYG 12" in rg.get("text", ""), rg.get("text", "")[:160])
     check("Q5 a sack pick whose OFFENSE has the ball gets no tile -- he is on the sideline",
           "Phi Rusher" not in tiles, sorted(tiles))
+    # The bet card's own status line says where the bet stands too. It
+    # showed only the score and his raw line -- "PASSING YDS OVER 249.5" with
+    # no yardage count, seen live on Michael Penix Jr. (2026-10-05).
+    page.evaluate("toggleCardsSection('parlays')")
+    page.wait_for_timeout(200)
+    lines = page.eval_on_selector_all(".leg", r"""els => Object.fromEntries(els.map(e => [
+        e.querySelector('.leg-player').childNodes[0].textContent.trim(),
+        (e.querySelector('.leg-live-context') || {}).textContent || '']))""")
+    check("Q5b the card's line under a prop pick counts toward the bet, like his tile",
+          "2 of 3 passing TDs" in lines.get("Pass Guy", "") and "0 of 1 sacks" in lines.get("Phi Rusher", ""), lines)
     check("Q6 no JavaScript errors", not errors, errors[:3])
     browser.close()
 

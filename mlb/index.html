@@ -910,6 +910,9 @@ const FEED_FIELDS = [
   "innings", "num",
   // pitcher strikeouts, for a "5+ Strikeouts" leg
   "pitching", "strikeOuts", "earnedRuns", "wins",
+  // each team's pitchers in the order they appeared -- anyone not last has
+  // been taken out, and his line is final
+  "pitchers",
   // which runner SCORED on a play -- when a runs / H+R+RBI leg actually hit,
   // for the bell's timestamps
   "isScoringEvent",
@@ -1120,9 +1123,22 @@ async function getGameSnapshot(gamePk) {
   // defensive sub who never hit is void too. The fallbacks cover a feed that
   // hasn't filled in plateAppearances yet.
   const played = new Set();
-  const batStats = new Map();   // norm name -> { hits, runs, rbi, totalBases, walks, ... }
+  const batStats = new Map();   // norm name -> { hits, runs, rbi, totalBases, doubles, ... }
   const pitchStats = new Map(); // norm name -> { strikeOuts }
   const boxTeams = (data.liveData && data.liveData.boxscore && data.liveData.boxscore.teams) || {};
+  // Every pitcher who has been REPLACED: the box score lists each team's
+  // pitchers in the order they appeared, so everyone but the last is out of
+  // the game and his line can't move again. A starter pulled in the 6th sat on
+  // the wall "on the mound" for innings, his strikeouts bet unsettled until
+  // the final (seen live, 2026-10-05).
+  const pulledPitchers = new Set();
+  ["away", "home"].forEach(side => {
+    const t = boxTeams[side] || {};
+    (t.pitchers || []).slice(0, -1).forEach(id => {
+      const p = (t.players || {})["ID" + id];
+      if (p && p.person && p.person.fullName) pulledPitchers.add(normalizeName(p.person.fullName));
+    });
+  });
   ["away", "home"].forEach(side => {
     const players = (boxTeams[side] && boxTeams[side].players) || {};
     Object.values(players).forEach(p => {
@@ -1136,7 +1152,8 @@ async function getGameSnapshot(gamePk) {
         pitchStats.set(norm, { strikeOuts: pitching.strikeOuts || 0,
                                earnedRuns: pitching.earnedRuns || 0,
                                wins: pitching.wins || 0,
-                               outs: pitching.outs || 0 });
+                               outs: pitching.outs || 0,
+                               pulled: pulledPitchers.has(norm) });
       }
       if (batting) {
         // The raw batting line, for stat props (H+R+RBI, hits, RBI, runs,
@@ -1146,7 +1163,7 @@ async function getGameSnapshot(gamePk) {
         // never got in is void, not a loss.
         batStats.set(norm, {
           hits: batting.hits || 0, runs: batting.runs || 0, rbi: batting.rbi || 0,
-          totalBases: batting.totalBases || 0, walks: batting.baseOnBalls || 0,
+          totalBases: batting.totalBases || 0,
           doubles: batting.doubles || 0, triples: batting.triples || 0,
           homeRuns: batting.homeRuns || 0,
         });
@@ -1589,15 +1606,15 @@ const MARKETS = {
   // already carries.
   xbh:    { label: "EXTRA BASE HITS", subject: "player", grade: leg => stateForStatProp(leg, ["doubles", "triples", "homeRuns"]) },
   outs:   { label: "OUTS",       subject: "player", pitching: true,
-            grade: leg => stateForStatProp(leg, ["outs"], true) },
+            grade: leg => stateForStatProp(leg, ["outs"], true, true) },
   k:      { label: "STRIKEOUTS", subject: "player", pitching: true,
-            grade: leg => stateForStatProp(leg, ["strikeOuts"], true) },
+            grade: leg => stateForStatProp(leg, ["strikeOuts"], true, true) },
   // Earned runs charged to a pitcher, and whether he got the decision. Both
   // off the boxscore's pitching line, which was already being fetched for
   // strikeouts. A win has no line -- "wins" is 0 until the game is final and
   // 1 for exactly one pitcher after it, so the ordinary over-0.5 shape fits.
   er:     { label: "EARNED RUNS", subject: "player", pitching: true,
-            grade: leg => stateForStatProp(leg, ["earnedRuns"], true) },
+            grade: leg => stateForStatProp(leg, ["earnedRuns"], true, true) },
   win:    { label: "WIN",         subject: "player", pitching: true,
             grade: leg => stateForStatProp(leg, ["wins"], true) },
   ml:     { label: "MONEYLINE",   subject: "team",   grade: leg => stateForMoneyline(leg) },
@@ -1656,7 +1673,10 @@ function stateForLeg(leg) {
 // Graded off the boxscore batting line, which was already being fetched for
 // plateAppearances. Same void rule as a home run bet: on the roster of a
 // finished game without ever batting is a refund, not a loss.
-function stateForStatProp(leg, statKeys, pitching) {
+// `finalWhenPulled`: a pitcher prop whose line can't move once he's out of the
+// game (strikeouts, outs, earned runs -- not a win, which is decided at the
+// final). Then an over he hadn't reached is a miss and an under is won.
+function stateForStatProp(leg, statKeys, pitching, finalWhenPulled) {
   const names = legPlayers(leg).map(normalizeName);
   if (!RESULTS.ready) return "not_started";
   if (!names.length) return "untracked";
@@ -1679,7 +1699,8 @@ function stateForStatProp(leg, statKeys, pitching) {
   // except when it has already been busted.
   if (!under && total > line) return "hit";
   if (under && total > line) return "miss";
-  if (!finished) return gameStatus ? "live" : "not_started";
+  const pulled = !!finalWhenPulled && names.every(n => { const row = src && src.get(n); return !!(row && row.pulled); });
+  if (!finished && !pulled) return gameStatus ? "live" : "not_started";
   // Final. He has to have actually played, or the bet is void.
   const played = names.some(n => RESULTS.rosterStatus && RESULTS.rosterStatus.has(n))
     || (pitching && names.some(n => RESULTS.pitchStats && RESULTS.pitchStats.has(n)));
@@ -2035,6 +2056,10 @@ function playerStatusLine(playerName, state, market, team, leg) {
   // wrong about him: "not in the lineup yet" is true of the lineup and false
   // about the bet. Read his pitching line instead.
   const pitchRow = RESULTS.pitchStats && RESULTS.pitchStats.get(norm);
+  if (pitchRow && pitchRow.pulled) {
+    const wait = market === "win" ? " The decision comes at the final." : "";
+    return statusLineHtml(`Out of the game${count ? ` &mdash; <b>${escapeHtml(count)}</b>` : ""}.${wait}`);
+  }
   if (pitchRow) {
     if (count) return statusLineHtml(`On the mound &mdash; <b>${escapeHtml(count)}</b>.`);
     const k = pitchRow.strikeOuts || 0;
@@ -3603,7 +3628,7 @@ function renderLiveAtBats() {
     if (pick.kinds && pick.kinds.has("mound") && !pick.kinds.has("bat")) {
       const row = RESULTS.pitchStats && RESULTS.pitchStats.get(pick.norm);
       const where = RESULTS.rosterSide && RESULTS.rosterSide.get(pick.norm);
-      if (row) {
+      if (row && !row.pulled) {
         moundCount++;
         const gamePk = (where && where.gamePk) || row.gamePk;
         const g = (gamePk && RESULTS.gameInfo.get(gamePk)) || {};

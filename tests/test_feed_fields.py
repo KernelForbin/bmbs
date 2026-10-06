@@ -91,6 +91,9 @@ NORMALIZE = """async (pk) => {
     // event, RBI and who SCORED (isScoringEvent) -- a lost field here would
     // quietly time every runs leg as a guess
     timeline: s.timeline, lastPlayTime: s.lastPlayTime,
+    // every stat prop is graded off these, and a pitcher's `pulled` off the
+    // box score's pitcher order -- none of it was compared before
+    batStats: [...s.batStats.entries()].sort(), pitchStats: [...s.pitchStats.entries()].sort(),
   });
 }"""
 

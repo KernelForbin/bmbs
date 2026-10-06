@@ -552,6 +552,38 @@ with sync_playwright() as p:
     check("Z8f ...so an OUTS bet says outs, never strikeouts", "of 15 outs" in outs_line and "strikeout" not in outs_line, outs_line)
     page.evaluate("toggleCardsSection('parlays')")
 
+    # A reliever comes in. The box score lists each team's pitchers in the
+    # order they appeared; Ace Arm is no longer last, so he's out of the game
+    # with 4 K. Cam Schlittler sat on the wall "on the mound" for innings after
+    # being pulled, his strikeouts bet unsettled (seen live, 2026-10-05).
+    _box["home"]["pitchers"] = ["P", "Q"]
+    _home["IDQ"] = {"person": {"fullName": "Long Relief"}, "stats": {"pitching": {"strikeOuts": 1}}}
+    poll(page)
+    pulled = page.evaluate("""() => [
+        stateForLeg({ player: 'Ace Arm', market: 'k', line: 5.5 }),
+        stateForLeg({ player: 'Ace Arm', market: 'k', line: 5.5, side: 'under' }),
+        stateForLeg({ player: 'Ace Arm', market: 'k', line: 3.5 }),
+        stateForLeg({ player: 'Ace Arm', market: 'win' }),
+        stateForLeg({ player: 'Long Relief', market: 'k', line: 2.5 })]""")
+    check("Z8g a pitcher taken out of the game: an over he hadn't reached is MISSED, an under is WON, "
+          "one he'd already cleared stays hit -- but a win waits for the final, and the reliever is live",
+          pulled == ["miss", "hit", "hit", "live", "live"], pulled)
+    # A WIN bet is still live after he's pulled -- so it's the one that shows
+    # whether the TILE knows he's out (his strikeouts leg is a miss now and
+    # would drop off for that reason alone).
+    on_wall = page.evaluate("""() => { const saved = EVALUATED;
+        EVALUATED = [{ tk: { legs: [{ player: 'Ace Arm', market: 'win', who: 'Kenny', odds: '+150' }] }, states: ['live'],
+                       evalRes: { outcome: 'live', iron: false, hitCount: 0, activeCount: 1 } }];
+        try { renderLiveAtBats(); return [...document.querySelectorAll('#liveab-grid .ab-tile')].map(t => t.dataset.player); }
+        finally { EVALUATED = saved; renderLiveAtBats(); } }""")
+    check("Z8h ...and he drops off the wall: no ON THE MOUND tile for a pitcher who's out, even on a live win bet",
+          "Ace Arm" not in on_wall, on_wall)
+    gone = page.evaluate("""() => playerStatusLine('Ace Arm', 'live', 'win', 'NYY', { player: 'Ace Arm', market: 'win' })""")
+    check("Z8i a pulled pitcher's line says he's out of the game, not on the mound",
+          "Out of the game" in gone and "On the mound" not in gone, gone)
+    del _box["home"]["pitchers"], _home["IDQ"]
+    poll(page)
+
     # Checked on the CONTRACT, not just the absence of a tile: an untrackable
     # market can fail to produce one for several reasons, and only this says
     # the market is genuinely excluded. (Asserting absence alone passed even

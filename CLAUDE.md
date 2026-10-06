@@ -173,7 +173,9 @@ The full MLB live feed is ~104KB gzipped per game; `getGameSnapshot()` sends a
   `test_smoke_pages.py` F2 requires them identical; `test_feed_fields.py`
   (network) proves the MLB page's copy complete by comparing
   `getGameSnapshot()` on the full vs slim feed for every live game, pinned
-  with `timecode=`. A one-off single-game `recentABs` diff that doesn't
+  with `timecode=`. It compares the box-score stat lines too (`batStats`,
+  `pitchStats`); adding them found a batter's `walks` read from a field the
+  slim feed never carried (always 0; unread, so removed). A one-off single-game `recentABs` diff that doesn't
   reproduce is a mid-at-bat timing race, not a lost field — re-run first.
   Run it after touching the list.
 - **Don't put a double-quoted phrase in a `FEED_FIELDS` comment.** The test
@@ -387,7 +389,14 @@ the NFL, NHL and NBA/WNBA markets) declares each market's `label`, `subject`
   UNDER only at the end unless already busted. Rostered but never batted =
   void.
 - **Pitcher props** — `k`, `er` (earned runs), `win`, `outs` (outs recorded),
-  off the pitching line. A win has no line (`wins` is 0 until final, 1 for one
+  off the pitching line. **A pitcher taken out of the game is final**
+  (2026-10-05, the user's rule): the box score lists each team's `pitchers`
+  in the order they appeared (`FEED_FIELDS`), so anyone not last is
+  `pulled` on his `pitchStats` row; `k`/`er`/`outs` then settle at once (an
+  over not reached → miss, an under → hit), his ON THE MOUND tile drops off,
+  and his card line reads "Out of the game". A `win` still waits for the final
+  — a pulled starter can be credited with it. `record_results.py` needs no
+  twin (it only grades finished games). `test_live_at_bats.py` Z8g-Z8i. A win has no line (`wins` is 0 until final, 1 for one
   pitcher). Only explicit phrasings ("to get the win") map to `win`; "Yankees
   to win" stays `ml`. `er` and `win` sit AHEAD of `runs` in the alias tables,
   same trap as "Home Runs" vs "Runs".

@@ -57,8 +57,6 @@
   .tile .t-label { font-size:11.5px; color:var(--text-dim); margin-bottom:4px; }
   .tile .t-value { font-size:24px; font-weight:600; line-height:1.15; }
   .tile .t-foot { font-size:11.5px; color:var(--text-faint); margin-top:3px; }
-  .callout { margin-top:10px; font-size:13px; line-height:1.55; color:var(--text-dim); border-left:2px solid var(--green); padding:2px 0 2px 12px; }
-  .callout b { color:var(--text); }
 
   .scroll-x { overflow-x:auto; -webkit-overflow-scrolling:touch; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -222,7 +220,7 @@
     </section>
   </div>
 
-  <footer id="footer-line"><span id="footer-source">each NFL week is recorded by the tracker itself, the morning after its last game</span> &middot; <a href="/football/">back to the football tracker</a> &middot; <a href="/history/">baseball history</a></footer>
+  <footer id="footer-line"><span id="footer-source">each NFL week is recorded by the tracker itself, the morning after its last game</span> &middot; <a href="/football/">back to the NFL tracker</a> &middot; <a href="/history/">MLB history</a></footer>
 </div>
 <div id="tip" hidden></div>
 
@@ -671,7 +669,7 @@ async function init() {
     if (!DATA || !Array.isArray(DATA.parlays) || !DATA.parlays.length) {
       // No finished week on file yet. A normal state, not an error.
       $("range-note").textContent = "No finished weeks yet. The first one lands here the morning after its last game — "
-        + "usually Tuesday, once Monday night is final. This week's action is on the football tracker.";
+        + "usually Tuesday, once Monday night is final. This week's action is on the NFL tracker.";
       return;
     }
   } catch (err) {
@@ -681,7 +679,7 @@ async function init() {
   DATA.parlays.sort((a, b) => a.date.localeCompare(b.date));   // stable; droughts need chronological order
   const legs = DATA.parlays.reduce((s, p) => s + p.legs.length, 0);
   $("range-note").replaceChildren(el("b", { text: DATA.parlays.length + " bets" }), document.createTextNode(" and " + legs + " legs, "
-    + fmtDate(DATA.firstSlate) + " through " + fmtDate(DATA.lastSlate) + ". Finished weeks only — this week's action is on the football tracker."));
+    + fmtDate(DATA.firstSlate) + " through " + fmtDate(DATA.lastSlate) + ". Finished weeks only — this week's action is on the NFL tracker."));
   $("player-search").addEventListener("input", ev => { STATE.playerSearch = ev.target.value; STATE.playersShown = 25; renderPlayers(); });
   $("log-search").addEventListener("input", ev => { STATE.logSearch = ev.target.value; STATE.logShown = 40; renderLog(); });
   $("players-more").addEventListener("click", () => { STATE.playersShown = Infinity; renderPlayers(); });

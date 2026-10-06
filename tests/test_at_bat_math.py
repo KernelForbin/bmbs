@@ -22,7 +22,6 @@ estimate moves the right direction as the league out rate changes).
     python tests/test_at_bat_math.py
 """
 import math
-import re
 import sys
 from pathlib import Path
 

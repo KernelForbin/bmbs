@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
 """
-Posts (or edits) a status message in the group's Discord channel via an
-incoming webhook, so an upload's status is always ONE message that gets
-updated in place rather than a stream of step-by-step pings.
+Posts a status message in the group's Discord channel via an incoming webhook.
+Every message is a NEW post that @ mentions the uploader -- an edit changes no
+timestamp and pings nobody.
 
-Three subcommands:
-  success   called from parse-picks.yml / parse-football-picks.yml right
-            after a real commit -- summarizes the freshly-written
-            tickets.json and posts it. Fast, deterministic, no AI involved.
-  post      posts a fresh message with the given text and prints its id
-            (used by the automated fix-and-recover routine to open with an
-            "investigating" message it can edit later).
-  edit      edits a message this same webhook posted earlier, by id.
+Two subcommands:
+  success   called from every parse-*-picks.yml right after a real commit --
+            summarizes the freshly-written tickets file and posts it ("now
+            LIVE", or "UPDATED" for a correction to the same slate). Fast,
+            deterministic, no AI involved.
+  post      posts the given text and prints its id (the auto-fix workflow's
+            "investigating" and outcome messages).
 
 Needs DISCORD_STATUS_WEBHOOK in the environment (a GitHub Actions secret --
-the same webhook posts for both sports, since they share one intake
+every sport posts through the same webhook, since they share one intake
 channel). Never logs, prints, or echoes the webhook URL itself; a bad
 request only ever surfaces the HTTP status, never the URL.
 
     python scripts/notify_discord.py success --tickets data/tickets.json --sport baseball
     python scripts/notify_discord.py post --text "..."      # prints the message id
-    python scripts/notify_discord.py edit --id 123 --text "..."
 """
 import argparse
 import json
@@ -92,10 +90,6 @@ def post_message(text, fetcher=_request, mention=None):
     if mention:
         payload["content"] = f"<@{mention}> {text}"
     return fetcher(webhook_url() + "?wait=true", payload, "POST")["id"]
-
-
-def edit_message(message_id, text, fetcher=_request):
-    fetcher(f"{webhook_url()}/messages/{message_id}", {"content": text}, "PATCH")
 
 
 def slate_key(data, sport):
@@ -197,7 +191,7 @@ def _counts(data):
 
 
 def _span(data, sport):
-    if sport in ("football", "combined") and data.get("endDate") and data["endDate"] != data["date"]:
+    if data.get("endDate") and data["endDate"] != data["date"]:
         return f'{data["date"]} to {data["endDate"]}'
     return data["date"]
 
@@ -245,10 +239,6 @@ def main():
                    help="Discord user id to @ -- the person who uploaded the card. "
                         "Absent or blank simply posts without one.")
 
-    e = sub.add_parser("edit")
-    e.add_argument("--id", required=True)
-    e.add_argument("--text", required=True)
-
     args = ap.parse_args()
     # THIS SCRIPT MUST NOT BE ABLE TO FAIL ITS CALLER. It posts status; it does
     # no work anybody depends on. On 2026-09-22 a 403 from this script's first
@@ -263,12 +253,7 @@ def main():
                          mention=(args.mention or "").strip() or None)
         elif args.cmd == "post":
             print(post_message(args.text, mention=(args.mention or "").strip() or None))
-        elif args.cmd == "edit":
-            edit_message(args.id, args.text)
     except NotifyFailed as e:
-        # stderr, so `MSG_ID=$(... post ...)` captures an empty id rather than
-        # this text -- the workflow already falls back to posting fresh when
-        # the id is empty.
         print(f"WARNING: Discord notification failed: {e}", file=sys.stderr)
         return 0
     return 0

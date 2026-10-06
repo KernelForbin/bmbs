@@ -372,6 +372,11 @@ on_message_test("C6 a non-.txt attachment gets a reply naming the file, not a pr
 
 msg = FakeMessage(FakeUser(15), FakeChannel(), [FakeAttachment("golf_picks.txt", b"stuff")])
 on_message_test("C7 a filename that names no sport asks for a rename, doesn't guess", msg, expect_prompted=False, expect_reply_contains="upload it again")
+# The refusal is how a restart is proven on the bot's own box (discord-bot/
+# README.md): it lists every prefix the RUNNING code knows. A hard-coded list
+# named three of seven, so a restart that picked up the hidden sports showed nothing.
+check("C7b ...and the refusal names every route's prefix",
+      all(f"`{prefix}`" in "".join(msg.replies) for prefix in bot.ROUTES), msg.replies)
 
 msg = FakeMessage(FakeUser(16), FakeChannel(), [FakeAttachment("baseball_empty.txt", b"   \n  ")])
 on_message_test("C8 whitespace-only content is refused as empty, never pushed", msg, expect_prompted=False, expect_reply_contains="empty")

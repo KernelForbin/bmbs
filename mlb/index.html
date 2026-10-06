@@ -530,7 +530,7 @@
     <p class="note" id="dynamic-note"></p>
 
     <div class="notif-row" id="notif-row">
-      <label class="notif-toggle" id="notif-overlay-label">
+      <label class="notif-toggle">
         <input type="checkbox" id="notif-overlay" onchange="setOverlayNotif(this.checked)">
         <span>Overlay Notification</span>
       </label>
@@ -538,7 +538,7 @@
         <input type="checkbox" id="notif-push" onchange="setPushNotif(this.checked)">
         <span>Push Notification</span>
       </label>
-      <label class="notif-toggle" id="notif-sound-label">
+      <label class="notif-toggle">
         <input type="checkbox" id="notif-sound" onchange="setSoundNotif(this.checked)">
         <span>Sound</span>
       </label>
@@ -664,7 +664,7 @@
   <div id="content"></div>
 
   <div class="colorkey" id="colorkey">
-  <p class="stat-row-label" id="legend-label">COLOR KEY</p>
+  <p class="stat-row-label">COLOR KEY</p>
     <div class="legend">
       <span><span class="sw pending"></span>Not started</span>
       <span><span class="sw live-game"></span>In progress</span>
@@ -676,7 +676,7 @@
 
   </div>
 
-  <footer id="footer-line">all times ET &middot; results pulled directly from the MLB Stats API &middot; <a href="/history/" style="color:inherit;">history</a> &middot; <a href="/features/" style="color:inherit;">what this site can do</a></footer>
+  <footer id="footer-line">all times ET &middot; results pulled directly from the MLB Stats API &middot; <a href="/history/" style="color:inherit;">history</a> &middot; <a href="/features/?sport=baseball" style="color:inherit;">what this site can do</a></footer>
 </div>
 
 <div id="bomb-overlay" role="status" aria-live="polite"></div>
@@ -724,7 +724,7 @@ let ACTIVE_TAB = "today";
 // Final and every feed fetch succeeded: nothing is left to poll for.
 const SLATE_POLLS = new Map();
 // gamePk -> snapshot, only for games already Final. Their box score can't
-// change, so there's no reason to re-download the feed every 20 seconds.
+// change, so there's no reason to re-download the feed every poll.
 const FINAL_SNAPSHOTS = new Map();
 
 function emptyResults() {
@@ -891,7 +891,7 @@ const FEED_FIELDS = [
   // stolen bases: every play's runner events, and who is standing on which base
   "runners", "runner", "playIndex", "first", "second", "third",
   // stat props (H+R+RBI and friends) and game lines. `fields` matches NAMES at
-  // any depth, so these four cover BOTH boxscore.players[].stats.batting AND
+  // any depth, so these cover BOTH boxscore.players[].stats.batting AND
   // linescore.teams.{away,home} -- the batting line and the score come from
   // the same words. Cheap: both objects were already being fetched.
   // "runs" covers BOTH the batting line's runs scored and the linescore's team
@@ -1315,7 +1315,6 @@ function negBinomPmf(j, r, p) {
 // one more plate appearance, and expected number of remaining PAs.
 function atBatEstimate(d, r, p) {
   if (r <= 0) return { probAtLeastOne: 0, expected: 0 };
-  const threshold0 = (d + 1) - r; // need F >= this many non-outs for >=1 more PA
   function probAtLeastKMorePAs(k) {
     const threshold = (d + 1 + 9 * (k - 1)) - r;
     if (threshold <= 0) return 1;
@@ -1551,8 +1550,8 @@ function stateForPlayer(playerName) {
 // stateForLeg() hands it straight to stateForPlayer(), untouched.
 //
 // Each entry declares:
-//   label    what the tag next to the pick reads ("" for home runs, which are
-//            the default and would just be noise)
+//   label    what the tag next to the pick reads ("" for home runs, which
+//            marketTag() labels HOME RUN itself)
 //   subject  "player" | "team" | "game" -- a game line has no player at all,
 //            which is the one genuinely structural difference here
 //   grade    leg -> state
@@ -1843,7 +1842,8 @@ function fmtMoney(n) {
   return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-// outcome: 'hit' | 'dead' | 'live' | 'void'  (live/void both count as "Open")
+// outcome: 'hit' | 'dead' | 'live' | 'partial' | 'void'. Void (every leg N/A)
+// sits in the N/A column; isOpenOutcome() still treats it as gradeable.
 function evaluateTicket(tk, states) {
   const naCount = states.filter(s => s === "na").length;
   const missCount = states.filter(s => s === "miss").length;
@@ -1879,7 +1879,7 @@ function evaluateTicket(tk, states) {
   // never an Iron, and singles are evaluated by singleOutcome() instead.
   // "partial" is excluded by construction: outcome must be "live", and a bet
   // with an untracked leg never reaches that. A card one leg from cashing
-  // where that leg is ungradeable is not one swing away -- it is unknowable.
+  // where that leg is ungradeable is not one leg away -- it is unknowable.
   const iron = outcome === "live" && (activeCount - hitCount) === 1;
 
   return { outcome, activeCount, hitCount, missCount, naCount, untrackedCount, adjustedPayout, iron };
@@ -1896,7 +1896,7 @@ function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void
 
 // The four bets chips are mutually exclusive, so they line up column-for-column
 // with the four legs chips. `open` means genuinely live: a VOID bet (every leg
-// N/A) is refunded, not one swing from anything, and now has its own N/A chip.
+// N/A) is refunded, not one leg from anything, and now has its own N/A chip.
 // isOpenOutcome() still counts void as open for everything else -- payouts, the
 // Live Bet Tracker, `betIsOpen` -- because that's about "can this still be
 // graded", a different question from which column it belongs in.
@@ -1919,9 +1919,8 @@ function ticketMatchesFilter(evalRes) {
 
 function anyFilterActive() { return !!(BET_FILTERS.size || LEG_FILTERS.size || BETTOR_FILTERS.size); }
 
-// A single bet's outcome, in the same vocabulary as a parlay's: 'hit' | 'dead' | 'live'.
-// A single whose player never played (state 'na') hasn't technically missed, so it
-// counts as still-open, same policy as an all-N/A parlay counting as void/open.
+// A single bet's outcome, in the same vocabulary as a parlay's:
+// 'hit' | 'dead' | 'live' | 'partial' | 'void'.
 function singleOutcome(state) {
   if (state === "hit") return "hit";
   if (state === "miss") return "dead";
@@ -1936,8 +1935,8 @@ function singleOutcome(state) {
 }
 
 // Every open single is an Iron by definition: a single is always exactly one
-// home run from cashing. The exception is a player who never played -- that
-// bet is void/refunded, not one swing away, so it gets no waffle and doesn't
+// leg from cashing. The exception is a player who never played -- that
+// bet is void/refunded, not one leg away, so it gets no waffle and doesn't
 // count (same reasoning that excludes void parlays).
 function singleIsIron(state, outcome) {
   return outcome === "live" && state !== "na";
@@ -2036,7 +2035,8 @@ function playerStatusLine(playerName, state, market, team) {
 // ticket/single can still hit at all. The Now/Soon action tag only makes
 // sense when both are true -- no point flagging "batting now" on a leg
 // that's already resolved, or on a parlay that's already dead from
-// another leg missing. Returns "" when there's nothing to show.
+// another leg missing. With nothing richer to say it falls through to an
+// always-on status line -- never "".
 function liveContextHtml(playerName, state, betIsOpen, market, team, leg) {
   // Markets whose subject is a TEAM or a GAME have no player, so none of the
   // batting-order machinery below applies. They get their own plain line.
@@ -2400,7 +2400,7 @@ function sndCash(ac, out, t, v) {
 
 const SOUNDS = { bomb: sndBomb, swipe: sndSwipe, cash: sndCash };
 
-// `kind` is 'bomb' | 'swipe' | 'cash'. When the play also CASHED something, the register
+// `kind` is 'bomb' | 'swipe' | 'kick' | 'cash'. When the play also CASHED something, the register
 // REPLACES the event sound -- one noise, never two back to back. That mirrors
 // the overlay exactly: a cash doesn't add a second card, it upgrades the one
 // card to gold. Firing both would make a cash the only alert that interrupts
@@ -2736,9 +2736,6 @@ function fireLegHit(slate, leg, cash) {
   }
 }
 
-// Called once per poll. Deliberately keyed on the player's OWN home run
-// (hitNames), not on leg state -- a leg credited through Pinch Hit
-// Protection wasn't a bomb by the player the notification would name.
 // Which slate to announce from. Normally today's -- but the slate this page
 // was WATCHING finishes on the same poll as its last play: every game final,
 // so it has already rolled to Yesterday by the time this runs, and a walk-off
@@ -2753,6 +2750,9 @@ function alertSlate() {
   return y && y.tickets && BOMB_STATE.date && y.tickets.date === BOMB_STATE.date ? y : null;
 }
 
+// Called once per poll. Deliberately keyed on the player's OWN home run
+// (hitNames), not on leg state -- a leg credited through Pinch Hit
+// Protection wasn't a bomb by the player the notification would name.
 function checkForBombs() {
   const slate = alertSlate();
   if (!slate || !slate.tickets || !slate.results || !slate.results.ready) return;
@@ -2855,9 +2855,6 @@ function zoneGridHtml(zone) {
   return `<span class="zgrid" aria-hidden="true">${cells}${outside ? `<span class="zout z${zone}"></span>` : ""}</span>`;
 }
 
-// Normalized names whose home run matters to this slate: anyone actually
-// picked, plus any substitute whose HR is currently crediting one of our
-// legs under Pinch Hit Protection.
 // Which markets earn a tile in the Live Bet Tracker, and what KIND of tile.
 // A market only belongs here if watching it live actually tells you something:
 //   bat    -- he's a hitter and the bet moves when he bats, so the whole
@@ -2867,9 +2864,7 @@ function zoneGridHtml(zone) {
 //             climbs while his side is in the field
 //   game   -- a game line, which has no player at all but does have a live
 //             score and a number it has to beat
-// Anything NOT here is deliberately absent rather than forgotten: an
-// inning-specific total can't be followed from a final score, so a tile could
-// only ever show a number that means nothing.
+// Anything NOT here is deliberately absent rather than forgotten.
 const LIVE_TILE_KIND = {
   hr: "bat", sb: "base", hrr: "bat", hits: "bat", rbi: "bat", runs: "bat",
   tb: "bat", doubles: "bat", xbh: "bat", k: "mound", er: "mound", win: "mound", outs: "mound",
@@ -2887,9 +2882,6 @@ const MARKET_STATS = {
 };
 
 // "2 of 3 total bases" -- where a counting bet actually stands right now.
-// Returns null for a market with nothing to count (a plain home run or steal
-// bet is "at least one" and the tile already says everything).
-//
 // EVERY counting bet gets one, including the plain "at least one" kind -- a
 // home run or a steal reads "0 of 1 HR" like a sack reads "0 of 1 sacks", so
 // no tile leaves you guessing what it is waiting for (the user's rule,
@@ -2925,6 +2917,9 @@ function labProgress(entry) {
   return { have, need, text: `${have} of ${need} ${label}`, done: have >= need };
 }
 
+// Normalized names whose home run matters to this slate: anyone actually
+// picked, plus any substitute whose HR is currently crediting one of our
+// legs under Pinch Hit Protection.
 function relevantHrNames() {
   const set = new Set();
   if (!TICKETS) return set;
@@ -3260,8 +3255,7 @@ function labOddsHtml(pick, tag) {
 }
 
 // The progress line under a tile: where every counting bet on this pick
-// actually stands. Silent for a plain home run or steal, which have nothing
-// to count -- the tile itself is the information there.
+// actually stands -- "0 of 1 HR" included.
 function labProgressHtml(pick) {
   const bits = [];
   const seen = new Set();
@@ -3277,7 +3271,7 @@ function labProgressHtml(pick) {
 // A PITCHER prop. No batting order to place him in -- he's on the mound
 // while his side is in the field -- so the tile is the count itself, which is
 // the thing that actually moves.
-function labMoundTile(pick, gamePk, inningLabel, gamedayLink) {
+function labMoundTile(pick, inningLabel, gamedayLink) {
   const prog = (pick.entries || []).map(labProgress).find(Boolean);
   // Its own market's word: this said "K" for every pitcher prop, so an
   // earned-runs bet read as a strikeout count.
@@ -3309,10 +3303,19 @@ function labGameTile(pick, row, inningLabel, gamedayLink) {
   } else if (e.market === "ml") {
     need = mine > theirs ? "ahead" : mine < theirs ? "behind" : "tied";
   }
+  let settles = "Settles at the final.";
+  // A first-N-innings total counts only those innings, the way stateForPartial() grades it.
+  if (e.market === "f5" && e.line !== null && row.byInning) {
+    const through = Math.max(1, Math.floor(Number(e.innings) || 5));
+    const soFar = row.byInning.slice(0, through).reduce((a, b) => a + b, 0);
+    need = e.side === "under" ? `${soFar} runs thru ${through}, needs under ${e.line}`
+                              : `${soFar} runs thru ${through}, needs ${Math.floor(Number(e.line)) + 1}`;
+    settles = `Settles after the ${ordinal(through)} inning.`;
+  }
   return labTileShell("game", (def && def.label) || "GAME LINE", pick, gamedayLink, `
     <div class="ab-line">${escapeHtml(inningLabel || "")}</div>
     <div class="ab-countrow"><span class="ab-count">${mine}&ndash;${theirs}</span><span class="ab-pitches faint">${escapeHtml(need)}</span></div>
-    <div class="ab-line faint">Settles at the final.</div>`);
+    <div class="ab-line faint">${settles}</div>`);
 }
 
 function labPitchChip(pitch) {
@@ -3561,7 +3564,7 @@ function renderLiveAtBats() {
       if (row && row.runs !== null && row.status !== "preview") {
         gameCount++;
         const g = RESULTS.gameInfo.get(row.gamePk) || {};
-        tiles.push({ rank: 4, order: 0, html: labGameTile(pick, row, labInningLabelFor(g), g.gamedayLink || "") });
+        tiles.push({ rank: 4, order: 0, html: labGameTile(pick, row, labInningLabelFor(g), gamedayUrl(row.gamePk)) });
       }
       return;
     }
@@ -3574,7 +3577,7 @@ function renderLiveAtBats() {
       if (row) {
         moundCount++;
         const g = (where && RESULTS.gameInfo.get(where.gamePk)) || {};
-        tiles.push({ rank: 3, order: 0, html: labMoundTile(pick, where && where.gamePk, labInningLabelFor(g), g.gamedayLink || "") });
+        tiles.push({ rank: 3, order: 0, html: labMoundTile(pick, labInningLabelFor(g), where ? gamedayUrl(where.gamePk) : "") });
       }
       return;
     }
@@ -3713,7 +3716,7 @@ function computeAll() {
 
   const bettorHtml = rows.map(r => `
     <div class="bettor-row${BETTOR_FILTERS.has(r.key) ? " active-filter" : ""}" data-key="${escapeHtml(r.key)}">
-      <div class="bettor-name">${r.name}</div>
+      <div class="bettor-name">${escapeHtml(r.name)}</div>
       <div class="bettor-stats">
         <div class="bettor-stat hit"><div class="num">${r.hit}</div><div class="lbl">HIT</div></div>
         <div class="bettor-stat miss"><div class="num">${r.miss}</div><div class="lbl">MISS</div></div>
@@ -3854,7 +3857,7 @@ function renderContent() {
       }
 
       let statusText = "", statusCls = "live";
-      if (evalRes.outcome === "void") { statusText = "OPEN (void) \u2014 no one has played yet"; statusCls = "void"; }
+      if (evalRes.outcome === "void") { statusText = "VOID \u2014 nobody on it played, refunded"; statusCls = "void"; }
       else if (evalRes.outcome === "dead") { statusText = "DEAD"; statusCls = "dead"; }
       else if (evalRes.outcome === "hit") { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
       else { statusText = `OPEN \u2014 ${evalRes.hitCount}/${evalRes.activeCount} hit so far`; }
@@ -3885,7 +3888,7 @@ function renderContent() {
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
     singlesHtml += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${escapeHtml(legSubjectName(s))}${marketTag(legMarket(s), s)}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team, s)}
+      <div class="single-left"><div class="single-person">${escapeHtml(s.who)}</div><div class="single-player">${escapeHtml(legSubjectName(s))}${marketTag(legMarket(s), s)}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team, s)}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${oddsText(s.odds)}</div><div class="leg-time">${s.pp}</div></div>
@@ -4115,8 +4118,7 @@ function applyActiveTab() {
   document.getElementById("live-dot").style.display = (ACTIVE_TAB === "today" && showSlate) ? "" : "none";
   if (!showSlate) document.getElementById("dynamic-note").innerHTML = "";
 
-  // Bomb notifications only ever fire off Today's live data (checkForBombs
-  // only ever looks at SLATES.today), so the toggles are meaningless next to
+  // Bomb notifications only ever fire off the live slate (alertSlate()), so the toggles are meaningless next to
   // Yesterday's frozen results -- hide them there rather than imply they
   // control anything for archived data. The underlying settings (and Today's
   // notifications) are unaffected; this is visibility only.
@@ -4329,9 +4331,8 @@ function legHitTime(leg) {
 // everything already hit on this slate is there, unread. That is the
 // opposite of the overlay's flood guard, on purpose -- the overlay must not
 // replay an afternoon at you, but a log you can open when you like should
-// let you catch up. Anything found on the first scan after the page loads is
-// labelled "Earlier" rather than given a clock time, because this browser
-// only knows when it NOTICED it, not when it happened.
+// let you catch up. Every entry carries when it HAPPENED, off the
+// play-by-play (legHitTime), so a backfilled one sorts and reads correctly.
 //
 // Survives a refresh, and resets when a slate with a new date starts, so
 // yesterday's cashes never pile onto today's badge.

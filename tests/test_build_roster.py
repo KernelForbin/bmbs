@@ -5,7 +5,6 @@ never to data/.
 
     python tests/test_build_roster.py
 """
-import json
 import sys
 from pathlib import Path
 

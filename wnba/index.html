@@ -534,7 +534,7 @@
   <header>
     <h1>BMBS Tracker &mdash; WNBA</h1>
     <p class="eyebrow"><span class="live-dot" id="live-dot"></span><span id="eyebrow-text">TODAY'S SLATE &middot; LIVE FROM ESPN</span></p>
-    <p class="sync-line" id="sync-line">Connecting to MLB&hellip;</p>
+    <p class="sync-line" id="sync-line">Connecting&hellip;</p>
     <!-- Only a parser warning lands here now. The old "Auto-tracked against
          live MLB results." copy was removed as redundant with the eyebrow
          above, but this element must stay: it is how the group finds out a
@@ -542,7 +542,7 @@
     <p class="note" id="dynamic-note"></p>
 
     <div class="notif-row" id="notif-row">
-      <label class="notif-toggle" id="notif-overlay-label">
+      <label class="notif-toggle">
         <input type="checkbox" id="notif-overlay" onchange="setOverlayNotif(this.checked)">
         <span>Overlay Notification</span>
       </label>
@@ -550,7 +550,7 @@
         <input type="checkbox" id="notif-push" onchange="setPushNotif(this.checked)">
         <span>Push Notification</span>
       </label>
-      <label class="notif-toggle" id="notif-sound-label">
+      <label class="notif-toggle">
         <input type="checkbox" id="notif-sound" onchange="setSoundNotif(this.checked)">
         <span>Sound</span>
       </label>
@@ -676,7 +676,7 @@
   <div id="content"></div>
 
   <div class="colorkey" id="colorkey">
-  <p class="stat-row-label" id="legend-label">COLOR KEY</p>
+  <p class="stat-row-label">COLOR KEY</p>
     <div class="legend">
       <span><span class="sw pending"></span>Not started</span>
       <span><span class="sw live-game"></span>In progress</span>
@@ -743,7 +743,7 @@ let ACTIVE_TAB = "today";
 // Final and every feed fetch succeeded: nothing is left to poll for.
 const SLATE_POLLS = new Map();
 // gamePk -> snapshot, only for games already Final. Their box score can't
-// change, so there's no reason to re-download the feed every 20 seconds.
+// change, so there's no reason to re-download the feed every poll.
 const FINAL_SNAPSHOTS = new Map();
 
 // ============ the NFL engine ============
@@ -773,14 +773,6 @@ const ROSTER_CACHE = new Map();   // `${gamePk}-${teamId}` -> Promise<Map(athlet
 const PICKS = new Map();
 
 const DASH = "—";
-
-const DRV_RESULT_MS = 9000;    // a finished drive's result holds the tile this long...
-
-const DRV_TD_MS = 14000;       // ...the pick's own touchdown earns a longer look,
-
-const DRV_BALL_MS = 3200;      // the first stretch of which the tile is just a football
-
-const DRV_STALE_MS = 180000;   // a drive that ended longer ago than this isn't news
 
 let RESULTS = emptyResults();
 
@@ -960,7 +952,6 @@ async function getGameSnapshot(game) {
         // an interception with drives.current still LAC.
         driveOver: !!(cur && (cur.displayResult || cur.result)),
         downDistance: end.downDistanceText || sit.downDistanceText || "",
-        shortDownDistance: end.shortDownDistanceText || sit.shortDownDistanceText || "",
         yardsToEndzone: toGo,
         redZone: toGo !== null ? (toGo > 0 && toGo <= 20) : sit.isRedZone === true,
         description: (cur && cur.team && cur.team.abbreviation === team.abbr && cur.description) || "",
@@ -968,18 +959,6 @@ async function getGameSnapshot(game) {
       };
     }
   }
-
-  // ---- drives that have ended, for the Live Drives panel's result tiles ----
-  const finishedDrives = (drives.previous || []).filter(dr => dr.displayResult || dr.result).slice(-6).map(dr => {
-    const plays = dr.plays || [];
-    const scoring = plays.filter(p => p.scoringPlay).pop();
-    const lastTimed = plays.filter(p => p.wallclock).pop();
-    return {
-      key: `${game.gamePk}-${dr.id}`, gamePk: game.gamePk, team: (dr.team && dr.team.abbreviation) || "",
-      result: dr.displayResult || dr.result || "", isScore: dr.isScore === true, description: dr.description || "",
-      endTime: (lastTimed && lastTimed.wallclock) || "", scoringText: (scoring && scoring.text) || ""
-    };
-  });
 
   const period = (comp.status && comp.status.period) || game.period || 0;
   const clock = (comp.status && comp.status.displayClock) || game.clock || "";
@@ -989,7 +968,7 @@ async function getGameSnapshot(game) {
   // untimed down after the clock reads zero.
   const periodOver = type.name === "STATUS_END_PERIOD" || type.name === "STATUS_HALFTIME";
   return { status, gamePk: game.gamePk, date: game.date, teams, period, periodOver, clock, detail: type.shortDetail || game.detail || "",
-           lines, touchdowns, tdNameTeams, drive, finishedDrives, playLog, fetchedAt: Date.now() };
+           lines, touchdowns, tdNameTeams, drive, playLog, fetchedAt: Date.now() };
 }
 
 function getParticipation(gamePk, teamId) {
@@ -1292,24 +1271,6 @@ function drvWaitTile(pick, ctx) {
     <div class="ab-line faint">${drvFootLine(ctx, pick)}</div>`);
 }
 
-function drvResultTile(flash, now) {
-  const pick = flash.pick;
-  if (flash.kind === "td") {
-    const td = flash.td;
-    const ball = now < flash.at + DRV_BALL_MS
-      ? `<div class="ab-bomb"><span class="e">&#127944;</span><span class="n">${escapeHtml(pick.player.toUpperCase())}</span></div>` : "";
-    return drvTileShell("result homer", "TOUCHDOWN", pick, td ? espnGameUrl(td.gamePk) : null, `
-      <div class="ab-result">Touchdown</div>
-      <div class="ab-line faint">${escapeHtml([td ? tdHowText(td) : "", td ? tdWhenText(td) : "", pick.whos.join(", ")].filter(Boolean).join(" · "))}</div>${ball}`);
-  }
-  const dr = flash.drive;
-  // his team scored, but it wasn't him: worth saying plainly
-  const stolen = /touchdown/i.test(dr.result);
-  return drvTileShell(`result${dr.isScore ? " onbase" : ""}`, "DRIVE OVER", pick, espnGameUrl(dr.gamePk), `
-    <div class="ab-result">${escapeHtml(stolen ? "TD — not him" : dr.result)}</div>
-    <div class="ab-line faint">${escapeHtml([dr.description, pick.whos.join(", ")].filter(Boolean).join(" · "))}</div>`);
-}
-
 function drvOddsText(odds) {
   if (odds.length <= 2) return odds.join("/");
   const nums = odds.map(oddsToNumber).filter(n => n !== null).sort((a, b) => a - b);
@@ -1423,7 +1384,7 @@ function picksOf(tickets) {
 
 function previewSnapshot(game) {
   return { status: "preview", gamePk: game.gamePk, date: game.date, teams: game.teams, period: 0, clock: "", detail: game.detail,
-           lines: new Map(), touchdowns: [], tdNameTeams: new Map(), drive: null, finishedDrives: [], fetchedAt: 0 };
+           lines: new Map(), touchdowns: [], tdNameTeams: new Map(), drive: null, fetchedAt: 0 };
 }
 
 function statIndex(labels, name) { return (labels || []).indexOf(name); }
@@ -1437,11 +1398,6 @@ function statLineText(line) {
 }
 
 function statNum(stats, idx) { const n = idx >= 0 ? parseInt(stats[idx], 10) : NaN; return Number.isNaN(n) ? 0 : n; }
-
-function tdHowText(td) {
-  if (td.yards === null) return td.text;
-  return `${td.yards}-yd ${td.how.replace(/^Rush$/i, "rush").replace(/^Run$/i, "run")}`;
-}
 
 function tdWhenText(td) {
   const q = td.period > 4 ? "OT" : td.period ? `Q${td.period}` : "";
@@ -1505,11 +1461,11 @@ return {
   teamContext(abbr) { return liveContextForTeam(abbr); },
   hitTime(leg) { return legHitTimeNfl(leg); },
   scoring() { return RESULTS.touchdowns || []; },
-  rowHtml: tdRowHtml, detailHtml: tdDetailHtml,
+  rowHtml: tdRowHtml,
   toggleRow(id) { if (TD_EXPANDED.has(id)) TD_EXPANDED.delete(id); else TD_EXPANDED.add(id); },
-  ballTile: drvBallTile, waitTile: drvWaitTile, resultTile: drvResultTile,
+  ballTile: drvBallTile, waitTile: drvWaitTile,
   defenseTile: drvDefenseTile,
-  oddsText: drvOddsText, gameUrl: espnGameUrl,
+  gameUrl: espnGameUrl,
   norm(name) { return normalizeName(name); },
 
   // ---- counted stats, for markets the host grades itself ----
@@ -2015,7 +1971,6 @@ return {
 // so a Knicks "NY" and a Liberty "NY" never meet.
 function makeHoopsEngine(LEAGUE) {
 const ESPN = `https://site.web.api.espn.com/apis/site/v2/sports/basketball/${LEAGUE}`;
-const BACKGROUND_GAME_MS = 60000;
 
 const SETTLED = new Map();
 const FINAL_SNAPSHOTS = new Map();
@@ -2177,7 +2132,7 @@ async function pollSlate(tickets) {
     const ours = watchEverything || pickTeams.has(g.teams.away && g.teams.away.abbr) || pickTeams.has(g.teams.home && g.teams.home.abbr);
     // Basketball has no league-wide log on this page, so a game none of our
     // picks are in is never fetched at all.
-    if (!ours) return previewSnapshot(Object.assign({}, g, { detail: g.detail }));
+    if (!ours) return previewSnapshot(g);
     const cached = LIVE_SNAPSHOTS.get(g.gamePk);
     return getGameSnapshot(g).then(snap => {
       if (snap.status === "final") { FINAL_SNAPSHOTS.set(g.gamePk, snap); LIVE_SNAPSHOTS.delete(g.gamePk); }
@@ -2543,7 +2498,7 @@ const FEED_FIELDS = [
   // stolen bases: every play's runner events, and who is standing on which base
   "runners", "runner", "playIndex", "first", "second", "third",
   // stat props (H+R+RBI and friends) and game lines. `fields` matches NAMES at
-  // any depth, so these four cover BOTH boxscore.players[].stats.batting AND
+  // any depth, so these cover BOTH boxscore.players[].stats.batting AND
   // linescore.teams.{away,home} -- the batting line and the score come from
   // the same words. Cheap: both objects were already being fetched.
   // "runs" covers BOTH the batting line's runs scored and the linescore's team
@@ -2967,7 +2922,6 @@ function negBinomPmf(j, r, p) {
 // one more plate appearance, and expected number of remaining PAs.
 function atBatEstimate(d, r, p) {
   if (r <= 0) return { probAtLeastOne: 0, expected: 0 };
-  const threshold0 = (d + 1) - r; // need F >= this many non-outs for >=1 more PA
   function probAtLeastKMorePAs(k) {
     const threshold = (d + 1 + 9 * (k - 1)) - r;
     if (threshold <= 0) return 1;
@@ -3082,9 +3036,6 @@ function isPhpCreditedHit(playerName) {
   return !!(php && php.homeredBy);
 }
 
-// Polls MLB for one slate date. Returns { results, done, settled }; `done`
-// is the rollover signal -- every game on that date is Final (or there are
-// none), or the safety valve has passed.
 function slateDays(tickets) {
   const out = [];
   const end = (tickets.endDate && tickets.endDate >= tickets.date) ? tickets.endDate : tickets.date;
@@ -3104,6 +3055,9 @@ function mlbLegsOn(tickets) {
     || (tickets.singles || []).some(isMlb);
 }
 
+// Polls MLB for one slate date. Returns { results, done, settled }; `done`
+// is the rollover signal -- every game on that date is Final (or there are
+// none), or the safety valve has passed.
 async function pollSlate(tickets) {
   // No baseball leg on the card at all: nothing here to wait for or grade,
   // so MLB isn't asked for anything -- not even the schedule. Without this an
@@ -3234,8 +3188,8 @@ function stateForPlayer(playerName) {
 // stateForLeg() hands it straight to stateForPlayer(), untouched.
 //
 // Each entry declares:
-//   label    what the tag next to the pick reads ("" for home runs, which are
-//            the default and would just be noise)
+//   label    what the tag next to the pick reads ("" for home runs, which
+//            marketTag() labels HOME RUN itself)
 //   subject  "player" | "team" | "game" -- a game line has no player at all,
 //            which is the one genuinely structural difference here
 //   grade    leg -> state
@@ -3290,11 +3244,8 @@ const MARKETS = {
   nba_spread:   { label: "Spread",       subject: "team",   sport: "nba", grade: leg => stateForNbaLine(leg) },
   nba_total:    { label: "Total Points", subject: "game",   sport: "nba", grade: leg => stateForNbaLine(leg) },
   // ---- NFL ----
-  // "td" is the only one that can be FOLLOWED. The yardage props are listed
-  // so the parser's market word survives onto the page and the leg grades to
-  // untracked -- shown, named, in neither column, unable to kill a parlay.
-  // Leaving them out would be the same thing; listing them is what lets the
-  // leg say what it actually is instead of "not tracked".
+  // Every one of these is graded off the NFL engine's boxscore numbers
+  // (stateForNflStat) and followed live through LIVE_TILE_KIND.
   td:     { label: "Anytime TD",      subject: "player", sport: "nfl",
             grade: leg => NFL.state(leg) },
   // Counted football stats. ESPN publishes both -- sacks in the DEFENSIVE
@@ -3308,14 +3259,14 @@ const MARKETS = {
   // touchdowns are ADDED, exactly as a combined baseball prop sums its names.
   td_count:  { label: "Touchdowns",     subject: "player", sport: "nfl",
                grade: leg => stateForNflStat(leg, "td") },
-  // "Each team to score all four quarters", which needs the per-quarter
-  // linescore for BOTH named teams.
   // ONE team scoring in ONE quarter -- the leg an "each team scores in every
   // quarter" bet is written as when it is laid out leg by leg (eight of
   // them). Settled the moment that team puts points up in that quarter, or
   // lost the moment the quarter ends without them.
   q_score:   { label: "Scores in Q",    subject: "team",   sport: "nfl",
                grade: leg => stateForQuarterScore(leg) },
+  // "Each team to score all four quarters", which needs the per-quarter
+  // linescore for BOTH named teams.
   quarters:  { label: "All 4 Quarters", subject: "team",   sport: "nfl",
                grade: leg => stateForAllQuarters(leg) },
   // Touchdowns THROWN. Its own column in the passing boxscore, and nothing
@@ -3553,10 +3504,6 @@ function stateForPartial(leg) {
   return under ? "hit" : "miss";
 }
 
-// A counted football stat, summed across EVERY name on the leg -- the
-// combined form ("Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs Combined
-// TDs over 3.5") is one bet on three players' total, the same shape a
-// combined baseball prop already has.
 // A counted HOCKEY stat -- goals, assists, points, shots on goal, saves -- the
 // same shape as the football one below: an over settles the moment it clears,
 // an under waits for the final unless it has busted, nothing is live before
@@ -3648,6 +3595,10 @@ function stateForNbaLine(leg) {
   return margin > 0 ? "hit" : margin < 0 ? "miss" : "na";
 }
 
+// A counted football stat, summed across EVERY name on the leg -- the
+// combined form ("Amon-Ra St. Brown, Chubba Hubbard, Jahmry Gibbs Combined
+// TDs over 3.5") is one bet on three players' total, the same shape a
+// combined baseball prop already has.
 function stateForNflStat(leg, key) {
   const names = legPlayers(leg);
   if (!names.length) return "untracked";
@@ -3688,9 +3639,6 @@ function stateForMostInLeague(leg, key) {
   return info.holders.size > 1 ? "na" : "hit";
 }
 
-// "Lions + Panthers each team to score all four quarters." Both teams, all
-// four. It can only FAIL early -- one scoreless completed quarter settles it
-// -- and can only succeed once four quarters have actually been played.
 // Has quarter `q` (1-4) finished for this team's game? Read off the CLOCK's
 // quarter -- ESPN's period, plus whether it is at a quarter break -- rather
 // than how many linescore entries exist, so a scoreless quarter is called
@@ -3720,6 +3668,9 @@ function stateForQuarterScore(leg) {
   return quarterNow(row) >= q ? "live" : "not_started";
 }
 
+// "Lions + Panthers each team to score all four quarters." Both teams, all
+// four. It can only FAIL early -- one scoreless completed quarter settles it
+// -- and can only succeed once four quarters have actually been played.
 function stateForAllQuarters(leg) {
   const teams = legTeams(leg);
   if (teams.length < 2) return "untracked";
@@ -3867,7 +3818,8 @@ function fmtMoney(n) {
   return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-// outcome: 'hit' | 'dead' | 'live' | 'void'  (live/void both count as "Open")
+// outcome: 'hit' | 'dead' | 'live' | 'partial' | 'void'. Void (every leg N/A)
+// sits in the N/A column; isOpenOutcome() still treats it as gradeable.
 function evaluateTicket(tk, states) {
   const naCount = states.filter(s => s === "na").length;
   const missCount = states.filter(s => s === "miss").length;
@@ -3903,7 +3855,7 @@ function evaluateTicket(tk, states) {
   // never an Iron, and singles are evaluated by singleOutcome() instead.
   // "partial" is excluded by construction: outcome must be "live", and a bet
   // with an untracked leg never reaches that. A card one leg from cashing
-  // where that leg is ungradeable is not one swing away -- it is unknowable.
+  // where that leg is ungradeable is not one leg away -- it is unknowable.
   const iron = outcome === "live" && (activeCount - hitCount) === 1;
 
   return { outcome, activeCount, hitCount, missCount, naCount, untrackedCount, adjustedPayout, iron };
@@ -3920,7 +3872,7 @@ function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void
 
 // The four bets chips are mutually exclusive, so they line up column-for-column
 // with the four legs chips. `open` means genuinely live: a VOID bet (every leg
-// N/A) is refunded, not one swing from anything, and now has its own N/A chip.
+// N/A) is refunded, not one leg from anything, and now has its own N/A chip.
 // isOpenOutcome() still counts void as open for everything else -- payouts, the
 // Live Bet Tracker, `betIsOpen` -- because that's about "can this still be
 // graded", a different question from which column it belongs in.
@@ -3943,9 +3895,8 @@ function ticketMatchesFilter(evalRes) {
 
 function anyFilterActive() { return !!(BET_FILTERS.size || LEG_FILTERS.size || BETTOR_FILTERS.size); }
 
-// A single bet's outcome, in the same vocabulary as a parlay's: 'hit' | 'dead' | 'live'.
-// A single whose player never played (state 'na') hasn't technically missed, so it
-// counts as still-open, same policy as an all-N/A parlay counting as void/open.
+// A single bet's outcome, in the same vocabulary as a parlay's:
+// 'hit' | 'dead' | 'live' | 'partial' | 'void'.
 function singleOutcome(state) {
   if (state === "hit") return "hit";
   if (state === "miss") return "dead";
@@ -3960,8 +3911,8 @@ function singleOutcome(state) {
 }
 
 // Every open single is an Iron by definition: a single is always exactly one
-// home run from cashing. The exception is a player who never played -- that
-// bet is void/refunded, not one swing away, so it gets no waffle and doesn't
+// leg from cashing. The exception is a player who never played -- that
+// bet is void/refunded, not one leg away, so it gets no waffle and doesn't
 // count (same reasoning that excludes void parlays).
 function singleIsIron(state, outcome) {
   return outcome === "live" && state !== "na";
@@ -4054,17 +4005,6 @@ function playerStatusLine(playerName, state, market, team) {
   return statusLineHtml("Game on &mdash; not in the lineup yet.");
 }
 
-// Small info line shown under a leg's meta when that leg's game is
-// currently live and we have enough lineup data to estimate. `state` is
-// this leg's own resolved state; `betIsOpen` is whether the enclosing
-// ticket/single can still hit at all. The Now/Soon action tag only makes
-// sense when both are true -- no point flagging "batting now" on a leg
-// that's already resolved, or on a parlay that's already dead from
-// another leg missing. Returns "" when there's nothing to show.
-// A football pick's own always-on line. Same contract as playerStatusLine:
-// there is ALWAYS something, because "" on screen is indistinguishable from
-// the page having no idea -- and a hit is the one state that says nothing,
-// since the green check already did.
 // A hockey player's line under his pick: where he is right now, the score
 // and clock, the power play, and his line so far.
 function nhlStatusLine(leg, state) {
@@ -4131,6 +4071,10 @@ function nhlTeamStatusLine(state, leg) {
   return statusLineHtml(`${escapeHtml(row.clockLabel)} &middot; ${score} &mdash; settles at the final (OT and shootout count).`);
 }
 
+// A football pick's own always-on line. Same contract as playerStatusLine:
+// there is ALWAYS something, because "" on screen is indistinguishable from
+// the page having no idea -- and a hit is the one state that says nothing,
+// since the green check already did.
 function nflStatusLine(leg, state) {
   if (state === "hit") return "";
   const line = txt => `<div class="leg-live-context">${txt}</div>`;
@@ -4160,6 +4104,14 @@ function nflStatusLine(leg, state) {
   return statusLineHtml(`Game on &mdash; his side is on defense. ${where}${stat}`);
 }
 
+// Small info line shown under a leg's meta when that leg's game is
+// currently live and we have enough lineup data to estimate. `state` is
+// this leg's own resolved state; `betIsOpen` is whether the enclosing
+// ticket/single can still hit at all. The Now/Soon action tag only makes
+// sense when both are true -- no point flagging "batting now" on a leg
+// that's already resolved, or on a parlay that's already dead from
+// another leg missing. With nothing richer to say it falls through to an
+// always-on status line -- never "".
 function liveContextHtml(playerName, state, betIsOpen, market, team, leg) {
   // Markets whose subject is a TEAM or a GAME have no player, so none of the
   // batting-order machinery below applies. They get their own plain line.
@@ -4283,9 +4235,6 @@ function lineText(leg) {
   return ` ${legSide(leg) === "under" ? "UNDER" : "OVER"} ${n}`;
 }
 
-// The always-on line for a market whose subject is a team or a game. Same
-// contract as playerStatusLine(): it never returns "" except on a hit, where
-// the green check has already said it.
 // A FOOTBALL team bet, quarter by quarter. MLB's game-line wording ("settles
 // at the final") was wrong for both of these: they settle a quarter at a
 // time.
@@ -4314,6 +4263,9 @@ function nflTeamStatusLine(state, market, leg) {
                                     : `${nowLabel}: both have scored${now < 4 ? ` &middot; ${4 - now} to go` : ""}.`);
 }
 
+// The always-on line for a market whose subject is a team or a game. Same
+// contract as playerStatusLine(): it never returns "" except on a hit, where
+// the green check has already said it.
 function gameLineStatusLine(state, market, team, leg) {
   if (!RESULTS.ready) return statusLineHtml("Waiting on live results&hellip;");
   if (leg && leg.sport === "nfl" && (market === "q_score" || market === "quarters")) return nflTeamStatusLine(state, market, leg);
@@ -4564,7 +4516,7 @@ function sndKick(ac, out, t, v) {
 
 const SOUNDS = { bomb: sndBomb, swipe: sndSwipe, kick: sndKick, cash: sndCash };
 
-// `kind` is 'bomb' | 'swipe' | 'cash'. When the play also CASHED something, the register
+// `kind` is 'bomb' | 'swipe' | 'kick' | 'cash'. When the play also CASHED something, the register
 // REPLACES the event sound -- one noise, never two back to back. That mirrors
 // the overlay exactly: a cash doesn't add a second card, it upgrades the one
 // card to gold. Firing both would make a cash the only alert that interrupts
@@ -4745,7 +4697,7 @@ function fireBomb(playerName, cash) {
   }
 }
 
-// The steal twin of fireBomb(): same two channels, same queue, its own look.
+// The touchdown twin of fireBomb(): same two channels, same queue, its own look.
 function fireTouchdown(playerName, cash) {
   playAlertSound("kick", !!cash);
   const ball = String.fromCodePoint(0x1F3C8), bag = String.fromCodePoint(0x1F4B0);
@@ -4753,7 +4705,7 @@ function fireTouchdown(playerName, cash) {
     try {
       new window.Notification(`${playerName} TOUCHDOWN! ${ball}${cash ? bag : ""}`, {
         body: cash ? `${cash.label}${cash.amount ? ` - ${cash.amount}` : ""} - bmbs.bet` : "Touchdown - bmbs.bet",
-        tag: `td-${playerName}`
+        tag: `td-${normalizeName(playerName)}`
       });
     } catch (e) { /* some browsers throw when constructed outside a SW */ }
   }
@@ -4945,9 +4897,6 @@ function fireLegHit(slate, leg, cash) {
   }
 }
 
-// Called once per poll. Deliberately keyed on the player's OWN home run
-// (hitNames), not on leg state -- a leg credited through Pinch Hit
-// Protection wasn't a bomb by the player the notification would name.
 // Which slate to announce from. Normally today's -- but the slate this page
 // was WATCHING finishes on the same poll as its last play: every game final,
 // so it has already rolled to Yesterday by the time this runs, and a walk-off
@@ -4962,6 +4911,9 @@ function alertSlate() {
   return y && y.tickets && BOMB_STATE.date && y.tickets.date === BOMB_STATE.date ? y : null;
 }
 
+// Called once per poll. Deliberately keyed on the player's OWN home run
+// (hitNames), not on leg state -- a leg credited through Pinch Hit
+// Protection wasn't a bomb by the player the notification would name.
 function checkForBombs() {
   const slate = alertSlate();
   if (!slate || !slate.tickets || !slate.results || !slate.results.ready) return;
@@ -5083,9 +5035,6 @@ function zoneGridHtml(zone) {
   return `<span class="zgrid" aria-hidden="true">${cells}${outside ? `<span class="zout z${zone}"></span>` : ""}</span>`;
 }
 
-// Normalized names whose home run matters to this slate: anyone actually
-// picked, plus any substitute whose HR is currently crediting one of our
-// legs under Pinch Hit Protection.
 // Which markets earn a tile in the Live Bet Tracker, and what KIND of tile.
 // A market only belongs here if watching it live actually tells you something:
 //   bat    -- he's a hitter and the bet moves when he bats, so the whole
@@ -5095,9 +5044,7 @@ function zoneGridHtml(zone) {
 //             climbs while his side is in the field
 //   game   -- a game line, which has no player at all but does have a live
 //             score and a number it has to beat
-// Anything NOT here is deliberately absent rather than forgotten: an
-// inning-specific total can't be followed from a final score, so a tile could
-// only ever show a number that means nothing.
+// Anything NOT here is deliberately absent rather than forgotten.
 const LIVE_TILE_KIND = {
   // NFL. Every prop the page can GRADE live it can also follow live -- the
   // numbers come off the same boxscore. This used to be anytime-TD only, on
@@ -5324,9 +5271,6 @@ const MARKET_STATS = {
 };
 
 // "2 of 3 total bases" -- where a counting bet actually stands right now.
-// Returns null for a market with nothing to count (a plain home run or steal
-// bet is "at least one" and the tile already says everything).
-//
 // EVERY counting bet gets one, including the plain "at least one" kind -- a
 // home run or a steal reads "0 of 1 HR" like a sack reads "0 of 1 sacks", so
 // no tile leaves you guessing what it is waiting for (the user's rule,
@@ -5362,6 +5306,9 @@ function labProgress(entry) {
   return { have, need, text: `${have} of ${need} ${label}`, done: have >= need };
 }
 
+// Normalized names whose home run matters to this slate: anyone actually
+// picked, plus any substitute whose HR is currently crediting one of our
+// legs under Pinch Hit Protection.
 function relevantHrNames() {
   const set = new Set();
   if (!TICKETS) return set;
@@ -5474,7 +5421,7 @@ function renderHrLog() {
   const nflNames = nflPickNames();
   const ourCount = all.filter(e => scoringIsOurs(e, relevant, nflNames)).length;
   const countEl = document.getElementById("hrlog-count");
-  // Share of the day's home runs that came off a bat we picked. Plain
+  // Share of the day's scoring plays that came off a pick of ours. Plain
   // ours/total -- no attempt to weight by how many legs named him.
   const pct = all.length ? Math.round((ourCount / all.length) * 100) : 0;
   if (countEl) countEl.textContent = all.length ? `${ourCount} OURS · ${all.length} TOTAL · ${pct}%` : "";
@@ -5484,7 +5431,7 @@ function renderHrLog() {
   if (rows.length === 0) {
     const msg = all.length === 0
       ? "Nothing has been scored yet."
-      : "None of this slate's picks have scored yet &mdash; switch to <b>Everything</b> to see the rest of both leagues.";
+      : "None of this slate's picks have scored yet &mdash; switch to <b>Everything</b> to see the rest of the day's scoring.";
     list.innerHTML = `<p class="hr-empty">${msg}</p>`;
     return;
   }
@@ -5764,8 +5711,7 @@ function labOddsHtml(pick, tag) {
 }
 
 // The progress line under a tile: where every counting bet on this pick
-// actually stands. Silent for a plain home run or steal, which have nothing
-// to count -- the tile itself is the information there.
+// actually stands -- "0 of 1 HR" included.
 function labProgressHtml(pick) {
   const bits = [];
   const seen = new Set();
@@ -5781,7 +5727,7 @@ function labProgressHtml(pick) {
 // A PITCHER prop. No batting order to place him in -- he's on the mound
 // while his side is in the field -- so the tile is the count itself, which is
 // the thing that actually moves.
-function labMoundTile(pick, gamePk, inningLabel, gamedayLink) {
+function labMoundTile(pick, inningLabel, gamedayLink) {
   const prog = (pick.entries || []).map(labProgress).find(Boolean);
   // Its own market's word: this said "K" for every pitcher prop, so an
   // earned-runs bet read as a strikeout count.
@@ -5796,8 +5742,6 @@ function labMoundTile(pick, gamePk, inningLabel, gamedayLink) {
     <div class="ab-countrow"><span class="ab-count">${prog ? prog.have : "\u2013"}</span><span class="ab-pitches faint">${escapeHtml(line)}</span></div>`);
 }
 
-// A GAME LINE. No player at all: the live score is the state, and the tile
-// says plainly that nothing settles until the final -- a lead is not a win.
 // One row per team, one cell per quarter, and a line saying what is still
 // owed in the quarter being played -- which is the only thing that can still
 // go wrong for this bet right now.
@@ -5832,6 +5776,8 @@ function quartersTile(pick, rows, link) {
     <div class="ab-line ${owed.length ? "" : "faint"}">${need}</div>`);
 }
 
+// A GAME LINE. No player at all: the live score is the state, and the tile
+// says plainly that nothing settles until the final -- a lead is not a win.
 function labGameTile(pick, row, inningLabel, gamedayLink) {
   const e = (pick.entries || [])[0] || {};
   const def = MARKETS[e.market];
@@ -5847,10 +5793,19 @@ function labGameTile(pick, row, inningLabel, gamedayLink) {
   } else if (e.market === "ml") {
     need = mine > theirs ? "ahead" : mine < theirs ? "behind" : "tied";
   }
+  let settles = "Settles at the final.";
+  // A first-N-innings total counts only those innings, the way stateForPartial() grades it.
+  if (e.market === "f5" && e.line !== null && row.byInning) {
+    const through = Math.max(1, Math.floor(Number(e.innings) || 5));
+    const soFar = row.byInning.slice(0, through).reduce((a, b) => a + b, 0);
+    need = e.side === "under" ? `${soFar} runs thru ${through}, needs under ${e.line}`
+                              : `${soFar} runs thru ${through}, needs ${Math.floor(Number(e.line)) + 1}`;
+    settles = `Settles after the ${ordinal(through)} inning.`;
+  }
   return labTileShell("game", (def && def.label) || "GAME LINE", pick, gamedayLink, `
     <div class="ab-line">${escapeHtml(inningLabel || "")}</div>
     <div class="ab-countrow"><span class="ab-count">${mine}&ndash;${theirs}</span><span class="ab-pitches faint">${escapeHtml(need)}</span></div>
-    <div class="ab-line faint">Settles at the final.</div>`);
+    <div class="ab-line faint">${settles}</div>`);
 }
 
 function labPitchChip(pitch) {
@@ -6093,12 +6048,6 @@ function renderLiveAtBats() {
       tiles.push({ rank: 1, order: on.nextOpen ? 0 : 2, html: labOnBaseTile(pick, on) });
       return;
     }
-    // AN NFL PICK. Green here means what it means on the football page and
-    // nothing looser: his side has the ball, their drive is open, and that
-    // drive has not already ended. Possession alone is stale right after a
-    // score, an open drive alone is stale right after a punt, and a finished
-    // drive still named as current IS the kickoff window -- the NFL engine's
-    // own liveContextForPlayer checks all three.
     // A HOCKEY player: on the wall the whole time his game is live, ordered
     // on-the-ice and power play first, then the bench.
     if (pick.kinds && pick.kinds.has("ice")) {
@@ -6165,6 +6114,12 @@ function renderLiveAtBats() {
       }
       return;
     }
+    // AN NFL PICK. Green here means what it means on the football page and
+    // nothing looser: his side has the ball, their drive is open, and that
+    // drive has not already ended. Possession alone is stale right after a
+    // score, an open drive alone is stale right after a punt, and a finished
+    // drive still named as current IS the kickoff window -- the NFL engine's
+    // own liveContextForPlayer checks all three.
     if (pick.kinds && (pick.kinds.has("drive") || pick.kinds.has("defense"))) {
       const dctx = NFL.context(pick);
       // A copy, so the progress line rides along to the tile without being
@@ -6189,8 +6144,6 @@ function renderLiveAtBats() {
       }
       return;
     }
-    // A GAME LINE has no player, so none of the batting machinery below can
-    // place it. It gets a tile whenever its game is actually under way.
     // Each team to score all four quarters: on the wall while EITHER game
     // is being played, since a quarter in either can still settle it.
     if (pick.kinds && pick.kinds.has("quarters")) {
@@ -6203,12 +6156,14 @@ function renderLiveAtBats() {
       }
       return;
     }
+    // A GAME LINE has no player, so none of the batting machinery below can
+    // place it. It gets a tile whenever its game is actually under way.
     if (pick.kinds && pick.kinds.has("game")) {
       const row = RESULTS.teamScores && RESULTS.teamScores.get((pick.player || "").toUpperCase());
       if (row && row.runs !== null && row.status !== "preview") {
         gameCount++;
         const g = RESULTS.gameInfo.get(row.gamePk) || {};
-        tiles.push({ rank: 4, order: 0, html: labGameTile(pick, row, labInningLabelFor(g), g.gamedayLink || "") });
+        tiles.push({ rank: 4, order: 0, html: labGameTile(pick, row, labInningLabelFor(g), gamedayUrl(row.gamePk)) });
       }
       return;
     }
@@ -6221,7 +6176,7 @@ function renderLiveAtBats() {
       if (row) {
         moundCount++;
         const g = (where && RESULTS.gameInfo.get(where.gamePk)) || {};
-        tiles.push({ rank: 3, order: 0, html: labMoundTile(pick, where && where.gamePk, labInningLabelFor(g), g.gamedayLink || "") });
+        tiles.push({ rank: 3, order: 0, html: labMoundTile(pick, labInningLabelFor(g), where ? gamedayUrl(where.gamePk) : "") });
       }
       return;
     }
@@ -6360,7 +6315,7 @@ function computeAll() {
 
   const bettorHtml = rows.map(r => `
     <div class="bettor-row${BETTOR_FILTERS.has(r.key) ? " active-filter" : ""}" data-key="${escapeHtml(r.key)}">
-      <div class="bettor-name">${r.name}</div>
+      <div class="bettor-name">${escapeHtml(r.name)}</div>
       <div class="bettor-stats">
         <div class="bettor-stat hit"><div class="num">${r.hit}</div><div class="lbl">HIT</div></div>
         <div class="bettor-stat miss"><div class="num">${r.miss}</div><div class="lbl">MISS</div></div>
@@ -6391,7 +6346,7 @@ function computeAll() {
     (hasNfl || hasNhl || hasNba || hasWnba || slateHasSteals()) ? "Game final, missed" : "Game final, no HR";
 
   // Parser warnings only. The old "Auto-tracked against live MLB results."
-  // copy was dropped as redundant with the LIVE FROM MLB eyebrow, but a real
+  // copy was dropped as redundant with the eyebrow, but a real
   // note still has to reach the screen -- it is the only signal that a bet
   // line on the card wasn't understood.
   document.getElementById("dynamic-note").innerHTML = TICKETS.note ? `<b>Heads up</b> &mdash; ${TICKETS.note}` : "";
@@ -6515,7 +6470,7 @@ function renderContent() {
       }
 
       let statusText = "", statusCls = "live";
-      if (evalRes.outcome === "void") { statusText = "OPEN (void) \u2014 no one has played yet"; statusCls = "void"; }
+      if (evalRes.outcome === "void") { statusText = "VOID \u2014 nobody on it played, refunded"; statusCls = "void"; }
       else if (evalRes.outcome === "dead") { statusText = "DEAD"; statusCls = "dead"; }
       else if (evalRes.outcome === "hit") { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
       else { statusText = `OPEN \u2014 ${evalRes.hitCount}/${evalRes.activeCount} hit so far`; }
@@ -6546,7 +6501,7 @@ function renderContent() {
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
     singlesHtml += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${escapeHtml(legSubjectName(s))}${marketTag(legMarket(s), s)}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team, s)}
+      <div class="single-left"><div class="single-person">${escapeHtml(s.who)}</div><div class="single-player">${escapeHtml(legSubjectName(s))}${marketTag(legMarket(s), s)}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team, s)}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${oddsText(s.odds)}</div><div class="leg-time">${s.pp}</div></div>
@@ -6810,8 +6765,7 @@ function applyActiveTab() {
   document.getElementById("live-dot").style.display = (ACTIVE_TAB === "today" && showSlate) ? "" : "none";
   if (!showSlate) document.getElementById("dynamic-note").innerHTML = "";
 
-  // Bomb notifications only ever fire off Today's live data (checkForBombs
-  // only ever looks at SLATES.today), so the toggles are meaningless next to
+  // Bomb notifications only ever fire off the live slate (alertSlate()), so the toggles are meaningless next to
   // Yesterday's frozen results -- hide them there rather than imply they
   // control anything for archived data. The underlying settings (and Today's
   // notifications) are unaffected; this is visibility only.
@@ -7040,9 +6994,8 @@ function legHitTime(leg) {
 // everything already hit on this slate is there, unread. That is the
 // opposite of the overlay's flood guard, on purpose -- the overlay must not
 // replay an afternoon at you, but a log you can open when you like should
-// let you catch up. Anything found on the first scan after the page loads is
-// labelled "Earlier" rather than given a clock time, because this browser
-// only knows when it NOTICED it, not when it happened.
+// let you catch up. Every entry carries when it HAPPENED, off the
+// play-by-play (legHitTime), so a backfilled one sorts and reads correctly.
 //
 // Survives a refresh, and resets when a slate with a new date starts, so
 // yesterday's cashes never pile onto today's badge.

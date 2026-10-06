@@ -1,7 +1,7 @@
 """
 Discord intake bot for bmbs.bet picks.
 
-A friend uploads the day's raw picks text (e.g. out of his own Gemini
+A friend uploads the day's raw picks text (e.g. out of their own Gemini
 session) as a .txt file attachment in a designated Discord channel. This
 bot:
 
@@ -11,15 +11,13 @@ bot:
    `main` via the GitHub Contents API, and that sport's parse workflow
    takes it from there.
 
-Which sport is decided by the FILE NAME, and nothing else:
-
-    baseball*.txt  ->  data/incoming_picks.txt           (home run cards)
-    football*.txt  ->  data/football/incoming_picks.txt  (touchdown cards)
-
-Anything else is refused with a note saying how to rename it. The card text
-is deliberately not inspected: both sports' cards share a template, and a
-guess that's right most of the time would eventually file a touchdown card
-under baseball and wipe that day's home run slate.
+Which sport is decided by the FILE NAME's prefix, and nothing else -- see
+ROUTES below (baseball, football, sports = the All Sports front page, hockey,
+basketball, wnba, cfb). Anything else is refused with a note listing every
+prefix this RUNNING copy knows, which is also the quick way to prove a
+restart took. The card text is deliberately not inspected: the sports' cards
+share a template, and a guess that's right most of the time would eventually
+file a touchdown card under baseball and wipe that day's home run slate.
 
 Using a file attachment (rather than pasted message text) sidesteps
 Discord's 2000-character message cap, which a real day's picks routinely
@@ -33,6 +31,7 @@ GitHub's web editor would.
 import asyncio
 import base64
 import os
+from typing import Optional
 
 import discord
 import requests
@@ -96,7 +95,7 @@ def _github_headers() -> dict:
 
 
 def push_incoming_picks(text: str, author_name: str, file_path: str, sport: str,
-                        author_id: str = "") -> str:
+                        author_id: str = "") -> Optional[str]:
     """Commit `text` as the new `file_path` on GITHUB_BRANCH.
 
     Returns the commit URL, or None when the file ALREADY has exactly this
@@ -119,7 +118,8 @@ def push_incoming_picks(text: str, author_name: str, file_path: str, sport: str,
         # workflows can @ the person who uploaded when they report back. A
         # username can't be mentioned -- Discord needs the id -- and this is
         # the only channel between the bot and a GitHub Action. The format is
-        # parsed by auto-fix-parse-failure.yml; keep the brackets.
+        # parsed by every parse-*-picks.yml and auto-fix-parse-failure.yml;
+        # keep the brackets.
         "message": (f"Picks upload ({sport}) from {author_name}"
                     + (f" [discord:{author_id}]" if author_id else "")
                     + " via Discord bot"),
@@ -228,10 +228,9 @@ async def on_message(message: discord.Message) -> None:
     if route is None:
         await message.reply(
             f"I can't tell which sport `{txt_attachment.filename}` is for, so nothing was pushed.\n"
-            f"Start the file name with **`baseball`** for a home run card, **`football`** for a touchdown "
-            f"card, or **`sports`** for a combined card holding both "
-            f"(e.g. `baseball_2026-09-20.txt`, `football_week2.txt`, `sports_2026-10-04.txt`) "
-            f"and upload it again."
+            f"Start the file name with one of "
+            + ", ".join(f"**`{prefix}`** ({r['sport']})" for prefix, r in ROUTES.items())
+            + " (e.g. `sports_2026-10-04.txt`) and upload it again."
         )
         return
 

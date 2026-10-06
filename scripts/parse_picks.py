@@ -902,20 +902,6 @@ def detect_market(text):
     return key, line, side, cleaned
 
 
-def market_fields(key, line, side):
-    """The leg fields a detected market contributes. Home runs contribute
-    NOTHING, so a home-run-only card's tickets.json is byte-for-byte what it
-    has always been -- the same guarantee steals were added under."""
-    out = {}
-    if key and key != "hr":
-        out["market"] = key
-    if line is not None:
-        out["line"] = line
-    if side and side != "over":
-        out["side"] = side
-    return out
-
-
 def take_market(line):
     """-> (line with any steal marker removed, whether there was one)."""
     m = SB_MARK_RE.search(line)
@@ -1182,7 +1168,6 @@ def parse(text, team_by_name, canonical_by_norm):
     mode = None
     current_section = None
     current_card = None
-    single_idx = 0
 
     # ---- steal markers: the section's default, and the open ticket's ----
     section_sb = False
@@ -1732,7 +1717,6 @@ def parse(text, team_by_name, canonical_by_norm):
                     "stake": clean_num(stake),
                     "pp": clean_num(pp),
                 })
-                single_idx += 1
                 continue
 
         if BETLIKE_RE.search(original):
@@ -1900,8 +1884,8 @@ def main():
     # told. Real card, 2026-09-29: six of seventeen legs were untracked or
     # unresolved and the note was empty. The page already says it per-leg;
     # this is what puts it where the group actually looks.
-    KNOWN = {"hr", "sb", "hrr", "hits", "rbi", "runs", "tb", "doubles", "k",
-             "ml", "spread", "total", "f5", "er", "win"}
+    KNOWN = {"hr", "sb", "hrr", "hits", "rbi", "runs", "tb", "doubles", "xbh", "outs",
+             "k", "er", "win", "ml", "spread", "total", "f5"}
     ungradeable = []
     for win in windows:
         for card_ in win["tickets"]:
@@ -1911,8 +1895,8 @@ def main():
                     ungradeable.append(f"{lg.get('team')} {mk or ''} — {lg['mismatch']}".strip())
                 elif mk is not None and mk not in KNOWN:
                     ungradeable.append(f"{lg.get('player') or lg.get('team') or '?'} ({mk})")
-                elif mk in (None, "hr", "sb", "hrr", "hits", "rbi", "runs", "tb", "doubles", "k") \
-                        and not lg.get("team"):
+                elif mk in (None, "hr", "sb", "hrr", "hits", "rbi", "runs", "tb", "doubles", "xbh",
+                            "outs", "k", "er", "win") and not lg.get("team"):
                     ungradeable.append(f"{lg.get('player') or '?'} (couldn't match a player)")
     for sg in out_singles:
         mk = sg.get("market")

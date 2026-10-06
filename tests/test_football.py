@@ -182,7 +182,7 @@ def bettor_filters(page):
 
 def summary_chips(page):
     """The active-filter chips in the consolidated summary bar, in order."""
-    return page.evaluate("""() => [...document.querySelectorAll('#filter-summary-chips .fs-chip')]
+    return page.evaluate(r"""() => [...document.querySelectorAll('#filter-summary-chips .fs-chip')]
         .map(c => c.textContent.replace(/\s+/g, ' ').replace(/\s*\u00d7\s*$/, '').trim())""")
 
 

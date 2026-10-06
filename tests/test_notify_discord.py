@@ -81,7 +81,7 @@ check("A4 a slate with nothing on it still produces a sane message",
 p.unlink()
 
 
-# ---------------- B. post_message() / edit_message() -- the HTTP shape ----------------
+# ---------------- B. post_message() -- the HTTP shape ----------------
 
 calls = []
 
@@ -110,12 +110,6 @@ nd.post_message("it's live", fetcher=fake_fetcher, mention="42")
 check("B2c a mention is prefixed as <@id> so the uploader actually gets pinged",
       calls[0][1]["content"] == "<@42> it's live", calls[0][1])
 check("B3 post_message returns the id from the response", mid == "999888777", mid)
-
-calls.clear()
-nd.edit_message("42", "updated text", fetcher=fake_fetcher)
-check("B4 edit_message hits '/messages/<id>' via PATCH",
-      calls[0][0].endswith("/messages/42") and calls[0][2] == "PATCH")
-check("B5 edit_message sends the new text", calls[0][1] == {"content": "updated text"})
 
 
 # ---------------- C. the webhook URL never leaks, even on failure ----------------
@@ -202,7 +196,6 @@ check("C8 ...and it isn't Python's default, which is the one Cloudflare blocks",
 cli_calls = []
 nd.post_message = lambda text, fetcher=nd._request, mention=None: (
     cli_calls.append(("post", text, mention)), "111")[1]
-nd.edit_message = lambda mid, text, fetcher=nd._request: cli_calls.append(("edit", mid, text))
 
 sys.argv = ["notify_discord.py", "post", "--text", "hi there"]
 nd.main()
@@ -221,10 +214,8 @@ nd.main()
 check("D1c a blank mention posts without one, rather than an empty <@>",
       cli_calls[-1] == ("post", "fixed", None), cli_calls)
 
-sys.argv = ["notify_discord.py", "edit", "--id", "55", "--text", "updated"]
-nd.main()
-check("D2 'edit' subcommand calls edit_message with the given id and text",
-      cli_calls[-1] == ("edit", "55", "updated"), cli_calls)
+check("D2 there is no 'edit' subcommand -- every status is a new, pinging post",
+      not hasattr(nd, "edit_message"))
 
 success_payload = {"date": "2026-09-20", "windows": [], "singles": [{}]}
 p = write_tmp("cli_success", success_payload)

@@ -34,17 +34,17 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 MODEL = "claude-sonnet-5"
-# Raised from 2 on 2026-09-22. On the first real template this pipeline ever
-# faced, attempt 1 tripped rule 1b below and attempt 2 -- having been given
-# that failure as feedback -- fixed it, passed the entire suite, and then died
-# on a one-character bug. It was one attempt from success and ran out. Each
-# attempt is one API call and about two minutes.
 class TransportError(RuntimeError):
     """The Claude API call never completed -- a timeout or a network error.
     Distinct from the model answering badly: nothing was learned about the
     upload, so the group must not be told their card is the problem."""
 
 
+# Raised from 2 on 2026-09-22. On the first real template this pipeline ever
+# faced, attempt 1 tripped rule 1b below and attempt 2 -- having been given
+# that failure as feedback -- fixed it, passed the entire suite, and then died
+# on a one-character bug. It was one attempt from success and ran out. Each
+# attempt is one API call and about two minutes.
 MAX_ATTEMPTS = 4
 # The model rewrites the ENTIRE parser, so the response grows with the file --
 # ~10.5k output tokens at 795 lines, and every new template adds more. A fixed
@@ -56,16 +56,13 @@ MAX_ATTEMPTS = 4
 API_TIMEOUT = 600
 API_URL = "https://api.anthropic.com/v1/messages"
 
-# The full offline suite (test_feed_fields.py excluded on purpose -- it needs
-# live network games and can't produce a stable pass/fail for this gate).
-FULL_SUITE = [
-    "test_parser", "test_page", "test_live_at_bats", "test_steals",
-    "test_history_import", "test_history", "test_build_roster",
-    "test_football_parser", "test_football", "test_record_results",
-    "test_football_history", "test_discord_bot", "test_at_bat_math",
-    "test_live_data_schema", "test_site_links", "test_features_page",
-    "test_workflow_yaml", "test_redirect_stub", "test_notify_discord",
-]
+# Every offline test file. Read from tests/ rather than listed: a hand list
+# was 19 files long after eight more had been added, so a patch to
+# parse_picks.py that broke the combined parser built on it -- the front page's
+# -- sailed through this gate. The two network tests can't give a stable
+# pass/fail and are left out by name.
+NETWORK_TESTS = {"test_feed_fields", "test_notify_discord_live"}
+FULL_SUITE = sorted(p.stem for p in (REPO / "tests").glob("test_*.py") if p.stem not in NETWORK_TESTS)
 
 # Hard-won lessons from four real template-drift incidents fixed by hand on
 # 2026-09-19/20 (see CLAUDE.md's "picks-generation prompt has changed
@@ -530,7 +527,7 @@ def main():
     # Nothing to repair -> say so and touch nothing. Deliberately BEFORE the
     # first API call: cheap, and a needless rewrite of a working parser is its
     # own risk.
-    if already_parses(parser_path, incoming_path):
+    if already_parses(run_parser, incoming_path):
         print("The upload already parses with the current parser -- nothing to fix.")
         set_output(resolved="no", reason="notbroken",
                    summary="the upload already parses with the current parser -- "

@@ -443,7 +443,7 @@
     <p class="note" id="dynamic-note"></p>
 
     <div class="notif-row" id="notif-row">
-      <label class="notif-toggle" id="notif-overlay-label">
+      <label class="notif-toggle">
         <input type="checkbox" id="notif-overlay" onchange="setOverlayNotif(this.checked)">
         <span>Overlay Notification</span>
       </label>
@@ -451,7 +451,7 @@
         <input type="checkbox" id="notif-push" onchange="setPushNotif(this.checked)">
         <span>Push Notification</span>
       </label>
-      <label class="notif-toggle" id="notif-sound-label">
+      <label class="notif-toggle">
         <input type="checkbox" id="notif-sound" onchange="setSoundNotif(this.checked)">
         <span>Sound</span>
       </label>
@@ -566,7 +566,7 @@
   <div id="content"></div>
 
   <div class="colorkey" id="colorkey">
-  <p class="stat-row-label" id="legend-label">COLOR KEY</p>
+  <p class="stat-row-label">COLOR KEY</p>
     <div class="legend">
       <span><span class="sw pending"></span>Not started</span>
       <span><span class="sw live-game"></span>In progress</span>
@@ -577,7 +577,7 @@
 
   </div>
 
-  <footer id="footer-line">all times ET &middot; anytime-touchdown tracking, live from ESPN's NFL data &middot; <a href="/football/history/" style="color:inherit;">history</a> &middot; <a href="/features/?sport=football" style="color:inherit;">what this site can do</a> &middot; <a href="/" style="color:inherit;">baseball tracker</a></footer>
+  <footer id="footer-line">all times ET &middot; anytime-touchdown tracking, live from ESPN's NFL data &middot; <a href="/football/history/" style="color:inherit;">history</a> &middot; <a href="/features/?sport=football" style="color:inherit;">what this site can do</a></footer>
 </div>
 
 <div id="bomb-overlay" role="status" aria-live="polite"></div>
@@ -1174,7 +1174,8 @@ function fmtMoney(n) {
   return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-// outcome: 'hit' | 'dead' | 'live' | 'void'  (live/void both count as "Open")
+// outcome: 'hit' | 'dead' | 'live' | 'partial' | 'void'. Void (every leg N/A)
+// sits in the N/A column; isOpenOutcome() still treats it as gradeable.
 function evaluateTicket(tk, states) {
   const naCount = states.filter(s => s === "na").length;
   const missCount = states.filter(s => s === "miss").length;
@@ -1210,7 +1211,7 @@ function isOpenOutcome(outcome) { return outcome === "live" || outcome === "void
 
 // The four bets chips are mutually exclusive, so they line up column-for-column
 // with the four legs chips. `open` means genuinely live: a VOID bet (every leg
-// N/A) is refunded, not one swing from anything, and now has its own N/A chip.
+// N/A) is refunded, not one leg from anything, and now has its own N/A chip.
 // isOpenOutcome() still counts void as open for everything else -- payouts, the
 // Live Bet Tracker, `betIsOpen` -- because that's about "can this still be
 // graded", a different question from which column it belongs in.
@@ -1232,9 +1233,8 @@ function ticketMatchesFilter(evalRes) {
 
 function anyFilterActive() { return !!(BET_FILTERS.size || LEG_FILTERS.size || BETTOR_FILTERS.size); }
 
-// A single bet's outcome, in the same vocabulary as a parlay's: 'hit' | 'dead' | 'live'.
-// A single whose player never played (state 'na') hasn't technically missed, so it
-// counts as still-open, same policy as an all-N/A parlay counting as void/open.
+// A single bet's outcome, in the same vocabulary as a parlay's:
+// 'hit' | 'dead' | 'live' | 'partial' | 'void'.
 function singleOutcome(state) {
   if (state === "hit") return "hit";
   if (state === "miss") return "dead";
@@ -1247,7 +1247,7 @@ function singleOutcome(state) {
 
 // Every open single is an Iron by definition: a single is always exactly one
 // touchdown from cashing. The exception is a player who never played -- that
-// bet is void/refunded, not one swing away, so it gets no waffle and doesn't
+// bet is void/refunded, not one leg away, so it gets no waffle and doesn't
 // count (same reasoning that excludes void parlays).
 function singleIsIron(state, outcome) {
   return outcome === "live" && state !== "na";
@@ -2226,7 +2226,7 @@ function computeAll() {
 
   const bettorHtml = rows.map(r => `
     <div class="bettor-row${BETTOR_FILTERS.has(r.key) ? " active-filter" : ""}" data-key="${escapeHtml(r.key)}">
-      <div class="bettor-name">${r.name}</div>
+      <div class="bettor-name">${escapeHtml(r.name)}</div>
       <div class="bettor-stats">
         <div class="bettor-stat hit"><div class="num">${r.hit}</div><div class="lbl">HIT</div></div>
         <div class="bettor-stat miss"><div class="num">${r.miss}</div><div class="lbl">MISS</div></div>
@@ -2350,7 +2350,7 @@ function renderContent() {
       }
 
       let statusText = "", statusCls = "live";
-      if (evalRes.outcome === "void") { statusText = "OPEN (void) \u2014 no one has played yet"; statusCls = "void"; }
+      if (evalRes.outcome === "void") { statusText = "VOID \u2014 nobody on it played, refunded"; statusCls = "void"; }
       else if (evalRes.outcome === "dead") { statusText = "DEAD"; statusCls = "dead"; }
       else if (evalRes.outcome === "hit") { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
       else { statusText = `OPEN \u2014 ${evalRes.hitCount}/${evalRes.activeCount} hit so far`; }
@@ -2381,7 +2381,7 @@ function renderContent() {
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
     singlesHtml += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${s.who}</div><div class="single-player">${s.player} <span class="mkt-tag" title="Anytime touchdown bet">ANYTIME TD</span>${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live")}
+      <div class="single-left"><div class="single-person">${escapeHtml(s.who)}</div><div class="single-player">${s.player} <span class="mkt-tag" title="Anytime touchdown bet">ANYTIME TD</span>${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live")}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${s.odds}</div><div class="leg-time">${s.pp}</div></div>
@@ -2735,9 +2735,8 @@ function bellWithToday(slate, fn) {
 // everything already hit on this slate is there, unread. That is the
 // opposite of the overlay's flood guard, on purpose -- the overlay must not
 // replay an afternoon at you, but a log you can open when you like should
-// let you catch up. Anything found on the first scan after the page loads is
-// labelled "Earlier" rather than given a clock time, because this browser
-// only knows when it NOTICED it, not when it happened.
+// let you catch up. Every entry carries when it HAPPENED, off the
+// play-by-play (legHitTime), so a backfilled one sorts and reads correctly.
 //
 // Survives a refresh, and resets when a slate with a new date starts, so
 // yesterday's cashes never pile onto today's badge.

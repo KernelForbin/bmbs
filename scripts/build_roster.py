@@ -53,12 +53,6 @@ def build(fetcher=fetch):
     # "Philadelphia Phillies", "PHI". This maps every one of those, normalized,
     # onto the abbreviation everything else here is keyed by.
     abbr_by_team_word = {}
-    # Surname -> [(normalized full name, abbr)]. Kept as a LIST because a
-    # surname is ambiguous league-wide on purpose: resolving one is only ever
-    # allowed once the card has narrowed it to specific teams (a header like
-    # "Phillies vs. Braves"), and a surname matching two players on those same
-    # teams still has to stay unresolved rather than pick one.
-    by_surname = {}
     collisions = []
     for team in teams:
         abbr = team.get("abbreviation")

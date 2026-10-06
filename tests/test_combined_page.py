@@ -1547,6 +1547,13 @@ with sync_playwright() as p:
     t = v_tiles(page)
     check("V5 a teammate's touchdown is said plainly: TD — not him -- and the other side's drive ending is not his",
           t.get("Travis Kelce", {}).get("result") == "TD — not him", t)
+    # Penix on a passing-yards bet read "TD — not him" live, about a touchdown
+    # he had just thrown: "not him" is only said to a touchdown bet.
+    plain = page.evaluate("""() => NFL.resultTile({ kind: 'drive', tdBet: false, at: 0,
+        pick: { player: 'QB One', odds: [], whos: [], iron: false },
+        drive: { result: 'Touchdown', isScore: true, description: '10 plays', gamePk: '9001' } }, 0)""")
+    check("V5b ...but a pick with no touchdown bet just reads Touchdown",
+          ">Touchdown<" in plain and "not him" not in plain, plain)
     check("V6 ...and the expired touchdown tile is gone", t.get("Saquon Barkley", {}).get("tag") != "TOUCHDOWN", t)
     check("V7 no JavaScript errors", not errors, errors[:3])
     browser.close()

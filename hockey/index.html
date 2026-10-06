@@ -1290,7 +1290,9 @@ function drvResultTile(flash, now) {
       <div class="ab-line faint">${escapeHtml([td ? tdHowText(td) : "", td ? tdWhenText(td) : "", pick.whos.join(", ")].filter(Boolean).join(" \u00b7 "))}</div>${ball}`);
   }
   const dr = flash.drive;
-  const stolen = /touchdown/i.test(dr.result);
+  // "not him" only means something to a touchdown bet. A quarterback on a
+  // yardage prop probably THREW that touchdown (seen live, 2026-10-05).
+  const stolen = flash.tdBet && /touchdown/i.test(dr.result);
   return drvTileShell(`result${dr.isScore ? " onbase" : ""}`, "DRIVE OVER", pick, espnGameUrl(dr.gamePk), `
     <div class="ab-result">${escapeHtml(stolen ? "TD \u2014 not him" : dr.result)}</div>
     <div class="ab-line faint">${escapeHtml([dr.description, pick.whos.join(", ")].filter(Boolean).join(" \u00b7 "))}</div>`);
@@ -5151,7 +5153,8 @@ function trackLiveAtBats() {
           // A pick who scored is holding his TOUCHDOWN tile; his drive's end
           // would only repeat it.
           if (hits.has(FB.norm(pick.player)) || FB.teamOf(pick.player) !== dr.team) return;
-          LAB.flashes.set(norm, { pick, fb: FB, kind: "drive", drive: dr, at: now, until: now + LAB_RESULT_MS });
+          LAB.flashes.set(norm, { pick, fb: FB, kind: "drive", drive: dr, at: now, until: now + LAB_RESULT_MS,
+                                  tdBet: (pick.entries || []).some(e => e.market === "td" || e.market === "td_count") });
         });
       });
     } finally { FB.swap(saved); }

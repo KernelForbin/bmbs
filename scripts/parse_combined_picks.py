@@ -100,11 +100,11 @@ NFL_WORDS = re.compile(r"\b(?:nfl|football)\b", re.IGNORECASE)
 # baseball card says "touchdown" -- and necessary because baseball's table is
 # read in order and would otherwise claim some of these first.
 #
-# Only "td" is GRADEABLE. Every other row exists so a yardage prop is reported
-# as the market it actually is and grades to `untracked` on the page -- shown,
-# named, counted in neither column, unable to kill a parlay -- rather than
-# silently defaulting to "did he score a touchdown", which is a different bet
-# and would be confidently wrong.
+# Every row is a market the page grades (MARKETS in index.html). Naming each
+# one is what keeps a yardage prop from silently defaulting to "did he score a
+# touchdown", which is a different bet and would be confidently wrong. Game
+# lines (moneyline, spread, total) are read by baseball's detector and given
+# football's nfl_* markets in scan_card().
 # ---------------------------------------------------------------------------
 # "3+" / "15+" -- a quantity the card puts in FRONT of the market, which
 # parse_picks reads as the line (3+ means over 2.5) and strips from the name.
@@ -209,6 +209,15 @@ QUARTER_NUM = {"1st": 1, "first": 1, "q1": 1, "2nd": 2, "second": 2, "q2": 2,
 BARE_COUNT_RE = re.compile(r"(?<=[A-Za-z.'])\s+(\d{1,3})\s+(?=[A-Za-z])(?!pays?\b)", re.IGNORECASE)
 BARE_SPREAD_RE = re.compile(r"^([A-Za-z][A-Za-z .'&-]*?)\s+(\d+\.5)\s+(\d{2,4})\s*$")
 LEG_TAIL_PRICE_RE = re.compile(r"\s[+-]?\d{2,4}\s*$")
+# The count written with its plus IN FRONT -- "Bo Nix +250 Passing Yards
+# +162" means 250 or more (2026-10-11 card). Left alone, "+250" sat glued to
+# the name, nothing resolved and the leg went untracked. Only before a
+# counted stat word, and only on a line that ends in its own price, so a
+# price written before an anytime market can never be mistaken for a count.
+PLUS_COUNT_RE = re.compile(
+    r"(?<=[A-Za-z.'])\s+\+(\d{1,3})\s+(?=(?:passing|rushing|receiving|rec|pass|rush|yards?|yds|receptions?"
+    r"|points?|rebounds?|assists?|threes|3-?pointers|strikeouts?|hits?|total\s+bases|saves|shots"
+    r"|sog|outs)\b)", re.IGNORECASE)
 
 
 def normalize_card(text):
@@ -220,6 +229,8 @@ def normalize_card(text):
             m = BARE_SPREAD_RE.match(s)
             if m:
                 s = f"{m.group(1)} +{m.group(2)} {m.group(3)}"
+            elif PLUS_COUNT_RE.search(s):
+                s = PLUS_COUNT_RE.sub(lambda mm: f" {mm.group(1)}+ ", s, count=1)
             else:
                 s = BARE_COUNT_RE.sub(lambda mm: f" {mm.group(1)}+ ", s, count=1)
         out.append(s)
@@ -970,6 +981,16 @@ def scan_card(text, mlb, nfl, nhl=None, only_sport=None, nba=None, wnba=None, cf
             canon, team = mlb_parser.resolve_player(
                 cleaned, mlb["team_by_name"], mlb["canonical_name_by_norm"])
             rec["name"], rec["team"] = canon, team
+        elif sport == "mlb" and not market and (odds or tail is not None):
+            # A priced line that is just a player -- "Shohei Ohtani +470" --
+            # is a home run bet, baseball's default. parse_picks reads the
+            # bare-ticket shape with no roster on this path and hands it back
+            # as an "unknown" market with no team (2026-10-11 card); this
+            # pass knows better, so say so.
+            canon, team = mlb_parser.resolve_player(
+                cleaned, mlb["team_by_name"], mlb["canonical_name_by_norm"])
+            if team:
+                rec["name"], rec["team"], rec["bare_hr"] = canon, team, True
         if sport in ("nfl", "cfb") and market == "q_score":
             # A TEAM, not a player, and WHICH quarter. Several legs share the
             # one team name ("Lions" four times), so the record is indexed on
@@ -1012,7 +1033,30 @@ def scan_card(text, mlb, nfl, nhl=None, only_sport=None, nba=None, wnba=None, cf
                     found.setdefault(mlb_parser.normalize_name(part), rec)
             continue
 
-        if sport in ("nfl", "cfb"):
+        # A football GAME LINE -- "Vikings -6.5", "Lions Moneyline",
+        # "Bears/Packers Over 44.5". Read with baseball's words, then given
+        # football's markets: baseball's grade off MLB's linescore by
+        # abbreviation, and MIN is the Twins (2026-10-11 card, where the
+        # Vikings' spread was also reported as a player not on the roster).
+        # Two teams and an over/under with no market word is the game total.
+        game_parts = [p for p in re.split(r"\s*(?:/|,|&|@|\bvs\.?|\band\b)\s*", cleaned) if p.strip()]
+        abbrs = []
+        for part in game_parts:
+            ab = fb_team_in(part) if sport in ("nfl", "cfb") else None
+            if ab and ab not in abbrs:
+                abbrs.append(ab)
+        if (sport in ("nfl", "cfb") and market not in ("ml", "spread", "total") and len(abbrs) == 2
+                and len(game_parts) == 2 and line_val is not None and side_val
+                and not any(nfl_parser.norm_key(p) in fb["team_by_name"] for p in game_parts)):
+            market = "total"
+        if sport in ("nfl", "cfb") and market in ("ml", "spread", "total"):
+            rec.update({"market": "nfl_" + market, "team": abbrs[0] if abbrs else "", "is_team": True})
+            if len(abbrs) > 1:
+                rec["teams"] = abbrs[:2]
+            if not abbrs or (market == "spread" and line_val is None) or (market == "total" and line_val is None):
+                warnings.append(f"{line.strip()!r} needs a team{' and a number' if market != 'ml' else ''} "
+                                f"to be graded")
+        elif sport in ("nfl", "cfb"):
             # A leg can name SEVERAL players -- "Amon-Ra St. Brown, Chubba
             # Hubbard, Jahmry Gibbs Combined" is one bet on their total, the
             # same shape a combined baseball prop has. Split before resolving,
@@ -1076,6 +1120,19 @@ def scan_card(text, mlb, nfl, nhl=None, only_sport=None, nba=None, wnba=None, cf
                     print(f"NOTE: read {cleaned!r} as "
                           f"{fb['canonical_name_by_norm'].get(near[0], near[0])!r}.", file=sys.stderr)
                     norm = near[0]
+            if norm not in fb["team_by_name"] and len(norm.split()) == 1:
+                # A SURNAME alone -- "Odunze Anytime TD", "Goff over 280.5
+                # Passing Yards" (2026-10-11 card). Taken only when exactly
+                # one man on the roster has it (Odunze, Goff, Nix: yes;
+                # Wilson: thirteen, so no), and for a passing market only a
+                # quarterback.
+                same = [k for k in fb["team_by_name"] if k.split()[-1] == norm
+                        and (market not in ("pass_yds", "pass_tds")
+                             or str((fb.get("pos_by_norm") or {}).get(k, "")).upper() == "QB")]
+                if len(same) == 1:
+                    print(f"NOTE: read {cleaned!r} as "
+                          f"{fb['canonical_name_by_norm'].get(same[0], same[0])!r} (the only one).", file=sys.stderr)
+                    norm = same[0]
             rec["name"] = fb["canonical_name_by_norm"].get(norm, cleaned)
             if rec["market"] == "yards":
                 pos = (fb.get("pos_by_norm") or {}).get(norm, "")
@@ -1194,6 +1251,8 @@ def apply_sports(windows, singles, found, default_sport="mlb"):
         eff_line = rec.get("line") if rec.get("line") is not None else leg.get("line")
         if rec["market"] == "td" and (eff_line or 0) > 0.5:
             rec = dict(rec, market="td_count")
+        if rec.get("bare_hr") and leg.get("market") == "unknown":
+            leg.pop("market")
         if rec["market"] and rec["market"] != "hr":
             leg["market"] = rec["market"]
         elif rec["sport"] in ("nfl", "cfb") and not rec["market"] and rec.get("is_player"):
@@ -1215,7 +1274,7 @@ def apply_sports(windows, singles, found, default_sport="mlb"):
         # market phrase was glued to the player and left it unresolved. A
         # plain home run leg is left exactly as parse_picks wrote it, meta and
         # all -- that string is richer than anything rebuilt here.
-        rewrite = rec["sport"] in ("nfl", "cfb") or (rec["market"] and not leg.get("team"))
+        rewrite = rec["sport"] in ("nfl", "cfb") or ((rec["market"] or rec.get("bare_hr")) and not leg.get("team"))
         if not rewrite:
             return
         if rec.get("players"):

@@ -1523,6 +1523,17 @@ def parse(text, team_by_name, canonical_by_norm):
                     if leg:
                         if trailing_odds and not leg.get("odds"):
                             leg["odds"] = trailing_odds
+                        # A priced line that is JUST a player -- "Shohei
+                        # Ohtani +470" -- is a home run bet, the default every
+                        # other template gives a bare name. read_prop_leg()
+                        # calls it unknown because a priceless prop line with
+                        # no market says nothing; a price beside a full roster
+                        # name does (2026-10-11 card).
+                        # Only one the roster resolved (it has a team): an
+                        # unreadable line keeps its unknown market.
+                        if (trailing_odds and leg.get("market") == "unknown" and leg.get("team")
+                                and not leg.get("players")):
+                            leg.pop("market")
                         current_prop["_legs"].append(leg)
                     continue
 

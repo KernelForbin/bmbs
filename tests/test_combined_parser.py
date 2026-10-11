@@ -891,6 +891,68 @@ check("S7 the college roster rebuild merges: nobody known dropped, shared names 
       _mr["team_by_name"] == {"a": "UGA", "b": "TEX"} and "x" in _mr["others_by_norm"], _mr)
 check("Q10 the NBA roster rebuild merges the same way: nobody known is dropped", _m2["team_by_name"] == {"a": "TOR", "b": "BOS"}, _m2)
 
+# ---- T: the 2026-10-11 card. Five legs graded nothing: two bare surnames,
+# an NFL spread read as baseball's, "+250 Passing Yards" (250 or more) and a
+# bare priced name ("Shohei Ohtani +470") that is a home run bet.
+GL = (REPO / "tests" / "fixtures" / "sports_surnames_and_game_lines.txt").read_text(encoding="utf-8")
+outT = cp.build(GL, MLB, NFL, NOW, no_network)
+tl = [l for w in outT["windows"] for t in w["tickets"] for l in t["legs"]]
+def tfind(player, market="*"):
+    return next((l for l in tl if l["player"] == player and (market == "*" or l.get("market") == market)), {})
+check("T1 the whole card parses: 8 tickets, 20 legs, no warning in the note",
+      len(tl) == 20 and outT["note"] == "", (len(tl), outT["note"]))
+check("T2 a surname only one NFL player has is him: 'Odunze' is Rome Odunze (CHI), anytime TD",
+      tfind("Rome Odunze").get("team") == "CHI" and tfind("Rome Odunze").get("market") == "td"
+      and tfind("Rome Odunze").get("athleteId"), tfind("Rome Odunze"))
+check("T3 'Goff over 280.50 Passing Yards' is Jared Goff's passing yards over 280.5",
+      tfind("Jared Goff").get("market") == "pass_yds" and tfind("Jared Goff").get("line") == 280.5
+      and tfind("Jared Goff").get("team") == "DET", tfind("Jared Goff"))
+_vk = tfind("Vikings")
+check("T4 'Vikings -6.5' is an NFL spread on MIN -- never baseball's spread (MIN is the Twins too)",
+      _vk.get("sport") == "nfl" and _vk.get("market") == "nfl_spread" and _vk.get("team") == "MIN"
+      and _vk.get("line") == -6.5, _vk)
+check("T5 '+250 Passing Yards' is 250 or more: Bo Nix, pass_yds over 249.5, priced +162",
+      tfind("Bo Nix").get("market") == "pass_yds" and tfind("Bo Nix").get("line") == 249.5
+      and tfind("Bo Nix").get("odds") == "+162", tfind("Bo Nix"))
+_oh = [l for l in tl if l["player"] == "Shohei Ohtani"]
+check("T6 a bare priced name is a home run bet on HIM -- 'Shohei Ohtani +470': no market, LAD -- "
+      "and his H+R+RBI on another ticket keeps its own",
+      sorted(str(l.get("market")) for l in _oh) == ["None", "hrr"] and all(l.get("team") == "LAD" for l in _oh)
+      and next(l for l in _oh if not l.get("market"))["odds"] == "+470", _oh)
+_amb = cp.build("""Ticket 1
+Wilson Anytime TD +200
+Lions Moneyline +120
+7.50 pays 40
+""", MLB, NFL, NOW, no_network)
+_al = [l for w in _amb["windows"] for t in w["tickets"] for l in t["legs"]]
+check("T7 a surname thirteen NFL players share ('Wilson') is NOT guessed -- left unresolved and reported",
+      any(l["player"] == "Wilson" and not l.get("team") for l in _al) and "Wilson" in _amb["note"], (_al, _amb["note"]))
+check("T8 'Lions Moneyline' is an NFL moneyline on DET",
+      any(l.get("market") == "nfl_ml" and l.get("team") == "DET" and l.get("sport") == "nfl" for l in _al), _al)
+_tot = cp.build("""Ticket 1
+Bears/Packers Over 44.5 -110
+Jared Goff Anytime TD +250
+7.50 pays 40
+""", MLB, NFL, NOW, no_network)
+_tt = next((l for w in _tot["windows"] for t in w["tickets"] for l in t["legs"] if l.get("market") == "nfl_total"), {})
+check("T9 'Bears/Packers Over 44.5' is the NFL game total, both teams kept",
+      _tt.get("teams") == ["CHI", "GB"] and _tt.get("line") == 44.5 and _tt.get("sport") == "nfl", _tt)
+_rg = cp.build("""Ticket 1
+Rodgers over 249.5 Passing Yards -110
+Rodgers Anytime TD +500
+7.50 pays 40
+""", MLB, NFL, NOW, no_network)
+_rgl = [l for w in _rg["windows"] for t in w["tickets"] for l in t["legs"]]
+check("T11 two Rodgerses: a PASSING bet is the quarterback's (Aaron), an anytime TD names nobody",
+      any(l["player"] == "Aaron Rodgers" and l.get("market") == "pass_yds" for l in _rgl)
+      and any(l["player"] == "Rodgers" and not l.get("team") for l in _rgl), _rgl)
+_pc = cp.normalize_card("""Ticket 1
+Saquon Barkley +220 Anytime TD +110
+Bo Nix +250 Passing Yards +162
+""")
+check("T10 '+N' becomes a count only before a counted stat -- never a price before an anytime market",
+      "Saquon Barkley +220 Anytime TD +110" in _pc and "Bo Nix 250+ Passing Yards +162" in _pc, _pc)
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

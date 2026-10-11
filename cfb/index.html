@@ -1206,14 +1206,14 @@ function legHitTimeNfl(leg) {
   const lineN = leg.line === null || leg.line === undefined ? NaN : Number(leg.line);
   const need = Number.isFinite(lineN) ? Math.floor(lineN) + 1 : 1;
   const pk = (leg.team && RESULTS.gameByTeam && RESULTS.gameByTeam.get(String(leg.team).toUpperCase()));
-  const game = (m === "q_score" || m === "quarters")
+  const game = (m === "q_score" || m === "quarters" || /^nfl_/.test(m))
     ? (pk && RESULTS.gameInfo.get(pk)) || null
     : gameForPick(leg.player) || (pk && RESULTS.gameInfo.get(pk)) || null;
   const log = (game && game.playLog) || [];
   const lastT = log.length ? Date.parse(log[log.length - 1].t) || null : null;
   const final = game && game.status === "final" ? lastT : null;
   const exact = t => (t ? { t, approx: false } : null);
-  if (leg.side === "under" || m === "quarters" || m === "most_rec_yds") return exact(final);
+  if (leg.side === "under" || m === "quarters" || m === "most_rec_yds" || m === "nfl_ml" || m === "nfl_spread") return exact(final);
   const norm = normalizeName(leg.player || "");
   const tds = (RESULTS.touchdowns || []).slice().sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
   if (m === "td" || m === "td_count") {
@@ -1589,6 +1589,19 @@ return {
       .filter(Boolean).find(t => t.abbr === (teamAbbr || "").toUpperCase());
     return side ? { quarters: side.quarters || [], status: game.status, gamePk: game.gamePk,
                     period: game.period || 0, periodOver: !!game.periodOver } : null;
+  },
+  // -> { score, opp, oppAbbr, status, clockLabel, gamePk } for a team, or null.
+  // For the game lines -- moneyline, spread, total.
+  team(abbr) {
+    const me = String(abbr || "").toUpperCase();
+    const pk = RESULTS.gameByTeam && RESULTS.gameByTeam.get(me);
+    const game = pk && RESULTS.gameInfo && RESULTS.gameInfo.get(pk);
+    if (!game || !game.teams) return null;
+    const mine = ["away", "home"].map(s => game.teams[s]).find(t => t && t.abbr === me);
+    const theirs = ["away", "home"].map(s => game.teams[s]).find(t => t && t.abbr !== me);
+    if (!mine || !theirs) return null;
+    return { score: Number(mine.score) || 0, opp: Number(theirs.score) || 0, oppAbbr: theirs.abbr,
+             status: game.status, gamePk: game.gamePk, clockLabel: periodLabel(game) };
   }
 };
 }
@@ -3391,6 +3404,12 @@ const MARKETS = {
                grade: leg => stateForNflStat(leg, "passYds") },
   receptions:{ label: "Receptions",     subject: "player", sport: "nfl",
                grade: leg => stateForNflStat(leg, "rec") },
+  // GAME LINES, off ESPN's score. Never MLB's ml/spread/total: those grade off
+  // baseball's linescore by abbreviation, and MIN is the Twins as well as the
+  // Vikings (2026-10-11 card). College legs carry these too.
+  nfl_ml:    { label: "Moneyline",      subject: "team",   sport: "nfl", grade: leg => stateForNflLine(leg) },
+  nfl_spread:{ label: "Spread",         subject: "team",   sport: "nfl", grade: leg => stateForNflLine(leg) },
+  nfl_total: { label: "Total Points",   subject: "game",   sport: "nfl", grade: leg => stateForNflLine(leg) },
 
   // A home run leg is still graded from the play-by-play -- that's what makes
   // it resolve the INSTANT the ball lands, and what Pinch Hit Protection hangs
@@ -3729,6 +3748,29 @@ function stateForNbaLine(leg) {
   if (!final) return "live";
   if (m === "nba_ml") return row.score > row.opp ? "hit" : "miss";
   const margin = row.score + legLine(leg) - row.opp;      // nba_spread
+  return margin > 0 ? "hit" : margin < 0 ? "miss" : "na";
+}
+
+// A FOOTBALL game line. The basketball shape exactly: moneyline and spread
+// wait for the final (overtime included), a total's over settles the moment
+// it clears, and landing on the number is a push. A tie is no moneyline win.
+function stateForNflLine(leg) {
+  const m = legMarket(leg);
+  const row = gridiron(leg).team(leg.team);
+  if (!row || row.status === "preview") return "not_started";
+  const final = row.status === "final";
+  if (m === "nfl_total") {
+    const pts = row.score + row.opp;
+    const line = legLine(leg);
+    const over = legSide(leg) !== "under";
+    if (pts > line) return over ? "hit" : "miss";
+    if (!final) return "live";
+    if (pts === line) return "na";
+    return over ? "miss" : "hit";
+  }
+  if (!final) return "live";
+  if (m === "nfl_ml") return row.score > row.opp ? "hit" : "miss";
+  const margin = row.score + legLine(leg) - row.opp;      // nfl_spread
   return margin > 0 ? "hit" : margin < 0 ? "miss" : "na";
 }
 
@@ -4400,7 +4442,7 @@ function lineText(leg) {
   if (!leg || leg.line === undefined || leg.line === null) return "";
   const n = Number(leg.line);
   if (!Number.isFinite(n)) return "";
-  if (legMarket(leg) === "spread" || legMarket(leg) === "nhl_pl" || legMarket(leg) === "nba_spread") return ` ${n > 0 ? "+" : ""}${n}`;
+  if (SPREAD_MARKETS.has(legMarket(leg))) return ` ${n > 0 ? "+" : ""}${n}`;
   // Spelled out, not "O1.5"/"U8.5": a single letter jammed against a number
   // is genuinely hard to read at tag size, and this is the part of the tag
   // that says which way the bet goes.
@@ -4435,12 +4477,31 @@ function nflTeamStatusLine(state, market, leg) {
                                     : `${nowLabel}: both have scored${now < 4 ? ` &middot; ${4 - now} to go` : ""}.`);
 }
 
+// A football game line's line: the score and what it still needs.
+function nflLineStatusLine(state, leg) {
+  if (state === "hit" || !leg) return "";
+  const m = legMarket(leg);
+  const row = gridiron(leg).team(leg.team);
+  if (!row || row.status === "preview") return statusLineHtml("Game hasn't kicked off yet.");
+  const score = `${escapeHtml(leg.team)} ${row.score}&ndash;${row.opp} ${escapeHtml(row.oppAbbr || "")}`;
+  if (state === "na") return statusLineHtml(`Final ${score} &mdash; push, refunded.`);
+  if (state === "miss") return statusLineHtml(`Final ${score} &mdash; didn't get there.`);
+  if (m === "nfl_total") {
+    const pts = row.score + row.opp;
+    return statusLineHtml(`${escapeHtml(row.clockLabel)} &middot; ${pts} points so far` +
+      (legSide(leg) === "under" ? `, needs to stay under ${legLine(leg)}.` : `, needs ${Math.floor(legLine(leg)) + 1}.`));
+  }
+  const need = m === "nfl_spread" ? ` &middot; <b>${escapeHtml(nflFieldNeed({ market: m, line: leg.line, side: legSide(leg) }, row))}</b>` : "";
+  return statusLineHtml(`${escapeHtml(row.clockLabel)} &middot; ${score}${need} &mdash; settles at the final (overtime counts).`);
+}
+
 // The always-on line for a market whose subject is a team or a game. Same
 // contract as playerStatusLine(): it never returns "" except on a hit, where
 // the green check has already said it.
 function gameLineStatusLine(state, market, team, leg) {
   if (!RESULTS.ready) return statusLineHtml("Waiting on live results&hellip;");
   if (isGridiron(leg) && (market === "q_score" || market === "quarters")) return nflTeamStatusLine(state, market, leg);
+  if (isGridiron(leg) && /^nfl_/.test(market || "")) return nflLineStatusLine(state, leg);
   if (leg && leg.sport === "nhl") return nhlTeamStatusLine(state, leg);
   if (isHoops(leg)) return nbaTeamStatusLine(state, leg);
   if (state === "hit") return "";
@@ -4982,6 +5043,9 @@ function legHitWord(leg) {
   if (m === "nhl_goal") return `${Math.floor(Number(leg.line)) + 1}+ GOALS!`;
   if (m === "nhl_total") return legSide(leg) === "under" ? `UNDER ${leg.line}!` : `OVER ${leg.line}!`;
   if (m === "q_score") return `SCORED IN Q${leg.quarter}!`;
+  if (m === "nfl_ml") return "WON!";
+  if (m === "nfl_spread") return "COVERED!";
+  if (m === "nfl_total") return legSide(leg) === "under" ? `UNDER ${leg.line}!` : `OVER ${leg.line}!`;
   if (m === "nba_ml") return "WON!";
   if (m === "nba_spread") return "COVERED!";
   if (m === "nba_total") return legSide(leg) === "under" ? `UNDER ${leg.line}!` : `OVER ${leg.line}!`;
@@ -5241,6 +5305,9 @@ const LIVE_TILE_KIND = {
   // One team, one quarter: followed like a touchdown pick -- on the wall while
   // THAT TEAM has the ball in that quarter, gone once it has scored.
   q_score: "team_drive",
+  // A football game line: one tile per team (per game for a total), the
+  // score and what it still needs -- hockey's rink tile, on a field.
+  nfl_ml: "field", nfl_spread: "field", nfl_total: "field",
   // HOCKEY: a skater or goalie prop gets an "ice" tile -- on the ice, on the
   // bench, in net, with the power play named -- and a team bet a "rink" tile
   // with the score and what it still needs.
@@ -5420,6 +5487,33 @@ function nhlRinkTile(pick, entries, row) {
   const totalOnly = entries.every(e => e.market === "nhl_total");
   return labTileShell("game" + (spreadCovers(entries, row.score, row.opp) ? " covering" : ""), tag, pick,
                       NHL.gameUrl(row.gamePk), `
+    <div class="ab-line">${escapeHtml(row.clockLabel)}</div>
+    <div class="ab-countrow"><span class="ab-count">${row.score}&ndash;${row.opp}</span><span class="ab-pitches faint">${escapeHtml(needs[0])}</span></div>
+    ${needs.slice(1).map(n => `<div class="ab-line">${escapeHtml(n)}</div>`).join("")}
+    <div class="ab-line faint">${totalOnly ? "An over settles the moment it clears." : "Settles at the final, OT included."}</div>`);
+}
+
+// FOOTBALL game lines: ONE tile per team (or per game, for a total), a line
+// for every bet on it.
+function nflFieldNeed(e, row) {
+  const line = e.line === null || e.line === undefined ? null : Number(e.line);
+  if (e.market === "nfl_total" && line !== null) {
+    const pts = row.score + row.opp;
+    return e.side === "under" ? `${pts} pts, needs under ${line}` : `${pts} pts, needs ${Math.floor(line) + 1}`;
+  }
+  if (e.market === "nfl_spread" && line !== null) {
+    const margin = row.score + line - row.opp;
+    return margin > 0 ? `covering by ${margin}` : `${Math.abs(margin)} short of covering`;
+  }
+  return row.score > row.opp ? `ahead by ${row.score - row.opp}` : row.score < row.opp ? `behind by ${row.opp - row.score}` : "tied";
+}
+function nflFieldTile(pick, entries, row) {
+  const label = e => ((MARKETS[e.market] && MARKETS[e.market].label) || "Team bet").toUpperCase();
+  const tag = entries.length === 1 ? label(entries[0]) : "TEAM BETS";
+  const needs = entries.map(e => (entries.length > 1 ? `${label(e)}${e.market === "nfl_spread" ? lineText(e) : ""}: ` : "") + nflFieldNeed(e, row));
+  const totalOnly = entries.every(e => e.market === "nfl_total");
+  return labTileShell("game" + (spreadCovers(entries, row.score, row.opp) ? " covering" : ""), tag, pick,
+                      gridiron(entries[0]).gameUrl(row.gamePk), `
     <div class="ab-line">${escapeHtml(row.clockLabel)}</div>
     <div class="ab-countrow"><span class="ab-count">${row.score}&ndash;${row.opp}</span><span class="ab-pitches faint">${escapeHtml(needs[0])}</span></div>
     ${needs.slice(1).map(n => `<div class="ab-line">${escapeHtml(n)}</div>`).join("")}
@@ -5735,6 +5829,10 @@ function labEligiblePicks() {
     const cfbTag = leg.sport === "cfb" ? "CFB " : "";
     if (kind === "quarters") { add(cfbTag + legTeams(leg).join(" + "), odds, rawWho, iron, legMarket(leg), leg); return; }
     if (kind === "team_drive") { add(cfbTag + (leg.team || ""), odds, rawWho, iron, legMarket(leg), leg); return; }
+    if (kind === "field") {
+      add(cfbTag + (legMarket(leg) === "nfl_total" ? legTeams(leg).join(" + ") : (leg.team || "")), odds, rawWho, iron, legMarket(leg), leg);
+      return;
+    }
     // A hockey team bet: the team, or both for a game total.
     if (kind === "rink") {
       add(legMarket(leg) === "nhl_total" ? legTeams(leg).join(" + ") : (leg.team || ""), odds, rawWho, iron, legMarket(leg), leg);
@@ -6023,7 +6121,7 @@ function quartersTile(pick, rows, link) {
 // the team's score plus its line beats the other side. Landing exactly on the
 // number is a push -- a refund, not a cash -- so it doesn't count. Other bets
 // sharing the tile (a moneyline beside a puck line) don't decide it.
-const SPREAD_MARKETS = new Set(["spread", "nhl_pl", "nba_spread"]);
+const SPREAD_MARKETS = new Set(["spread", "nhl_pl", "nba_spread", "nfl_spread"]);
 function spreadCovers(entries, mine, theirs) {
   const spreads = (entries || []).filter(e => SPREAD_MARKETS.has(e.market) && e.line !== null && e.line !== undefined);
   return spreads.length > 0 && spreads.every(e => mine + Number(e.line) - theirs > 0);
@@ -6343,6 +6441,16 @@ function renderLiveAtBats() {
       if (row && row.status === "live") {
         gameCount++;
         tiles.push({ rank: 4, order: 0, html: nbaHoopTile(pick, es, row) });
+      }
+      return;
+    }
+    if (pick.kinds && pick.kinds.has("field")) {
+      const es = [...new Map((pick.entries || []).filter(x => x.kind === "field")
+        .map(x => [x.market + "|" + x.line + "|" + x.side, x])).values()];
+      const row = es.length ? gridiron(es[0]).team(es[0].team) : null;
+      if (row && row.status === "live") {
+        gameCount++;
+        tiles.push({ rank: 4, order: 0, html: nflFieldTile(pick, es, row) });
       }
       return;
     }

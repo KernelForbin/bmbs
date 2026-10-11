@@ -465,7 +465,7 @@ before players are merged. HIT/MISSED leave nothing and the panel says so.
 ### "Covering" outline on spread tiles
 
 A tile carrying a spread-type bet -- MLB `spread` (run line), `nhl_pl` (puck
-line), `nba_spread` -- gets a dotted, faint green outline (`.ab-tile.covering`,
+line), `nba_spread`, `nfl_spread` -- gets a dotted, faint green outline (`.ab-tile.covering`,
 an outline so the tile doesn't shift) while EVERY spread on it would cash if the
 game ended right now (`spreadCovers()`: score + line beats the other side; a
 push is not a cover; a moneyline sharing the tile doesn't decide it). The
@@ -484,6 +484,7 @@ user's rule, 2026-10-05. MLB page and every page with team tiles.
 | `defense` | sacks | ON DEFENSE, with the opponent's down & distance |
 | `quarters` | quarters (each team scores all four) | one tile for the PAIR, grid per team |
 | `team_drive` | q_score | only while THAT team has the ball |
+| `field` | nfl_ml, nfl_spread, nfl_total | one tile per team (per game for a total): score and what each bet needs |
 | `ice` / `rink` | NHL player / team bets | §10 |
 | `court` / `hoop` | NBA/WNBA player / team bets | §10 |
 
@@ -803,6 +804,14 @@ once, pre-game not at all, live games with no picks once a minute (for the log).
   both teams (`legSubjectName`). (`test_combined_page.py` R, T.) The
   `espn_event` fixture derives `period` from the linescores; it used to
   hardcode 4.
+- **Game lines: `nfl_ml`, `nfl_spread`, `nfl_total`** (2026-10-11; college legs
+  carry them too). Never MLB's `ml`/`spread`/`total`: those grade off MLB's
+  linescore by abbreviation, and MIN is the Twins as well as the Vikings -- the
+  first real one ("Vikings -6.5") was read that way and shown untracked.
+  Graded off the engine's `team(abbr)` score (`stateForNflLine()`, basketball's
+  shape: spread and moneyline at the final, a total's over the moment it
+  clears, push = `na`); `field` tiles. Front page and `/cfb/` only.
+  `test_combined_page.py` X.
 - History: `/football/history/` (§14).
 
 ### NHL (`hockey/index.html` and the `NHL` engine), built 2026-10-05
@@ -990,7 +999,20 @@ leg, and so which roster resolves it.
   abbreviations only).
 - **`normalize_card()`** first turns a bare count into "N+" and an unsigned
   team half-point into "+1.5" (the 2026-10-05 bare-count card,
-  `sports_bare_count_format.txt`, `test_combined_parser.py` O). A bare "Yards" is read by position
+  `sports_bare_count_format.txt`, `test_combined_parser.py` O), and a count
+  with its plus in FRONT ("Bo Nix +250 Passing Yards +162") into "250+" --
+  only before a counted stat word, on a line ending in its own price, so a
+  price before an anytime market is never read as a count.
+- **The 2026-10-11 card** (`sports_surnames_and_game_lines.txt`,
+  `test_combined_parser.py` T): a SURNAME alone resolves when exactly one NFL
+  player has it ("Odunze", "Goff"; "Wilson" is thirteen, left unresolved), a
+  passing market counting only quarterbacks; a football team with a spread,
+  moneyline or total (or two teams with an over/under) becomes `nfl_*`; and a
+  priced bare MLB name ("Shohei Ohtani +470") is a home run bet. That last one
+  is fixed in BOTH parsers: `parse_picks` (template 13) for an MLB card, and
+  here, because **this parser never loads `parse_picks`' `ROSTER_EXTRAS`** --
+  `read_prop_leg()` resolves nothing on an All Sports card, and every name
+  comes from the pre-pass. A bare "Yards" is read by position
   (`pos_by_norm`: QB passing, RB rushing, WR/TE receiving). A shared-city tie
   ("Tampa Bay") is broken by a nickname only one league uses.
 - **League detection order in `scan_card`:** WNBA first (`nba_record(...,
@@ -1387,11 +1409,13 @@ section passes its mutations suspiciously badly, check where it sits.
   parlays, D/E/G rollover, F front-page layout (switch hidden, no tracker
   links, h1, eyebrow, hidden panels still running), H both sports' tiles, I/J/K
   alerts, Q/R/T football props and quarter bets, S every-leg alerts, U leadoff
-  and foreign markets.
+  and foreign markets, V touchdown/drive-result tiles, W one subject in two
+  sports, X NFL game lines.
 - `test_combined_parser.py` — `parse_combined_picks.py` offline: sport
   decision and its order, collisions, glued markets, span (I4/I5), archive,
   L/M priceless legs and the first real card, N quarters, O bare counts,
-  P hockey (P13b wrapper paths), Q basketball, R WNBA, S college.
+  P hockey (P13b wrapper paths), Q basketball, R WNBA, S college, T the
+  2026-10-11 card (surnames, NFL game lines, "+250 Passing Yards").
 - `test_bell.py` — the bell on the MLB, NFL and All Sports pages in ONE browser
   context (shared origin): backfill, leg/bet split, dedupe, persistence, slate
   reset, morning after, G1 Pacific, I replay, J hit times, E10 namespaces,

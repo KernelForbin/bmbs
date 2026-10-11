@@ -958,6 +958,16 @@ for text, want_body, want_odds in [
     assert got == (want_body, want_odds), f"{text!r} -> {got!r}"
 print("OK: a market's own line is never mistaken for its price")
 
+# A priced line that is just a player is a HOME RUN bet, the default every
+# other template gives a bare name -- "Shohei Ohtani +470" came out an
+# "unknown" market, shown and never graded (2026-10-11). A name the roster
+# can't place keeps its unknown market: no team, nothing to call it.
+w13b, s13b, _ = pp.parse("Ticket 1\nShohei Ohtani +470\nNobody Atall +300\n7.50 pays 40\n", team_by_name, canon)
+l13b = {l["player"]: l for w in w13b for t in w["tickets"] for l in t["legs"]}
+assert "market" not in l13b["Shohei Ohtani"] and l13b["Shohei Ohtani"]["team"] == "LAD", l13b
+assert l13b["Nobody Atall"].get("market") == "unknown", l13b
+print("OK: a bare priced name is a home run bet; an unknown name stays unknown")
+
 
 # --- 20. SEVENTH template: the "SOLAR KEYS DAY TRACKER" card (2026-09-24),
 # landed by the auto-fixer and, until now, only ever checked from the OUTSIDE

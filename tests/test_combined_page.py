@@ -1653,6 +1653,90 @@ with sync_playwright() as p:
           not any(v["tag"] in ("TOUCHDOWN", "DRIVE OVER") for v in t.values()), t)
     browser.close()
 
+
+# ---------------- X. NFL game lines ----------------
+# "Vikings -6.5" on the 2026-10-11 card was read as BASEBALL's spread and
+# shown untracked. Football now has its own moneyline / spread / total, off
+# ESPN's score: a spread and a moneyline settle at the final, a total's over
+# the moment it clears, landing on the number is a push. PHI is away in 9001.
+_x = [nfl_leg_m(1, "Eagles", "PHI", "nfl_spread", -6.5), nfl_leg_m(2, "Giants", "NYG", "nfl_ml", None),
+      nfl_leg_m(3, "Eagles/Giants", "PHI", "nfl_total", 44.5, teams=["PHI", "NYG"]),
+      nfl_leg_m(4, "Eagles", "PHI", "nfl_spread", -7)]
+FX["tickets"] = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+                 "windows": [{"title": "Parlay Cards", "tickets": [card(100 + i, [leg]) for i, leg in enumerate(_x)]}],
+                 "singles": []}
+FX["mlb_sched"][DAY] = {"dates": []}
+
+
+def x_game(state, score):
+    FX["espn_events"] = {"9001": espn_event("9001", state, score, [[score[0]], [score[1]]])}
+    FX["espn_summaries"]["9001"] = espn_summary("9001", state, {"PHI": [("40", "Somebody", "rushing", (5, 20, 0))]},
+                                                score, quarters=[[score[0]], [score[1]]])
+
+
+def x_tiles(page):
+    return page.eval_on_selector_all(
+        "#liveab-grid .ab-tile", "els => els.map(e => ({name: e.querySelector('.ab-name').textContent.trim(), "
+        "covering: e.classList.contains('covering'), text: e.textContent.replace(/\\s+/g, ' ').trim()}))")
+
+
+x_game("pre", (0, 0))
+SEEN.clear()
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("toggleLiveAb()")
+    page.wait_for_timeout(200)
+    page.evaluate("""() => { window.FIRED = []; const real = fireLegHit;
+        fireLegHit = (slate, leg, cash) => { FIRED.push(legHitWord(leg)); return real(slate, leg, cash); }; }""")
+    ls = leg_states(page)
+    rows = t_rows(page)
+    check("X1 before kickoff every game line waits, and its card line says so",
+          [ls[f"O{i}"] for i in range(1, 5)] == ["not_started"] * 4
+          and all("hasn't kicked off" in v for k, v in rows.items() if "SPREAD" in k.upper()), (ls, rows))
+    check("X1b the tag reads SPREAD -6.5 -- the line signed, as a run line's is",
+          any(k.startswith("PHI") and "SPREAD -6.5" in k.upper() for k in rows), list(rows))
+
+    x_game("in", (14, 3))
+    t_poll(page)
+    ls, tiles, rows = leg_states(page), x_tiles(page), t_rows(page)
+    phi = next((t for t in tiles if t["name"] == "PHI"), {})
+    check("X2 live, up 11: spread and moneyline still LIVE -- they settle at the final, never mid-game",
+          ls["O1"] == "live" and ls["O2"] == "live" and ls["O4"] == "live", ls)
+    check("X3 one PHI tile with both spreads, the score, and the dotted 'covering' outline",
+          phi.get("covering") is True and "14" in phi.get("text", "") and "covering by 4.5" in phi.get("text", "")
+          and "covering by 4" in phi.get("text", ""), tiles)
+    check("X4 the total gets its own tile for the game: 17 pts, needs 45",
+          any(t["name"] == "PHI + NYG" and "17 pts, needs 45" in t["text"] for t in tiles), tiles)
+    check("X5 the card says how the spread stands",
+          any("SPREAD -6.5" in k.upper() and "covering by 4.5" in v for k, v in rows.items()), rows)
+
+    x_game("in", (14, 10))
+    t_poll(page)
+    phi = next((t for t in x_tiles(page) if t["name"] == "PHI"), {})
+    check("X6 up 4 on -6.5: no outline, and it says how far short",
+          phi.get("covering") is False and "2.5 short of covering" in phi.get("text", ""), phi)
+
+    x_game("in", (28, 20))
+    t_poll(page)
+    ls = leg_states(page)
+    check("X7 a total's over settles the moment it clears (48 on 44.5), mid-game", ls["O3"] == "hit", ls)
+
+    x_game("post", (28, 21))
+    t_poll(page)
+    # The last game final rolls the slate to Yesterday.
+    page.evaluate("activateTab('yesterday')")
+    page.wait_for_timeout(200)
+    ls = leg_states(page)
+    check("X8 at the final, 28-21: -6.5 covers, the Giants' moneyline loses, -7 is a push (refunded)",
+          ls["O1"] == "hit" and ls["O2"] == "miss" and ls["O4"] == "na", ls)
+    fired = page.evaluate("FIRED")
+    check("X9 the alerts say COVERED! and OVER 44.5!", "COVERED!" in fired and "OVER 44.5!" in fired, fired)
+    check("X10 no MLB request for a football game line (MIN is the Twins too)",
+          not any("statsapi.mlb.com" in u for u in SEEN), [u[:90] for u in SEEN if "mlb" in u][:3])
+    check("X11 no page errors", not errors, errors)
+    browser.close()
+FX["tickets"] = TICKETS
+
 print()
 if failures:
     print(f"{len(failures)} FAILED: " + ", ".join(failures))

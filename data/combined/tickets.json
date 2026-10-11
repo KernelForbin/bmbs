@@ -1,7 +1,7 @@
 {
   "date": "2026-10-11",
   "endDate": "2026-10-11",
-  "note": "'Odunze' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Goff' is not on the NFL roster -- check the spelling, it can't be graded as typed \u00b7 'Vikings' is not on the NFL roster -- check the spelling, it can't be graded as typed",
+  "note": "",
   "sports": [
     "mlb",
     "nfl",
@@ -21,26 +21,28 @@
           "legs": [
             {
               "id": "p0-c0-l0",
-              "player": "Odunze",
-              "team": "",
+              "player": "Rome Odunze",
+              "team": "CHI",
               "who": "",
-              "meta": "",
+              "meta": "CHI",
               "odds": "+220",
               "time": "",
               "market": "td",
-              "sport": "nfl"
+              "sport": "nfl",
+              "athleteId": "4431299"
             },
             {
               "id": "p0-c0-l1",
-              "player": "Goff",
-              "team": "",
+              "player": "Jared Goff",
+              "team": "DET",
               "who": "",
-              "meta": "",
+              "meta": "DET",
               "odds": "-113",
               "time": "",
               "market": "pass_yds",
               "line": 280.5,
-              "sport": "nfl"
+              "sport": "nfl",
+              "athleteId": "3046779"
             },
             {
               "id": "p0-c0-l2",
@@ -118,7 +120,7 @@
               "meta": "MIN",
               "odds": "+186",
               "time": "",
-              "market": "spread",
+              "market": "nfl_spread",
               "line": -6.5,
               "sport": "nfl"
             },
@@ -158,14 +160,16 @@
           "legs": [
             {
               "id": "p0-c3-l0",
-              "player": "Bo Nix +250 Passing Yards",
-              "team": "",
+              "player": "Bo Nix",
+              "team": "DEN",
               "who": "",
-              "meta": "",
+              "meta": "DEN",
               "odds": "+162",
               "time": "",
-              "market": "unknown",
-              "sport": "mlb"
+              "market": "pass_yds",
+              "line": 249.5,
+              "sport": "nfl",
+              "athleteId": "4426338"
             },
             {
               "id": "p0-c3-l1",
@@ -237,12 +241,11 @@
             {
               "id": "p0-c5-l1",
               "player": "Shohei Ohtani",
-              "team": "",
+              "team": "LAD",
               "who": "",
-              "meta": "",
+              "meta": "LAD",
               "odds": "+470",
               "time": "",
-              "market": "unknown",
               "sport": "mlb"
             }
           ]

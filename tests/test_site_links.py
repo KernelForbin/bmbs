@@ -150,6 +150,28 @@ leaks = [h for h in HREF_RE.findall(combined) if h.startswith("/") and resolve(h
 check("C3 the features page's All Sports section links no hidden tracker", not leaks, leaks)
 check("C4 ...and its static back link goes to the front page",
       'id="footer-back" href="/"' in feat)
+
+# ---- D. Add to Home Screen ----
+# The front page installs like an app: a manifest and icons that must exist,
+# and NO service worker anywhere -- one would serve visitors a cached slate.
+import json  # noqa: E402
+front = (REPO / "index.html").read_text(encoding="utf-8")
+try:
+    man = json.loads((REPO / "manifest.webmanifest").read_text(encoding="utf-8"))
+except (OSError, ValueError) as e:
+    man = {}
+    check("D1 manifest.webmanifest exists and is valid JSON", False, e)
+check("D2 the front page links the manifest and an apple-touch-icon",
+      '<link rel="manifest" href="/manifest.webmanifest">' in front and 'rel="apple-touch-icon"' in front)
+icon_srcs = [i.get("src", "") for i in man.get("icons", [])] + \
+    re.findall(r'<link rel="(?:apple-touch-icon|icon)"[^>]*href="([^"]+)"', front)
+missing = [s for s in icon_srcs if not (REPO / s.lstrip("/")).is_file()]
+check("D3 every icon the manifest and the page name exists", icon_srcs and not missing, missing)
+check("D4 it opens on the front page, full screen", man.get("start_url") == "/" and man.get("display") == "standalone", man)
+sw = [str(p.relative_to(REPO)) for p in REPO.rglob("*.html")
+      if ".claude" not in p.parts and "serviceWorker" in p.read_text(encoding="utf-8", errors="replace")]
+check("D5 no page registers a service worker (it would cache the live slate)", not sw, sw)
+
 if orphans:
     print(f"NOTE (informational, not a failure): nothing in this graph links to {[str(o) for o in orphans]} "
           f"-- fine if that's an entry point (like a page reached only from Discord/bookmarks), worth a look otherwise.")

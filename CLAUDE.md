@@ -25,6 +25,7 @@ single-sport tracker is hidden** (the user's call).
 | `/features/` | `features/index.html` | "What this site can do", for the friend group. |
 | `/all/` | `all/index.html` | Redirect stub to `/` (query + hash kept). The All Sports page lived here until 2026-10-05. |
 | `/features` | `features.html` | Redirect stub to `/features/` (query + hash kept). |
+| `/manifest.webmanifest`, `/icons/` | | Add to Home Screen for the front page (§4). |
 
 Every tracker page fetches its data as `../data/<dir>/...`, which resolves the
 same from `/` and from `/<sport>/`. The page tests kept their old serving URLs
@@ -310,6 +311,11 @@ leg still needed.
   surfaces. The note is inserted with `innerHTML` (it legitimately carries
   entities) and quotes friends' card text — a known trust boundary, not a bug
   to fix.
+- **Add to Home Screen** (2026-10-26): the front page links
+  `/manifest.webmanifest` (start `/`, standalone) and `/icons/` (192, 512,
+  180 apple-touch; rendered from HTML in the site's own colours and Oswald).
+  **No service worker, ever** -- it would serve a cached slate; the page polls
+  live and must always fetch. `test_site_links.py` D1-D5.
 - The colour key sits at the bottom under "COLOR KEY", below the horizontal
   rule (owned by `.colorkey`; the footer has no border). `#legend-hit` /
   `#legend-miss` are rewritten for steal slates.
@@ -1356,6 +1362,7 @@ The page writes `name`, `sub`, `title`, `foot` and `meta` into HTML: `foot` and
    changes touch only: the tracker pages (`index.html`, `mlb/`, `football/`,
    `hockey/`, `basketball/`, `wnba/`, `cfb/`), `all/index.html` (a stub),
    `features.html` (a stub), `history/`, `football/history/`, `features/`,
+   `manifest.webmanifest`, `icons/`,
    `scripts/`, `.github/workflows/`, `discord-bot/`, `tests/`, `README.md`,
    `CLAUDE.md`, `CNAME`, `.gitignore`. `test_live_data_schema.py` is the one
    deliberate exception: it READS `data/`, never writes.

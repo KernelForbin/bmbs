@@ -285,6 +285,19 @@
   .ticket-name { font-family:'Oswald',sans-serif; font-size:14.5px; font-weight:600; color:var(--green); }
   .is-dead .ticket-name { color:var(--text-dim); }
   .ticket-sub { font-size:12px; color:var(--text-faint); font-weight:500; }
+  .ticket-head-right { display:inline-flex; align-items:center; gap:8px; }
+  .share-btn { background:none; border:1px solid var(--panel-line); color:var(--text-dim); border-radius:8px;
+               width:30px; height:26px; display:inline-flex; align-items:center; justify-content:center;
+               cursor:pointer; padding:0; flex:none; }
+  .share-btn:hover { color:var(--green); border-color:var(--green-dim); }
+  .share-btn svg { width:15px; height:15px; }
+  .single-person-row { display:flex; align-items:center; gap:8px; }
+  .single-person-row .share-btn { width:26px; height:22px; }
+  .recap { background:var(--panel); border:1px solid var(--green-dim); border-radius:14px; padding:14px 16px; margin-bottom:16px; }
+  .recap-title { font-family:'Oswald',sans-serif; font-size:12px; font-weight:600; letter-spacing:.14em; color:var(--green); margin:0 0 6px; }
+  .recap-big { font-family:'Oswald',sans-serif; font-size:24px; font-weight:700; margin:0 0 6px; }
+  .recap-line { font-size:13px; line-height:1.5; color:var(--text-dim); margin:2px 0; }
+  .recap-line b { color:var(--text); font-weight:600; }
   .leg { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--panel-line); }
   .leg:first-of-type { border-top:none; padding-top:0; }
   .leg-left { flex:1; min-width:0; }
@@ -373,6 +386,7 @@
   .ticket-status.dead { color:var(--red); }
   .ticket-status.live { color:var(--text-dim); }
   .ticket-status.void { color:var(--yellow); }
+  .ticket-status .chance { color:var(--text); font-weight:700; }
   .single-row { display:flex; align-items:center; gap:10px; padding:10px 4px; border-top:1px solid var(--panel-line); }
   .single-row:first-of-type { border-top:none; }
   .single-left { flex:1; min-width:0; }
@@ -4007,6 +4021,34 @@ function fmtMoney(n) {
   return "$" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
+// The book's implied chance of one leg landing, from its American price:
+// +150 -> 40%, -200 -> 67%. It carries the book's margin, so it reads a touch
+// low, and it is the PRE-GAME price -- it knows nothing about the score.
+function impliedProb(oddsStr) {
+  const o = oddsToNumber(oddsStr);
+  if (o === null || o === 0) return null;
+  return o > 0 ? 100 / (o + 100) : -o / (-o + 100);
+}
+// An open parlay's chance to cash: the legs still to land, multiplied
+// together (hit and refunded legs are settled). null when it can't be said
+// honestly -- the bet isn't open, or a leg still to land has no price.
+function chanceToCash(tk, states, evalRes) {
+  if (!evalRes || evalRes.outcome !== "live") return null;
+  let p = 1;
+  for (let i = 0; i < tk.legs.length; i++) {
+    if (states[i] === "hit" || states[i] === "na") continue;
+    const q = impliedProb(tk.legs[i].odds);
+    if (q === null) return null;
+    p *= q;
+  }
+  return p;
+}
+function chanceText(p) {
+  if (p === null || p === undefined) return "";
+  const pct = p * 100;
+  return pct < 1 ? "<1%" : `${Math.round(pct)}%`;
+}
+
 // outcome: 'hit' | 'dead' | 'live' | 'partial' | 'void'. Void (every leg N/A)
 // sits in the N/A column; isOpenOutcome() still treats it as gradeable.
 function evaluateTicket(tk, states) {
@@ -6798,6 +6840,173 @@ function cardsSectionHtml(which, title, countText, sub, body) {
     </div>`;
 }
 
+// ---- Share a bet as an image ----
+// A phone-sized PNG of one bet, drawn on a canvas from what the card already
+// knows -- no library, no network. Shared through the phone's own share sheet
+// (Discord, Messages...) where it can take a file, downloaded where it can't.
+const SHARE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>`;
+function shareButton(kind, i) {
+  return `<button class="share-btn" type="button" aria-label="Share this bet as an image" title="Share as image" onclick="${kind === "single" ? "shareSingle" : "shareTicket"}(${i})">${SHARE_ICON}</button>`;
+}
+// What a leg was ON, in words: "Home Run", "Passing Yds OVER 280.5", "Spread -6.5".
+function legBetText(leg) {
+  const m = legMarket(leg);
+  if (m === "hr") {
+    const plain = leg.line === undefined || leg.line === null || (Number(leg.line) === 0.5 && legSide(leg) === "over");
+    return plain ? "Home Run" : `Home Run${lineText(leg)}`;
+  }
+  return `${legMarketLabel(leg) || String(m || "").toUpperCase()}${lineText(leg)}`;
+}
+const SHARE_MARK = {
+  hit: ["\u2713", "#3ECF8E"], miss: ["\u2717", "#E5636B"], na: ["\u2013", "#E8C84A"],
+  untracked: ["?", "#5E6E67"], live: ["\u2022", "#EDF2F0"], not_started: ["\u2022", "#5E6E67"],
+};
+function shareFit(g, text, width) {
+  if (g.measureText(text).width <= width) return text;
+  let t = text;
+  while (t.length > 1 && g.measureText(t + "\u2026").width > width) t = t.slice(0, -1);
+  return t + "\u2026";
+}
+function plainText(html) {
+  const d = document.createElement("div");
+  d.innerHTML = String(html || "");
+  return d.textContent.replace(/\s+/g, " ").trim();
+}
+function shareCanvas({ title, sub, rows, foot, status, statusColor }) {
+  const W = 1080, PAD = 84, ROW = 118;
+  const top = 270, H = top + rows.length * ROW + 250;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.fillStyle = "#0B0F0E"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#131A18"; g.strokeStyle = "#223028"; g.lineWidth = 3;
+  g.beginPath();
+  if (g.roundRect) g.roundRect(36, 36, W - 72, H - 72, 36); else g.rect(36, 36, W - 72, H - 72);
+  g.fill(); g.stroke();
+  const date = TICKETS && TICKETS.date ? new Date(TICKETS.date + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "";
+  g.fillStyle = "#3ECF8E"; g.font = "600 30px Oswald, sans-serif";
+  g.fillText(`BMBS TRACKER${date ? "  \u00b7  " + date.toUpperCase() : ""}`, PAD, 124);
+  g.fillStyle = "#9AAAA3"; g.font = "500 32px Inter, sans-serif"; g.textAlign = "right";
+  g.fillText(sub || "", W - PAD, 200);
+  const subW = g.measureText(sub || "").width;
+  g.textAlign = "left"; g.fillStyle = "#EDF2F0"; g.font = "700 58px Oswald, sans-serif";
+  g.fillText(shareFit(g, title, W - 2 * PAD - subW - 30), PAD, 202);
+  g.fillStyle = "#223028"; g.fillRect(PAD, 236, W - 2 * PAD, 3);
+  rows.forEach((r, i) => {
+    const y = top + i * ROW;
+    const [mark, color] = SHARE_MARK[r.state] || SHARE_MARK.live;
+    g.fillStyle = color; g.font = "700 44px Inter, sans-serif"; g.textAlign = "center";
+    g.fillText(mark, PAD + 22, y + 56); g.textAlign = "left";
+    g.fillStyle = "#EDF2F0"; g.font = "700 38px Inter, sans-serif"; g.textAlign = "right";
+    g.fillText(r.odds || "\u2014", W - PAD, y + 50);
+    const oddsW = g.measureText(r.odds || "\u2014").width;
+    g.textAlign = "left";
+    g.fillStyle = r.state === "miss" ? "#9AAAA3" : "#EDF2F0"; g.font = "700 38px Inter, sans-serif";
+    g.fillText(shareFit(g, r.name, W - 2 * PAD - 80 - oddsW - 30), PAD + 72, y + 50);
+    g.fillStyle = "#9AAAA3"; g.font = "500 29px Inter, sans-serif";
+    g.fillText(shareFit(g, r.bet, W - 2 * PAD - 80), PAD + 72, y + 92);
+  });
+  const fy = top + rows.length * ROW + 10;
+  g.fillStyle = "#223028"; g.fillRect(PAD, fy, W - 2 * PAD, 3);
+  g.fillStyle = "#9AAAA3"; g.font = "500 31px Inter, sans-serif";
+  g.fillText(shareFit(g, foot, W - 2 * PAD), PAD, fy + 68);
+  g.fillStyle = statusColor; g.font = "700 52px Oswald, sans-serif";
+  g.fillText(shareFit(g, status, W - 2 * PAD), PAD, fy + 150);
+  return c;
+}
+function shareStatus(outcome, payout, extra) {
+  if (outcome === "hit") return [`CASHED ${fmtMoney(payout)}`, "#3ECF8E"];
+  if (outcome === "dead") return ["MISSED", "#E5636B"];
+  if (outcome === "void") return ["VOID \u2014 REFUNDED", "#E8C84A"];
+  if (outcome === "partial") return ["OPEN \u2014 NOT FULLY TRACKED", "#EDF2F0"];
+  return [`OPEN${extra ? " \u2014 " + extra : ""}`, "#EDF2F0"];
+}
+async function shareBetImage(canvas, name) {
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  if (!blob) return;
+  const file = new File([blob], name, { type: "image/png" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "BMBS Tracker" });
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return;      // closed the share sheet
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function shareTicket(i) {
+  const e = EVALUATED[i];
+  if (!e) return;
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  const { tk, states, evalRes } = e;
+  const chance = chanceText(chanceToCash(tk, states, evalRes));
+  const [status, color] = shareStatus(evalRes.outcome, evalRes.adjustedPayout,
+    `${evalRes.hitCount}/${evalRes.activeCount} HIT${chance ? " \u00b7 ~" + chance + " TO CASH" : ""}`);
+  const canvas = shareCanvas({
+    title: plainText(tk.name), sub: plainText(tk.sub),
+    rows: tk.legs.map((leg, k) => ({ state: states[k], name: legSubjectName(leg), bet: legBetText(leg), odds: leg.odds || "" })),
+    foot: `${fmtMoney(tk.stake)} bet${tk.book ? " by " + tk.book : ""} \u00b7 pays ${fmtMoney(evalRes.adjustedPayout)}`,
+    status, statusColor: color,
+  });
+  return shareBetImage(canvas, `bmbs-${plainText(tk.name).replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}.png`);
+}
+async function shareSingle(i) {
+  const e = EVALUATED_SINGLES[i];
+  if (!e) return;
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  const { s, state, outcome } = e;
+  const [status, color] = shareStatus(outcome, s.payout, "");
+  const canvas = shareCanvas({
+    title: `${s.who || ""} \u2014 straight bet`, sub: "",
+    rows: [{ state, name: legSubjectName(s), bet: legBetText(s), odds: s.odds || "" }],
+    foot: `${fmtMoney(s.stake)} bet \u00b7 pays ${fmtMoney(s.payout)}`,
+    status, statusColor: color,
+  });
+  return shareBetImage(canvas, `bmbs-straight-${String(s.who || "bet").replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}.png`);
+}
+
+// ---- Slate recap ----
+// Once every bet on the slate is settled -- normally the finished slate, on
+// its own tab -- a short summary above the cards: how many cashed, what was
+// paid out, the best hit and the closest call. From the whole slate, never
+// the filtered view.
+function slateRecapHtml() {
+  const num = v => (typeof v === "number" && isFinite(v) ? v : 0);
+  const bets = EVALUATED.map(e => ({ name: e.tk.name, outcome: e.evalRes.outcome, stake: e.tk.stake, pay: e.evalRes.adjustedPayout }))
+    .concat(EVALUATED_SINGLES.map(x => ({ name: `${escapeHtml(x.s.who || "")} straight bet`, outcome: x.outcome, stake: x.s.stake, pay: x.s.payout })));
+  if (!bets.length || bets.some(b => b.outcome === "live")) return "";
+  const cashed = bets.filter(b => b.outcome === "hit");
+  const staked = bets.reduce((t, b) => t + num(b.stake), 0);
+  const paid = cashed.reduce((t, b) => t + num(b.pay), 0);
+  const refunded = bets.filter(b => b.outcome === "void").length;
+  const lines = [];
+  lines.push(`<b>${fmtMoney(paid)}</b> paid out on ${fmtMoney(staked)} staked${refunded ? ` &middot; ${refunded} refunded` : ""}`);
+  const best = cashed.filter(b => typeof b.pay === "number").sort((a, b) => b.pay - a.pay)[0];
+  if (best) lines.push(`Best hit: <b>${best.name}</b> &mdash; ${fmtMoney(best.pay)}`);
+  // The closest call: a parlay that died on ONE leg, the more of it that hit
+  // the closer it was, the bigger payout breaking a tie.
+  const close = EVALUATED
+    .filter(e => e.evalRes.outcome === "dead" && e.evalRes.missCount === 1 && e.evalRes.hitCount > 0)
+    .sort((a, b) => (b.evalRes.hitCount / b.evalRes.activeCount) - (a.evalRes.hitCount / a.evalRes.activeCount)
+                    || num(b.tk.payout) - num(a.tk.payout))[0];
+  if (close) {
+    const leg = close.tk.legs[close.states.indexOf("miss")];
+    lines.push(`Closest call: <b>${close.tk.name}</b> &mdash; ${close.evalRes.hitCount} of ${close.evalRes.activeCount} legs hit; `
+      + `<b>${escapeHtml(legSubjectName(leg))}</b> (${escapeHtml(legBetText(leg))}) missed`
+      + (typeof close.tk.payout === "number" ? `. Would have paid ${fmtMoney(close.tk.payout)}.` : "."));
+  }
+  const untracked = bets.filter(b => b.outcome === "partial").length;
+  if (untracked) lines.push(`${untracked} not fully tracked`);
+  return `<div class="recap" id="slate-recap"><p class="recap-title">SLATE RECAP</p>
+    <p class="recap-big">${cashed.length} of ${bets.length} bet${bets.length === 1 ? "" : "s"} cashed</p>
+    ${lines.map(l => `<p class="recap-line">${l}</p>`).join("")}</div>`;
+}
+
 // Renders #content (ticket windows + singles) from EVALUATED / EVALUATED_SINGLES,
 // respecting BET_FILTERS (bet outcome), LEG_FILTERS (leg state) and
 // BETTOR_FILTERS (person). Cheap enough to call on every filter click without re-polling.
@@ -6826,7 +7035,7 @@ function renderContent() {
     html += `<div class="window"><p class="window-title"><span class="dot"></span>${win.title}</p>`;
     rendered.forEach(({ tk, states, evalRes, visibleLegIdx, betIsOpen }) => {
       const isDead = evalRes.outcome === "dead";
-      html += `<div class="ticket${isDead ? " is-dead" : ""}"><div class="ticket-head"><span class="ticket-name">${tk.name}</span><span class="ticket-sub">${tk.sub}</span></div>`;
+      html += `<div class="ticket${isDead ? " is-dead" : ""}"><div class="ticket-head"><span class="ticket-name">${tk.name}</span><span class="ticket-head-right"><span class="ticket-sub">${tk.sub}</span>${shareButton("ticket", EVALUATED.findIndex(x => x.tk === tk))}</span></div>`;
       if (isDead) html += `<div class="dead-banner">&#9940; Parlay can no longer hit &mdash; one leg missed</div>`;
 
       visibleLegIdx.forEach((i) => {
@@ -6846,7 +7055,11 @@ function renderContent() {
       if (evalRes.outcome === "void") { statusText = "VOID \u2014 nobody on it played, refunded"; statusCls = "void"; }
       else if (evalRes.outcome === "dead") { statusText = "DEAD"; statusCls = "dead"; }
       else if (evalRes.outcome === "hit") { statusText = "HIT \u2014 CASH"; statusCls = "win"; }
-      else { statusText = `OPEN \u2014 ${evalRes.hitCount}/${evalRes.activeCount} hit so far`; }
+      else {
+        statusText = `OPEN \u2014 ${evalRes.hitCount}/${evalRes.activeCount} hit so far`;
+        const chance = chanceText(chanceToCash(tk, states, evalRes));
+        if (chance) statusText += ` &middot; <span class="chance" title="From the posted odds of the legs still to land -- it doesn't know the score">~${chance} to cash</span>`;
+      }
 
       let footExtra = "";
       if (evalRes.naCount > 0 && evalRes.activeCount > 0 && evalRes.outcome !== "dead") {
@@ -6874,7 +7087,7 @@ function renderContent() {
   }
   filteredSingles.forEach(({ s, state, outcome, iron }) => {
     singlesHtml += `<div class="single-row state-${state}">
-      <div class="single-left"><div class="single-person">${escapeHtml(s.who)}</div><div class="single-player">${escapeHtml(legSubjectName(s))}${sportTagFor(legSubjectName(s), legSportKey(s))}${marketTag(legMarket(s), s)}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team, s)}
+      <div class="single-left"><div class="single-person-row"><div class="single-person">${escapeHtml(s.who)}</div>${shareButton("single", EVALUATED_SINGLES.findIndex(x => x.s === s))}</div><div class="single-player">${escapeHtml(legSubjectName(s))}${sportTagFor(legSubjectName(s), legSportKey(s))}${marketTag(legMarket(s), s)}${iron ? ironMark() : ""}</div><div class="single-meta">${s.meta}</div>${liveContextHtml(s.player, state, outcome === "live", legMarket(s), s.team, s)}
         ${state === "na" ? `<div class="single-void-tag">Didn't play &mdash; treat as void / refunded</div>` : ``}
       </div>
       <div class="single-right"><div class="leg-odds">${oddsText(s.odds)}</div><div class="leg-time">${s.pp}</div></div>
@@ -6885,7 +7098,7 @@ function renderContent() {
 
   const parlayCount = cardsCountPill(EVALUATED.map(e => e.evalRes.outcome));
   const singleCount = cardsCountPill(EVALUATED_SINGLES.map(e => e.outcome));
-  root.innerHTML =
+  root.innerHTML = slateRecapHtml() +
     cardsSectionHtml("parlays", "Parlay Cards", parlayCount,
       CARDS_OPEN.parlays ? "Every multi-leg card on this slate." : "Tap to expand &mdash; every multi-leg card on this slate.",
       html) +

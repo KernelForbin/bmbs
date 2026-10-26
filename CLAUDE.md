@@ -316,6 +316,21 @@ leg still needed.
   180 apple-touch; rendered from HTML in the site's own colours and Oswald).
   **No service worker, ever** -- it would serve a cached slate; the page polls
   live and must always fetch. `test_site_links.py` D1-D5.
+- **Chance to cash, share, recap** (front page only, 2026-10-26; the user
+  declined a "what it still needs" line).
+  - `chanceToCash()`: an open (`live`) parlay's remaining legs' implied
+    probabilities (`impliedProb()`) multiplied, shown in its status as "~25% to
+    cash". PRE-GAME prices with the book's margin -- it doesn't know the score,
+    and the tooltip and features page say so. A remaining leg with no price =
+    nothing claimed.
+  - Share: a button on every parlay and straight bet draws the bet on a canvas
+    (`shareCanvas()`, 1080 wide, no library) and hands a PNG to
+    `navigator.share` (files), or downloads it where that's unavailable.
+  - `slateRecapHtml()`: once no bet is `live`, a SLATE RECAP above the cards
+    (cashed count, paid out vs staked, refunds, best hit, closest call = a
+    parlay that died on exactly ONE leg with at least one in). Whole slate,
+    never the filtered view.
+  - `test_combined_page.py` Y (mutation-tested).
 - The colour key sits at the bottom under "COLOR KEY", below the horizontal
   rule (owned by `.colorkey`; the footer has no border). `#legend-hit` /
   `#legend-miss` are rewritten for steal slates.
@@ -1417,7 +1432,8 @@ section passes its mutations suspiciously badly, check where it sits.
   links, h1, eyebrow, hidden panels still running), H both sports' tiles, I/J/K
   alerts, Q/R/T football props and quarter bets, S every-leg alerts, U leadoff
   and foreign markets, V touchdown/drive-result tiles, W one subject in two
-  sports, X NFL game lines.
+  sports, X NFL game lines, Y chance to cash / share / slate recap
+  (`SAVE_SHARE=out.png` writes the shared image so you can look at it).
 - `test_combined_parser.py` — `parse_combined_picks.py` offline: sport
   decision and its order, collisions, glued markets, span (I4/I5), archive,
   L/M priceless legs and the first real card, N quarters, O bare counts,

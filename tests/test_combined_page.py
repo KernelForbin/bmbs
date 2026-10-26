@@ -13,6 +13,7 @@ a missed host fails loudly instead of silently reaching the internet).
     python tests/test_combined_page.py
 """
 import json
+import os
 import re
 from pathlib import Path
 
@@ -1734,6 +1735,103 @@ with sync_playwright() as p:
     check("X10 no MLB request for a football game line (MIN is the Twins too)",
           not any("statsapi.mlb.com" in u for u in SEEN), [u[:90] for u in SEEN if "mlb" in u][:3])
     check("X11 no page errors", not errors, errors)
+    browser.close()
+FX["tickets"] = TICKETS
+
+
+# ---------------- Y. chance to cash, share as image, slate recap ----------------
+def y_leg(i, market, line, odds, team="PHI"):
+    leg = nfl_leg_m(i, {"PHI": "Eagles", "NYG": "Giants"}[team], team, market, line,
+                    teams=["PHI", "NYG"] if market == "nfl_total" else None)
+    leg["odds"] = odds
+    return leg
+
+
+_y = {"date": DAY, "endDate": DAY, "note": "", "sports": ["nfl"],
+      "windows": [{"title": "Parlay Cards", "tickets": [
+          # +308 and -200: 24.5% x 66.7% = 16% before anything lands.
+          card(110, [y_leg(1, "nfl_spread", -6.5, "+308"), y_leg(2, "nfl_total", 44.5, "-200")]),
+          # A leg with no price: no chance is claimed at all.
+          card(111, [y_leg(3, "nfl_spread", -6.5, "+308"), y_leg(4, "nfl_ml", None, None, "NYG")]),
+          # Dies on its one missed leg with the other in -- the closest call.
+          card(112, [y_leg(5, "nfl_spread", -6.5, "+308"), y_leg(6, "nfl_ml", None, "+150", "NYG")], payout=300.0),
+          # Half of it hit too, and it pays more -- but it missed TWO legs, so
+          # it was never the closest call.
+          card(113, [y_leg(8, "nfl_spread", -6.5, "+308"), y_leg(9, "nfl_total", 44.5, "-110"),
+                     y_leg(10, "nfl_ml", None, "+150", "NYG"), y_leg(11, "nfl_ml", None, "+140", "NYG")], payout=999.0),
+      ]}],
+      "singles": [dict(y_leg(7, "nfl_ml", None, "+150"), id="YS1", who="KENNY", stake=5.0, payout=12.5, pp="PP $12.50")]}
+FX["tickets"] = _y
+
+
+def y_status(page):
+    return page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('.ticket')].map(t => {
+        const n = t.querySelector('.ticket-name'); const s = t.querySelector('.ticket-status');
+        return n && s ? [n.textContent.trim(), s.textContent.replace(/\\s+/g, ' ').trim()] : null; }).filter(Boolean))""")
+
+
+x_game("in", (14, 3))
+with sync_playwright() as p:
+    browser, page, errors = open_page(p)
+    page.evaluate("CARDS_OPEN.parlays = true; CARDS_OPEN.singles = true; renderContent()")
+    st = y_status(page)
+    check("Y1 an open parlay says its chance to cash, from the posted odds: +308 and -200 is ~16%",
+          "~16% to cash" in st.get("Card 110", ""), st)
+    check("Y2 a leg still to land with no price: no chance claimed", "to cash" not in st.get("Card 111", "x to cash"), st)
+    check("Y3 no recap while the slate is still on", page.locator("#slate-recap").count() == 0)
+
+    x_game("in", (28, 20))
+    t_poll(page)
+    st = y_status(page)
+    check("Y4 a leg in drops out of the chance: the total cleared, the spread alone is ~25%",
+          "1/2 hit so far" in st.get("Card 110", "") and "~25% to cash" in st.get("Card 110", ""), st)
+
+    # Share: the button is on every parlay and every straight bet, and makes a PNG.
+    check("Y5 a share button on every parlay and every straight bet",
+          page.locator(".ticket-head .share-btn").count() == 4 and page.locator(".single-row .share-btn").count() == 1)
+    page.evaluate("""() => { window.SHARED = null;
+        navigator.canShare = () => true;
+        navigator.share = async d => { window.SHARED = d.files[0]; }; }""")
+    page.locator(".ticket-head .share-btn").first.click()
+    page.wait_for_function("window.SHARED !== null", timeout=5000)
+    shared = page.evaluate("""async () => { const f = window.SHARED; const b = await f.arrayBuffer();
+        const img = await createImageBitmap(f);
+        return { name: f.name, type: f.type, size: b.byteLength, w: img.width, h: img.height,
+                 url: await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); }) }; }""")
+    if os.environ.get("SAVE_SHARE"):       # to look at it: SAVE_SHARE=out.png python tests/test_combined_page.py
+        import base64
+        with open(os.environ["SAVE_SHARE"], "wb") as fh:
+            fh.write(base64.b64decode(shared["url"].split(",", 1)[1]))
+    check("Y6 sharing makes a phone-sized PNG of the card, named for it",
+          shared["type"] == "image/png" and shared["name"] == "bmbs-card-110.png" and shared["w"] == 1080
+          and shared["h"] > 600 and shared["size"] > 5000, {k: v for k, v in shared.items() if k != "url"})
+    page.evaluate("window.SHARED = null")
+    page.locator(".single-row .share-btn").first.click()
+    page.wait_for_function("window.SHARED !== null", timeout=5000)
+    check("Y7 ...and a straight bet too", page.evaluate("window.SHARED.name") == "bmbs-straight-kenny.png")
+    # No share sheet (a desktop browser): it downloads instead.
+    page.evaluate("navigator.canShare = () => false")
+    with page.expect_download(timeout=5000) as dl:
+        page.locator(".ticket-head .share-btn").first.click()
+    check("Y8 with no share sheet it downloads the image", dl.value.suggested_filename == "bmbs-card-110.png")
+
+    x_game("post", (28, 21))
+    t_poll(page)
+    page.evaluate("activateTab('yesterday')")
+    page.wait_for_timeout(200)
+    recap = page.locator("#slate-recap")
+    text = recap.inner_text() if recap.count() else ""
+    check("Y9 once it's over, a recap: 2 of 5 cashed, $112.50 paid out on $25.00 staked",
+          "2 of 5 bets cashed" in text and "$112.50 paid out on $25.00 staked" in text, text)
+    check("Y10 ...the best hit, and the closest call: the parlay one leg short, with the leg that missed",
+          "Best hit: Card 110" in text and "$100.00" in text
+          and "Closest call: Card 112" in text and "1 of 2 legs hit" in text and "Giants" not in text
+          and "NYG (Moneyline) missed" in text and "Would have paid $300.00" in text, text)
+    page.evaluate("BET_FILTERS.add('dead'); applyFilters()")
+    page.wait_for_timeout(100)
+    check("Y11 a filter doesn't change the recap -- it's the whole slate",
+          "2 of 5 bets cashed" in (page.locator("#slate-recap").inner_text() if page.locator("#slate-recap").count() else ""))
+    check("Y12 no page errors", not errors, errors)
     browser.close()
 FX["tickets"] = TICKETS
 
